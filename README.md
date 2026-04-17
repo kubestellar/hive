@@ -117,6 +117,35 @@ To remove everything:
 sudo ./uninstall.sh
 ```
 
+### Running multiple agents on the same host
+
+For multi-agent setups (e.g. `scanner` + `reviewer` + `ideator`), use **named instances** instead of the single-instance install:
+
+```sh
+# 1. one env file per instance
+sudo cp config/agent.env.example /etc/supervised-agent/scanner.env
+sudo $EDITOR /etc/supervised-agent/scanner.env          # set AGENT_USER, AGENT_SESSION_NAME=scanner, etc.
+
+sudo cp config/agent.env.example /etc/supervised-agent/reviewer.env
+sudo $EDITOR /etc/supervised-agent/reviewer.env         # AGENT_SESSION_NAME=reviewer, different AGENT_LOOP_PROMPT / AGENT_LOG_FILE
+
+# 2. install each instance
+sudo ./install.sh --instance scanner
+sudo ./install.sh --instance reviewer
+
+# 3. attach by name
+sudo -u dev tmux attach -t scanner
+sudo -u dev tmux attach -t reviewer
+```
+
+Each instance is a fully independent supervisor + renew + healthcheck triplet, using its own env file, its own tmux session, and its own heartbeat log. Removal is also per-instance:
+
+```sh
+sudo ./uninstall.sh --instance reviewer
+```
+
+When agents share a work ledger (e.g. all using a `beads` database per the optional pattern in `examples/scanner-policy.md`), give each instance a distinct `--actor` so the ledger can tell them apart.
+
 ### Attaching to the session
 
 ```sh
@@ -186,6 +215,8 @@ All configuration lives in `/etc/supervised-agent/agent.env`. Systemd loads it v
 | `AGENT_POLL_SEC` | no | `10` | Supervisor's health-check interval |
 | `AGENT_AUTO_APPROVE_PHRASE` | no | `Yes, and always allow access to` | If present in the pane, supervisor auto-sends `Down Enter` (handy for Claude Code's "sensitive file" prompt). Set blank to disable. |
 | `AGENT_AUTO_DISMISS_PHRASES` | no | (blank) | Newline-separated list of phrases to dismiss with `Escape` when seen. Useful for Claude Code's periodic "How is Claude doing this session?" feedback poll. |
+| `AGENT_NOTIFY_ON_PHRASE_REGEX` | no | (blank) | Extended regex; if matched in the pane, supervisor pushes a high-priority ntfy alert (and a follow-up when the phrase disappears). Does NOT take any active recovery action — designed for operators who want to know about a condition but prefer to handle it themselves (e.g. Claude Max usage limits when managing logins manually). |
+| `AGENT_NOTIFY_ON_PHRASE_TITLE` / `_BODY` | no | (see example.env) | Customize the title and body of the alert. |
 | `AGENT_LOG_FILE` | yes | — | Path the agent appends its heartbeat to; healthcheck watches mtime |
 | `AGENT_STALE_MAX_SEC` | no | `1800` | Seconds of log silence before healthcheck considers the agent stalled |
 | `AGENT_MAX_RESPAWNS` | no | `3` | Consecutive failed respawns before healthcheck stops auto-respawning and sends an escalation ntfy |

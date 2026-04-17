@@ -22,6 +22,15 @@ AUTO_APPROVE_PHRASE="${AGENT_AUTO_APPROVE_PHRASE:-}"
 # session?" feedback poll, which otherwise sits in the input area and blocks
 # the next /loop firing).
 AUTO_DISMISS_PHRASES="${AGENT_AUTO_DISMISS_PHRASES:-}"
+# Extended-regex pattern that, when matched in the pane, triggers a high-
+# priority ntfy push ("Agent stopped — needs manual attention"). Does NOT
+# take any active recovery action — some operators explicitly don't want the
+# supervisor to manage credentials or auth state. Leave blank to disable.
+NOTIFY_ON_PHRASE_REGEX="${AGENT_NOTIFY_ON_PHRASE_REGEX:-}"
+# Title and body for the notify-on-phrase push. Use $HOSTNAME and $SESSION
+# freely; the text is expanded before curl is called.
+NOTIFY_ON_PHRASE_TITLE="${AGENT_NOTIFY_ON_PHRASE_TITLE:-Agent needs attention}"
+NOTIFY_ON_PHRASE_BODY="${AGENT_NOTIFY_ON_PHRASE_BODY:-Matched notify phrase in session $SESSION on $(hostname). Check the pane and take whatever action you prefer; the supervisor will not act on its own.}"
 
 log() { printf '[%s] %s\n' "$(date -Is)" "$*"; }
 
@@ -64,6 +73,43 @@ approve_prompt_if_present() {
     log "auto-approving pending prompt (Down, Enter)"
     tmux send-keys -t "$SESSION" Down Enter
     sleep 3
+  fi
+}
+
+# Set to non-empty once the notify phrase has been seen in the current event;
+# cleared when the phrase disappears, so we only push one "stopped" and one
+# "recovered" per event instead of spamming every 10s.
+NOTIFY_PHRASE_ALERTED=""
+
+notify_if_phrase_present() {
+  # No-op if nothing to match or ntfy is disabled.
+  [ -z "$NOTIFY_ON_PHRASE_REGEX" ] && return 0
+  local topic="${NTFY_TOPIC:-}"
+  [ -z "$topic" ] && return 0
+  local pane
+  pane=$(tmux capture-pane -t "$SESSION" -p 2>/dev/null) || return 0
+  if echo "$pane" | grep -qiE "$NOTIFY_ON_PHRASE_REGEX"; then
+    if [ -z "$NOTIFY_PHRASE_ALERTED" ]; then
+      log "notify-phrase matched in pane; pushing ntfy alert"
+      curl -sS -m 10 \
+        -H "Priority: high" \
+        -H "Title: $NOTIFY_ON_PHRASE_TITLE" \
+        -H "Tags: warning,key" \
+        -d "$NOTIFY_ON_PHRASE_BODY" \
+        "https://ntfy.sh/$topic" >/dev/null || true
+      NOTIFY_PHRASE_ALERTED="yes"
+    fi
+  else
+    if [ -n "$NOTIFY_PHRASE_ALERTED" ]; then
+      log "notify-phrase cleared; pushing recovery ntfy"
+      curl -sS -m 10 \
+        -H "Priority: default" \
+        -H "Title: $NOTIFY_ON_PHRASE_TITLE — cleared" \
+        -H "Tags: white_check_mark" \
+        -d "The matched phrase is no longer visible in the pane." \
+        "https://ntfy.sh/$topic" >/dev/null || true
+      NOTIFY_PHRASE_ALERTED=""
+    fi
   fi
 }
 
@@ -114,6 +160,7 @@ while true; do
   else
     approve_prompt_if_present
     dismiss_prompts_if_present
+    notify_if_phrase_present
   fi
   sleep "$POLL_SEC"
 done

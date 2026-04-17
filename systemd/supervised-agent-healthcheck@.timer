@@ -1,0 +1,10 @@
+[Unit]
+Description=Run healthcheck for supervised-agent instance %i every 20 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=20min
+Unit=supervised-agent-healthcheck@%i.service
+
+[Install]
+WantedBy=timers.target

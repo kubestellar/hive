@@ -1,12 +1,52 @@
 #!/bin/bash
 # install.sh — install supervised-agent scripts + systemd units.
-# Run as root:  sudo ./install.sh
+# Run as root. Two modes:
+#
+#   sudo ./install.sh                       # single-instance (back-compat)
+#   sudo ./install.sh --instance <name>     # named instance for multi-agent
+#
+# Single-instance uses /etc/supervised-agent/agent.env and the non-templated
+# units (supervised-agent.service etc.). Named instance uses the templated
+# units (supervised-agent@<name>.service) and /etc/supervised-agent/<name>.env.
+# You can mix both on the same host — each call installs what it needs.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
-ENV_FILE="/etc/supervised-agent/agent.env"
 BIN_DIR="/usr/local/bin"
 SYSTEMD_DIR="/etc/systemd/system"
+
+INSTANCE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --instance)
+      INSTANCE="$2"
+      shift 2
+      ;;
+    --instance=*)
+      INSTANCE="${1#--instance=}"
+      shift
+      ;;
+    *)
+      echo "unknown flag: $1" >&2
+      echo "usage: $0 [--instance <name>]" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ -n "$INSTANCE" ]; then
+  ENV_FILE="/etc/supervised-agent/${INSTANCE}.env"
+  UNIT_SUPERVISOR="supervised-agent@${INSTANCE}.service"
+  UNIT_RENEW_TIMER="supervised-agent-renew@${INSTANCE}.timer"
+  UNIT_HEALTH_TIMER="supervised-agent-healthcheck@${INSTANCE}.timer"
+  TEMPLATED=1
+else
+  ENV_FILE="/etc/supervised-agent/agent.env"
+  UNIT_SUPERVISOR="supervised-agent.service"
+  UNIT_RENEW_TIMER="supervised-agent-renew.timer"
+  UNIT_HEALTH_TIMER="supervised-agent-healthcheck.timer"
+  TEMPLATED=0
+fi
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "install.sh must run as root (use sudo)" >&2
@@ -22,7 +62,6 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-# Load env so we can validate + substitute AGENT_USER.
 # shellcheck disable=SC1090
 set -a; . "$ENV_FILE"; set +a
 
@@ -43,13 +82,26 @@ install -m 0755 "$REPO_DIR/bin/agent-launch.sh"       "$BIN_DIR/agent-launch.sh"
 install -m 0755 "$REPO_DIR/bin/agent-supervisor.sh"   "$BIN_DIR/agent-supervisor.sh"
 install -m 0755 "$REPO_DIR/bin/agent-healthcheck.sh"  "$BIN_DIR/agent-healthcheck.sh"
 
-echo "==> installing systemd units to $SYSTEMD_DIR (substituting User=$AGENT_USER)"
-for unit in \
-  supervised-agent.service \
-  supervised-agent-renew.service \
-  supervised-agent-renew.timer \
-  supervised-agent-healthcheck.service \
-  supervised-agent-healthcheck.timer; do
+if [ "$TEMPLATED" = 1 ]; then
+  UNITS=(
+    "supervised-agent@.service"
+    "supervised-agent-renew@.service"
+    "supervised-agent-renew@.timer"
+    "supervised-agent-healthcheck@.service"
+    "supervised-agent-healthcheck@.timer"
+  )
+else
+  UNITS=(
+    "supervised-agent.service"
+    "supervised-agent-renew.service"
+    "supervised-agent-renew.timer"
+    "supervised-agent-healthcheck.service"
+    "supervised-agent-healthcheck.timer"
+  )
+fi
+
+echo "==> installing systemd units to $SYSTEMD_DIR (User=$AGENT_USER)"
+for unit in "${UNITS[@]}"; do
   sed "s/__AGENT_USER__/$AGENT_USER/g" "$REPO_DIR/systemd/$unit" \
     > "$SYSTEMD_DIR/$unit"
   chmod 0644 "$SYSTEMD_DIR/$unit"
@@ -63,15 +115,15 @@ echo "==> systemctl daemon-reload"
 systemctl daemon-reload
 
 echo "==> enabling + starting units"
-systemctl enable --now supervised-agent.service
-systemctl enable --now supervised-agent-renew.timer
-systemctl enable --now supervised-agent-healthcheck.timer
+systemctl enable --now "$UNIT_SUPERVISOR"
+systemctl enable --now "$UNIT_RENEW_TIMER"
+systemctl enable --now "$UNIT_HEALTH_TIMER"
 
 echo
 echo "Installed."
-echo "  systemctl status supervised-agent.service"
-echo "  systemctl list-timers supervised-agent-renew.timer supervised-agent-healthcheck.timer"
-echo "  journalctl -u supervised-agent.service -f"
+echo "  systemctl status $UNIT_SUPERVISOR"
+echo "  systemctl list-timers $UNIT_RENEW_TIMER $UNIT_HEALTH_TIMER"
+echo "  journalctl -u $UNIT_SUPERVISOR -f"
 echo
 echo "Attach to the agent session:"
 echo "  sudo -u $AGENT_USER tmux attach -t ${AGENT_SESSION_NAME:-supervised-agent}"

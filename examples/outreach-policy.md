@@ -2,7 +2,23 @@
 
 Fourth policy example (see scanner / reviewer / feature). This one is for an agent doing **community + adoption + communication work**: campaigns targeting peer projects, draft ADOPTERS entries, blog/newsletter/changelog drafts, documentation-debt tracking, and stuck-community-PR handoffs.
 
-The defining characteristic: **almost all output is draft-only — the operator approves before anything is publicly posted**. The one exception is internal tracking beads and memory updates (operator-facing only). Never autonomous on outbound communication.
+The defining characteristic: **outreach is a strategist who executes**, not a copywriter that drafts. Operator approval happens at the **campaign / strategy level**, not per-message. Once a campaign is approved, outreach runs it autonomously within pacing rules and only escalates exceptions.
+
+The skill the policy is asking for: **knowing when to nudge, when to wait, and when to back off entirely**. Getting it wrong (too-aggressive, too-frequent, tone-deaf) permanently burns relationships. Getting it right compounds into adoption.
+
+### Autonomy model — what needs approval vs. what doesn't
+
+| Action | Approval required? |
+|---|---|
+| Propose a new campaign strategy | Yes — operator approves the whole plan once |
+| First outreach issue on a new target (stage 0 → 1) | Yes — first time only, per target |
+| Follow-up in same thread (stage 1→2→3 within a campaign) | No — autonomous within pacing rules |
+| Ask to add install doc to THEIR repo (stage 4 → 5) | Yes — crosses into their repo |
+| ADOPTERS PR on our repo (stage 5 → 6) | **Yes, always per-PR** |
+| Dormant-adopter check-in | Yes — first time per adopter per quarter |
+| Blog / newsletter / social posts | Yes — always |
+
+**Rule of thumb**: if the action touches someone else's public surface (their repo, their socials, their docs) or OUR public-facing files (ADOPTERS, blog), it needs approval. Maintenance within an established thread is autonomous.
 
 Copy into your outreach instance's memory dir, adjust names + project specifics.
 
@@ -59,6 +75,80 @@ These are the kind of rules that cause damage if violated, so bake them into you
 - **Closing or merging any PR** → operator for ADOPTERS, scanner for everything else.
 - **Posting publicly** — social, blog, Slack, any outbound channel — without operator approval.
 - **Commenting on external-contributor PRs directly** — scanner or operator does that.
+
+---
+
+## The relationship-ladder nurture pipeline (core mechanism)
+
+Durable state in a separate file (e.g., `outreach-pipeline.md`) — one row per target project, stage tracker, pacing record. Outreach reads it each iteration and advances targets that meet the `Signal to advance` condition, subject to pacing rules.
+
+### The 6-stage ladder
+
+1. **Awareness** — outreach issue open on their repo
+2. **Engagement** — ≥1 analytics event from their utm_term
+3. **Active** — meaningful interaction (≥3 events or ≥7d engaged)
+4. **Feedback** — response received from our feedback ask (or 14d grace)
+5. **Deeper integration** — install doc / guide accepted in their docs or repo
+6. **Adopter** — ADOPTERS entry on your repo merged
+- **X. Cold** — no response after 2 follow-ups, OR negative feedback. Never auto-re-engage.
+
+### Pacing rules (HARD — never violate)
+
+- **No more than 1 follow-up per target per 14 days.** Even if data screams engagement. Respect their inbox.
+- **Never skip a stage.** A target at 2 doesn't jump to 5.
+- **After 2 unresponded follow-ups OR any negative signal → move to stage X.** Never auto-re-engage.
+
+### When to nudge (signal model)
+
+| Current stage | When to propose next action |
+|---|---|
+| 1 | 14+ days since issue opened, <1 event → polite bump in the same thread |
+| 2 | ≥3 events OR ≥7d engaged → feedback ask in same thread |
+| 3 | Feedback response OR 14d grace → advance to 4 |
+| 4 | Positive response → propose stage 5 (install doc ask) to operator |
+| 5 | Install doc accepted → propose ADOPTERS entry to operator |
+
+### When to back off (signal model)
+
+- Silence 30+ days after last follow-up → stage X, stop.
+- Negative / dismissive response → stage X, stop.
+- Target repo archived / abandoned → stage X.
+- Target in hot internal debate (many contentious open issues, fork threats) → pause; bead for operator judgment.
+- ANY "please stop" anywhere → stage X, stop, flag for operator review of our overall tone.
+
+### Campaigns — outreach proposes strategies, operator approves, outreach executes
+
+File a bead `--actor outreach --external-ref campaign-<slug>` with a full plan in `--notes`:
+
+```
+## Campaign: <name>
+
+### Rationale
+<why this campaign, what signal motivates it>
+
+### Targets (N repos)
+<list: org/repo — star count — why — initial stage>
+
+### Message template
+<full body with UTM params, CTA, ask>
+
+### UTM plan
+utm_source / utm_medium / utm_campaign / utm_term
+
+### Cadence
+<how fast to roll out — e.g., 5 issues/week, not all at once>
+
+### Success metrics
+<what defines success — e.g., ≥20% stage-2 advancement within 14d>
+
+### Blast radius
+<which targets could react negatively, de-risk>
+
+### Operator decision
+[ ] approve [ ] approve with modifications [ ] defer
+```
+
+Operator approves; outreach rolls out per the cadence + pacing rules. No per-message approval needed within an approved campaign.
 
 ---
 

@@ -75,6 +75,50 @@ Edit this list to match your project:
 - `your-org/repo-b`
 - `your-org/repo-c`
 
+---
+
+## Open-issue queue targets (healthy steady state)
+
+Pick target counts per repo. Scanner reports against them every iteration as `Queue: <repo>=N (target N)` in its log block, and flags when a repo exceeds its target by >2.
+
+| Repo | Target | Why |
+|---|---:|---|
+| your-primary-repo | ~10 | room for active work + tracker issues |
+| your-secondary-repos | 0 | no intentionally-open items |
+| your-exempt-repos (community-card or outreach repos) | exempt | intentional long-lived stubs |
+
+**Don't force-close to hit the number.** Close reasons must be legitimate (fixed / duplicated / invalid / stale-no-reporter-response). The target is a health signal, not a quota.
+
+---
+
+## The "no PR = work on it" rule (the main queue-reduction lever)
+
+If a GitHub issue is open AND has no linked PR (in flight or merged), **scanner owns driving it forward** — regardless of `help wanted` / `kind/feature` / `enhancement` labels. Those labels describe the *kind* of work; they are not a hall-pass for scanner to defer.
+
+Sequence for every unPR'd issue:
+
+1. **Does it need architecture first?** Cross-cutting pattern, fundamental decision (algorithm / storage / protocol), touches >3 files or any public API → file `--actor feature --set-metadata lane_transfer=scanner-to-feature` and continue. Feature will RFC, scanner implements the phase beads later.
+2. **Is an external contributor engaged?** Check for: assignee set, recent non-maintainer comment in last 14d, a fork visible, or a draft/WIP PR referencing the issue. If yes → leave it, record `contributor_engaged=<login>`, nudge in 14 days if it's gone quiet.
+3. **Is it an intentional tracker?** Keep an exempt list (mentorship trackers, CI-aggregator issues, umbrella trackers). Skip those.
+4. **Otherwise → claim it.** Bundle small related issues into one PR when possible. Large single issues → one fix agent, one PR.
+
+The rule applies equally to bugs, features, enhancements, docs. The only defer signals are the three exemptions. Silent queue backlog is a scanner bug, not a feature.
+
+---
+
+## Lane boundary (only matters with multi-agent setups)
+
+If you're running scanner alongside reviewer / feature / outreach agents, make the ownership split explicit in each policy. Example split used on kubestellar/console:
+
+| Lane | Owner |
+|---|---|
+| Inbound GitHub triage (issues, PRs, Copilot reviews) | scanner |
+| Post-merge state + CI health + regressions | reviewer |
+| Architecture RFCs + feature proposals + portfolio | feature |
+| CNCF / community / adopters / docs-debt | outreach |
+
+When scanner finds something in another lane (e.g., a broken CI workflow on main), file on that owner's behalf with `--actor <peer> --set-metadata lane_transfer=scanner-to-<peer>` — don't handle it yourself. See [`reviewer-policy.md`](reviewer-policy.md) for the mirror rule.
+
 ## Do NOT
 
 - Filter out enhancements or any non-bug issue kind.

@@ -134,6 +134,34 @@ Full adoption digest (audience / engagement / content / sources / conversions / 
 
 One concrete hypothesis per iteration, based on the metrics digest + current codebase. File as `--type feature --priority 3 --actor reviewer --external-ref ux-<date>-<slug>`. Do not implement — that's scanner's lane.
 
+### F. Peer supervision — watching the watcher (crucial pattern for multi-agent)
+
+Once scanner is running on its own cadence (e.g., 15 min), you want to catch "scanner is running but silently not triaging." Reviewer audits scanner's responsiveness each iteration.
+
+Three checks:
+
+**F.1 Scanner beads stuck open**:
+
+```sh
+(cd ~/agent-ledger && bd list --actor=scanner --status=open --json) \
+  | jq --arg now "$(date -u +%s)" \
+      '[.[] | select(((.created_at | fromdateiso8601) + 900) < ($now | tonumber))]'
+```
+
+Thresholds (tune to your scanner cadence — these assume 15m scanner):
+
+- ≥1 stuck >15m: log-only.
+- ≥3 stuck >15m OR any single >45m: ntfy high + meta bead P1.
+- Any >2h: ntfy urgent + meta bead P0.
+
+**Never claim a stuck scanner bead.** File the meta bead flagging the problem; don't do scanner's work.
+
+**F.2 Untracked inbound** — cross-reference recent GitHub issues against the ledger by `external_ref`. Any issue open >15m that isn't tracked in beads → scanner missed it → file on scanner's behalf with `--actor scanner --set-metadata lane_transfer=reviewer-to-scanner`.
+
+**F.3 Scanner heartbeat freshness** — if scanner's heartbeat log mtime is >2× its cadence old, flag as technical stall. (The systemd healthcheck already catches this, but belt-and-suspenders.)
+
+**Pattern generalizes**: any agent can audit a peer's queue via `bd list --actor=<peer> --status=<x>`. Reviewer watches scanner; scanner could watch reviewer for missed regression filings; etc. Don't overdo it — one supervision pairing usually suffices.
+
 ---
 
 ## Log format

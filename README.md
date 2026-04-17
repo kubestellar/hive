@@ -199,7 +199,13 @@ The supervisor just *sends* `AGENT_LOOP_PROMPT` into the tmux pane after the age
 
 Typical pattern: keep the prompt **short** and point the agent at a policy file you edit separately. That way you can change the agent's behavior by editing one markdown file instead of re-registering the cron.
 
-See [`examples/scanner-policy.md`](examples/scanner-policy.md) for a GitHub issue-scanner policy used against KubeStellar repos (the original use case).
+### The one policy rule you can't skip
+
+Make the **very first thing in your policy** a directive to re-read the policy file from disk at the start of every iteration. Without this, the agent loads your policy once at session start and then ignores edits until the next respawn — you'll think you changed the rules, but the live agent keeps doing the old thing until the renew timer fires 6 days later.
+
+The example policy in [`examples/scanner-policy.md`](examples/scanner-policy.md) shows the exact pattern under "Step 0 — pre-flight re-read".
+
+See the same file for a full GitHub issue-scanner policy used against KubeStellar repos (the original use case), including an optional site-health + adoption digest pattern.
 
 ---
 

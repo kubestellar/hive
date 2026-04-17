@@ -8,6 +8,24 @@ Copy it into the agent's memory dir (for Claude Code: `~/.claude/projects/<slug>
 
 ---
 
+## Step 0 — pre-flight re-read (MANDATORY, before anything else)
+
+> This step is the most important one. Copy it verbatim into any policy you write.
+
+At the very start of every iteration, use the `Read` tool to re-fetch:
+
+1. **This policy file** from disk.
+2. Any companion files it references (other policy markdown, feedback notes, etc.).
+3. The tail of the heartbeat/scan log (last ~100 lines) so you know what prior iterations did.
+
+**Do NOT rely on in-context memory from previous iterations.** The agent runs in one long-lived session; its context may be days old. The operator edits policy files on their machine and Syncthing (or whatever sync mechanism) mirrors them into the agent's memory dir — the only way those edits take effect is if the agent re-reads them.
+
+This step costs a few seconds each iteration and saves the operator from having to respawn the agent every time a policy rule changes.
+
+If a file is missing or unreadable, log the failure to the heartbeat file under `Pre-flight: <file> read failed: <error>` and continue — don't abort the iteration.
+
+---
+
 ## Responsibilities per firing
 
 1. **Scan open issues AND PRs** on the configured repos.
@@ -63,3 +81,23 @@ Edit this list to match your project:
 - Work directly on `main`.
 - Close bulk AI-generated issues "as stale" without checking the underlying problem.
 - Skip the heartbeat — it's how the healthcheck knows you're alive.
+- Skip Step 0 — operator edits to this file have to reach you via re-read, not via respawn.
+
+---
+
+## Optional: adoption / site-health digest
+
+If your agent has access to an analytics source (Google Analytics, Plausible, self-hosted metrics), consider appending a short digest to the heartbeat log each iteration alongside the issue findings. The pattern isn't just "did anything break" — it's a running pulse of *who's using the thing, what they care about, and whether engagement is trending up or down*.
+
+Good sections to include:
+
+- **Audience**: active / new / returning users — today vs yesterday, with delta %.
+- **Engagement**: avg time per user, events per session, engagement rate.
+- **Top content** (24h): top 5 pages by views.
+- **Traffic sources** (24h): direct vs organic vs referrer breakdown.
+- **Conversions** (24h): whatever the project instruments as intent signals.
+- **Errors** (15m / 1h / 24h).
+- **Trend chart** (Mermaid xychart-beta works well): 7-day active users or similar.
+- **One-line English takeaway** at the bottom — fastest way to read the log at a glance.
+
+Skip any section whose values are all zero so the log doesn't get noisy on a quiet day.

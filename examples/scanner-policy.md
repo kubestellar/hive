@@ -108,8 +108,9 @@ bd init
 **In your policy, add a Step 0.5** that runs:
 
 - **Pre-flight**: `bd ready --json` and `bd list --status=in_progress --json` — peer agents surface as items with `actor != me`; skip them.
-- **On every new finding**: `bd create --title "..." --type <bug|feature|task|docs> --priority <1-4> --actor <agent-name>` (after first checking for an existing bead with the same external URL, to avoid duplicates).
-- **On dispatch**: `bd update <id> --status in_progress`.
+- **On every new finding**: `bd create --title "..." --type <bug|feature|task|epic|chore> --priority <0-4> --actor <agent-name> --external-ref <stable-key>` (after first checking `bd list --json | jq '.[] | select(.external_ref == "<key>")'` to avoid duplicates). Valid types are `bug|feature|task|epic|chore|decision` (not `docs` — use `task`). Priority is `0-4` (0 = highest) or `P0-P4`.
+- **Attach metadata**: `bd update <id> --set-metadata key=value` (repeatable). Note the flag is `--set-metadata`, NOT `--meta`.
+- **On dispatch**: `bd update <id> --claim` (idempotent; sets assignee=you and status=in_progress atomically).
 - **On close**: `bd close <id>`.
 - **End of iteration**: `bd sync` commits ledger state to local git.
 

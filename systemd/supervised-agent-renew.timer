@@ -1,0 +1,14 @@
+[Unit]
+Description=Refresh the agent /loop cron every 6 days (Claude Code /loop TTL is 7d)
+
+[Timer]
+# Fire 5 minutes after boot in case the in-memory cron was lost while the box was off.
+OnBootSec=5min
+# Then every 6 days after the last renewal run. Stays under the 7-day TTL.
+OnUnitActiveSec=6d
+# Stagger in case coordinated hosts all refresh together.
+RandomizedDelaySec=15min
+Unit=supervised-agent-renew.service
+
+[Install]
+WantedBy=timers.target

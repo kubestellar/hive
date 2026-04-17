@@ -16,6 +16,12 @@ POLL_SEC="${AGENT_POLL_SEC:-10}"
 READY_TIMEOUT_SEC="${AGENT_READY_TIMEOUT_SEC:-45}"
 READY_MARKER="${AGENT_READY_MARKER:-bypass permissions on}"
 AUTO_APPROVE_PHRASE="${AGENT_AUTO_APPROVE_PHRASE:-}"
+# Newline-separated list of phrases that, when present in the pane, should be
+# dismissed with a single Escape keypress. Use this for non-blocking prompts
+# you don't want to respond to (e.g. Claude Code's "How is Claude doing this
+# session?" feedback poll, which otherwise sits in the input area and blocks
+# the next /loop firing).
+AUTO_DISMISS_PHRASES="${AGENT_AUTO_DISMISS_PHRASES:-}"
 
 log() { printf '[%s] %s\n' "$(date -Is)" "$*"; }
 
@@ -61,6 +67,22 @@ approve_prompt_if_present() {
   fi
 }
 
+dismiss_prompts_if_present() {
+  # No-op if AUTO_DISMISS_PHRASES is blank.
+  [ -z "$AUTO_DISMISS_PHRASES" ] && return 0
+  local pane phrase
+  pane=$(tmux capture-pane -t "$SESSION" -p 2>/dev/null) || return 0
+  while IFS= read -r phrase; do
+    [ -z "$phrase" ] && continue
+    if echo "$pane" | grep -qF "$phrase"; then
+      log "auto-dismissing pending prompt (Escape) — matched: $phrase"
+      tmux send-keys -t "$SESSION" Escape
+      sleep 2
+      return 0
+    fi
+  done <<< "$AUTO_DISMISS_PHRASES"
+}
+
 session_alive() { tmux has-session -t "$SESSION" 2>/dev/null; }
 
 agent_alive() {
@@ -91,6 +113,7 @@ while true; do
     start_session
   else
     approve_prompt_if_present
+    dismiss_prompts_if_present
   fi
   sleep "$POLL_SEC"
 done

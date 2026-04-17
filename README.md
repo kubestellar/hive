@@ -185,6 +185,7 @@ All configuration lives in `/etc/supervised-agent/agent.env`. Systemd loads it v
 | `AGENT_READY_TIMEOUT_SEC` | no | `45` | Max seconds to wait for the ready marker |
 | `AGENT_POLL_SEC` | no | `10` | Supervisor's health-check interval |
 | `AGENT_AUTO_APPROVE_PHRASE` | no | `Yes, and always allow access to` | If present in the pane, supervisor auto-sends `Down Enter` (handy for Claude Code's "sensitive file" prompt). Set blank to disable. |
+| `AGENT_AUTO_DISMISS_PHRASES` | no | (blank) | Newline-separated list of phrases to dismiss with `Escape` when seen. Useful for Claude Code's periodic "How is Claude doing this session?" feedback poll. |
 | `AGENT_LOG_FILE` | yes | — | Path the agent appends its heartbeat to; healthcheck watches mtime |
 | `AGENT_STALE_MAX_SEC` | no | `1800` | Seconds of log silence before healthcheck considers the agent stalled |
 | `AGENT_MAX_RESPAWNS` | no | `3` | Consecutive failed respawns before healthcheck stops auto-respawning and sends an escalation ntfy |

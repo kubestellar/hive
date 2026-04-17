@@ -85,6 +85,43 @@ Edit this list to match your project:
 
 ---
 
+## Optional: shared work ledger via `beads`
+
+If you'll run more than one agent against the same project, or you want structured "what's still in flight from prior iterations" state, wire up [beads](https://github.com/steveyegge/beads) (`bd` CLI) as an internal ledger. beads is a git-backed Dolt DB that stores issues, dependencies, and status; agents coordinate by reading/writing the ledger with distinct `--actor` names, which prevents double-claimed work.
+
+**Install** (release binary, Linux amd64 example):
+
+```sh
+cd /tmp && curl -sSLO https://github.com/steveyegge/beads/releases/latest/download/beads_linux_amd64.tar.gz
+tar xzf beads_linux_amd64.tar.gz && sudo install -m 0755 bd /usr/local/bin/bd
+```
+
+**Init** (as the agent user):
+
+```sh
+mkdir ~/agent-ledger && cd ~/agent-ledger
+git init -b main                     # bd sync needs a git dir (local-only, no remote required)
+git config user.name "scanner"       # becomes default actor
+bd init
+```
+
+**In your policy, add a Step 0.5** that runs:
+
+- **Pre-flight**: `bd ready --json` and `bd list --status=in_progress --json` — peer agents surface as items with `actor != me`; skip them.
+- **On every new finding**: `bd create --title "..." --type <bug|feature|task|docs> --priority <1-4> --actor <agent-name>` (after first checking for an existing bead with the same external URL, to avoid duplicates).
+- **On dispatch**: `bd update <id> --status in_progress`.
+- **On close**: `bd close <id>`.
+- **End of iteration**: `bd sync` commits ledger state to local git.
+
+**Multi-agent tips**:
+
+- Each agent sets a distinct `--actor` (`scanner`, `reviewer`, `ideator`, etc.). Pattern: `bd ready --json | jq '[.[] | select(.owner_actor != "<me>" or .owner_actor == null)]'` to see "work I could claim".
+- Same-host agents share the ledger directory; Dolt is file-locked and short-lived bd calls serialize cleanly.
+- Cross-host agents: sync the ledger directory with Syncthing; handle rare conflicts by picking the newest bead and closing the stale one.
+- Never push ledger state back to GitHub (no comments, no labels). The ledger is internal coordination; GitHub is still the source of truth for issues/PRs.
+
+**Revert**: remove the Step 0.5 section from your policy — next iteration stops calling `bd`. `rm -rf ~/agent-ledger` if you want to wipe the history.
+
 ## Optional: adoption / site-health digest
 
 If your agent has access to an analytics source (Google Analytics, Plausible, self-hosted metrics), consider appending a short digest to the heartbeat log each iteration alongside the issue findings. The pattern isn't just "did anything break" — it's a running pulse of *who's using the thing, what they care about, and whether engagement is trending up or down*.

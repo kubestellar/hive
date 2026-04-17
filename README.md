@@ -1,75 +1,258 @@
 # supervised-agent
 
-Keep a long-running AI agent (e.g. [Claude Code](https://www.anthropic.com/claude-code)) alive **24/7** inside a tmux session — with crash recovery, automatic `/loop` cron renewal, and stall detection that pushes a phone notification when something goes wrong.
+**Run an AI assistant 24/7 to do a job for you. Get a text when it needs help.**
 
-Originally built to run a GitHub issue-scanner against the [KubeStellar](https://kubestellar.io) organization, but the runtime is agent-agnostic. Point it at any command that produces terminal output and knows how to scan / watch / audit on a schedule.
+You tell it the job. It does the job every few minutes, forever. If it crashes, it restarts itself. If it gets stuck, your phone pings. If the internet goes down, it picks up when it's back. You don't have to babysit it.
+
+People have used this to:
+
+- 🔍 **Watch a GitHub repo** for new bugs and fix the easy ones automatically
+- 📊 **Check website traffic** every hour and write a daily report
+- 🧪 **Run a test suite** on a schedule and file an issue when something breaks
+- 🛎️ **Monitor a status page** and text the on-call when a service goes down
+- 📝 **Draft a blog post outline** from your week's git commits, every Friday
+- 🤖 **Babysit a long research task** that takes days of thinking time
+
+If you can describe the job to an AI chatbot, you can run it here on a loop.
 
 ---
 
-## What problem does this solve?
+## What you need
 
-Running an AI agent as "always-on automation" naively looks like:
+- A Linux computer that stays on (laptop at home, cheap cloud VM, Raspberry Pi 4, etc.)
+- An AI assistant CLI that has an **interactive** mode (this repo was built with [Claude Code](https://www.anthropic.com/claude-code), but it works with anything similar — Codex CLI, local LLMs with a TUI, etc.)
+- About 10 minutes
+
+That's it. You don't need Kubernetes. You don't need Docker. You don't need to know what systemd is (but by the end of this, you'll have used it).
+
+---
+
+## Quickstart — 10 minutes from zero to running
+
+### 1. Grab the code
 
 ```sh
-tmux new-session -d -s agent 'claude --dangerously-skip-permissions -p "/loop 15m do the thing"'
+git clone https://github.com/kubestellar/supervised-agent.git
+cd supervised-agent
 ```
 
-But that setup silently falls over in four ways:
+### 2. Make sure you have the basics
 
-1. **The agent process dies** (OOM, crash, network blip) → tmux session survives but nothing is running.
-2. **The agent writes its `/loop` cron** which Claude Code auto-expires after **7 days** → everything silently stops.
-3. **The agent gets stuck on a permission prompt or thinking loop** → looks alive from the outside but does no work.
-4. **You never find out**, because the only place the failure is visible is on a box you don't actively watch.
+```sh
+which tmux curl bash      # should print paths, not "not found"
+which claude              # (or whatever AI CLI you're using)
+```
 
-This repo is the four systemd components that patch those holes:
+If `tmux` or `curl` are missing: `sudo apt install tmux curl` (Ubuntu/Debian) or `sudo dnf install tmux curl` (Fedora/RHEL). If `claude` is missing, install it from [claude.ai/code](https://claude.ai/code) first and log in with `claude /login`.
 
-| Component | Failure mode it covers |
-|---|---|
-| `supervised-agent.service` | Process crash — respawns within ~10s |
-| `supervised-agent-renew.timer` | `/loop` cron TTL expiry — renews every 6 days |
-| `supervised-agent-healthcheck.timer` | Agent alive but not working — watches a heartbeat file, respawns on stall |
-| ntfy.sh push inside healthcheck | You not knowing — phone alerts on stall + on recovery |
+### 3. Write your config
+
+```sh
+sudo mkdir -p /etc/supervised-agent
+sudo cp config/agent.env.example /etc/supervised-agent/agent.env
+sudo nano /etc/supervised-agent/agent.env      # (or whatever editor you like)
+```
+
+The important lines to change:
+
+```sh
+# Which user should run the agent? Pick your regular user, NOT root.
+AGENT_USER=yourname
+
+# What folder does the agent work in?
+AGENT_WORKDIR=/home/yourname/my-project
+
+# What should the agent do? Change this to describe your job.
+AGENT_LOOP_PROMPT="/loop 15m Check /home/yourname/my-project for new files I haven't looked at. Summarize them in a new file called todo.md."
+
+# Where should the agent write its "I did a thing at HH:MM" heartbeat?
+AGENT_LOG_FILE=/home/yourname/.local/state/supervised-agent/heartbeat.log
+```
+
+Everything else has reasonable defaults. Ignore it for now.
+
+### 4. Install
+
+```sh
+sudo ./install.sh
+```
+
+Done. The agent is running and will stay running.
+
+### 5. Watch it work
+
+```sh
+sudo -u yourname tmux attach -t supervised-agent
+```
+
+You're now looking over the AI's shoulder. It does one pass, waits 15 minutes, does another, forever. **When you're ready to leave, press `Ctrl+B` then `D` to detach.** The agent keeps running.
+
+### To uninstall
+
+```sh
+sudo ./uninstall.sh
+```
 
 ---
 
-## Architecture
+## Get texted when something goes wrong
 
-### Single-instance topology
+Your agent is running, but what if something breaks at 3am? Set up free phone notifications via [ntfy.sh](https://ntfy.sh).
+
+1. Install the **ntfy** app on your phone: [iOS](https://apps.apple.com/app/ntfy/id1625396347) · [Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy)
+2. Make up a **secret-looking** topic name (don't use common words — anyone who guesses it can see your alerts). An easy way:
+   ```sh
+   uuidgen      # prints something like 7f2a8e1c-6b4d-49f2-9a1b-d3f7e08b2c4a
+   ```
+3. In the ntfy app, tap `+` and **Subscribe** to that topic name.
+4. Test it from your laptop:
+   ```sh
+   curl -d "hello from my laptop" ntfy.sh/7f2a8e1c-6b4d-49f2-9a1b-d3f7e08b2c4a
+   ```
+   Your phone should buzz within a second or two. ✅
+5. Put that topic in your config:
+   ```sh
+   sudo nano /etc/supervised-agent/agent.env
+   # Set:  NTFY_TOPIC=7f2a8e1c-6b4d-49f2-9a1b-d3f7e08b2c4a
+   sudo systemctl restart supervised-agent-healthcheck.timer
+   ```
+
+Now if the agent stalls or hits a usage limit, your phone buzzes.
+
+---
+
+## Telling the agent what to do
+
+The `AGENT_LOOP_PROMPT` in your config is just plain English instructions. The agent re-reads them every iteration. Examples:
+
+```sh
+# simplest: ask it to do one thing every N minutes
+AGENT_LOOP_PROMPT="/loop 30m Summarize today's commits in /home/me/project/commits-today.md"
+
+# point it at a longer policy file so you can edit the rules without re-installing
+AGENT_LOOP_PROMPT="/loop 15m Read /home/me/my-policy.md and do what it says."
+```
+
+The second pattern scales better. If you start writing complex rules, stop stuffing them into the env var and put them in a markdown file. Your agent can re-read the file every iteration — edit the markdown, behavior updates, no restart needed.
+
+See [`examples/scanner-policy.md`](examples/scanner-policy.md) for a full example (a GitHub issue scanner that watches 5 repos and fixes small bugs automatically).
+
+---
+
+## Running more than one agent at once
+
+Once you get the hang of it, you might want two agents doing different jobs on the same machine. For example: one watches your GitHub repos and one watches your website traffic. Each gets its own config and its own "tab":
+
+```sh
+# make two configs
+sudo cp config/agent.env.example /etc/supervised-agent/watcher.env
+sudo cp config/agent.env.example /etc/supervised-agent/reporter.env
+sudo nano /etc/supervised-agent/watcher.env     # configure it
+sudo nano /etc/supervised-agent/reporter.env    # configure that one too
+
+# install each one
+sudo ./install.sh --instance watcher
+sudo ./install.sh --instance reporter
+
+# attach to whichever you want to peek at
+sudo -u me tmux attach -t watcher
+sudo -u me tmux attach -t reporter
+```
+
+When you want two agents to **coordinate** (one notices a problem, the other fixes it), see [`examples/reviewer-policy.md`](examples/reviewer-policy.md) for how to use a shared ledger.
+
+Uninstall one without touching the other: `sudo ./uninstall.sh --instance reporter`.
+
+---
+
+## Troubleshooting
+
+### "It says the agent's /loop prompt never fires"
+
+The supervisor waits for a specific text to appear in the agent's terminal before sending the prompt. For Claude Code v2.x it's `bypass permissions on`. If your agent shows something different, edit your env:
+
+```sh
+AGENT_READY_MARKER="your agent's ready text"
+```
+
+Then restart: `sudo systemctl stop supervised-agent && sudo -u me tmux kill-session -t supervised-agent && sudo systemctl start supervised-agent`
+
+### "The agent keeps asking me to approve something"
+
+Find the unique text of the "Yes" button and set:
+
+```sh
+AGENT_AUTO_APPROVE_PHRASE="Yes, and always allow access to"
+```
+
+The supervisor will auto-click it from now on.
+
+### "I edited AGENT_LOOP_PROMPT but nothing changed"
+
+`systemctl restart` alone doesn't work — the running tmux session keeps the old prompt in memory. Full reset:
+
+```sh
+sudo systemctl stop supervised-agent
+sudo -u me tmux kill-session -t supervised-agent
+sudo systemctl start supervised-agent
+```
+
+### "I want to see what the agent has been doing"
+
+Three places to look:
+
+```sh
+# the agent's own heartbeat log (what it wrote each iteration)
+tail -f /home/me/.local/state/supervised-agent/heartbeat.log
+
+# the supervisor's log (crashes, restarts, prompt sends)
+sudo journalctl -u supervised-agent -f
+
+# attach and watch live
+sudo -u me tmux attach -t supervised-agent
+```
+
+### "Nothing makes sense, I want to start over"
+
+```sh
+sudo ./uninstall.sh        # removes the agent
+# edit /etc/supervised-agent/agent.env to fix whatever was wrong
+sudo ./install.sh          # puts it back
+```
+
+Your config is never deleted by uninstall.
+
+---
+
+## How it actually works (for the curious)
 
 ```mermaid
 flowchart TB
-  subgraph systemd["systemd (always running)"]
-    SUPERVISOR["supervised-agent.service<br/>(main loop, 10s poll)"]
-    RENEW["supervised-agent-renew.timer<br/>(every 6 days)"]
-    HEALTH["supervised-agent-healthcheck.timer<br/>(every 20 min)"]
+  subgraph systemd["systemd (Linux's babysitter, always running)"]
+    SUPERVISOR["supervised-agent.service<br/>(checks on the agent every 10s)"]
+    RENEW["renew timer<br/>(every 6 days)"]
+    HEALTH["healthcheck timer<br/>(every 20 min)"]
   end
 
-  subgraph tmux["tmux session '$AGENT_SESSION_NAME'"]
-    AGENT["AI agent process<br/>(e.g. claude --dangerously-skip-permissions)"]
-    LOOP["/loop 15m &lt;prompt&gt;<br/>cron inside the agent"]
+  subgraph tmux["tmux session (a terminal that keeps running)"]
+    AGENT["your AI assistant<br/>(claude, codex, etc.)"]
+    LOOP["/loop 15m &lt;your prompt&gt;<br/>the AI's own cron"]
   end
 
-  HEARTBEAT[("$AGENT_LOG_FILE<br/>heartbeat log,<br/>agent appends per iteration")]
+  HEARTBEAT[("heartbeat.log<br/>agent writes here each run")]
+  NTFY(["ntfy.sh/TOPIC<br/>buzz your phone"])
+  OPERATOR(["you<br/>(attach whenever)"])
 
-  NTFY(["ntfy.sh/$NTFY_TOPIC<br/>push to phone"])
-
-  OPERATOR(["Operator<br/>(tmux attach)"])
-
-  SUPERVISOR -- "spawns / respawns<br/>if session or process missing" --> tmux
-  SUPERVISOR -- "sends /loop prompt<br/>after TUI is ready" --> LOOP
-  SUPERVISOR -- "auto-approves<br/>sensitive-file prompts" --> AGENT
-  SUPERVISOR -- "notify on phrase match<br/>(usage limits etc.)" --> NTFY
+  SUPERVISOR -- "starts + restarts<br/>sends your prompt<br/>auto-clicks approvals" --> tmux
+  SUPERVISOR -- "buzz on problem phrase" --> NTFY
   LOOP -- "fires every N min" --> AGENT
-  AGENT -- "appends<br/>heartbeat block" --> HEARTBEAT
+  AGENT -- "writes timestamp" --> HEARTBEAT
 
-  RENEW -- "kills tmux session<br/>&rarr; supervisor re-registers /loop" --> tmux
+  RENEW -- "force a fresh /loop<br/>every 6d (beats 7d expiry)" --> tmux
+  HEALTH -- "if heartbeat stops,<br/>buzz you + restart" --> NTFY
+  HEALTH --> tmux
 
-  HEALTH -- "reads mtime" --> HEARTBEAT
-  HEALTH -- "if stale &gt; threshold<br/>kill session + alert" --> tmux
-  HEALTH -- "push on stall / recovery" --> NTFY
-
-  OPERATOR -- "tmux attach<br/>(optional, read/write)" --> tmux
-  OPERATOR -- "subscribe on ntfy app" --> NTFY
+  OPERATOR -- "attach to watch<br/>detach with Ctrl+B D" --> tmux
 
   classDef sys fill:#1f4e79,stroke:#0b2540,color:#fff
   classDef tm fill:#2f5d3a,stroke:#173d20,color:#fff
@@ -81,251 +264,93 @@ flowchart TB
   class NTFY,OPERATOR ext
 ```
 
-### Multi-instance topology
+**In plain English**:
 
-Two agents (or more) on the same host, each with its own supervisor + heartbeat log but sharing a [beads](https://github.com/steveyegge/beads) ledger for coordination. See [`examples/scanner-policy.md`](examples/scanner-policy.md) and [`examples/reviewer-policy.md`](examples/reviewer-policy.md) for a complete pair.
+- **tmux** is a terminal-tab that keeps running even after you log out. Think of it as a persistent "screen" the AI can type into.
+- **systemd** is Linux's babysitter. It starts the supervisor at boot, restarts it if it crashes, and is the thing that never dies.
+- **The supervisor** (`agent-supervisor.sh`) is a tiny bash script that checks the AI's tmux tab every 10 seconds. If the AI process died, it spawns a new one and re-sends your prompt. If the AI is showing a specific error message (like "usage limit reached"), it texts your phone.
+- **The healthcheck timer** independently watches the heartbeat log. If the AI is alive but silently not doing work, the healthcheck notices and reboots it.
+- **The renew timer** is a once-every-6-days safety net. Claude Code's `/loop` cron auto-expires at 7 days; by renewing at 6, we never hit the expiration cliff.
+
+You can delete any of these scripts or units and the rest keep working — they're independent.
+
+### Multi-instance topology (two or more agents sharing a machine)
+
+When you run `./install.sh --instance watcher` and `./install.sh --instance reporter`, each gets its own systemd triplet and tmux session. They're totally isolated unless you deliberately wire them together via a shared coordination file (a "beads ledger" — see the examples dir).
 
 ```mermaid
 flowchart TB
-  subgraph A_systemd["scanner instance"]
-    AS["supervised-agent@scanner.service"]
-    AH["healthcheck@scanner.timer"]
-    AR["renew@scanner.timer"]
+  subgraph A["watcher instance"]
+    AS["supervised-agent@watcher.service"]
   end
-
-  subgraph B_systemd["reviewer instance"]
-    BS["supervised-agent@reviewer.service"]
-    BH["healthcheck@reviewer.timer"]
-    BR["renew@reviewer.timer"]
+  subgraph B["reporter instance"]
+    BS["supervised-agent@reporter.service"]
   end
-
-  subgraph tmuxes["two tmux sessions"]
-    AT["session 'scanner'<br/>--actor scanner"]
-    BT["session 'reviewer'<br/>--actor reviewer"]
+  subgraph tmuxes["two tmux tabs"]
+    AT["tmux: 'watcher'"]
+    BT["tmux: 'reporter'"]
   end
-
-  LEDGER[("beads ledger<br/>~/agent-ledger/<br/>shared work queue")]
-
-  AHEART[("scanner_log.md")]
-  BHEART[("reviewer_log.md")]
-
-  NTFY(["ntfy.sh/TOPIC<br/>both agents push"])
+  LEDGER[("(optional)<br/>shared ledger<br/>~/agent-ledger/")]
+  NTFY(["ntfy.sh/TOPIC<br/>(shared)"])
 
   AS --> AT
   BS --> BT
-  AT -- "bd create/update/close<br/>--actor scanner" --> LEDGER
-  BT -- "bd create/update/close<br/>--actor reviewer" --> LEDGER
-  AT --> AHEART
-  BT --> BHEART
-  AH --> AHEART
-  BH --> BHEART
-  AH --> NTFY
-  BH --> NTFY
-  AR --> AT
-  BR --> BT
-  BT -. "peer audit via<br/>bd list --actor=scanner<br/>(reviewer supervises scanner)" .-> LEDGER
+  AT -- "writes its findings<br/>(optional)" --> LEDGER
+  BT -- "reads peer findings<br/>(optional)" --> LEDGER
+  AT --> NTFY
+  BT --> NTFY
 
   classDef sys fill:#1f4e79,stroke:#0b2540,color:#fff
   classDef tm fill:#2f5d3a,stroke:#173d20,color:#fff
   classDef data fill:#7a5c14,stroke:#3b2d07,color:#fff
   classDef ext fill:#6b1e4a,stroke:#361027,color:#fff
-  class AS,AH,AR,BS,BH,BR sys
+  class AS,BS sys
   class AT,BT tm
-  class LEDGER,AHEART,BHEART data
+  class LEDGER data
   class NTFY ext
 ```
 
-Key differences from single-instance:
-
-- **Templated systemd units** (`supervised-agent@<name>.service` etc.) — one triplet per agent.
-- **Per-instance env file** at `/etc/supervised-agent/<name>.env` — own session name, own heartbeat log, own LOOP_PROMPT.
-- **Shared ledger** with distinct `--actor` names — lets agents see each other's work without duplicating it.
-- **Lane boundary** in policy — each agent's `policy.md` declares what it owns and what it leaves alone.
-- **Peer supervision** — one agent can audit the other's responsiveness via `bd list --actor=<peer>` queries.
-
-See [docs/architecture.md](docs/architecture.md) for the detailed failure-mode table.
-
 ---
 
-## Prerequisites
+## All the env vars (reference)
 
-- Linux with systemd (Ubuntu / Debian / RHEL / Fedora all fine)
-- `tmux`, `curl`, `bash`
-- The AI agent CLI on `PATH` (e.g. `claude` from Claude Code installed system-wide)
-- A Unix user that will own the session (e.g. `dev`) — **not** `root`
-- Optional: an account on [ntfy.sh](https://ntfy.sh) + the ntfy mobile app for push alerts
-
----
-
-## Quick start
-
-```sh
-git clone https://github.com/kubestellar/supervised-agent.git
-cd supervised-agent
-
-# 1. copy the env template and edit it
-sudo mkdir -p /etc/supervised-agent
-sudo cp config/agent.env.example /etc/supervised-agent/agent.env
-sudo $EDITOR /etc/supervised-agent/agent.env   # set AGENT_USER, AGENT_WORKDIR, AGENT_LOOP_PROMPT, AGENT_LOG_FILE, NTFY_TOPIC
-
-# 2. install scripts + systemd units
-sudo ./install.sh
-
-# 3. verify
-systemctl status supervised-agent.service
-systemctl list-timers supervised-agent-renew.timer supervised-agent-healthcheck.timer
-```
-
-To remove everything:
-
-```sh
-sudo ./uninstall.sh
-```
-
-### Running multiple agents on the same host
-
-For multi-agent setups (e.g. `scanner` + `reviewer` + `ideator`), use **named instances** instead of the single-instance install:
-
-```sh
-# 1. one env file per instance
-sudo cp config/agent.env.example /etc/supervised-agent/scanner.env
-sudo $EDITOR /etc/supervised-agent/scanner.env          # set AGENT_USER, AGENT_SESSION_NAME=scanner, etc.
-
-sudo cp config/agent.env.example /etc/supervised-agent/reviewer.env
-sudo $EDITOR /etc/supervised-agent/reviewer.env         # AGENT_SESSION_NAME=reviewer, different AGENT_LOOP_PROMPT / AGENT_LOG_FILE
-
-# 2. install each instance
-sudo ./install.sh --instance scanner
-sudo ./install.sh --instance reviewer
-
-# 3. attach by name
-sudo -u dev tmux attach -t scanner
-sudo -u dev tmux attach -t reviewer
-```
-
-Each instance is a fully independent supervisor + renew + healthcheck triplet, using its own env file, its own tmux session, and its own heartbeat log. Removal is also per-instance:
-
-```sh
-sudo ./uninstall.sh --instance reviewer
-```
-
-When agents share a work ledger (e.g. all using a `beads` database per the optional pattern in `examples/scanner-policy.md`), give each instance a distinct `--actor` so the ledger can tell them apart.
-
-### Attaching to the session
-
-```sh
-# from the same host
-sudo -u $AGENT_USER tmux attach -t $AGENT_SESSION_NAME
-
-# from a remote operator box (SSH wrapper pattern)
-ssh -t user@host "tmux attach -t $AGENT_SESSION_NAME"
-```
-
-Detach with `Ctrl+B, D`. The session keeps running. The supervisor keeps watching. The world is OK.
-
----
-
-## Push notifications via ntfy.sh
-
-The healthcheck component can push a phone notification on three events:
-
-| Event | Priority | Tag |
-|---|---|---|
-| **Stall detected — auto-respawning** | `high` | ⚠️ 🔄 |
-| **Stall persists after 3 respawns — manual help needed** | `urgent` | 🔥 🚨 |
-| **Recovered — heartbeat resumed** | `default` | ✅ |
-
-### One-time setup
-
-1. **Install the ntfy app** — [iOS](https://apps.apple.com/app/ntfy/id1625396347) · [Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy).
-2. **Pick a topic name.** Topic = only auth on ntfy.sh, so pick something unguessable:
-   ```sh
-   uuidgen
-   # e.g. 7f2a8e1c-6b4d-49f2-9a1b-d3f7e08b2c4a
-   ```
-3. **Subscribe in the app:** tap `+` → paste the topic → Subscribe. Leave notifications enabled.
-4. **Test from your laptop:**
-   ```sh
-   curl -d "hello from supervised-agent" ntfy.sh/<your-topic>
-   ```
-   You should get a push within a second or two.
-5. **Set `NTFY_TOPIC` in `/etc/supervised-agent/agent.env`** and restart the healthcheck timer:
-   ```sh
-   sudo systemctl restart supervised-agent-healthcheck.timer
-   ```
-
-### Disabling push
-
-Leave `NTFY_TOPIC` blank or comment it out. The healthcheck still respawns on stalls — it just won't push.
-
-### Alternatives
-
-Swap the `notify()` function in `bin/agent-healthcheck.sh` for a Slack webhook, a Discord webhook, a self-hosted ntfy instance, `sendmail`, or anything else that takes a POST / command-line invocation. The healthcheck logic is independent of the transport.
-
----
-
-## Environment variables
-
-All configuration lives in `/etc/supervised-agent/agent.env`. Systemd loads it via `EnvironmentFile=` for every unit.
-
-| Variable | Required | Default | Purpose |
+| Variable | Required? | Default | What it does |
 |---|---|---|---|
-| `AGENT_USER` | yes | — | Unix user the session runs as (NOT `root`) |
-| `AGENT_SESSION_NAME` | no | `supervised-agent` | tmux session name |
-| `AGENT_WORKDIR` | yes | — | cwd for the agent process |
-| `AGENT_LAUNCH_CMD` | yes | — | Shell command that starts the agent in the foreground (e.g. `claude --dangerously-skip-permissions --model claude-opus-4-6`) |
-| `AGENT_LOOP_PROMPT` | yes | — | Text sent to the agent after the TUI is ready. Usually `/loop 15m <your instructions>` |
-| `AGENT_READY_MARKER` | no | `bypass permissions on` | String the supervisor waits to see in the pane before sending the `/loop` prompt (so the agent TUI is actually listening) |
-| `AGENT_READY_TIMEOUT_SEC` | no | `45` | Max seconds to wait for the ready marker |
-| `AGENT_POLL_SEC` | no | `10` | Supervisor's health-check interval |
-| `AGENT_AUTO_APPROVE_PHRASE` | no | `Yes, and always allow access to` | If present in the pane, supervisor auto-sends `Down Enter` (handy for Claude Code's "sensitive file" prompt). Set blank to disable. |
-| `AGENT_AUTO_DISMISS_PHRASES` | no | (blank) | Newline-separated list of phrases to dismiss with `Escape` when seen. Useful for Claude Code's periodic "How is Claude doing this session?" feedback poll. |
-| `AGENT_NOTIFY_ON_PHRASE_REGEX` | no | (blank) | Extended regex; if matched in the pane, supervisor pushes a high-priority ntfy alert (and a follow-up when the phrase disappears). Does NOT take any active recovery action — designed for operators who want to know about a condition but prefer to handle it themselves (e.g. Claude Max usage limits when managing logins manually). |
-| `AGENT_NOTIFY_ON_PHRASE_TITLE` / `_BODY` | no | (see example.env) | Customize the title and body of the alert. |
-| `AGENT_LOG_FILE` | yes | — | Path the agent appends its heartbeat to; healthcheck watches mtime |
-| `AGENT_STALE_MAX_SEC` | no | `1800` | Seconds of log silence before healthcheck considers the agent stalled |
-| `AGENT_MAX_RESPAWNS` | no | `3` | Consecutive failed respawns before healthcheck stops auto-respawning and sends an escalation ntfy |
-| `NTFY_TOPIC` | no | (disabled) | ntfy.sh topic for push alerts. Leave blank to run without push alerts. |
+| `AGENT_USER` | yes | — | Unix user the agent runs as (NOT `root`) |
+| `AGENT_WORKDIR` | yes | — | Folder the agent works in |
+| `AGENT_LAUNCH_CMD` | yes | — | Command that starts the AI assistant |
+| `AGENT_LOOP_PROMPT` | yes | — | The instructions you send to the AI after it starts |
+| `AGENT_LOG_FILE` | yes | — | Where the agent writes a timestamp each iteration |
+| `AGENT_SESSION_NAME` | no | `supervised-agent` | Name of the tmux tab |
+| `AGENT_READY_MARKER` | no | `bypass permissions on` | Text that means "AI is ready for input" |
+| `AGENT_READY_TIMEOUT_SEC` | no | `45` | Seconds to wait for that text before retrying |
+| `AGENT_POLL_SEC` | no | `10` | How often the supervisor checks in |
+| `AGENT_AUTO_APPROVE_PHRASE` | no | `Yes, and always allow access to` | Auto-click this button if it appears |
+| `AGENT_AUTO_DISMISS_PHRASES` | no | (blank) | Auto-Escape these prompts if they appear |
+| `AGENT_NOTIFY_ON_PHRASE_REGEX` | no | (blank) | Text ping (doesn't auto-act) |
+| `AGENT_NOTIFY_ON_PHRASE_TITLE` / `_BODY` | no | (defaults) | Customize the text ping |
+| `AGENT_STALE_MAX_SEC` | no | `1800` | If no heartbeat for this long, reboot the agent |
+| `AGENT_MAX_RESPAWNS` | no | `3` | Give up auto-restarting after this many tries |
+| `NTFY_TOPIC` | no | (blank = disabled) | ntfy topic for phone pings |
 
 ---
 
-## Telling the agent what to do
+## Safety notes (read before you break something)
 
-The supervisor just *sends* `AGENT_LOOP_PROMPT` into the tmux pane after the agent is ready. What that prompt says is entirely up to you.
-
-Typical pattern: keep the prompt **short** and point the agent at a policy file you edit separately. That way you can change the agent's behavior by editing one markdown file instead of re-registering the cron.
-
-### The one policy rule you can't skip
-
-Make the **very first thing in your policy** a directive to re-read the policy file from disk at the start of every iteration. Without this, the agent loads your policy once at session start and then ignores edits until the next respawn — you'll think you changed the rules, but the live agent keeps doing the old thing until the renew timer fires 6 days later.
-
-The example policy in [`examples/scanner-policy.md`](examples/scanner-policy.md) shows the exact pattern under "Step 0 — pre-flight re-read".
-
-See the same file for a full GitHub issue-scanner policy used against KubeStellar repos (the original use case), including an optional site-health + adoption digest pattern.
-
-For **multi-agent** setups, a second example [`examples/reviewer-policy.md`](examples/reviewer-policy.md) covers the patterns that only matter once you have more than one agent: lane boundary (what each agent owns vs hands off), workflow offload (push deterministic checks into GitHub Actions instead of re-running them forever), and peer supervision (one agent auditing the other's responsiveness). The two example policies are designed to compose — deploy scanner first, then reviewer, both pointing at the same beads ledger.
+- **Don't run this as root.** Make a regular user if you don't have one and set `AGENT_USER=` to it.
+- **Don't put passwords or API keys in `agent.env`.** That file is just for config. Put secrets in your AI assistant's own credential store. (Claude Code keeps its OAuth token in `~/.claude/.credentials.json`. Don't hand-edit that file either.)
+- **Your ntfy topic is the only "password" on your phone pings.** Make it unguessable. Use `uuidgen`.
+- **If you give the AI access to things like `git push`, `rm`, or your cloud account, it can do real damage.** Pick prompts that are narrowly scoped. "Fix bugs and open PRs" is a big ask — maybe start with "summarize and draft, don't push."
+- **This runtime doesn't know if your AI is making good choices.** The healthcheck only knows "the agent wrote a heartbeat file." If your AI is busily writing heartbeats and secretly destroying files, the supervisor is happy. Read your agent's output sometimes.
 
 ---
 
-## Troubleshooting
+## Contributing / license
 
-See [docs/troubleshooting.md](docs/troubleshooting.md). The most common gotchas:
+Apache 2.0 — see [LICENSE](LICENSE). PRs welcome, especially:
 
-- **`/loop` cron never fires** → `AGENT_READY_MARKER` doesn't match your agent's TUI text. Update the env and restart.
-- **Agent prompt interrupts the loop** → set `AGENT_AUTO_APPROVE_PHRASE` to the exact text of the prompt option your agent shows.
-- **`systemctl restart supervised-agent` didn't pick up my new prompt** → the running supervisor bash has the old `AGENT_LOOP_PROMPT` cached in memory. You need `systemctl stop && tmux kill-session && systemctl start` for a full reset.
-- **ntfy push never arrives** → test with `curl -d "test" ntfy.sh/$NTFY_TOPIC`. If that works but the healthcheck doesn't, check the service env: `systemctl cat supervised-agent-healthcheck.service`.
+- Recipes for specific agents (Codex CLI, local LLMs, etc.)
+- Additional `AGENT_*` hooks for new kinds of prompts you want auto-handled
+- Packaging (Homebrew, Nix, Debian `.deb`, Docker image) for easier install
 
----
-
-## Security notes
-
-- The **ntfy topic** is the only auth on ntfy.sh — anyone who guesses it can read your alerts or spam you. Use something unguessable (e.g. `uuidgen` output). For higher security use a self-hosted ntfy instance or swap in webhook-to-Slack.
-- Never put OAuth tokens, API keys, or credentials in `agent.env` or in systemd `Environment=` lines — they leak in `systemctl show`, journal logs, and `ps`. Mount secrets via the agent's own credential system (for Claude Code: `~/.claude/.credentials.json`).
-- The agent has whatever privilege `AGENT_USER` has. Don't run this as `root`. Don't give `AGENT_USER` passwordless sudo unless you *really* mean to.
-
----
-
-## License
-
-Apache 2.0 — see [LICENSE](LICENSE).
+See [OWNERS](OWNERS) for maintainers.

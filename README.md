@@ -123,7 +123,9 @@ Now if the agent stalls or hits a usage limit, your phone buzzes.
 
 ## Telling the agent what to do
 
-The `AGENT_LOOP_PROMPT` in your config is just plain English instructions. The agent re-reads them every iteration. Examples:
+### Option A — Self-scheduling (simple)
+
+The `AGENT_LOOP_PROMPT` in your config is just plain English instructions. The agent registers its own timer and re-fires on that cadence forever.
 
 ```sh
 # simplest: ask it to do one thing every N minutes
@@ -135,7 +137,39 @@ AGENT_LOOP_PROMPT="/loop 15m Read /home/me/my-policy.md and do what it says."
 
 The second pattern scales better. If you start writing complex rules, stop stuffing them into the env var and put them in a markdown file. Your agent can re-read the file every iteration — edit the markdown, behavior updates, no restart needed.
 
-See [`examples/scanner-policy.md`](examples/scanner-policy.md) for a full example (a GitHub issue scanner that watches 5 repos and fixes small bugs automatically).
+See [`examples/scanner-policy.md`](examples/scanner-policy.md) for a full example.
+
+### Option B — EXECUTOR MODE (operator-driven)
+
+Instead of the agent self-scheduling, you send it work orders directly via `tmux send-keys`. The agent starts, reads its policy, then **waits at the prompt** for instructions. You decide when it fires and what it does.
+
+```sh
+# startup prompt — no /loop
+AGENT_LOOP_PROMPT="You are in EXECUTOR MODE. Read my-policy.md from memory. Report current status. Then WAIT for work orders via tmux. Between orders: monitor open PRs and merge AI-authored ones when CI is green."
+```
+
+Then from any shell:
+
+```sh
+# IMPORTANT: always split text and Enter into two calls.
+# tmux send-keys -l "…text… Enter" sends the word "Enter" as literal text.
+tmux send-keys -t my-agent -l "Fix issue #42 and open a PR."
+sleep 1
+tmux send-keys -t my-agent Enter
+```
+
+**When to use EXECUTOR MODE:**
+- You're running multiple agents and want a single supervisor session to prioritize across all of them
+- You want to inspect the agent's output before triggering the next step
+- The agent keeps re-registering its own cron despite being told not to (EXECUTOR MODE removes the cron entirely)
+
+**Disable the renew timer** when using EXECUTOR MODE — there is no cron to renew:
+
+```sh
+sudo systemctl disable --now supervised-agent-renew@my-agent.timer
+```
+
+See [`docs/architecture.md`](docs/architecture.md) for the full EXECUTOR MODE sequence diagram and multi-agent topology.
 
 ---
 
@@ -159,7 +193,7 @@ sudo -u me tmux attach -t watcher
 sudo -u me tmux attach -t reporter
 ```
 
-When you want two agents to **coordinate** (one notices a problem, the other fixes it), see [`examples/reviewer-policy.md`](examples/reviewer-policy.md) for how to use a shared ledger.
+When you want two agents to **coordinate** (one notices a problem, the other fixes it), see [`examples/reviewer-policy.md`](examples/reviewer-policy.md) for how to use a shared ledger. For tighter control over multiple agents, use **EXECUTOR MODE** — run your own supervisor session that sends targeted work orders to each agent instead of letting them self-schedule independently. See [`docs/architecture.md`](docs/architecture.md) for the full multi-agent topology.
 
 Uninstall one without touching the other: `sudo ./uninstall.sh --instance reporter`.
 

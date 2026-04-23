@@ -26,10 +26,10 @@ session_exists() {
 }
 
 session_idle() {
-  # Returns 0 (idle) if the pane's last line is the shell prompt (❯ or $)
-  local pane
-  pane="$($TMUX_BIN capture-pane -t "$1" -p | tail -5)"
-  echo "$pane" | grep -qE '^\s*(❯|\$)\s*$'
+  # Returns 0 (idle) if the pane contains the Claude Code idle prompt (❯)
+  # The prompt is ❯ (U+276F) followed by a non-breaking space (U+00A0)
+  # Check full pane to account for status bar lines below the prompt
+  $TMUX_BIN capture-pane -t "$1" -p | grep -q "❯"
 }
 
 kick() {

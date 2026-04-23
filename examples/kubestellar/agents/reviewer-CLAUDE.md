@@ -34,6 +34,10 @@ unset GITHUB_TOKEN && gh issue create --repo <repo> --title "<title>" --body "<b
 cd ~/agent-ledger && bd update <bead_id> --status done --notes "<summary>"
 ```
 
+## GA4 Output Rule
+
+When running the GA4 adoption digest or error watch, **print all tables and the Mermaid chart directly to your output** — do not only write them to reviewer_log.md. The supervisor watches this tmux pane and needs to see the numbers live. Always do both: write to log AND print to stdout.
+
 ## What You Do NOT Do
 
 - ❌ Decide what to work on or what's a regression

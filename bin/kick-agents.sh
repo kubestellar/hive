@@ -67,25 +67,30 @@ kick() {
   ntfy "$agent started" "Kicked at $ET_NOW. Next: $(next_run "$agent")"
 }
 
-SCANNER_MSG="Run a full scan pass per your policy (project_scanner_policy.md). \
+PULL_INSTRUCTIONS="First: cd /tmp/supervised-agent && git pull --rebase origin main. Re-read your CLAUDE.md for any updated instructions."
+
+SCANNER_MSG="$PULL_INSTRUCTIONS \
+Then: Run a full scan pass per your policy (project_scanner_policy.md). \
 Oldest-first. Check all 5 repos: kubestellar/console, console-kb, docs, \
 console-marketplace, kubestellar-mcp. Dispatch fix agents for open issues \
 (skip epics owned by other sessions — check for active PRs first). \
-Merge AI-authored PRs with green CI. Log to cron_scan_log.md."
+Merge AI-authored PRs with green CI. Send ntfy (curl -s -H 'Title: Scanner: <action>' -d '<details>' ntfy.sh/issue-scanner) for every merge and external PR review. \
+Log to cron_scan_log.md."
 
-REVIEWER_MSG="Run a full reviewer pass per your policy (project_reviewer_policy.md). \
+REVIEWER_MSG="$PULL_INSTRUCTIONS \
+Then: Run a full reviewer pass per /tmp/supervised-agent/examples/kubestellar/agents/reviewer-CLAUDE.md. \
 Check: (A) coverage ≥91%, (B) OAuth code presence, (B.5) CI workflow health sweep, \
 (C) release freshness + brew formula + Helm chart appVersion + vllm-d + pok-prod01 \
 deploy health, (D) GA4 error watch + adoption digest, (F) post-merge diff scan. \
-Print all GA4 tables to this pane. Write all results to reviewer_log.md."
+Print all GA4 tables to this pane. Send ntfy for all findings. Write all results to reviewer_log.md."
 
-ARCHITECT_MSG="Run an architect pass per your CLAUDE.md at \
-/tmp/supervised-agent/examples/kubestellar/agents/architect-CLAUDE.md. \
+ARCHITECT_MSG="$PULL_INSTRUCTIONS \
+Then: Run an architect pass per /tmp/supervised-agent/examples/kubestellar/agents/architect-CLAUDE.md. \
 Pull main, scan the codebase for refactor or perf improvement opportunities. \
 You may work autonomously on refactors and perf as long as you do not break \
 the build, touch OAuth, or touch the update system. For new feature ideas, \
 open an issue with label architect-idea and wait for operator approval. \
-Print your plan to this pane."
+Send ntfy for all plans and PRs. Print your plan to this pane."
 
 case "$TARGET" in
   scanner)

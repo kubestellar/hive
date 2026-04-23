@@ -103,6 +103,7 @@ Hard target. Every open issue on `kubestellar/console` should have a merged fix 
 - **ADOPTERS PRs** — hold for operator approval, NEVER auto-merge
 - Epic issues being worked by another session (ask operator before touching)
 - `console-marketplace` CNCF card stubs (intentional community work)
+- Any issue or PR with a label containing "hold" (e.g., `on-hold`, `hold`, `hold/review`)
 
 ## CI Merge Rules
 

@@ -72,7 +72,7 @@ PULL_INSTRUCTIONS="First: cd /tmp/supervised-agent && git pull --rebase origin m
 SCANNER_MSG="$PULL_INSTRUCTIONS \
 Then: Run a full scan pass per your policy (project_scanner_policy.md). \
 Oldest-first. Check all 5 repos: kubestellar/console, console-kb, docs, \
-console-marketplace, kubestellar-mcp. Ignore labels — work every open issue regardless of labels. \
+console-marketplace, kubestellar-mcp. Ignore all labels EXCEPT: skip any issue/PR with a label containing 'hold'. \
 Dispatch fix agents for open issues \
 (skip epics owned by other sessions — check for active PRs first). \
 Merge AI-authored PRs with green CI. Send ntfy (curl -s -H 'Title: Scanner: <action>' -d '<details>' ntfy.sh/issue-scanner) for every merge and external PR review. \

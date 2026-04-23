@@ -157,3 +157,74 @@ Renew timers are **disabled** for all agents in EXECUTOR MODE. The supervisor se
 - **ntfy.sh downtime.** Free tier, rare, tolerable. Self-host or swap the transport if you need SLAs.
 - **Agent logic bugs.** If the agent decides to do nothing forever but remembers to write the heartbeat, the healthcheck won't catch it. The log format in your policy file should include non-trivial counts (repos scanned, actions taken) so you can spot a "no-op loop" visually.
 - **Secrets management.** Don't put credentials in `agent.env`. The agent should source them from its own credential store (`~/.claude/.credentials.json` for Claude Code, vault / secrets manager for anything else).
+
+---
+
+## Reference deployment: hybrid local scanner + GitHub responders
+
+Models A and B both put the AI agent on a periodic loop. A third pattern — used in production on [KubeStellar](https://kubestellar.io) — **decouples scanning from fixing**:
+
+- A lightweight **bash scanner** runs on a fixed timer (launchd or systemd), polling GitHub for open issues/PRs and writing state to a **SQLite database**. No LLM needed.
+- The **AI agent** reads the database when triggered (by skill invocation, `/loop` cron, or EXECUTOR work order) and fixes what's actionable.
+- **GitHub Actions workflows** on the repo auto-file issues when workflows fail, creating a feedback loop where the scanner picks up the new issue on its next cycle.
+
+This is not a new scheduling model — it's a **composition** of the existing patterns with a deterministic scanner in front and GitHub as an event source.
+
+### Why this pattern exists
+
+| Problem | How the hybrid solves it |
+|---|---|
+| AI session restarts / rate limits cause missed scans | Scanner runs independently — state is never lost |
+| Scanning is deterministic but consumes LLM tokens | Scanner is pure bash — zero LLM cost |
+| No audit trail of what was scanned | `cycles` table in SQLite records every scan |
+| Workflow failures go unnoticed for days | `workflow-failure-issue.yml` auto-files issues within minutes |
+| Fix attempts need backoff | `fix_attempts` counter prevents infinite retries |
+
+### Architecture
+
+```
+                        ┌──────────────────────┐
+                        │  GitHub (source of    │
+                        │  truth for issues/PRs)│
+                        └──────────┬───────────┘
+                                   │
+                    gh issue list / gh pr list
+                                   │
+┌──────────────────────────────────┼──────────────────────────────┐
+│  Local machine (Mac / Linux)     │                              │
+│                                  ▼                              │
+│  ┌─────────┐    ┌──────────┐    ┌──────────┐    ┌───────────┐  │
+│  │ launchd │───▶│worker.sh │───▶│ state.db │◀───│ AI agent  │  │
+│  │ / cron  │    │(scanner) │    │ (SQLite) │    │(reads DB, │  │
+│  └─────────┘    └────┬─────┘    └──────────┘    │ fixes)    │  │
+│                      │                           └─────┬─────┘  │
+│                  ntfy push                        git push      │
+│                      │                           gh pr create   │
+│                      ▼                                 │        │
+│                 ┌──────────┐                           │        │
+│                 │  phone   │                           │        │
+│                 └──────────┘                           │        │
+└────────────────────────────────────────────────────────┼────────┘
+                                                        │
+                                   mutates GitHub state (PRs, merges)
+                                                        │
+                                                        ▼
+                        ┌──────────────────────────────────────┐
+                        │  GitHub Actions (automated responders)│
+                        │                                      │
+                        │  workflow-failure-issue.yml           │
+                        │  → auto-files issue on failure       │
+                        │                                      │
+                        │  ai-fix.yml                          │
+                        │  → auto-dispatches fix on label      │
+                        └──────────────────────────────────────┘
+```
+
+**Data flow boundary**: GitHub Actions write to GitHub (issues, labels). The local scanner reads from GitHub and writes to SQLite. The AI agent reads SQLite and writes to GitHub. No component writes directly to another's state store.
+
+### Reference implementation
+
+- [`examples/worker.sh.example`](../examples/worker.sh.example) — the scanner script
+- [`examples/sqlite-state.md`](../examples/sqlite-state.md) — SQLite schema and query patterns
+- [`examples/kubestellar-fixer.md`](../examples/kubestellar-fixer.md) — full case study with results
+- [`launchd/`](../launchd/) — macOS plist templates for the scanner and supervisor

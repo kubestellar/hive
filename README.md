@@ -19,11 +19,11 @@ If you can describe the job to an AI chatbot, you can run it here on a loop.
 
 ## What you need
 
-- A Linux computer that stays on (laptop at home, cheap cloud VM, Raspberry Pi 4, etc.)
+- A computer that stays on — **Linux** (laptop, cheap cloud VM, Raspberry Pi 4) or **macOS** (Mac Mini, Mac Studio, always-on laptop)
 - An AI assistant CLI that has an **interactive** mode (this repo was built with [Claude Code](https://www.anthropic.com/claude-code), but it works with anything similar — Codex CLI, local LLMs with a TUI, etc.)
 - About 10 minutes
 
-That's it. You don't need Kubernetes. You don't need Docker. You don't need to know what systemd is (but by the end of this, you'll have used it).
+That's it. You don't need Kubernetes. You don't need Docker. On Linux you'll use systemd; on macOS you'll use launchd — both are built-in process managers that keep things running.
 
 ---
 
@@ -43,7 +43,9 @@ which tmux curl bash      # should print paths, not "not found"
 which claude              # (or whatever AI CLI you're using)
 ```
 
-If `tmux` or `curl` are missing: `sudo apt install tmux curl` (Ubuntu/Debian) or `sudo dnf install tmux curl` (Fedora/RHEL). If `claude` is missing, install it from [claude.ai/code](https://claude.ai/code) first and log in with `claude /login`.
+If `tmux` or `curl` are missing: `sudo apt install tmux curl` (Ubuntu/Debian) or `sudo dnf install tmux curl` (Fedora/RHEL) or `brew install tmux curl` (macOS). If `claude` is missing, install it from [claude.ai/code](https://claude.ai/code) first and log in with `claude /login`.
+
+> **macOS users**: the quickstart below uses Linux/systemd commands. For macOS/launchd setup, see **[docs/macos.md](docs/macos.md)** — same concepts, different process manager.
 
 ### 3. Write your config
 
@@ -194,6 +196,12 @@ sudo -u me tmux attach -t reporter
 ```
 
 When you want two agents to **coordinate** (one notices a problem, the other fixes it), see [`examples/reviewer-policy.md`](examples/reviewer-policy.md) for how to use a shared ledger. For tighter control over multiple agents, use **EXECUTOR MODE** — run your own supervisor session that sends targeted work orders to each agent instead of letting them self-schedule independently. See [`docs/architecture.md`](docs/architecture.md) for the full multi-agent topology.
+
+### Hybrid pattern: scanner script + AI agent
+
+Instead of running two full AI sessions, you can run a lightweight **bash scanner** on a timer that writes to a SQLite database, and only invoke the AI when there's actionable work. This is cheaper (no LLM usage for scanning), more resilient (scanning continues even if the AI session is down), and gives you a durable audit trail.
+
+See [`examples/kubestellar-fixer.md`](examples/kubestellar-fixer.md) for a full case study, [`examples/worker.sh.example`](examples/worker.sh.example) for the scanner script, and [`examples/sqlite-state.md`](examples/sqlite-state.md) for the SQLite schema.
 
 Uninstall one without touching the other: `sudo ./uninstall.sh --instance reporter`.
 
@@ -386,5 +394,7 @@ Apache 2.0 — see [LICENSE](LICENSE). PRs welcome, especially:
 - Recipes for specific agents (Codex CLI, local LLMs, etc.)
 - Additional `AGENT_*` hooks for new kinds of prompts you want auto-handled
 - Packaging (Homebrew, Nix, Debian `.deb`, Docker image) for easier install
+- macOS/launchd improvements (see [docs/macos.md](docs/macos.md))
+- Case studies of real deployments (see [examples/kubestellar-fixer.md](examples/kubestellar-fixer.md) for the format)
 
 See [OWNERS](OWNERS) for maintainers.

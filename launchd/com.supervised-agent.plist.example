@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  supervised-agent — macOS LaunchAgent
+  Equivalent of supervised-agent.service on Linux.
+
+  Runs bin/agent-supervisor.sh in a loop. The supervisor manages a tmux session
+  with the AI agent inside, same as on Linux — only the process manager differs.
+
+  Install:
+    cp launchd/com.supervised-agent.plist.example ~/Library/LaunchAgents/com.supervised-agent.plist
+    # Edit paths below (replace /Users/YOURUSER everywhere)
+    launchctl load -w ~/Library/LaunchAgents/com.supervised-agent.plist
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.supervised-agent.plist
+    rm ~/Library/LaunchAgents/com.supervised-agent.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.supervised-agent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/bash</string>
+        <string>-c</string>
+        <string>source /Users/YOURUSER/.config/supervised-agent/agent.env &amp;&amp; exec /Users/YOURUSER/supervised-agent/bin/agent-supervisor.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/YOURUSER</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/YOURUSER/.local/state/supervised-agent/supervisor.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/YOURUSER/.local/state/supervised-agent/supervisor.err</string>
+
+    <!-- Throttle respawns: wait 30s between crashes -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/YOURUSER</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>

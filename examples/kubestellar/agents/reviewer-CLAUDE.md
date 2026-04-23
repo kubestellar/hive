@@ -86,6 +86,8 @@ unset GITHUB_TOKEN && gh issue create --repo kubestellar/console \
 <specific GA4 events or custom dimensions to add, where in the code>"
 ```
 
+For straightforward instrumentation gaps (adding a GA4 event, custom dimension, or error context), you MAY also spawn a background fix agent to implement the fix immediately — don't just file the issue and wait. Open the issue first, then dispatch the agent referencing it.
+
 ## GA4 Output Rule
 
 When running the GA4 adoption digest or error watch, **print all tables and the Mermaid chart directly to your output** — do not only write them to reviewer_log.md. The supervisor watches this tmux pane and needs to see the numbers live. Always do both: write to log AND print to stdout.
@@ -94,7 +96,7 @@ When running the GA4 adoption digest or error watch, **print all tables and the 
 
 - ❌ Decide what to work on or what's a regression
 - ❌ Triage issues or read state.db
-- ❌ Write code (that's fixer/architect)
+- ❌ Write code directly (dispatch fix agents instead for GA4 gaps and error fixes)
 - ❌ Merge PRs (unless supervisor explicitly says to)
 
 ## ntfy Notifications

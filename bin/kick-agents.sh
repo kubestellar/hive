@@ -1,14 +1,16 @@
 #!/bin/bash
-# kick-agents.sh — fires work orders at the scanner and reviewer tmux sessions.
+# kick-agents.sh — fires work orders at the scanner, reviewer, and architect tmux sessions.
 # Called by systemd timers (or manually). Does NOT require Claude to be running
 # as a supervisor — it speaks directly to the named tmux sessions.
 #
 # Usage:
-#   kick-agents.sh scanner   # kick scanner only
-#   kick-agents.sh reviewer  # kick reviewer only
-#   kick-agents.sh all       # kick both (default)
+#   kick-agents.sh scanner    # kick scanner only
+#   kick-agents.sh reviewer   # kick reviewer only
+#   kick-agents.sh architect  # kick architect only
+#   kick-agents.sh all        # kick all three (default)
 #
-# Systemd timer fires this every 15 min for scanner, every 30 min for reviewer.
+# Systemd timer fires this every 15 min for scanner, every 30 min for reviewer,
+# every 60 min for architect.
 
 set -euo pipefail
 
@@ -46,7 +48,8 @@ kick() {
   fi
 
   log "KICK $session"
-  $TMUX_BIN send-keys -t "$session" "$message" Enter
+  $TMUX_BIN send-keys -t "$session" "$message"
+  $TMUX_BIN send-keys -t "$session" Enter
 }
 
 SCANNER_MSG="Run a full scan pass per your policy (project_scanner_policy.md). \
@@ -59,7 +62,15 @@ REVIEWER_MSG="Run a full reviewer pass per your policy (project_reviewer_policy.
 Check: (A) coverage ≥91%, (B) OAuth code presence, (B.5) CI workflow health sweep, \
 (C) release freshness + brew formula + Helm chart appVersion + vllm-d + pok-prod01 \
 deploy health, (D) GA4 error watch + adoption digest, (F) post-merge diff scan. \
-Write all results to reviewer_log.md."
+Print all GA4 tables to this pane. Write all results to reviewer_log.md."
+
+ARCHITECT_MSG="Run an architect pass per your CLAUDE.md at \
+/tmp/supervised-agent/examples/kubestellar/agents/architect-CLAUDE.md. \
+Pull main, scan the codebase for refactor or perf improvement opportunities. \
+You may work autonomously on refactors and perf as long as you do not break \
+the build, touch OAuth, or touch the update system. For new feature ideas, \
+open an issue with label architect-idea and wait for operator approval. \
+Print your plan to this pane."
 
 case "$TARGET" in
   scanner)
@@ -68,12 +79,16 @@ case "$TARGET" in
   reviewer)
     kick "reviewer" "$REVIEWER_MSG"
     ;;
+  architect)
+    kick "feature" "$ARCHITECT_MSG"
+    ;;
   all)
     kick "issue-scanner" "$SCANNER_MSG"
     kick "reviewer" "$REVIEWER_MSG"
+    kick "feature" "$ARCHITECT_MSG"
     ;;
   *)
-    echo "Usage: $0 [scanner|reviewer|all]" >&2
+    echo "Usage: $0 [scanner|reviewer|architect|all]" >&2
     exit 1
     ;;
 esac

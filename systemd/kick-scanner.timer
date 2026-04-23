@@ -3,8 +3,7 @@ Description=Kick issue-scanner every 15 minutes
 Requires=kick-scanner.service
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=15min
+OnCalendar=*:00,15,30,45
 AccuracySec=30s
 Unit=kick-scanner.service
 

@@ -51,27 +51,22 @@ You (Opus 4.6, supervisor tmux session — EXECUTOR MODE, operator-driven)
 
 ## Dispatcher Protocol — tmux send-keys
 
-**CRITICAL — ALWAYS include Enter in the same call. No exceptions.**
+**CRITICAL — ALWAYS send text and Enter as TWO SEPARATE calls. No exceptions.**
 
 ```bash
-# CORRECT — message and Enter in one call
-tmux send-keys -t <session> "your message here" Enter
+# CORRECT — two separate calls
+tmux send-keys -t <session> "your message here"
+tmux send-keys -t <session> Enter
 
-# WRONG — Enter in a separate call; it frequently misses or fires late
-tmux send-keys -t <session> "your message"
-tmux send-keys -t <session> Enter   # ← DO NOT DO THIS
+# WRONG — combined in one call; Enter frequently gets lost with long messages
+tmux send-keys -t <session> "your message here" Enter
 ```
 
 After every dispatch, verify the session started processing:
 ```bash
 sleep 5 && tmux capture-pane -t <session> -p | tail -6
 ```
-If still at idle prompt, the Enter was missed — resend with `tmux send-keys -t <session> "" Enter`.
-
-After sending, always verify the session picked it up:
-```bash
-sleep 4 && tmux capture-pane -t <session> -p | tail -10
-```
+If still at idle prompt, the Enter was lost — resend: `tmux send-keys -t <session> Enter`
 
 ## Models (ENFORCED)
 

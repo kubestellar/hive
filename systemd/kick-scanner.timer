@@ -1,0 +1,12 @@
+[Unit]
+Description=Kick issue-scanner every 15 minutes
+Requires=kick-scanner.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Unit=kick-scanner.service
+
+[Install]
+WantedBy=timers.target

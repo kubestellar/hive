@@ -1,0 +1,12 @@
+[Unit]
+Description=Kick reviewer every 30 minutes
+Requires=kick-reviewer.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+AccuracySec=60s
+Unit=kick-reviewer.service
+
+[Install]
+WantedBy=timers.target

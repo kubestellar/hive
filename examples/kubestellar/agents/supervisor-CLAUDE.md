@@ -175,6 +175,17 @@ The `reviewer` session (Sonnet 4.6) handles post-merge work:
 - Copilot review comments on merged PRs
 - GA4 error watch: new error classes (30m vs 7d baseline), trending errors (>3× baseline), login_failure spikes
 - GA4 adoption digest: active users, engagement, top content, traffic sources, conversions, 7-day trend chart
+- **Brew formula freshness**: `kubestellar/homebrew-tap` formula version must match latest stable console release
+  ```bash
+  unset GITHUB_TOKEN && gh api /repos/kubestellar/console/releases --jq '[.[] | select(.draft==false and .prerelease==false)] | .[0].tag_name'
+  unset GITHUB_TOKEN && gh api /repos/kubestellar/homebrew-tap/contents/Formula/kubestellar-console.rb --jq '.content' | base64 -d | grep 'version\|tag'
+  ```
+  Mismatch → high ntfy + file issue on `homebrew-tap` + dispatch fix agent to bump the formula.
+- **Helm chart freshness**: `deploy/helm/Chart.yaml` `appVersion` must match latest stable console release.
+  ```bash
+  unset GITHUB_TOKEN && gh api /repos/kubestellar/console/contents/deploy/helm/Chart.yaml --jq '.content' | base64 -d | grep 'appVersion\|version'
+  ```
+  Mismatch → high ntfy + file issue on `kubestellar/console` + dispatch fix agent to bump Chart.yaml.
 
 Reviewer is NOT a /loop — send it work orders when needed:
 ```bash

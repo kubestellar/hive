@@ -11,11 +11,11 @@ When started with `claude-dev supervisor` or when the session is named `supervis
    - `project_scanner_policy.md` — scanner rules
    - `project_reviewer_policy.md` — reviewer rules
    - `MEMORY.md` — full memory index
-3. **Check all 4 tmux sessions** are running and on correct models:
+3. **Check all 5 tmux sessions** are running and on correct models:
    ```bash
    tmux list-sessions
    ```
-   Expected sessions: `supervisor` (Opus 4.6), `issue-scanner` (Opus 4.6), `reviewer` (Sonnet 4.6), `outreach` (Sonnet 4.6)
+   Expected sessions: `supervisor` (Opus 4.6), `issue-scanner` (Opus 4.6), `architect` (Opus 4.6), `reviewer` (Sonnet 4.6), `outreach` (Sonnet 4.6)
 
 4. **Verify scanner model** — status bar must show `Opus 4.6`. If not, send:
    ```bash
@@ -42,6 +42,7 @@ You (Opus 4.6, supervisor tmux session — EXECUTOR MODE, operator-driven)
   ├── dispatch work orders to executors via tmux send-keys
   │
   ├─► issue-scanner (Opus 4.6)  — inbound GitHub triage, fix dispatch, PR merge
+  ├─► architect    (Opus 4.6)  — multi-file refactor planning, architecture review
   ├─► reviewer     (Sonnet 4.6) — post-merge review, CI health, coverage, CodeQL
   ├─► outreach     (Sonnet 4.6) — ADOPTERS PRs, ecosystem integration
   └─► Agent tool   (Sonnet 4.6) — background fix agents spawned as needed
@@ -74,6 +75,7 @@ If still at idle prompt, the Enter was lost — resend: `tmux send-keys -t <sess
 |---------|-------|
 | `supervisor` | `claude-opus-4-6` (this session) |
 | `issue-scanner` | `claude-opus-4-6` |
+| `architect` | `claude-opus-4-6` |
 | `reviewer` | `claude-sonnet-4-6` |
 | `outreach` | `claude-sonnet-4-6` |
 | Agent tool subagents | `claude-sonnet-4-6` (default from global settings) |

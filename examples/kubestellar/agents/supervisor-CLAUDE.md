@@ -250,7 +250,14 @@ curl -s -H "Title: <agent>: <action>" -H "Priority: high" -d "<details>" ntfy.sh
 **Always send ntfy for:**
 - Agent session started/restarted (with next scheduled run in ET)
 - Scanner scan started + what it's scanning
-- Scanner PR merged (PR number + title)
+- **PR merged** — include PR number + title + repo-wide stats snapshot:
+  ```
+  Merged: console#NNNN "<title>"
+  Stats: console 12 issues / 3 PRs open | console-kb 0/0 | docs 2/1 | marketplace 5/0 | mcp 0/0
+  ```
+  Run `unset GITHUB_TOKEN && gh issue list --repo <repo> --state open --json number --jq length` and
+  `unset GITHUB_TOKEN && gh pr list --repo <repo> --state open --json number --jq length` for each repo.
+- **External contributor PR reviewed** — when scanner posts a review on a non-clubanderson PR, send ntfy with PR number, author, and review summary. External contributors need timely feedback — scanner must re-review when they push updates.
 - Scanner issues dispatched to fix agents
 - Reviewer pass started + what it's checking
 - Reviewer findings (coverage %, GA4 anomalies, CI failures, version mismatches)

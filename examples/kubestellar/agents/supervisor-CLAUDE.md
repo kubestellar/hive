@@ -186,6 +186,12 @@ The `reviewer` session (Sonnet 4.6) handles post-merge work:
   unset GITHUB_TOKEN && gh api /repos/kubestellar/console/contents/deploy/helm/Chart.yaml --jq '.content' | base64 -d | grep 'appVersion\|version'
   ```
   Mismatch → high ntfy + file issue on `kubestellar/console` + dispatch fix agent to bump Chart.yaml.
+- **vllm-d deployment health**: check the last 5 runs of the `Build and Deploy KC` workflow for jobs named `deploy-vllm-d`. Any failure → high ntfy + regression issue + bead P1.
+  ```bash
+  unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Build and Deploy KC" --limit 5 --json databaseId,conclusion,status,createdAt
+  # Then: gh run view <id> --repo kubestellar/console --json jobs --jq '.jobs[] | select(.name | test("vllm|pok"; "i")) | {name, conclusion, status}'
+  ```
+- **pok-prod01 deployment health**: check the same `Build and Deploy KC` workflow runs for jobs named `deploy-pok-prod`. Verify the deployed version matches the latest stable release tag. Any failure or version mismatch → high ntfy + regression issue + bead P1.
 
 Reviewer is NOT a /loop — send it work orders when needed:
 ```bash

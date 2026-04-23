@@ -70,6 +70,22 @@ Send high-priority ntfy for every GA4 error issue filed.
 
 **Do NOT skip this.** Do NOT just log errors to reviewer_log.md without filing issues. Every error that exceeds baseline gets an issue.
 
+**GA4 instrumentation gaps:** If you find that GA4 is not capturing enough detail to diagnose an error or make a decision (e.g., missing custom dimensions, no error stack traces, no page context, missing user flow events, no A/B variant tracking), open an issue to close the gap:
+```bash
+unset GITHUB_TOKEN && gh issue create --repo kubestellar/console \
+  --title "📊 GA4 gap: <what's missing>" \
+  --label "enhancement,ga4-instrumentation" \
+  --body "## Missing instrumentation
+
+**What I was trying to determine:** <the question you couldn't answer>
+**What data is available:** <what GA4 currently reports>
+**What's missing:** <specific events, dimensions, or properties needed>
+**Impact:** <what decisions this blocks — error triage, adoption analysis, etc.>
+
+## Suggested fix
+<specific GA4 events or custom dimensions to add, where in the code>"
+```
+
 ## GA4 Output Rule
 
 When running the GA4 adoption digest or error watch, **print all tables and the Mermaid chart directly to your output** — do not only write them to reviewer_log.md. The supervisor watches this tmux pane and needs to see the numbers live. Always do both: write to log AND print to stdout.

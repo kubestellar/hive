@@ -34,6 +34,42 @@ unset GITHUB_TOKEN && gh issue create --repo <repo> --title "<title>" --body "<b
 cd ~/agent-ledger && bd update <bead_id> --status done --notes "<summary>"
 ```
 
+## GA4 Error Watch — CRITICAL
+
+GA4 errors are your highest-priority check. Every pass MUST include GA4 error analysis.
+
+**What to check:**
+- New error classes in the last 30 min vs 7-day baseline
+- Trending errors: any error >3× its baseline rate
+- `login_failure` spikes
+- Uncaught exceptions, chunk load failures, API errors
+- Any error pattern that correlates with a recent PR merge
+
+**When errors are found — ALWAYS open an issue:**
+```bash
+unset GITHUB_TOKEN && gh issue create --repo kubestellar/console \
+  --title "🐛 GA4 error: <error class or pattern>" \
+  --label "bug,ga4-error" \
+  --body "## GA4 Error Report
+
+**Error class:** <name>
+**Rate:** <count> in last 30min (baseline: <count>/30min over 7d)
+**Trend:** <increasing/spike/new>
+**First seen:** <timestamp>
+**Affected pages:** <paths if known>
+**Correlated PRs:** <recent merges if relevant>
+
+## Raw data
+<paste the relevant GA4 table rows>
+
+## Suggested investigation
+<what to look at — stack traces, affected components, recent changes>"
+```
+
+Send high-priority ntfy for every GA4 error issue filed.
+
+**Do NOT skip this.** Do NOT just log errors to reviewer_log.md without filing issues. Every error that exceeds baseline gets an issue.
+
 ## GA4 Output Rule
 
 When running the GA4 adoption digest or error watch, **print all tables and the Mermaid chart directly to your output** — do not only write them to reviewer_log.md. The supervisor watches this tmux pane and needs to see the numbers live. Always do both: write to log AND print to stdout.

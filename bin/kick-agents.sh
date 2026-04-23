@@ -18,8 +18,11 @@ TARGET="${1:-all}"
 TMUX_BIN="${TMUX_BIN:-tmux}"
 LOG="/var/log/kick-agents.log"
 TIMESTAMP="$(TZ=America/New_York date '+%Y-%m-%d %H:%M:%S %Z')"
+ET_NOW="$(TZ=America/New_York date '+%I:%M %p ET')"
+NTFY_TOPIC="ntfy.sh/issue-scanner"
 
 log() { echo "[$TIMESTAMP] $*" | tee -a "$LOG"; }
+ntfy() { curl -s -H "Title: $1" -d "$2" "$NTFY_TOPIC" > /dev/null 2>&1 || true; }
 
 session_exists() {
   $TMUX_BIN has-session -t "$1" 2>/dev/null
@@ -32,24 +35,36 @@ session_idle() {
   $TMUX_BIN capture-pane -t "$1" -p | grep -q "❯"
 }
 
+next_run() {
+  # Compute next run time in ET for a given agent
+  case "$1" in
+    scanner)  systemctl show kick-scanner.timer  --property=NextElapseUSecRealtime --value 2>/dev/null | xargs -I{} date -d "{}" '+%I:%M %p ET' 2>/dev/null || echo "unknown" ;;
+    reviewer) systemctl show kick-reviewer.timer  --property=NextElapseUSecRealtime --value 2>/dev/null | xargs -I{} date -d "{}" '+%I:%M %p ET' 2>/dev/null || echo "unknown" ;;
+    architect) systemctl show kick-architect.timer --property=NextElapseUSecRealtime --value 2>/dev/null | xargs -I{} date -d "{}" '+%I:%M %p ET' 2>/dev/null || echo "unknown" ;;
+  esac
+}
+
 kick() {
   local session="$1"
   local message="$2"
+  local agent="$3"
 
   if ! session_exists "$session"; then
     log "SKIP $session — session not found"
+    ntfy "$agent — not found" "Session $session does not exist. Next try: $(next_run "$agent")"
     return
   fi
 
-  # Don't interrupt if the session is actively working (not at idle prompt)
   if ! session_idle "$session"; then
     log "SKIP $session — already working"
+    ntfy "$agent — busy" "Still working, skipped kick at $ET_NOW. Next: $(next_run "$agent")"
     return
   fi
 
   log "KICK $session"
   $TMUX_BIN send-keys -t "$session" "$message"
   $TMUX_BIN send-keys -t "$session" Enter
+  ntfy "$agent started" "Kicked at $ET_NOW. Next: $(next_run "$agent")"
 }
 
 SCANNER_MSG="Run a full scan pass per your policy (project_scanner_policy.md). \
@@ -74,18 +89,18 @@ Print your plan to this pane."
 
 case "$TARGET" in
   scanner)
-    kick "issue-scanner" "$SCANNER_MSG"
+    kick "issue-scanner" "$SCANNER_MSG" "scanner"
     ;;
   reviewer)
-    kick "reviewer" "$REVIEWER_MSG"
+    kick "reviewer" "$REVIEWER_MSG" "reviewer"
     ;;
   architect)
-    kick "feature" "$ARCHITECT_MSG"
+    kick "feature" "$ARCHITECT_MSG" "architect"
     ;;
   all)
-    kick "issue-scanner" "$SCANNER_MSG"
-    kick "reviewer" "$REVIEWER_MSG"
-    kick "feature" "$ARCHITECT_MSG"
+    kick "issue-scanner" "$SCANNER_MSG" "scanner"
+    kick "reviewer" "$REVIEWER_MSG" "reviewer"
+    kick "feature" "$ARCHITECT_MSG" "architect"
     ;;
   *)
     echo "Usage: $0 [scanner|reviewer|architect|all]" >&2

@@ -5,17 +5,32 @@
 # Console repos, measures the actionable issue+PR backlog, then kicks each
 # agent at a cadence that reflects the current workload:
 #
-#   BUSY (queue > BUSY_THRESHOLD_ISSUES):
-#     scanner   → every 15 min  (always the minimum)
-#     reviewer  → every 15 min
-#     architect → every 3 hours
-#     outreach  → every 3 hours
+# Architect and outreach are OPPORTUNISTIC — they fill idle cycles and yield
+# entirely under load. Scanner and reviewer always have priority.
 #
-#   QUIET (queue ≤ BUSY_THRESHOLD_ISSUES):
+#   SURGE (queue > SURGE_THRESHOLD, default 20):
+#     scanner   → every 10 min
+#     reviewer  → every 10 min
+#     architect → PAUSED
+#     outreach  → PAUSED
+#
+#   BUSY (queue > BUSY_THRESHOLD, default 10):
+#     scanner   → every 15 min
+#     reviewer  → every 15 min
+#     architect → PAUSED
+#     outreach  → PAUSED
+#
+#   QUIET (queue > IDLE_THRESHOLD, default 2):
 #     scanner   → every 15 min
 #     reviewer  → every 30 min
 #     architect → every 1 hour
-#     outreach  → every 1 hour
+#     outreach  → every 2 hours
+#
+#   IDLE (queue ≤ IDLE_THRESHOLD):
+#     scanner   → every 30 min
+#     reviewer  → every 1 hour
+#     architect → every 30 min  (jam — queue is clear)
+#     outreach  → every 30 min  (jam — queue is clear)
 #
 # State lives in STATE_DIR (tmpfs — cleared on reboot, fine for kick timing).
 # Logs go to journald via stdout + LOG_FILE for human review.
@@ -35,17 +50,31 @@ REPOS=(
 # Issues matching any of these labels are NOT counted toward the actionable queue.
 EXEMPT_LABEL_REGEX="nightly-tests|LFX|do-not-merge|meta-tracker|auto-qa-tuning-report|hold|adopters"
 
-# ── Queue depth threshold ───────────────────────────────────────────────────
-# Above this → BUSY mode; at or below → QUIET mode.
+# ── Queue depth thresholds ──────────────────────────────────────────────────
+# SURGE → BUSY → QUIET → IDLE as queue drains.
+SURGE_THRESHOLD_ISSUES="${SURGE_THRESHOLD_ISSUES:-20}"
 BUSY_THRESHOLD_ISSUES="${BUSY_THRESHOLD_ISSUES:-10}"
+IDLE_THRESHOLD_ISSUES="${IDLE_THRESHOLD_ISSUES:-2}"
 
 # ── Kick cadences (seconds) ─────────────────────────────────────────────────
 # All overridable via /etc/hive/governor.env — no script edit needed.
-CADENCE_SCANNER_SEC="${CADENCE_SCANNER_SEC:-900}"           # 15 min — never changes regardless of mode
-CADENCE_REVIEWER_BUSY_SEC="${CADENCE_REVIEWER_BUSY_SEC:-900}"     # 15 min in busy mode
-CADENCE_REVIEWER_QUIET_SEC="${CADENCE_REVIEWER_QUIET_SEC:-1800}"   # 30 min in quiet mode
-CADENCE_SLOW_BUSY_SEC="${CADENCE_SLOW_BUSY_SEC:-10800}"       # 3 hours in busy mode  (architect + outreach)
-CADENCE_SLOW_QUIET_SEC="${CADENCE_SLOW_QUIET_SEC:-3600}"       # 1 hour  in quiet mode (architect + outreach)
+# 0 = PAUSED (agent is not kicked in this mode).
+CADENCE_SCANNER_SURGE_SEC="${CADENCE_SCANNER_SURGE_SEC:-600}"     # 10 min
+CADENCE_SCANNER_BUSY_SEC="${CADENCE_SCANNER_BUSY_SEC:-900}"       # 15 min
+CADENCE_SCANNER_QUIET_SEC="${CADENCE_SCANNER_QUIET_SEC:-900}"     # 15 min
+CADENCE_SCANNER_IDLE_SEC="${CADENCE_SCANNER_IDLE_SEC:-1800}"      # 30 min
+
+CADENCE_REVIEWER_SURGE_SEC="${CADENCE_REVIEWER_SURGE_SEC:-600}"   # 10 min
+CADENCE_REVIEWER_BUSY_SEC="${CADENCE_REVIEWER_BUSY_SEC:-900}"     # 15 min
+CADENCE_REVIEWER_QUIET_SEC="${CADENCE_REVIEWER_QUIET_SEC:-1800}"  # 30 min
+CADENCE_REVIEWER_IDLE_SEC="${CADENCE_REVIEWER_IDLE_SEC:-3600}"    # 1 hour
+
+CADENCE_ARCHITECT_SURGE_SEC="${CADENCE_ARCHITECT_SURGE_SEC:-0}"   # PAUSED
+CADENCE_ARCHITECT_BUSY_SEC="${CADENCE_ARCHITECT_BUSY_SEC:-0}"     # PAUSED
+CADENCE_ARCHITECT_QUIET_SEC="${CADENCE_ARCHITECT_QUIET_SEC:-3600}"  # 1 hour
+CADENCE_ARCHITECT_IDLE_SEC="${CADENCE_ARCHITECT_IDLE_SEC:-1800}"    # 30 min (jam)
+
+CADENCE_SUPERVISOR_SEC="${CADENCE_SUPERVISOR_SEC:-1800}"  # 30 min — fixed regardless of mode
 
 # ── Paths ───────────────────────────────────────────────────────────────────
 STATE_DIR="/var/run/kick-governor"
@@ -147,10 +176,14 @@ get_queue_depth() {
 
 determine_mode() {
   local depth="$1"
-  if [ "$depth" -gt "$BUSY_THRESHOLD_ISSUES" ]; then
+  if [ "$depth" -gt "$SURGE_THRESHOLD_ISSUES" ]; then
+    echo "surge"
+  elif [ "$depth" -gt "$BUSY_THRESHOLD_ISSUES" ]; then
     echo "busy"
-  else
+  elif [ "$depth" -gt "$IDLE_THRESHOLD_ISSUES" ]; then
     echo "quiet"
+  else
+    echo "idle"
   fi
 }
 
@@ -160,21 +193,36 @@ get_cadence() {
   local agent="$1" mode="$2"
   case "$agent" in
     scanner)
-      echo "$CADENCE_SCANNER_SEC"
-      ;;
+      case "$mode" in
+        surge) echo "$CADENCE_SCANNER_SURGE_SEC" ;;
+        busy)  echo "$CADENCE_SCANNER_BUSY_SEC"  ;;
+        quiet) echo "$CADENCE_SCANNER_QUIET_SEC" ;;
+        idle)  echo "$CADENCE_SCANNER_IDLE_SEC"  ;;
+      esac ;;
     reviewer)
-      [ "$mode" = "busy" ] \
-        && echo "$CADENCE_REVIEWER_BUSY_SEC" \
-        || echo "$CADENCE_REVIEWER_QUIET_SEC"
-      ;;
-    architect|outreach)
-      [ "$mode" = "busy" ] \
-        && echo "$CADENCE_SLOW_BUSY_SEC" \
-        || echo "$CADENCE_SLOW_QUIET_SEC"
-      ;;
+      case "$mode" in
+        surge) echo "$CADENCE_REVIEWER_SURGE_SEC" ;;
+        busy)  echo "$CADENCE_REVIEWER_BUSY_SEC"  ;;
+        quiet) echo "$CADENCE_REVIEWER_QUIET_SEC" ;;
+        idle)  echo "$CADENCE_REVIEWER_IDLE_SEC"  ;;
+      esac ;;
+    architect)
+      case "$mode" in
+        surge) echo "$CADENCE_ARCHITECT_SURGE_SEC" ;;
+        busy)  echo "$CADENCE_ARCHITECT_BUSY_SEC"  ;;
+        quiet) echo "$CADENCE_ARCHITECT_QUIET_SEC" ;;
+        idle)  echo "$CADENCE_ARCHITECT_IDLE_SEC"  ;;
+      esac ;;
+    outreach)
+      case "$mode" in
+        surge) echo "$CADENCE_OUTREACH_SURGE_SEC" ;;
+        busy)  echo "$CADENCE_OUTREACH_BUSY_SEC"  ;;
+        quiet) echo "$CADENCE_OUTREACH_QUIET_SEC" ;;
+        idle)  echo "$CADENCE_OUTREACH_IDLE_SEC"  ;;
+      esac ;;
+    supervisor)
+      echo "$CADENCE_SUPERVISOR_SEC" ;;  # fixed — always 30 min regardless of mode
     *)
-      echo "$CADENCE_SLOW_QUIET_SEC"
-      ;;
   esac
 }
 
@@ -206,6 +254,11 @@ maybe_kick() {
   local cadence elapsed
   cadence=$(get_cadence "$agent" "$mode")
   elapsed=$(seconds_since_last_kick "$agent")
+
+  if [ "$cadence" -eq 0 ]; then
+    log "SKIP ${agent} (mode=${mode} — PAUSED)"
+    return
+  fi
 
   if [ "$elapsed" -ge "$cadence" ]; then
     local next_et
@@ -250,9 +303,10 @@ fi
 
 log "MODE=${mode} queue=${queue_depth} scanner=$(secs_to_label "$(get_cadence scanner "$mode")") reviewer=$(secs_to_label "$(get_cadence reviewer "$mode")") architect=$(secs_to_label "$(get_cadence architect "$mode")") outreach=$(secs_to_label "$(get_cadence outreach "$mode")")"
 
-maybe_kick scanner   "$mode"
-maybe_kick reviewer  "$mode"
-maybe_kick architect "$mode"
-maybe_kick outreach  "$mode"
+maybe_kick scanner    "$mode"
+maybe_kick reviewer   "$mode"
+maybe_kick architect  "$mode"
+maybe_kick outreach   "$mode"
+maybe_kick supervisor "$mode"
 
 log "GOVERNOR DONE"

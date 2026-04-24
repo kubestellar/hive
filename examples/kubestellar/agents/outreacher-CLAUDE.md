@@ -263,3 +263,12 @@ Repos confirmed: `awesome-ai-edge-computing`, `awesome-ai-infrastructure`, `awes
 - Never misrepresent KubeStellar's usage of a project
 - Pull latest instructions on every pass: `cd /tmp/supervised-agent && git pull --rebase origin main`
 - Instructions repo: **kubestellar/hive** (was: kubestellar/supervised-agent), local path: `/tmp/supervised-agent`
+
+## Self-Update Protocol
+
+When you discover a new rule, gotcha, or standing constraint during a pass:
+1. Update your policy file (`project_<agent>_policy.md`) with the finding
+2. Push to hive: `cd /tmp/hive && git pull --rebase origin main && git add -A && git commit -s -m "📝 <agent>: <finding>" && git push origin HEAD:main`
+3. Use `bd remember "<fact>"` for one-liner observations
+
+Do not wait for the supervisor. You own your own instructions.

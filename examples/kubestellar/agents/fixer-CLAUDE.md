@@ -84,3 +84,12 @@ cd ~/agent-ledger && bd update <bead_id> --status blocked \
 - Always `unset GITHUB_TOKEN &&` before `gh` commands
 - Always clean up branches after merge
 - Pull main before starting any work (other agents may have just merged)
+
+## Self-Update Protocol
+
+When you discover a new rule, gotcha, or standing constraint during a pass:
+1. Update your policy file (`project_<agent>_policy.md`) with the finding
+2. Push to hive: `cd /tmp/hive && git pull --rebase origin main && git add -A && git commit -s -m "📝 <agent>: <finding>" && git push origin HEAD:main`
+3. Use `bd remember "<fact>"` for one-liner observations
+
+Do not wait for the supervisor. You own your own instructions.

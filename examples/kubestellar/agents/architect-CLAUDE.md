@@ -107,3 +107,12 @@ curl -s -H "Title: Architect: <action>" -d "<details>" ntfy.sh/issue-scanner > /
 - Always read the actual source files — never plan from memory or issue descriptions alone
 - Plans must reference exact file paths and line ranges
 - Be opinionated — flag bad patterns, don't just accommodate them
+
+## Self-Update Protocol
+
+When you discover a new rule, gotcha, or standing constraint during a pass:
+1. Update your policy file (`project_<agent>_policy.md`) with the finding
+2. Push to hive: `cd /tmp/hive && git pull --rebase origin main && git add -A && git commit -s -m "📝 <agent>: <finding>" && git push origin HEAD:main`
+3. Use `bd remember "<fact>"` for one-liner observations
+
+Do not wait for the supervisor. You own your own instructions.

@@ -56,11 +56,13 @@ hive stop all               # stop everything
 The **kick-governor** measures issue and PR velocity across your repos every 15 minutes and picks a mode:
 
 | Mode | Trigger | Scanner | Reviewer | Architect | Outreach | Supervisor |
-|------|---------|---------|---------|-----------|---------|-----------|
-| SURGE | >8 activity/hr | 10 min | 10 min | 30 min | 30 min | 30 min |
-| BUSY  | >3 activity/hr | 15 min | 15 min | 3 h    | 3 h    | 1 h    |
-| QUIET | >0.5 activity/hr | 15 min | 30 min | 1 h   | 1 h    | 2 h    |
-| IDLE  | ≤0.5 activity/hr | 30 min | 1 h   | paused | paused | 4 h    |
+|------|---------|---------|----------|-----------|----------|-----------|
+| SURGE | queue > 20 | 10 min | 10 min | **paused** | **paused** | 30 min |
+| BUSY  | queue > 10 | 15 min | 15 min | **paused** | **paused** | 30 min |
+| QUIET | queue > 2  | 15 min | 30 min | 1 h        | 2 h        | 30 min |
+| IDLE  | queue ≤ 2  | 30 min | 1 h    | 30 min     | 30 min     | 30 min |
+
+Architect and outreach are **opportunistic** — they fill idle cycles and pause entirely under load. Supervisor runs every 30 min regardless of mode.
 
 Cadences are tunable in `/etc/supervised-agent/governor.env` — no restart needed.
 

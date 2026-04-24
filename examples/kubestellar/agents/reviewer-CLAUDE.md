@@ -159,3 +159,12 @@ When the supervisor sends a "goodnight" work order, run the docs sync workflow:
 - `unset GITHUB_TOKEN &&` before all `gh` commands
 - Pull main before starting work
 - Be constructive in review comments — flag real problems, not style
+
+## Self-Update Protocol
+
+When you discover a new rule, gotcha, or standing constraint during a pass:
+1. Update your policy file (`project_<agent>_policy.md`) with the finding
+2. Push to hive: `cd /tmp/hive && git pull --rebase origin main && git add -A && git commit -s -m "📝 <agent>: <finding>" && git push origin HEAD:main`
+3. Use `bd remember "<fact>"` for one-liner observations
+
+Do not wait for the supervisor. You own your own instructions.

@@ -9,7 +9,20 @@
 # units (supervised-agent.service etc.). Named instance uses the templated
 # units (supervised-agent@<name>.service) and /etc/supervised-agent/<name>.env.
 # You can mix both on the same host — each call installs what it needs.
+#
+# The kick-governor is always installed alongside the agent supervisor.
+# It replaces the old per-agent kick timers (kick-scanner, kick-reviewer,
+# kick-architect, kick-outreach) with a single adaptive timer that adjusts
+# cadences based on the live issue/PR queue depth across all 5 repos.
 set -euo pipefail
+
+# Per-agent timers superseded by kick-governor. Disabled on install.
+LEGACY_KICK_TIMERS=(
+  kick-scanner.timer
+  kick-reviewer.timer
+  kick-architect.timer
+  kick-outreach.timer
+)
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN_DIR="/usr/local/bin"
@@ -80,6 +93,8 @@ fi
 echo "==> installing scripts to $BIN_DIR"
 install -m 0755 "$REPO_DIR/bin/agent-supervisor.sh"   "$BIN_DIR/agent-supervisor.sh"
 install -m 0755 "$REPO_DIR/bin/agent-healthcheck.sh"  "$BIN_DIR/agent-healthcheck.sh"
+install -m 0755 "$REPO_DIR/bin/kick-agents.sh"        "$BIN_DIR/kick-agents.sh"
+install -m 0755 "$REPO_DIR/bin/kick-governor.sh"      "$BIN_DIR/kick-governor.sh"
 # Remove the old agent-launch.sh if it exists from a prior install — the
 # supervisor now expands AGENT_LAUNCH_CMD inline, no wrapper needed.
 rm -f "$BIN_DIR/agent-launch.sh"

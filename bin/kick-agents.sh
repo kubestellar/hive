@@ -347,4 +347,5 @@ case "$TARGET" in
     ;;
 esac
 
+bd dolt push 2>&1 | tee -a "$LOG" || log "WARN: bd dolt push failed (non-fatal)"
 log "DONE"

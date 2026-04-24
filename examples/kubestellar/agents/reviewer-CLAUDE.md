@@ -88,6 +88,24 @@ unset GITHUB_TOKEN && gh issue create --repo kubestellar/console \
 
 For straightforward instrumentation gaps (adding a GA4 event, custom dimension, or error context), you MAY also spawn a background fix agent to implement the fix immediately — don't just file the issue and wait. Open the issue first, then dispatch the agent referencing it.
 
+## Brew Formula Check — every pass
+
+Check `kubestellar/homebrew-kubestellar` for staleness every pass:
+
+```bash
+# Formula version
+unset GITHUB_TOKEN && gh api repos/kubestellar/homebrew-kubestellar/contents/Formula/kubestellar-cli.rb \
+  --jq '.content' | base64 -d | grep '^\s*version'
+
+# Latest kubestellar/kubestellar release (non-draft)
+unset GITHUB_TOKEN && gh release list --repo kubestellar/kubestellar --limit 5 \
+  --json tagName,publishedAt,isDraft --jq '[.[] | select(.isDraft==false)] | .[0]'
+```
+
+If formula version ≠ latest release tag → file a P2 bead + ntfy (topic: `ntfy.sh/issue-scanner`, priority: default).
+
+**Note**: there is no console-specific brew formula — `kubestellar-cli.rb` packages the `kubestellar/kubestellar` CLI binary, not the console. Check it anyway as part of release freshness.
+
 ## GA4 Output Rule
 
 When running the GA4 adoption digest or error watch, **print all tables and the Mermaid chart directly to your output** — do not only write them to reviewer_log.md. The supervisor watches this tmux pane and needs to see the numbers live. Always do both: write to log AND print to stdout.

@@ -126,6 +126,8 @@ If your app has a live demo deployment, **don't curl the demo to test runtime he
 
 Query `/repos/<org>/<repo>/releases --jq '[.[] | select(.draft == false)]'` — **always filter `draft == false`**. Abandoned draft releases pile up and lie about freshness. Distinguish your release channels (weekly vs nightly, stable vs prerelease) and check each against its expected cadence.
 
+**Brew formula**: check `<org>/homebrew-<org>/contents/Formula/*.rb` version(s) against the latest non-draft release of the corresponding source repo. Formula version lag = users installing stale binaries. File P2 bead + ntfy if stale. Do this every pass — it's a single `gh api` call.
+
 ### D. Metrics digest (if you have analytics)
 
 Full adoption digest (audience / engagement / content / sources / conversions / trend chart) appended to the heartbeat log each iteration. See `scanner-policy.md`'s "Optional: adoption / site-health digest" — same pattern, but owned by reviewer (not scanner) once you split the work.

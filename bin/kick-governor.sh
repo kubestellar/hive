@@ -143,10 +143,11 @@ secs_to_label() {
 # ── Queue depth measurement ──────────────────────────────────────────────────
 # Counts open issues that are not exempt from the actionable queue.
 
-count_actionable_issues() {
+count_actionable() {
   local repo="$1"
   unset GITHUB_TOKEN
-  $GH_BIN issue list \
+  local issues prs
+  issues=$($GH_BIN issue list \
     --repo "$repo" \
     --state open \
     --json number,labels \
@@ -155,20 +156,37 @@ count_actionable_issues() {
   | jq --arg rx "$EXEMPT_LABEL_REGEX" \
     '[.[] | select(.labels | map(.name) | any(test($rx; "i")) | not)] | length' \
     2>/dev/null \
-  || echo 0
+  || echo 0)
+  prs=$($GH_BIN pr list \
+    --repo "$repo" \
+    --state open \
+    --json number,labels \
+    --limit 200 \
+    2>/dev/null \
+  | jq --arg rx "$EXEMPT_LABEL_REGEX" \
+    '[.[] | select(.labels | map(.name) | any(test($rx; "i")) | not)] | length' \
+    2>/dev/null \
+  || echo 0)
+  echo "${issues} ${prs}"
 }
 
 measure_queue() {
-  local total=0
+  local total=0 total_i=0 total_p=0
   local breakdown=""
   for repo in "${REPOS[@]}"; do
-    local n
-    n=$(count_actionable_issues "$repo")
-    total=$((total + n))
-    breakdown="${breakdown} ${repo##*/}=${n}"
+    local counts i p
+    counts=$(count_actionable "$repo")
+    i="${counts%% *}"
+    p="${counts##* }"
+    total_i=$(( total_i + i ))
+    total_p=$(( total_p + p ))
+    total=$(( total_i + total_p ))
+    breakdown="${breakdown} ${repo##*/}=${i}i/${p}p"
   done
-  echo "$total" > "$STATE_DIR/queue_depth"
-  log "QUEUE total=${total} |${breakdown# }"
+  echo "$total"        > "$STATE_DIR/queue_depth"
+  echo "$total_i"      > "$STATE_DIR/queue_issues"
+  echo "$total_p"      > "$STATE_DIR/queue_prs"
+  log "QUEUE total=${total} (${total_i}i/${total_p}p) |${breakdown# }"
   echo "$total"
 }
 

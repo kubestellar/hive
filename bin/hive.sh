@@ -512,9 +512,11 @@ cmd_status() {
 
   # Governor
   echo ""
-  local mode queue
-  mode=$(  cat /var/run/kick-governor/mode        2>/dev/null || echo "unknown")
-  queue=$( cat /var/run/kick-governor/queue_depth 2>/dev/null || echo "?")
+  local mode queue qi qp
+  mode=$(cat /var/run/kick-governor/mode         2>/dev/null || echo "unknown")
+  qi=$(  cat /var/run/kick-governor/queue_issues 2>/dev/null || echo "?")
+  qp=$(  cat /var/run/kick-governor/queue_prs    2>/dev/null || echo "?")
+  queue="${qi}i ${qp}p"
   local next
   next=$(systemctl list-timers kick-governor.timer --no-pager 2>/dev/null \
        | awk 'NR==2{print $1,$2,$3,$4}' \

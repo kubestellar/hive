@@ -576,14 +576,14 @@ cmd_switch() {
   local agent="${1:-}" backend="${2:-}"
   [[ -z "$agent" || -z "$backend" ]] && die "Usage: hive switch <agent> <backend>  (backends: copilot claude gemini goose)"
 
-  # Map agent name → session name and env file
-  local session envfile
+  # Map agent name → session, env file, and systemd service
+  local session envfile service
   case "$agent" in
-    scanner)            session="issue-scanner"; envfile="issue-scanner" ;;
-    reviewer)           session="reviewer";      envfile="reviewer" ;;
-    architect|feature)  session="feature";       envfile="feature" ;;
-    outreach)           session="outreach";      envfile="outreach" ;;
-    supervisor)         session="supervisor";    envfile="supervisor" ;;
+    scanner)            session="issue-scanner"; envfile="issue-scanner"; service="claude-scanner" ;;
+    reviewer)           session="reviewer";      envfile="reviewer";      service="supervised-agent@reviewer" ;;
+    architect|feature)  session="feature";       envfile="feature";       service="supervised-agent@feature" ;;
+    outreach)           session="outreach";      envfile="outreach";      service="supervised-agent@outreach" ;;
+    supervisor)         session="supervisor";    envfile="supervisor";    service="supervised-agent@supervisor" ;;
     *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;
   esac
 
@@ -609,16 +609,19 @@ cmd_switch() {
     die "Env file not found: $ef"
   fi
 
-  # Kill existing session
+  # Stop service (kills tmux session too) then restart with new env
+  sudo systemctl stop "$service" 2>/dev/null || true
   if tmux has-session -t "$session" 2>/dev/null; then
-    tmux kill-session -t "$session" 2>/dev/null && ok "Killed session $session"
+    tmux kill-session -t "$session" 2>/dev/null || true
   fi
+  ok "Stopped $agent"
 
-  # Respawn via kick
   sleep 1
+  sudo systemctl start "$service" 2>/dev/null && ok "Started $agent with $backend" \
+    || warn "systemctl start failed — trying kick fallback"
   /usr/local/bin/kick-agents.sh "$agent" 2>/dev/null || true
-  ok "Kicked $agent — will start with $backend"
-  sleep 3
+
+  sleep 4
   cmd_status
 }
 

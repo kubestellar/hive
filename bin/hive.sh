@@ -496,11 +496,17 @@ cmd_status() {
       fi
       # Detect busy: check more lines for active tool spinners.
       # Copilot uses ◐ (U+25D0), ◉ (U+25C9), ● (U+25CF); Claude uses ⏺; ↳ = sub-task.
-      local pane_body doing task_ctx log_age_str log_file
+      # Key: only mark working if the prompt line (❯) is NOT the last non-empty line —
+      # if ❯ is last, the agent is at the idle prompt even if spinner lines exist above.
+      local pane_body doing task_ctx log_age_str log_file last_content
       pane_body=$(echo "$pane" | tail -30)
-      if echo "$pane_body" | grep -qE "^[◐◉●◎] |^⏺ |^↳ |Esc to cancel"; then
+      last_content=$(echo "$pane" | grep -v '^\s*$' | tail -1)
+      local queued_tasks
+      queued_tasks=$(echo "$pane" | grep -oP '\d+(?= background /tasks)' | tail -1)
+
+      if echo "$last_content" | grep -qE "^[◐◉] |^⏺ |Esc to cancel|↳ "; then
+        # Spinner is the last meaningful line — actively working
         busy_flag="${YLW}working${RST}"
-        # Extract the last active tool description for context
         doing=$(echo "$pane_body" \
           | grep -E "^[◐◉●◎] |^⏺ |Esc to cancel" \
           | tail -1 \
@@ -508,6 +514,8 @@ cmd_status() {
           | sed 's/ (Esc to cancel.*//' \
           | cut -c1-50)
         [[ -n "$doing" ]] && busy_flag="${YLW}working${RST}  ${CYN}${doing}${RST}"
+      elif [[ -n "$queued_tasks" ]]; then
+        busy_flag="${CYN}queued(${queued_tasks})${RST}"
       else
         busy_flag="idle"
       fi

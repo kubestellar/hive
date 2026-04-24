@@ -90,7 +90,7 @@ curl -s -H "Title: Outreach: <action>" -d "<details>" ntfy.sh/issue-scanner > /d
 
 ## Current Progress (as of 2026-04-24)
 
-### Mission B — Awesome Lists PRs Opened (89+ external open PRs, 16 cold/closed repos)
+### Mission B — Awesome Lists PRs Opened (202+ external open PRs, 16 cold/closed repos)
 
 **Key open PRs (sample — full list via `gh search prs --author clubanderson --state open --limit 100`):**
 - `4ndersonLin/awesome-cloud-security` — open PR

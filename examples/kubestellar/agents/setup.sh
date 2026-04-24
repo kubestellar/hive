@@ -95,15 +95,9 @@ fi
 # Symlink state.db to supervisor
 ln -sf "$SCANNER_HOME/state.db" "$AGENTS_HOME/supervisor/state.db" 2>/dev/null || true
 
-# Install cron (Linux)
-if command -v crontab >/dev/null && [ "$(uname)" = "Linux" ]; then
-  if ! crontab -l 2>/dev/null | grep -q "kubestellar-fix-loop"; then
-    (crontab -l 2>/dev/null; echo "*/15 * * * * $SCANNER_HOME/worker.sh >> $SCANNER_HOME/worker.log 2>&1") | crontab -
-    echo "  ✓ Scanner cron installed (every 15 min)"
-  else
-    echo "  ✓ Scanner cron already installed"
-  fi
-fi
+# NOTE: No cron installation. EXECUTOR MODE — agents are kicked by the
+# governor (systemd timer) and supervisor, not by self-scheduled crons.
+# See docs/architecture.md for details.
 
 # 7. Install hive instances
 log "Installing hive instances"

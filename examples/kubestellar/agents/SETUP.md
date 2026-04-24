@@ -103,8 +103,9 @@ mkdir -p ~/.kubestellar-fix-loop
 cp /path/to/worker.sh ~/.kubestellar-fix-loop/worker.sh
 chmod +x ~/.kubestellar-fix-loop/worker.sh
 
-# If Linux (Proxmox container), use cron instead of launchd:
-echo "*/15 * * * * /root/.kubestellar-fix-loop/worker.sh >> /root/.kubestellar-fix-loop/worker.log 2>&1" | crontab -
+# NOTE: No cron installation needed. EXECUTOR MODE — agents are kicked by
+# the governor (systemd timer) and supervisor, not by self-scheduled crons.
+# See docs/architecture.md for details.
 ```
 
 ## Step 5: Copy CLAUDE.md + env files

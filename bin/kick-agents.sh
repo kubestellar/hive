@@ -46,6 +46,88 @@ next_run() {
   esac
 }
 
+check_rate_limit() {
+  # After a kick, wait and check if the session hit a rate limit.
+  # If so, parse the reset time and schedule a re-kick.
+  # Error format: "You're out of extra usage · resets 3am (UTC)"
+  #           or: "resets 12:30pm (UTC)"
+  local session="$1"
+  local agent="$2"
+  local delay_secs="${3:-30}"
+
+  (
+    sleep "$delay_secs"
+    local pane_text
+    pane_text=$($TMUX_BIN capture-pane -t "$session" -p 2>/dev/null || true)
+
+    # Check for rate limit / usage limit messages
+    local limit_line
+    limit_line=$(echo "$pane_text" | grep -i "out of.*usage\|rate limit\|resets " | tail -1 || true)
+
+    if [ -z "$limit_line" ]; then
+      return 0
+    fi
+
+    log "RATE-LIMITED $session — $limit_line"
+
+    # Extract reset time — matches patterns like "resets 3am", "resets 12:30pm", "resets 3am (UTC)"
+    local reset_time
+    reset_time=$(echo "$limit_line" | grep -oP 'resets\s+\K[0-9]{1,2}(:[0-9]{2})?\s*[aApP][mM]' || true)
+
+    if [ -z "$reset_time" ]; then
+      ntfy "$agent — rate limited" "Hit rate limit but could not parse reset time. Manual re-kick needed."
+      log "RATE-LIMITED $session — could not parse reset time from: $limit_line"
+      return 0
+    fi
+
+    # Convert reset time (UTC) to epoch seconds
+    # Normalize: "3am" -> "3:00 AM", "12:30pm" -> "12:30 PM"
+    local normalized
+    normalized=$(echo "$reset_time" | sed -E 's/([aApP])([mM])/\U\1\U\2/; s/([0-9])([AP])/\1 \2/')
+    # If no colon, add :00
+    if ! echo "$normalized" | grep -q ":"; then
+      normalized=$(echo "$normalized" | sed -E 's/([0-9]+)/\1:00/')
+    fi
+
+    local reset_epoch
+    reset_epoch=$(TZ=UTC date -d "today $normalized" +%s 2>/dev/null || true)
+
+    # If the parsed time is in the past, it means tomorrow
+    local now_epoch
+    now_epoch=$(date +%s)
+    if [ -n "$reset_epoch" ] && [ "$reset_epoch" -le "$now_epoch" ]; then
+      reset_epoch=$(TZ=UTC date -d "tomorrow $normalized" +%s 2>/dev/null || true)
+    fi
+
+    if [ -z "$reset_epoch" ]; then
+      ntfy "$agent — rate limited" "Hit rate limit, resets at $reset_time UTC. Could not schedule re-kick."
+      log "RATE-LIMITED $session — could not compute epoch for: $reset_time"
+      return 0
+    fi
+
+    # Schedule re-kick 60 seconds after reset
+    local rekick_epoch=$((reset_epoch + 60))
+    local wait_secs=$((rekick_epoch - now_epoch))
+    local reset_et
+    reset_et=$(TZ=America/New_York date -d "@$reset_epoch" '+%I:%M %p ET' 2>/dev/null || echo "$reset_time UTC")
+
+    log "RATE-LIMITED $session — scheduling re-kick in ${wait_secs}s (1 min after $reset_time UTC / $reset_et)"
+    ntfy "$agent — rate limited" "Resets $reset_time UTC ($reset_et). Auto re-kick scheduled."
+
+    # Send Escape to dismiss the error, then sleep and re-kick
+    $TMUX_BIN send-keys -t "$session" Escape
+    sleep "$wait_secs"
+
+    # Re-check: if session is idle, re-kick with the same agent target
+    if session_idle "$session"; then
+      log "RE-KICK $session after rate limit reset"
+      /usr/local/bin/kick-agents.sh "$agent"
+    else
+      log "SKIP RE-KICK $session — not idle after rate limit reset"
+    fi
+  ) &
+}
+
 kick() {
   local session="$1"
   local message="$2"
@@ -58,6 +140,15 @@ kick() {
   fi
 
   if ! session_idle "$session"; then
+    # Also check if session is stuck on a rate limit
+    local pane_text
+    pane_text=$($TMUX_BIN capture-pane -t "$session" -p 2>/dev/null || true)
+    if echo "$pane_text" | grep -qi "out of.*usage\|rate limit"; then
+      log "RATE-LIMITED $session — sending Escape and scheduling re-kick"
+      $TMUX_BIN send-keys -t "$session" Escape
+      check_rate_limit "$session" "$agent" 5
+      return
+    fi
     log "SKIP $session — already working"
     ntfy "$agent — busy" "Still working, skipped kick at $ET_NOW. Next: $(next_run "$agent")"
     return
@@ -67,6 +158,9 @@ kick() {
   $TMUX_BIN send-keys -t "$session" "$message"
   $TMUX_BIN send-keys -t "$session" Enter
   ntfy "$agent started" "Kicked at $ET_NOW. Next: $(next_run "$agent")"
+
+  # Background check for rate limit after kick settles
+  check_rate_limit "$session" "$agent" 60
 }
 
 PULL_INSTRUCTIONS="First: cd /tmp/supervised-agent && git pull --rebase origin main. Re-read your CLAUDE.md for any updated instructions."

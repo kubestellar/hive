@@ -751,12 +751,21 @@ main() {
         esac
       done
       if [[ "$watch_interval" -gt 0 ]] 2>/dev/null; then
-        trap 'tput cnorm 2>/dev/null; exit 0' INT TERM
+        trap 'tput cnorm 2>/dev/null; printf "\n"; exit 0' INT TERM
         tput civis 2>/dev/null  # hide cursor
+        clear
+        local cols
         while true; do
-          tput cup 0 0 2>/dev/null || clear
-          tput ed 2>/dev/null || true
-          cmd_status
+          cols=$(tput cols 2>/dev/null || echo 120)
+          local buf
+          buf=$(cmd_status 2>/dev/null || true)
+          # Move to top-left, overwrite each line padded to terminal width
+          tput cup 0 0 2>/dev/null
+          while IFS= read -r line; do
+            printf "%-${cols}s\n" "$line"
+          done <<< "$buf"
+          # Clear any leftover lines from a previous longer render
+          tput el 2>/dev/null || true
           sleep "$watch_interval"
         done
       else

@@ -40,7 +40,7 @@ EXEMPT_LABEL_REGEX="nightly-tests|LFX|do-not-merge|meta-tracker|auto-qa-tuning-r
 BUSY_THRESHOLD_ISSUES="${BUSY_THRESHOLD_ISSUES:-10}"
 
 # ── Kick cadences (seconds) ─────────────────────────────────────────────────
-# All overridable via /etc/supervised-agent/governor.env — no script edit needed.
+# All overridable via /etc/hive/governor.env — no script edit needed.
 CADENCE_SCANNER_SEC="${CADENCE_SCANNER_SEC:-900}"           # 15 min — never changes regardless of mode
 CADENCE_REVIEWER_BUSY_SEC="${CADENCE_REVIEWER_BUSY_SEC:-900}"     # 15 min in busy mode
 CADENCE_REVIEWER_QUIET_SEC="${CADENCE_REVIEWER_QUIET_SEC:-1800}"   # 30 min in quiet mode

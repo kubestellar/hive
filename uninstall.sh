@@ -1,11 +1,11 @@
 #!/bin/bash
-# uninstall.sh — remove supervised-agent scripts + systemd units.
+# uninstall.sh — remove hive scripts + systemd units.
 # Two modes:
 #
 #   sudo ./uninstall.sh                     # remove single-instance + scripts + templates
 #   sudo ./uninstall.sh --instance <name>   # remove just that named instance
 #
-# Env files under /etc/supervised-agent/ and heartbeat log files are left
+# Env files under /etc/hive/ and heartbeat log files are left
 # intact in both modes.
 set -euo pipefail
 
@@ -36,56 +36,56 @@ load_env_if_present() {
 
 kill_session_if_present() {
   if [ -n "${AGENT_USER:-}" ] && id "$AGENT_USER" >/dev/null 2>&1; then
-    sudo -u "$AGENT_USER" tmux kill-session -t "${AGENT_SESSION_NAME:-supervised-agent}" 2>/dev/null || true
+    sudo -u "$AGENT_USER" tmux kill-session -t "${AGENT_SESSION_NAME:-hive}" 2>/dev/null || true
   fi
 }
 
 if [ -n "$INSTANCE" ]; then
   # Remove just this named instance. Leave shared scripts + templated unit
   # files in place because other instances may use them.
-  load_env_if_present "/etc/supervised-agent/${INSTANCE}.env"
+  load_env_if_present "/etc/hive/${INSTANCE}.env"
   kill_session_if_present
 
   echo "==> stopping + disabling instance $INSTANCE"
   for unit in \
-    "supervised-agent-healthcheck@${INSTANCE}.timer" \
-    "supervised-agent-renew@${INSTANCE}.timer" \
-    "supervised-agent@${INSTANCE}.service"; do
+    "hive-healthcheck@${INSTANCE}.timer" \
+    "hive-renew@${INSTANCE}.timer" \
+    "hive@${INSTANCE}.service"; do
     systemctl disable --now "$unit" 2>/dev/null || true
   done
 
   systemctl daemon-reload
   echo
   echo "Instance '$INSTANCE' removed."
-  echo "Left intact: /etc/supervised-agent/${INSTANCE}.env, heartbeat log, shared scripts and templated units."
+  echo "Left intact: /etc/hive/${INSTANCE}.env, heartbeat log, shared scripts and templated units."
   exit 0
 fi
 
 # Full uninstall: stop everything, remove scripts and all unit files (both
 # single-instance and templated).
-load_env_if_present "/etc/supervised-agent/agent.env"
+load_env_if_present "/etc/hive/agent.env"
 kill_session_if_present
 
 echo "==> stopping + disabling single-instance units"
 for unit in \
-  supervised-agent-healthcheck.timer \
-  supervised-agent-renew.timer \
-  supervised-agent.service; do
+  hive-healthcheck.timer \
+  hive-renew.timer \
+  hive.service; do
   systemctl disable --now "$unit" 2>/dev/null || true
 done
 
 echo "==> removing unit files (single + templated)"
 for unit in \
-  supervised-agent.service \
-  supervised-agent-renew.service \
-  supervised-agent-renew.timer \
-  supervised-agent-healthcheck.service \
-  supervised-agent-healthcheck.timer \
-  "supervised-agent@.service" \
-  "supervised-agent-renew@.service" \
-  "supervised-agent-renew@.timer" \
-  "supervised-agent-healthcheck@.service" \
-  "supervised-agent-healthcheck@.timer"; do
+  hive.service \
+  hive-renew.service \
+  hive-renew.timer \
+  hive-healthcheck.service \
+  hive-healthcheck.timer \
+  "hive@.service" \
+  "hive-renew@.service" \
+  "hive-renew@.timer" \
+  "hive-healthcheck@.service" \
+  "hive-healthcheck@.timer"; do
   rm -f "$SYSTEMD_DIR/$unit"
 done
 
@@ -99,6 +99,6 @@ systemctl daemon-reload
 
 echo
 echo "Removed scripts + all unit files. Left intact:"
-echo "  /etc/supervised-agent/*.env"
+echo "  /etc/hive/*.env"
 echo "  Heartbeat log files"
-echo "  /tmp/supervised-agent-healthcheck/ (state dir, wiped on reboot)"
+echo "  /tmp/hive-healthcheck/ (state dir, wiped on reboot)"

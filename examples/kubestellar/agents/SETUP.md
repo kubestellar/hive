@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Home server (Proxmox container at 192.168.4.28) accessible on LAN
-- `claude-dev` alias available on the server
+- `hive` alias available on the server
 - `tmux`, `sqlite3`, `gh`, `bd` (beads CLI) installed on the server
 
 ---
@@ -118,16 +118,16 @@ cp outreacher-CLAUDE.md ~/.kubestellar-agents/outreacher/console/CLAUDE.md
 
 # Copy env files (adjust paths for Linux — /root/ instead of /Users/andan02/)
 # If using systemd:
-sudo mkdir -p /etc/supervised-agent
+sudo mkdir -p /etc/hive
 for agent in supervisor fixer architect reviewer outreacher; do
-  sudo cp ${agent}.env /etc/supervised-agent/ks-${agent}.env
+  sudo cp ${agent}.env /etc/hive/ks-${agent}.env
 done
 ```
 
-## Step 6: Install supervised-agent instances
+## Step 6: Install hive instances
 
 ```bash
-cd /path/to/supervised-agent
+cd /path/to/hive
 
 for agent in supervisor fixer architect reviewer outreacher; do
   sudo ./install.sh --instance ks-${agent}
@@ -142,13 +142,13 @@ echo "Your ntfy topic: $TOPIC"
 echo "Subscribe to it in the ntfy app on your phone"
 
 # Update all env files
-for f in /etc/supervised-agent/ks-*.env; do
+for f in /etc/hive/ks-*.env; do
   sed -i "s/^NTFY_TOPIC=$/NTFY_TOPIC=$TOPIC/" "$f"
 done
 
 # Restart all
 for agent in supervisor fixer architect reviewer outreacher; do
-  sudo systemctl restart supervised-agent@ks-${agent}
+  sudo systemctl restart hive@ks-${agent}
 done
 ```
 

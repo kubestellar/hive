@@ -1,6 +1,6 @@
 # Case study: KubeStellar autonomous fixer
 
-This documents a production deployment of the supervised-agent pattern on the [KubeStellar](https://kubestellar.io) project — a CNCF Sandbox multi-cluster management platform. The system autonomously triages, fixes, and merges across 6 GitHub repositories with a target SLA of <30 minutes from issue filed to PR merged.
+This documents a production deployment of the hive pattern on the [KubeStellar](https://kubestellar.io) project — a CNCF Sandbox multi-cluster management platform. The system autonomously triages, fixes, and merges across 6 GitHub repositories with a target SLA of <30 minutes from issue filed to PR merged.
 
 > **This is a case study, not a tutorial.** It shows how the generic patterns from this repo were composed into a specific deployment. Your setup will differ — use this for inspiration, not as a recipe to copy verbatim.
 
@@ -63,7 +63,7 @@ GitHub Actions mutate **GitHub state** (issues, PRs, labels). The local scanner 
 
 ### 1. launchd agent (scheduler)
 
-A macOS LaunchAgent plist fires `worker.sh` every 15 minutes. See [`launchd/com.supervised-agent.scanner.plist.example`](../launchd/com.supervised-agent.scanner.plist.example) for the template.
+A macOS LaunchAgent plist fires `worker.sh` every 15 minutes. See [`launchd/com.hive.scanner.plist.example`](../launchd/com.hive.scanner.plist.example) for the template.
 
 Why launchd instead of systemd: the deployment target is a Mac Mini. The pattern is identical — only the process manager differs.
 
@@ -171,7 +171,7 @@ The scanner runs even when the AI session is down (restarting, usage-limited, ra
 1. **Fork `worker.sh.example`** and change `ORG`, `REPOS`, `NTFY_TOPIC`
 2. **Write a fix-loop skill** (or policy file) that reads your `state.db`
 3. **Add `workflow-failure-issue.yml`** to your GitHub repo (optional but high-leverage)
-4. **Install the scanner plist** — see [`launchd/com.supervised-agent.scanner.plist.example`](../launchd/com.supervised-agent.scanner.plist.example)
+4. **Install the scanner plist** — see [`launchd/com.hive.scanner.plist.example`](../launchd/com.hive.scanner.plist.example)
 5. Start with a 15-minute scan interval and adjust based on your project's velocity
 
 The scanner and fix-loop are intentionally decoupled. You can run the scanner on Day 1 (just watching, no fixing) and add the fix-loop later when you're confident in the triage rules.

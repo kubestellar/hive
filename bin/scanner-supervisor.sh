@@ -9,9 +9,9 @@ SESSION="issue-scanner"
 WORKDIR="/home/dev/kubestellar-console"
 POLL_SEC="${SCANNER_POLL_SEC:-10}"
 READY_TIMEOUT_SEC="${SCANNER_READY_TIMEOUT_SEC:-45}"
-# LOOP_PROMPT sourced from /etc/supervised-agent/scanner.env (AGENT_LOOP_PROMPT)
+# LOOP_PROMPT sourced from /etc/hive/scanner.env (AGENT_LOOP_PROMPT)
 # Fall back to inline default if env file missing or var unset.
-ENV_FILE="/etc/supervised-agent/scanner.env"
+ENV_FILE="/etc/hive/scanner.env"
 [ -f "$ENV_FILE" ] && . "$ENV_FILE"
 LOOP_PROMPT="${AGENT_LOOP_PROMPT:-You are the KubeStellar Scanner in EXECUTOR MODE. Read project_scanner_policy.md from memory. Read your beads: cd /home/dev/scanner-beads && bd list --json. Wait for work orders from the supervisor.}"
 

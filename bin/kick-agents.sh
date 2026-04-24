@@ -287,7 +287,7 @@ kick() {
   check_rate_limit "$session" "$agent" 60
 }
 
-PULL_INSTRUCTIONS="First: cd /tmp/supervised-agent && git pull --rebase origin main. Re-read your CLAUDE.md for any updated instructions. \
+PULL_INSTRUCTIONS="First: cd /tmp/hive && git pull --rebase origin main. Re-read your CLAUDE.md for any updated instructions. \
 HARD RULE — enforced before any other action: never touch any issue or PR that carries a label containing the word 'hold' (case-insensitive). \
 Do not comment on it, do not merge it, do not reference it in other PRs, do not create sub-issues from it. Treat it as if it does not exist."
 
@@ -318,7 +318,7 @@ Log to cron_scan_log.md. $BEADS_SYNC"
 
 REVIEWER_MSG="$PULL_INSTRUCTIONS \
 $BEADS_RESTORE \
-Then: Run a full reviewer pass per /tmp/supervised-agent/examples/kubestellar/agents/reviewer-CLAUDE.md. \
+Then: Run a full reviewer pass per /tmp/hive/examples/kubestellar/agents/reviewer-CLAUDE.md. \
 Check: (A) coverage ≥91%, (B) OAuth code presence, (B.5) CI workflow health sweep, \
 (C) release freshness + brew formula + Helm chart appVersion + vllm-d + pok-prod01 \
 deploy health, (D) GA4 error watch + adoption digest, (F) post-merge diff scan. \
@@ -326,7 +326,7 @@ Print all GA4 tables to this pane. Send ntfy for all findings. Write all results
 
 ARCHITECT_MSG="$PULL_INSTRUCTIONS \
 $BEADS_RESTORE \
-Then: Run an architect pass per /tmp/supervised-agent/examples/kubestellar/agents/architect-CLAUDE.md. \
+Then: Run an architect pass per /tmp/hive/examples/kubestellar/agents/architect-CLAUDE.md. \
 Pull main, scan the codebase for refactor or perf improvement opportunities. \
 You may work autonomously on refactors and perf as long as you do not break \
 the build, touch OAuth, or touch the update system. For new feature ideas, \
@@ -335,7 +335,7 @@ Send ntfy for all plans and PRs. Print your plan to this pane. $BEADS_SYNC"
 
 OUTREACH_MSG="$PULL_INSTRUCTIONS \
 $BEADS_RESTORE \
-Then: Run an outreach pass per /tmp/supervised-agent/examples/kubestellar/agents/outreacher-CLAUDE.md. \
+Then: Run an outreach pass per /tmp/hive/examples/kubestellar/agents/outreacher-CLAUDE.md. \
 LANE — outreach owns ONLY: awesome lists, directories, comparison sites, aggregators, \
 community forums, package registries, CNCF landscape entries, and any public index where \
 KubeStellar Console should be listed. Target 200+ awesome-list placements. \

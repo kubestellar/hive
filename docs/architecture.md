@@ -2,7 +2,7 @@
 
 ## Two scheduling models
 
-supervised-agent supports two fundamentally different ways to drive an agent. Choose based on how much control you want to keep.
+hive supports two fundamentally different ways to drive an agent. Choose based on how much control you want to keep.
 
 ### Model A — Self-scheduling (/loop cron)
 
@@ -32,9 +32,9 @@ The agent starts, reads its policy, then **waits at the prompt** for the supervi
 
 | # | Unit | Trigger | Catches |
 |---|---|---|---|
-| 1 | `supervised-agent.service` | Always running; internal poll every `AGENT_POLL_SEC` (default 10s) | Agent process crash, tmux session killed, TUI-ready detection for startup prompt injection, auto-approval of a known sensitive-file prompt |
-| 2 | `supervised-agent-renew.timer` | Every 6 days + 5 min after boot | Claude Code `/loop` cron auto-expires at 7 days — kills the session so the supervisor re-registers a fresh one. **Disable this in EXECUTOR MODE** — there is no cron to renew. |
-| 3 | `supervised-agent-healthcheck.timer` | Every 20 min + 5 min after boot | Agent is "alive" but not making progress (auth loop, stuck prompt, model stuck thinking) — watches heartbeat-file mtime |
+| 1 | `hive.service` | Always running; internal poll every `AGENT_POLL_SEC` (default 10s) | Agent process crash, tmux session killed, TUI-ready detection for startup prompt injection, auto-approval of a known sensitive-file prompt |
+| 2 | `hive-renew.timer` | Every 6 days + 5 min after boot | Claude Code `/loop` cron auto-expires at 7 days — kills the session so the supervisor re-registers a fresh one. **Disable this in EXECUTOR MODE** — there is no cron to renew. |
+| 3 | `hive-healthcheck.timer` | Every 20 min + 5 min after boot | Agent is "alive" but not making progress (auth loop, stuck prompt, model stuck thinking) — watches heartbeat-file mtime |
 | 4 | ntfy push inside the healthcheck | On stall, on recovery, on escalation | Operator not watching the box — phone push |
 
 ## Reactions to each failure mode
@@ -136,7 +136,7 @@ When running several agents on the same machine, the EXECUTOR pattern lets a sin
        ▼          ▼          ▼
   scanner      reviewer   outreach
   (Opus 4.7)  (Sonnet)   (Sonnet)
-  claude-dev   claude-dev  claude-dev
+  hive   hive  hive
   tmux         tmux        tmux
 ```
 

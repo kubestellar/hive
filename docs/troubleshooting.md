@@ -4,12 +4,12 @@
 
 Cause: the supervisor's `AGENT_READY_MARKER` doesn't appear in the agent's TUI, so the supervisor gives up before sending `AGENT_LOOP_PROMPT`.
 
-Fix: attach to the session, look at the footer the agent shows when it's accepting input (for Claude Code v2.x it's "bypass permissions on"), and put that string in `AGENT_READY_MARKER` in `/etc/supervised-agent/agent.env`. Then:
+Fix: attach to the session, look at the footer the agent shows when it's accepting input (for Claude Code v2.x it's "bypass permissions on"), and put that string in `AGENT_READY_MARKER` in `/etc/hive/agent.env`. Then:
 
 ```sh
-sudo systemctl stop supervised-agent
+sudo systemctl stop hive
 sudo -u "$AGENT_USER" tmux kill-session -t "$AGENT_SESSION_NAME"
-sudo systemctl start supervised-agent
+sudo systemctl start hive
 ```
 
 ## A permission prompt blocks every `/loop` iteration
@@ -20,16 +20,16 @@ Fix: find the unique text of the "accept" option (e.g. `Yes, and always allow ac
 
 If your agent needs multiple different approvals, extend `approve_prompt_if_present()` in `bin/agent-supervisor.sh` to loop over a list of phrases.
 
-## `systemctl restart supervised-agent` didn't pick up my new `AGENT_LOOP_PROMPT`
+## `systemctl restart hive` didn't pick up my new `AGENT_LOOP_PROMPT`
 
 This is a footgun and it's worth repeating: **plain `systemctl restart` doesn't cause a session respawn.** tmux sessions survive supervisor exit, so when the new supervisor starts and sees a "healthy" old session with an "alive" agent, it does nothing. The old session is still running the old prompt.
 
 For a full reset you need:
 
 ```sh
-sudo systemctl stop supervised-agent
+sudo systemctl stop hive
 sudo -u "$AGENT_USER" tmux kill-session -t "$AGENT_SESSION_NAME"
-sudo systemctl start supervised-agent
+sudo systemctl start hive
 ```
 
 Now the new supervisor finds no session, creates one, and sends the current `AGENT_LOOP_PROMPT`.
@@ -43,11 +43,11 @@ Run in order:
 curl -d "test" "$NTFY_SERVER/$NTFY_TOPIC"
 
 # 2. Is the healthcheck env correct?
-systemctl cat supervised-agent-healthcheck.service
-# Look for EnvironmentFile=/etc/supervised-agent/agent.env
+systemctl cat hive-healthcheck.service
+# Look for EnvironmentFile=/etc/hive/agent.env
 
 # 3. Run the healthcheck by hand to see any errors:
-sudo -u "$AGENT_USER" env $(cat /etc/supervised-agent/agent.env | xargs) /usr/local/bin/agent-healthcheck.sh
+sudo -u "$AGENT_USER" env $(cat /etc/hive/agent.env | xargs) /usr/local/bin/agent-healthcheck.sh
 
 # 4. Is the log actually stale?
 stat "$AGENT_LOG_FILE"
@@ -80,6 +80,6 @@ sudo -u "$AGENT_USER" tmux capture-pane -t "$AGENT_SESSION_NAME" -p -S -50
 
 ```sh
 sudo ./uninstall.sh
-# (optionally remove /etc/supervised-agent/agent.env and the heartbeat log dir)
+# (optionally remove /etc/hive/agent.env and the heartbeat log dir)
 sudo ./install.sh
 ```

@@ -1,13 +1,13 @@
 #!/bin/bash
-# install.sh — install supervised-agent scripts + systemd units.
+# install.sh — install hive scripts + systemd units.
 # Run as root. Two modes:
 #
 #   sudo ./install.sh                       # single-instance (back-compat)
 #   sudo ./install.sh --instance <name>     # named instance for multi-agent
 #
-# Single-instance uses /etc/supervised-agent/agent.env and the non-templated
-# units (supervised-agent.service etc.). Named instance uses the templated
-# units (supervised-agent@<name>.service) and /etc/supervised-agent/<name>.env.
+# Single-instance uses /etc/hive/agent.env and the non-templated
+# units (hive.service etc.). Named instance uses the templated
+# units (hive@<name>.service) and /etc/hive/<name>.env.
 # You can mix both on the same host — each call installs what it needs.
 #
 # The kick-governor is always installed alongside the agent supervisor.
@@ -48,16 +48,16 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -n "$INSTANCE" ]; then
-  ENV_FILE="/etc/supervised-agent/${INSTANCE}.env"
-  UNIT_SUPERVISOR="supervised-agent@${INSTANCE}.service"
-  UNIT_RENEW_TIMER="supervised-agent-renew@${INSTANCE}.timer"
-  UNIT_HEALTH_TIMER="supervised-agent-healthcheck@${INSTANCE}.timer"
+  ENV_FILE="/etc/hive/${INSTANCE}.env"
+  UNIT_SUPERVISOR="hive@${INSTANCE}.service"
+  UNIT_RENEW_TIMER="hive-renew@${INSTANCE}.timer"
+  UNIT_HEALTH_TIMER="hive-healthcheck@${INSTANCE}.timer"
   TEMPLATED=1
 else
-  ENV_FILE="/etc/supervised-agent/agent.env"
-  UNIT_SUPERVISOR="supervised-agent.service"
-  UNIT_RENEW_TIMER="supervised-agent-renew.timer"
-  UNIT_HEALTH_TIMER="supervised-agent-healthcheck.timer"
+  ENV_FILE="/etc/hive/agent.env"
+  UNIT_SUPERVISOR="hive.service"
+  UNIT_RENEW_TIMER="hive-renew.timer"
+  UNIT_HEALTH_TIMER="hive-healthcheck.timer"
   TEMPLATED=0
 fi
 
@@ -101,19 +101,19 @@ rm -f "$BIN_DIR/agent-launch.sh"
 
 if [ "$TEMPLATED" = 1 ]; then
   UNITS=(
-    "supervised-agent@.service"
-    "supervised-agent-renew@.service"
-    "supervised-agent-renew@.timer"
-    "supervised-agent-healthcheck@.service"
-    "supervised-agent-healthcheck@.timer"
+    "hive@.service"
+    "hive-renew@.service"
+    "hive-renew@.timer"
+    "hive-healthcheck@.service"
+    "hive-healthcheck@.timer"
   )
 else
   UNITS=(
-    "supervised-agent.service"
-    "supervised-agent-renew.service"
-    "supervised-agent-renew.timer"
-    "supervised-agent-healthcheck.service"
-    "supervised-agent-healthcheck.timer"
+    "hive.service"
+    "hive-renew.service"
+    "hive-renew.timer"
+    "hive-healthcheck.service"
+    "hive-healthcheck.timer"
   )
 fi
 
@@ -143,5 +143,5 @@ echo "  systemctl list-timers $UNIT_RENEW_TIMER $UNIT_HEALTH_TIMER"
 echo "  journalctl -u $UNIT_SUPERVISOR -f"
 echo
 echo "Attach to the agent session:"
-echo "  sudo -u $AGENT_USER tmux attach -t ${AGENT_SESSION_NAME:-supervised-agent}"
+echo "  sudo -u $AGENT_USER tmux attach -t ${AGENT_SESSION_NAME:-hive}"
 echo "  (Detach with Ctrl+B, D — the session keeps running.)"

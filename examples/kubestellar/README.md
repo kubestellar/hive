@@ -1,6 +1,6 @@
 # KubeStellar Production Deployment
 
-Production configuration for the supervised-agent system deployed on the [KubeStellar](https://kubestellar.io) project — a CNCF Sandbox multi-cluster management platform.
+Production configuration for the hive system deployed on the [KubeStellar](https://kubestellar.io) project — a CNCF Sandbox multi-cluster management platform.
 
 ## Architecture
 

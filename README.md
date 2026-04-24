@@ -1,4 +1,4 @@
-# supervised-agent
+# hive
 
 **Give an AI a job. It runs 24/7. Your phone buzzes if it gets stuck.**
 
@@ -20,8 +20,8 @@ flowchart LR
 
 ```bash
 # 1. clone
-git clone https://github.com/kubestellar/supervised-agent.git
-cd supervised-agent && sudo ./install.sh
+git clone https://github.com/kubestellar/hive.git
+cd hive && sudo ./install.sh
 
 # 2. start your agent in tmux
 tmux new-session -s issue-scanner -d

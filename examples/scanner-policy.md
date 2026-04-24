@@ -90,7 +90,7 @@ If your supervisor is a long-running bash daemon that caches its launch prompt i
 Absolute path: whatever your `AGENT_LOG_FILE` env var is. Example for Claude Code memory:
 
 ```
-/home/dev/.local/state/supervised-agent/heartbeat.log
+/home/dev/.local/state/hive/heartbeat.log
 ```
 
 Append one block per firing at the START of the iteration:

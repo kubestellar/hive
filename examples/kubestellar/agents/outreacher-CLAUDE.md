@@ -136,4 +136,4 @@ After opening PRs on external repos, you MUST monitor them for review comments a
 - One outreach per project — never spam
 - Match the target repo's format exactly
 - Never misrepresent KubeStellar's usage of a project
-- Pull latest instructions on every pass: `cd /tmp/supervised-agent && git pull --rebase origin main`
+- Pull latest instructions on every pass: `cd /tmp/hive && git pull --rebase origin main`

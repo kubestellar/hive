@@ -1,6 +1,6 @@
 # macOS Support (launchd)
 
-The supervised-agent runtime was built on Linux/systemd, but the same concepts map cleanly to macOS using **launchd** — Apple's equivalent of systemd.
+The hive runtime was built on Linux/systemd, but the same concepts map cleanly to macOS using **launchd** — Apple's equivalent of systemd.
 
 This guide shows how to run a supervised agent on a Mac that stays on (Mac Mini, Mac Studio, always-on laptop, etc.).
 
@@ -10,13 +10,13 @@ This guide shows how to run a supervised agent on a Mac that stays on (Mac Mini,
 
 | Linux (systemd) | macOS (launchd) | Role |
 |---|---|---|
-| `supervised-agent.service` | `LaunchAgent` plist | Keeps the supervisor alive, restarts on crash |
-| `supervised-agent-healthcheck.timer` | Second `LaunchAgent` plist with `StartCalendarInterval` | Periodic healthcheck |
-| `supervised-agent-renew.timer` | Third plist with 6-day interval | `/loop` cron renewal |
+| `hive.service` | `LaunchAgent` plist | Keeps the supervisor alive, restarts on crash |
+| `hive-healthcheck.timer` | Second `LaunchAgent` plist with `StartCalendarInterval` | Periodic healthcheck |
+| `hive-renew.timer` | Third plist with 6-day interval | `/loop` cron renewal |
 | `systemctl enable --now` | `launchctl load -w` | Start + enable at login |
 | `systemctl stop` | `launchctl unload` | Stop |
-| `journalctl -u supervised-agent` | `StandardOutPath` / `StandardErrorPath` in plist | Logs |
-| `/etc/supervised-agent/agent.env` | Plist `EnvironmentVariables` dict or a sourced env file | Config |
+| `journalctl -u hive` | `StandardOutPath` / `StandardErrorPath` in plist | Logs |
+| `/etc/hive/agent.env` | Plist `EnvironmentVariables` dict or a sourced env file | Config |
 
 ---
 
@@ -34,10 +34,10 @@ claude /login
 ### 2. Create the config directory
 
 ```sh
-mkdir -p ~/.config/supervised-agent
-cp config/agent.env.example ~/.config/supervised-agent/agent.env
+mkdir -p ~/.config/hive
+cp config/agent.env.example ~/.config/hive/agent.env
 # Edit to match your setup:
-nano ~/.config/supervised-agent/agent.env
+nano ~/.config/hive/agent.env
 ```
 
 ### 3. Install the LaunchAgent
@@ -46,36 +46,36 @@ Copy the example plist, adjust paths, and load it:
 
 ```sh
 # Copy the template
-cp launchd/com.supervised-agent.plist.example ~/Library/LaunchAgents/com.supervised-agent.plist
+cp launchd/com.hive.plist.example ~/Library/LaunchAgents/com.hive.plist
 
 # Edit: change all /Users/YOURUSER paths to your actual home directory
-nano ~/Library/LaunchAgents/com.supervised-agent.plist
+nano ~/Library/LaunchAgents/com.hive.plist
 
 # Create log directory
-mkdir -p ~/.local/state/supervised-agent
+mkdir -p ~/.local/state/hive
 
 # Load (starts immediately + starts on every login)
-launchctl load -w ~/Library/LaunchAgents/com.supervised-agent.plist
+launchctl load -w ~/Library/LaunchAgents/com.hive.plist
 ```
 
 ### 4. Verify it's running
 
 ```sh
 # Check launchd status
-launchctl list | grep supervised-agent
+launchctl list | grep hive
 
 # Attach to the tmux session
-tmux attach -t supervised-agent
+tmux attach -t hive
 # Detach: Ctrl+B then D
 ```
 
 ### 5. Uninstall
 
 ```sh
-launchctl unload ~/Library/LaunchAgents/com.supervised-agent.plist
-rm ~/Library/LaunchAgents/com.supervised-agent.plist
+launchctl unload ~/Library/LaunchAgents/com.hive.plist
+rm ~/Library/LaunchAgents/com.hive.plist
 # Optionally remove config + state:
-# rm -rf ~/.config/supervised-agent ~/.local/state/supervised-agent
+# rm -rf ~/.config/hive ~/.local/state/hive
 ```
 
 ---
@@ -85,14 +85,14 @@ rm ~/Library/LaunchAgents/com.supervised-agent.plist
 On Linux, the healthcheck is a separate systemd timer. On macOS, use a second LaunchAgent with `StartCalendarInterval`:
 
 ```xml
-<!-- ~/Library/LaunchAgents/com.supervised-agent.healthcheck.plist -->
+<!-- ~/Library/LaunchAgents/com.hive.healthcheck.plist -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.supervised-agent.healthcheck</string>
+    <string>com.hive.healthcheck</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/path/to/supervised-agent/bin/agent-healthcheck.sh</string>
+        <string>/path/to/hive/bin/agent-healthcheck.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <array>
@@ -104,9 +104,9 @@ On Linux, the healthcheck is a separate systemd timer. On macOS, use a second La
     <key>EnvironmentVariables</key>
     <dict>
         <key>AGENT_LOG_FILE</key>
-        <string>/Users/YOURUSER/.local/state/supervised-agent/heartbeat.log</string>
+        <string>/Users/YOURUSER/.local/state/hive/heartbeat.log</string>
         <key>AGENT_SESSION_NAME</key>
-        <string>supervised-agent</string>
+        <string>hive</string>
         <key>AGENT_STALE_MAX_SEC</key>
         <string>1800</string>
         <key>AGENT_MAX_RESPAWNS</key>
@@ -115,9 +115,9 @@ On Linux, the healthcheck is a separate systemd timer. On macOS, use a second La
         <string>your-secret-topic</string>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/YOURUSER/.local/state/supervised-agent/healthcheck.log</string>
+    <string>/Users/YOURUSER/.local/state/hive/healthcheck.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/YOURUSER/.local/state/supervised-agent/healthcheck.err</string>
+    <string>/Users/YOURUSER/.local/state/hive/healthcheck.err</string>
 </dict>
 </plist>
 ```
@@ -133,8 +133,8 @@ The renew timer kills and respawns the tmux session every 6 days to beat Claude 
 ```bash
 #!/bin/bash
 # renew-if-stale.sh — run hourly via launchd, only acts every 6 days
-SESSION="${AGENT_SESSION_NAME:-supervised-agent}"
-STATE_DIR="${HOME}/.local/state/supervised-agent"
+SESSION="${AGENT_SESSION_NAME:-hive}"
+STATE_DIR="${HOME}/.local/state/hive"
 STAMP="$STATE_DIR/last-renew"
 
 # If stamp doesn't exist, create it and exit

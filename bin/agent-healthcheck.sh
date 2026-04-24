@@ -13,7 +13,7 @@ set -u
 
 SESSION="$AGENT_SESSION_NAME"
 LOG="$AGENT_LOG_FILE"
-STATE_DIR="${AGENT_STATE_DIR:-/tmp/supervised-agent-healthcheck}"
+STATE_DIR="${AGENT_STATE_DIR:-/tmp/hive-healthcheck}"
 STALE_FLAG="$STATE_DIR/stale-since"
 RESPAWN_COUNT_FILE="$STATE_DIR/respawn-count"
 STALE_MAX_SEC="${AGENT_STALE_MAX_SEC:-1800}"
@@ -63,7 +63,7 @@ if [ "$age" -gt "$STALE_MAX_SEC" ]; then
     if [ "$count" -eq "$MAX_RESPAWNS" ]; then
       notify urgent \
         "Supervised agent stalled — manual intervention needed" \
-        "Log $LOG is ${age_min}m old. ${MAX_RESPAWNS} respawn attempts failed. Check: journalctl -u supervised-agent -n 50" \
+        "Log $LOG is ${age_min}m old. ${MAX_RESPAWNS} respawn attempts failed. Check: journalctl -u hive -n 50" \
         "fire,rotating_light"
       echo $((count + 1)) > "$RESPAWN_COUNT_FILE"
     fi

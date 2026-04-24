@@ -22,7 +22,7 @@ err() { printf '\033[1;31mERR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 # Validate
 command -v tmux >/dev/null || err "tmux not found: apt install tmux"
-command -v claude-dev >/dev/null || err "claude-dev not found"
+command -v hive >/dev/null || err "hive not found"
 command -v gh >/dev/null || err "gh CLI not found: https://cli.github.com"
 command -v bd >/dev/null || err "beads CLI not found: https://github.com/steveyegge/beads"
 command -v sqlite3 >/dev/null || err "sqlite3 not found"
@@ -105,12 +105,12 @@ if command -v crontab >/dev/null && [ "$(uname)" = "Linux" ]; then
   fi
 fi
 
-# 7. Install supervised-agent instances
-log "Installing supervised-agent instances"
+# 7. Install hive instances
+log "Installing hive instances"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 for agent in "${AGENTS[@]}"; do
   env_src="$SCRIPT_DIR/${agent}.env"
-  env_dst="/etc/supervised-agent/ks-${agent}.env"
+  env_dst="/etc/hive/ks-${agent}.env"
 
   # Set NTFY_TOPIC if provided
   if [ -n "$NTFY_TOPIC" ]; then

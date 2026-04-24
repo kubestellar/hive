@@ -1,80 +1,126 @@
 # hive
 
-**Give an AI a job. It runs 24/7. Your phone buzzes if it gets stuck.**
+**One command starts everything. Your phone buzzes if anything needs you.**
 
 ---
 
 ```mermaid
 flowchart LR
-    TIMER["⏱️ timer\nevery 15 min"] --> KICK["📢 kick-agents.sh"]
-    KICK -- "if idle" --> SCANNER["🔍 scanner\ntmux session"]
-    KICK -- "if idle" --> REVIEWER["👁️ reviewer\ntmux session"]
-    SCANNER --> GITHUB["🐙 GitHub\nfix bugs · merge PRs"]
-    REVIEWER --> LOGS["📋 coverage · CI · deploys · GA4"]
-    SCANNER & REVIEWER -- "stuck?" --> PHONE["📱 ntfy alert"]
+    conf["hive.conf<br>repos to watch<br>ntfy topic"] --> vel
+    gh["GitHub"] --> vel
+
+    subgraph gov["kick-governor  every 15 min"]
+        vel["velocity<br>activity/hr  busy %"]
+        mode["SURGE  BUSY<br>QUIET  IDLE"]
+        vel --> mode
+    end
+
+    mode --> sc["scanner"]
+    mode --> rv["reviewer"]
+    mode --> ar["architect"]
+    mode --> ot["outreach"]
+    mode --> sp["supervisor"]
+
+    sc --> bd[("beads<br>shared ledger")]
+    rv --> bd
+    ar --> bd
+    ot --> bd
+    sp --> bd
+
+    sc --> ph["ntfy  phone"]
+    rv --> ph
+    ar --> ph
+    ot --> ph
+    sp --> ph
 ```
 
 ---
 
-## Setup (5 min)
+## Setup
 
 ```bash
-# 1. clone
-git clone https://github.com/kubestellar/hive.git
-cd hive && sudo ./install.sh
+# 1. install tmux
+sudo apt install tmux
 
-# 2. start your agent in tmux
-tmux new-session -s issue-scanner -d
-tmux send-keys -t issue-scanner "cd /your/project && claude" Enter
+# 2. install hive
+curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/main/install.sh | sudo bash
 
-# 3. enable the timer
-sudo systemctl enable --now kick-scanner.timer kick-reviewer.timer
+# 3. configure
+sudo nano /etc/supervised-agent/hive.conf
+#   NTFY_TOPIC=your-ntfy-topic    # free at ntfy.sh
+#   HIVE_REPOS="owner/repo ..."   # repos to watch
+
+# 4. start
+hive supervisor --copilot   # or --claude
 ```
 
-That's it. The timer kicks your agents every 15 min. If they're busy, it skips.
+That's it. `hive supervisor` installs missing tools, starts all agents, sets the kick cadence, and launches the supervisor. No tmux knowledge needed.
 
 ---
 
-## Phone alerts
+## Commands
 
 ```bash
-# get a free topic at ntfy.sh, subscribe in the ntfy app, then:
-NTFY_TOPIC=your-secret-topic   # add to your config
+hive supervisor --copilot   # start everything
+hive supervisor --claude    # start with Claude Code instead
+
+hive status                 # live dashboard
+hive attach supervisor      # watch the supervisor  (Ctrl+B D to leave)
+hive attach scanner         # watch any agent
+
+hive kick all               # immediate kick to all agents
+hive kick scanner           # kick one agent
+
+hive logs governor          # tail governor decisions
+hive logs scanner           # tail any agent's service log
+
+hive stop all               # stop everything
 ```
 
 ---
 
-## Manual kick
+## How it works
+
+The **kick-governor** measures issue and PR velocity across your repos every 15 minutes and picks a mode:
+
+| Mode | Trigger | Scanner | Reviewer | Architect | Outreach | Supervisor |
+|------|---------|---------|---------|-----------|---------|-----------|
+| SURGE | >8 activity/hr | 10 min | 10 min | 30 min | 30 min | 30 min |
+| BUSY  | >3 activity/hr | 15 min | 15 min | 3 h    | 3 h    | 1 h    |
+| QUIET | >0.5 activity/hr | 15 min | 30 min | 1 h   | 1 h    | 2 h    |
+| IDLE  | ≤0.5 activity/hr | 30 min | 1 h   | paused | paused | 4 h    |
+
+Cadences are tunable in `/etc/supervised-agent/governor.env` — no restart needed.
+
+---
+
+## Config
+
+`/etc/supervised-agent/hive.conf` — the only file you need to edit:
 
 ```bash
-kick-agents.sh all        # kick scanner + reviewer
-kick-agents.sh scanner    # scanner only
-kick-agents.sh reviewer   # reviewer only
+# Repos to watch (space-separated)
+HIVE_REPOS="owner/repo1 owner/repo2"
+
+# ntfy.sh topic for phone alerts (free at ntfy.sh)
+NTFY_TOPIC=your-secret-topic
+
+# Which CLI to use for the supervisor session
+SUPERVISOR_CLI=copilot   # or claude
 ```
-
----
-
-## Key files
-
-| File | Purpose |
-|------|---------|
-| `bin/kick-agents.sh` | Sends work orders to tmux sessions |
-| `systemd/kick-scanner.timer` | Fires every 15 min |
-| `systemd/kick-reviewer.timer` | Fires every 30 min |
-| `bin/agent-supervisor.sh` | Restarts crashed sessions |
-| `examples/kubestellar/` | Real 4-agent setup — read this for ideas |
 
 ---
 
 ## Troubleshooting
 
 ```bash
-tmux attach -t issue-scanner          # watch it live (Ctrl+B D to leave)
-systemctl list-timers kick-*          # check next fire time
-journalctl -u kick-scanner -f         # see logs
-kick-agents.sh scanner                # manual kick
+hive status                  # check what's running
+hive logs governor           # why did it kick / not kick?
+hive logs scanner            # what is scanner doing?
+hive attach supervisor       # watch supervisor live
+journalctl -u claude-scanner # raw service log
 ```
 
 ---
 
-Apache 2.0 · [Full docs](docs/architecture.md) · [Real example](examples/kubestellar/)
+Apache 2.0  ·  [Architecture](docs/architecture.md)  ·  [KubeStellar example](examples/kubestellar/)

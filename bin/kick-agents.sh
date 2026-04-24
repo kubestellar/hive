@@ -22,8 +22,124 @@ TIMESTAMP="$(TZ=America/New_York date '+%Y-%m-%d %H:%M:%S %Z')"
 ET_NOW="$(TZ=America/New_York date '+%I:%M %p ET')"
 NTFY_TOPIC="ntfy.sh/issue-scanner"
 
+# Backend state directory — tracks which backend each agent is currently using.
+# On rate limit, the agent switches to its fallback backend.
+BACKEND_STATE_DIR="/var/run/agent-backends"
+mkdir -p "$BACKEND_STATE_DIR" 2>/dev/null || true
+
+# Agent handoff state — captures last N lines of work context when switching backends
+HANDOFF_DIR="/tmp/agent-handoff"
+mkdir -p "$HANDOFF_DIR" 2>/dev/null || true
+
 log() { echo "[$TIMESTAMP] $*" | tee -a "$LOG"; }
 ntfy() { curl -s -H "Title: $1" -d "$2" "$NTFY_TOPIC" > /dev/null 2>&1 || true; }
+
+# ── Backend management ──────────────────────────────────────────────
+# Each agent has a primary and fallback backend. State is tracked in
+# /var/run/agent-backends/<agent> (contains "claude" or "copilot").
+
+# Default backend assignments per agent
+declare -A AGENT_PRIMARY_BACKEND=(
+  [scanner]=copilot
+  [reviewer]=claude
+  [architect]=claude
+  [outreach]=claude
+)
+declare -A AGENT_FALLBACK_BACKEND=(
+  [scanner]=claude
+  [reviewer]=copilot
+  [architect]=copilot
+  [outreach]=copilot
+)
+# Model to use per backend — Copilot uses dots, Claude uses hyphens
+declare -A BACKEND_MODEL=(
+  [copilot]=claude-opus-4.6
+  [claude]=claude-sonnet-4-5
+)
+# Scanner runs Opus on both backends
+declare -A AGENT_MODEL_OVERRIDE=(
+  [scanner-copilot]=claude-opus-4.6
+  [scanner-claude]=claude-opus-4-6
+)
+
+get_current_backend() {
+  local agent="$1"
+  if [ -f "$BACKEND_STATE_DIR/$agent" ]; then
+    cat "$BACKEND_STATE_DIR/$agent"
+  else
+    echo "${AGENT_PRIMARY_BACKEND[$agent]:-claude}"
+  fi
+}
+
+set_current_backend() {
+  local agent="$1" backend="$2"
+  echo "$backend" > "$BACKEND_STATE_DIR/$agent"
+}
+
+get_model_for() {
+  local agent="$1" backend="$2"
+  local override_key="${agent}-${backend}"
+  if [ -n "${AGENT_MODEL_OVERRIDE[$override_key]+x}" ]; then
+    echo "${AGENT_MODEL_OVERRIDE[$override_key]}"
+  else
+    echo "${BACKEND_MODEL[$backend]}"
+  fi
+}
+
+capture_handoff_state() {
+  local session="$1" agent="$2"
+  local handoff_file="$HANDOFF_DIR/${agent}-handoff.md"
+  local pane_text
+  pane_text=$($TMUX_BIN capture-pane -t "$session" -p -S -200 2>/dev/null || true)
+  if [ -n "$pane_text" ]; then
+    cat > "$handoff_file" <<HANDOFF_EOF
+# Agent Handoff — $agent
+# Captured at: $(date -Is)
+# Reason: Backend switch due to rate limit
+
+## Last 200 lines of session output:
+\`\`\`
+$pane_text
+\`\`\`
+
+## Instructions
+Continue where the previous session left off. Read your CLAUDE.md for standing instructions.
+HANDOFF_EOF
+    log "HANDOFF $agent — saved context to $handoff_file"
+  fi
+}
+
+switch_backend() {
+  local session="$1" agent="$2"
+  local current_backend fallback_backend model
+
+  current_backend=$(get_current_backend "$agent")
+  fallback_backend="${AGENT_FALLBACK_BACKEND[$agent]:-claude}"
+
+  if [ "$current_backend" = "$fallback_backend" ]; then
+    fallback_backend="${AGENT_PRIMARY_BACKEND[$agent]:-claude}"
+  fi
+
+  model=$(get_model_for "$agent" "$fallback_backend")
+
+  log "SWITCH $agent: $current_backend → $fallback_backend (model: $model)"
+  ntfy "$agent — switching backend" "Rate limited on $current_backend. Switching to $fallback_backend ($model)"
+
+  capture_handoff_state "$session" "$agent"
+
+  $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
+  sleep 2
+  $TMUX_BIN send-keys -t "$session" "/exit" 2>/dev/null || true
+  $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
+  sleep 3
+
+  $TMUX_BIN send-keys -t "$session" "agent-launch.sh --backend $fallback_backend --model $model" 2>/dev/null || true
+  $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
+
+  set_current_backend "$agent" "$fallback_backend"
+
+  log "SWITCH $agent — launched $fallback_backend in $session"
+}
 
 session_exists() {
   $TMUX_BIN has-session -t "$1" 2>/dev/null
@@ -111,19 +227,26 @@ check_rate_limit() {
     local reset_et
     reset_et=$(TZ=America/New_York date -d "@$reset_epoch" '+%I:%M %p ET' 2>/dev/null || echo "$reset_time UTC")
 
-    log "RATE-LIMITED $session — scheduling re-kick in ${wait_secs}s (1 min after $reset_time UTC / $reset_et)"
-    ntfy "$agent — rate limited" "Resets $reset_time UTC ($reset_et). Auto re-kick scheduled."
+    log "RATE-LIMITED $session — resets $reset_time UTC ($reset_et), wait ${wait_secs}s"
 
-    # Send Escape to dismiss the error, then sleep and re-kick
-    $TMUX_BIN send-keys -t "$session" Escape
+    # Strategy: switch to fallback backend immediately, AND schedule a
+    # re-kick on the original backend after the rate limit resets.
+    switch_backend "$session" "$agent"
+
+    # After the new backend starts, kick it with the agent's work order
+    sleep 15
+    /usr/local/bin/kick-agents.sh "$agent"
+
+    # Also schedule a switch back to the primary backend after rate limit resets
     sleep "$wait_secs"
-
-    # Re-check: if session is idle, re-kick with the same agent target
-    if session_idle "$session"; then
-      log "RE-KICK $session after rate limit reset"
+    local current_after_switch
+    current_after_switch=$(get_current_backend "$agent")
+    local primary="${AGENT_PRIMARY_BACKEND[$agent]:-claude}"
+    if [ "$current_after_switch" != "$primary" ]; then
+      log "RATE-LIMIT RESET $agent — switching back to primary ($primary)"
+      switch_backend "$session" "$agent"
+      sleep 15
       /usr/local/bin/kick-agents.sh "$agent"
-    else
-      log "SKIP RE-KICK $session — not idle after rate limit reset"
     fi
   ) &
 }
@@ -144,9 +267,10 @@ kick() {
     local pane_text
     pane_text=$($TMUX_BIN capture-pane -t "$session" -p 2>/dev/null || true)
     if echo "$pane_text" | grep -qi "out of.*usage\|rate limit"; then
-      log "RATE-LIMITED $session — sending Escape and scheduling re-kick"
-      $TMUX_BIN send-keys -t "$session" Escape
-      check_rate_limit "$session" "$agent" 5
+      log "RATE-LIMITED $session — switching backend"
+      switch_backend "$session" "$agent"
+      sleep 15
+      /usr/local/bin/kick-agents.sh "$agent"
       return
     fi
     log "SKIP $session — already working"

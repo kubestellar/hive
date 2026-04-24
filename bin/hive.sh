@@ -79,7 +79,8 @@ ${BLD}SETUP${RST}
 
 ${BLD}COMMANDS${RST}
   supervisor                        Start everything: agents, governor, supervisor
-  status  [--watch N]                 Live dashboard (--watch N refreshes every N sec, default 5)
+  status  [--watch N] [--json]         Live dashboard (--watch N refreshes every N sec, --json for API)
+  dashboard                            Open web dashboard (port 3001)
   attach  [agent]                   Watch an agent live  (Ctrl+B D to leave)
   kick    [all|scanner|reviewer|architect|outreach]
   logs    [governor|scanner|reviewer|architect|outreach|supervisor]
@@ -595,6 +596,102 @@ cmd_status() {
   echo ""
 }
 
+# ── status JSON ──────────────────────────────────────────────────────────────
+
+cmd_status_json() {
+  local SESSIONS=(supervisor issue-scanner reviewer feature outreach)
+  local LABELS=("supervisor" "scanner" "reviewer" "architect" "outreach")
+  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "feature" "outreach")
+  local GOV_STATE="/var/run/kick-governor"
+  local STATUS_CACHE="/var/run/kick-governor/repo_cache"
+  mkdir -p "$STATUS_CACHE" 2>/dev/null || true
+
+  local now
+  now=$(date -Is)
+
+  # Agents
+  local agents_json="["
+  for i in "${!SESSIONS[@]}"; do
+    local s="${SESSIONS[$i]}" label="${LABELS[$i]}"
+    local cli cadence state busy doing log_age_sec
+    cadence=$(cat "${GOV_STATE}/cadence_${label}" 2>/dev/null || echo "?")
+    state="stopped"; cli="?"; busy="idle"; doing=""; log_age_sec=-1
+
+    if tmux has-session -t "$s" 2>/dev/null; then
+      state="running"
+      local pane pane_tail
+      pane=$(tmux capture-pane -t "$s" -p 2>/dev/null || echo "")
+      pane_tail=$(echo "$pane" | tail -5)
+      if echo "$pane_tail" | grep -q "bypass permissions\|claude doctor\|Claude Code v"; then
+        cli="claude"
+      elif echo "$pane_tail" | grep -q "ctrl+q enqueue\|/ commands.*help"; then
+        cli="copilot"
+      else
+        cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
+      fi
+      local last_content
+      last_content=$(echo "$pane" | grep -v '^\s*$' | tail -1 || true)
+      if echo "$last_content" | grep -qE "^[◐◉] |^⏺ |Esc to cancel|↳ "; then
+        busy="working"
+        doing=$(echo "$pane" | tail -30 \
+          | grep -E "^[◐◉●◎] |^⏺ |Esc to cancel" \
+          | tail -1 \
+          | sed 's/^[◐◉●◎⏺] //' \
+          | sed 's/ (Esc to cancel.*//' \
+          | cut -c1-80 || true)
+      fi
+      local log_file
+      log_file=$(grep "^AGENT_LOG_FILE=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null \
+                 | cut -d= -f2 | tr -d '"' || echo "")
+      if [[ -n "$log_file" && -f "$log_file" ]]; then
+        log_age_sec=$(( $(date +%s) - $(stat -c %Y "$log_file" 2>/dev/null || echo 0) ))
+      fi
+    fi
+    # Escape doing for JSON
+    doing=$(echo "$doing" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr -d '\n')
+    [[ $i -gt 0 ]] && agents_json+=","
+    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"logAgeSec\":$log_age_sec}"
+  done
+  agents_json+="]"
+
+  # Governor
+  local gov_mode gov_active gov_qi gov_qp gov_next
+  gov_mode=$(cat /var/run/kick-governor/mode         2>/dev/null || echo "unknown")
+  gov_active=$(systemctl is-active kick-governor.timer 2>/dev/null || echo "inactive")
+  gov_qi=$(  cat /var/run/kick-governor/queue_issues 2>/dev/null || echo "0")
+  gov_qp=$(  cat /var/run/kick-governor/queue_prs    2>/dev/null || echo "0")
+  gov_next=$(systemctl list-timers kick-governor.timer --no-pager 2>/dev/null \
+       | awk 'NR==2{print $1,$2,$3,$4}' \
+       | xargs -I{} bash -c "TZ=\"$HIVE_TZ\" date -d \"{}\" \"+%-I:%M %p %Z\"" 2>/dev/null || echo "")
+
+  # Repos
+  local repos_json="["
+  local first_repo=true
+  for repo in ${HIVE_REPOS:-}; do
+    local rname issues prs
+    rname="${repo##*/}"
+    issues=$(gh issue list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
+    prs=$(   gh pr    list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
+    [[ "$first_repo" == "false" ]] && repos_json+=","
+    first_repo=false
+    repos_json+="{\"name\":\"$rname\",\"full\":\"$repo\",\"issues\":$issues,\"prs\":$prs}"
+    [[ "$issues" != "-1" ]] && echo "$issues" > "$STATUS_CACHE/${rname}_issues"
+    [[ "$prs"    != "-1" ]] && echo "$prs"    > "$STATUS_CACHE/${rname}_prs"
+  done
+  repos_json+="]"
+
+  # Beads
+  local beads_workers beads_supervisor
+  beads_workers=$(cd "$BEADS_WORKER_DIR" 2>/dev/null && bd list --json 2>/dev/null \
+     | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '-1')
+  beads_supervisor=$(cd "$BEADS_SUPERVISOR_DIR" 2>/dev/null && bd list --json 2>/dev/null \
+     | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '-1')
+
+  cat <<ENDJSON
+{"timestamp":"$now","agents":$agents_json,"governor":{"mode":"$gov_mode","active":$([ "$gov_active" = "active" ] && echo true || echo false),"issues":$gov_qi,"prs":$gov_qp,"nextKick":"$gov_next"},"repos":$repos_json,"beads":{"workers":$beads_workers,"supervisor":$beads_supervisor}}
+ENDJSON
+}
+
 # ── attach ───────────────────────────────────────────────────────────────────
 
 cmd_attach() {
@@ -743,14 +840,17 @@ main() {
 
     status)
       shift
-      local watch_interval=0
+      local watch_interval=0 json_mode=false
       while [[ $# -gt 0 ]]; do
         case "$1" in
           -w|--watch)  watch_interval="${2:-5}"; shift 2 || shift ;;
+          --json)      json_mode=true; shift ;;
           *)           watch_interval="$1"; shift ;;
         esac
       done
-      if [[ "$watch_interval" -gt 0 ]] 2>/dev/null; then
+      if [[ "$json_mode" == "true" ]]; then
+        cmd_status_json
+      elif [[ "$watch_interval" -gt 0 ]] 2>/dev/null; then
         trap 'tput cnorm 2>/dev/null; printf "\n"; exit 0' INT TERM
         tput civis 2>/dev/null  # hide cursor
         clear
@@ -777,6 +877,42 @@ main() {
     logs)     shift; cmd_logs    "${1:-governor}" ;;
     stop)     shift; cmd_stop    "${1:-all}" ;;
     switch)   shift; cmd_switch  "$@" ;;
+    dashboard)
+      local DASHBOARD_DIR
+      DASHBOARD_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)/../dashboard"
+      if [[ ! -f "$DASHBOARD_DIR/server.js" ]]; then
+        # Try repo location
+        DASHBOARD_DIR="/tmp/hive/dashboard"
+      fi
+      if [[ ! -f "$DASHBOARD_DIR/server.js" ]]; then
+        fail "Dashboard not found. Run: cd /tmp/hive/dashboard && npm install"
+        exit 1
+      fi
+      # Check if already running
+      if curl -sf http://localhost:3001/api/status >/dev/null 2>&1; then
+        info "Dashboard already running"
+      else
+        info "Starting dashboard..."
+        cd "$DASHBOARD_DIR"
+        [[ ! -d "node_modules" ]] && npm install --quiet 2>/dev/null
+        nohup node server.js > /tmp/hive-dashboard.log 2>&1 &
+        sleep 2
+        if curl -sf http://localhost:3001/api/status >/dev/null 2>&1; then
+          ok "Dashboard running at http://localhost:3001"
+        else
+          fail "Dashboard failed to start — check /tmp/hive-dashboard.log"
+          exit 1
+        fi
+      fi
+      # Open browser
+      if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "http://localhost:3001" 2>/dev/null &
+      elif command -v open >/dev/null 2>&1; then
+        open "http://localhost:3001" 2>/dev/null &
+      else
+        info "Open http://localhost:3001 in your browser"
+      fi
+      ;;
     -h|--help|help) usage ;;
     *) fail "Unknown command: $1"; usage ;;
   esac

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🐝 Hive Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --green: #3fb950;
+      --yellow: #d29922; --red: #f85149; --blue: #58a6ff;
+      --cyan: #39d2c0; --purple: #bc8cff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      background: var(--bg); color: var(--text);
+      padding: 24px; min-height: 100vh;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 20px; }
+    h1 span.bee { font-size: 1.6rem; }
+    .timestamp { color: var(--muted); font-size: 0.8rem; margin-left: 12px; }
+
+    /* Agent cards */
+    .agents { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .agent-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; transition: border-color 0.3s;
+    }
+    .agent-card.working { border-color: var(--yellow); }
+    .agent-card.idle { border-color: var(--border); }
+    .agent-card.stopped { border-color: var(--red); }
+    .agent-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+    .agent-name .dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; margin-right: 6px;
+    }
+    .dot.running { background: var(--green); }
+    .dot.stopped { background: var(--red); }
+    .agent-field { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 2px 0; }
+    .agent-field .label { color: var(--muted); }
+    .agent-field .value { text-align: right; }
+    .value.working { color: var(--yellow); }
+    .value.idle { color: var(--muted); }
+    .value.copilot { color: var(--cyan); }
+    .value.claude { color: var(--purple); }
+    .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .agent-actions { margin-top: 10px; display: flex; gap: 6px; }
+    .btn {
+      font-size: 0.7rem; padding: 3px 8px; border-radius: 4px;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--muted); cursor: pointer; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--border); color: var(--text); }
+
+    /* Governor */
+    .governor {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; margin-bottom: 24px;
+    }
+    .governor.dead { border-color: var(--red); }
+    .governor.active { border-color: var(--green); }
+    .gov-title { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .gov-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+    .gov-stat { font-size: 0.85rem; }
+    .gov-stat .label { color: var(--muted); font-size: 0.75rem; }
+    .gov-stat .val { font-size: 1.2rem; font-weight: 700; }
+    .gov-stat .val.active { color: var(--green); }
+    .gov-stat .val.dead { color: var(--red); }
+
+    /* Repos */
+    .repos { margin-bottom: 24px; }
+    .repos h2 { font-size: 0.95rem; margin-bottom: 8px; color: var(--muted); }
+    .repo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+    .repo-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; padding: 12px;
+    }
+    .repo-name { font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+    .repo-stats { display: flex; gap: 16px; font-size: 0.8rem; }
+    .repo-stat .num { font-weight: 700; font-size: 1rem; }
+    .repo-stat .label { color: var(--muted); font-size: 0.7rem; }
+
+    /* Beads */
+    .beads { display: flex; gap: 24px; font-size: 0.85rem; }
+    .bead-stat .num { font-weight: 700; font-size: 1.1rem; }
+    .bead-stat .label { color: var(--muted); font-size: 0.75rem; }
+
+    /* Connection indicator */
+    .connection {
+      position: fixed; top: 8px; right: 12px;
+      font-size: 0.7rem; color: var(--muted);
+    }
+    .connection .dot-live { color: var(--green); }
+    .connection .dot-dead { color: var(--red); }
+
+    /* Pulse animation for working agents */
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .agent-card.working .agent-name { animation: pulse 2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+  <div class="connection" id="conn">
+    <span class="dot-live">●</span> live
+  </div>
+
+  <h1><span class="bee">🐝</span> Hive Dashboard <span class="timestamp" id="ts"></span></h1>
+
+  <div class="agents" id="agents"></div>
+
+  <div class="governor" id="governor"></div>
+
+  <div class="repos">
+    <h2>Repositories</h2>
+    <div class="repo-grid" id="repos"></div>
+  </div>
+
+  <div style="margin-top: 16px;">
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">Beads</h2>
+    <div class="beads" id="beads"></div>
+  </div>
+
+  <script>
+    function formatAge(sec) {
+      if (sec < 0) return '—';
+      if (sec < 120) return sec + 's';
+      if (sec < 3600) return Math.floor(sec / 60) + 'm';
+      return Math.floor(sec / 3600) + 'h';
+    }
+
+    function renderAgents(agents) {
+      const el = document.getElementById('agents');
+      const cards = agents.map(a => {
+        const cls = a.state === 'stopped' ? 'stopped' : a.busy;
+        const dotCls = a.state === 'stopped' ? 'stopped' : 'running';
+        const logAge = a.logAgeSec >= 0 ? `<div class="agent-field"><span class="label">log</span><span class="value">${formatAge(a.logAgeSec)} ago</span></div>` : '';
+        const doingEl = a.doing ? `<div class="doing">${esc(a.doing)}</div>` : '';
+        return `<div class="agent-card ${cls}">
+          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>
+          <div class="agent-field"><span class="label">state</span><span class="value">${a.state}</span></div>
+          <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
+          <div class="agent-field"><span class="label">cadence</span><span class="value">${a.cadence}</span></div>
+          <div class="agent-field"><span class="label">busy</span><span class="value ${a.busy}">${a.busy}</span></div>
+          ${logAge}${doingEl}
+          ${a.name !== 'supervisor' ? `<div class="agent-actions">
+            <button class="btn" onclick="kick('${a.name}')">kick</button>
+            <button class="btn" onclick="switchCli('${a.name}')">switch</button>
+          </div>` : ''}
+        </div>`;
+      });
+      el.innerHTML = cards.join('');
+    }
+
+    function renderGovernor(gov) {
+      const el = document.getElementById('governor');
+      const cls = gov.active ? 'active' : 'dead';
+      el.className = `governor ${cls}`;
+      el.innerHTML = `
+        <div class="gov-title">Governor</div>
+        <div class="gov-grid">
+          <div class="gov-stat"><div class="label">timer</div><div class="val ${cls}">${gov.active ? '● active' : '⚠ DEAD'}</div></div>
+          <div class="gov-stat"><div class="label">mode</div><div class="val">${gov.mode}</div></div>
+          <div class="gov-stat"><div class="label">issues</div><div class="val">${gov.issues}</div></div>
+          <div class="gov-stat"><div class="label">PRs</div><div class="val">${gov.prs}</div></div>
+          <div class="gov-stat"><div class="label">next kick</div><div class="val">${gov.nextKick || '—'}</div></div>
+        </div>`;
+    }
+
+    function renderRepos(repos) {
+      const el = document.getElementById('repos');
+      el.innerHTML = repos.map(r => `
+        <div class="repo-card">
+          <div class="repo-name">${r.name}</div>
+          <div class="repo-stats">
+            <div class="repo-stat"><div class="num">${r.issues >= 0 ? r.issues : '?'}</div><div class="label">issues</div></div>
+            <div class="repo-stat"><div class="num">${r.prs >= 0 ? r.prs : '?'}</div><div class="label">PRs</div></div>
+          </div>
+        </div>`).join('');
+    }
+
+    function renderBeads(beads) {
+      const el = document.getElementById('beads');
+      el.innerHTML = `
+        <div class="bead-stat"><div class="num">${beads.workers >= 0 ? beads.workers : '?'}</div><div class="label">workers</div></div>
+        <div class="bead-stat"><div class="num">${beads.supervisor >= 0 ? beads.supervisor : '?'}</div><div class="label">supervisor</div></div>`;
+    }
+
+    function render(data) {
+      if (!data || data.error) return;
+      document.getElementById('ts').textContent = new Date(data.timestamp).toLocaleTimeString();
+      renderAgents(data.agents || []);
+      renderGovernor(data.governor || {});
+      renderRepos(data.repos || []);
+      renderBeads(data.beads || {});
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    async function kick(agent) {
+      const res = await fetch(`/api/kick/${agent}`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) alert('Kick failed: ' + (data.error || 'unknown'));
+    }
+
+    async function switchCli(agent) {
+      const backend = prompt('Switch to which backend?', 'copilot');
+      if (!backend) return;
+      const res = await fetch(`/api/switch/${agent}/${backend}`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) alert('Switch failed: ' + (data.error || 'unknown'));
+    }
+
+    // SSE connection
+    function connect() {
+      const source = new EventSource('/api/events');
+      const conn = document.getElementById('conn');
+
+      source.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          render(data);
+          conn.innerHTML = '<span class="dot-live">●</span> live';
+        } catch (err) {
+          console.error('SSE parse error:', err);
+        }
+      };
+
+      source.onerror = () => {
+        conn.innerHTML = '<span class="dot-dead">●</span> reconnecting...';
+        source.close();
+        setTimeout(connect, 3000);
+      };
+    }
+
+    // Initial fetch then SSE
+    fetch('/api/status').then(r => r.json()).then(render).catch(console.error);
+    connect();
+  </script>
+</body>
+</html>

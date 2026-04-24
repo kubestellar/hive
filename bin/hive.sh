@@ -609,16 +609,9 @@ cmd_switch() {
     die "Env file not found: $ef"
   fi
 
-  # Stop service (kills tmux session too) then restart with new env
-  sudo systemctl stop "$service" 2>/dev/null || true
-  if tmux has-session -t "$session" 2>/dev/null; then
-    tmux kill-session -t "$session" 2>/dev/null || true
-  fi
-  ok "Stopped $agent"
-
-  sleep 1
-  sudo systemctl start "$service" 2>/dev/null && ok "Started $agent with $backend" \
-    || warn "systemctl start failed — trying kick fallback"
+  # Restart service to pick up new env (stop+start races with Restart=always)
+  sudo systemctl restart "$service" 2>/dev/null && ok "Restarted $agent with $backend" \
+    || warn "systemctl restart failed — trying kick fallback"
   /usr/local/bin/kick-agents.sh "$agent" 2>/dev/null || true
 
   sleep 4

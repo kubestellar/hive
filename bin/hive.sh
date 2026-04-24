@@ -48,6 +48,7 @@ load_conf() {
   AGENT_USER="${AGENT_USER:-dev}"
   HIVE_BACKENDS="${HIVE_BACKENDS:-copilot}"           # space-separated: copilot claude gemini goose
   HIVE_MODEL_SERVICES="${HIVE_MODEL_SERVICES:-}"      # space-separated: ollama litellm
+  HIVE_TZ="${HIVE_TZ:-UTC}"                           # local timezone for status display
   HIVE_AUTO_INSTALL="${HIVE_AUTO_INSTALL:-true}"      # auto-install missing backends/services
 }
 
@@ -492,7 +493,8 @@ cmd_status() {
   busy_pct=$(cat /var/run/kick-governor/busyness_pct 2>/dev/null || echo "?")
   local next
   next=$(systemctl list-timers kick-governor.timer --no-pager 2>/dev/null \
-       | awk 'NR==2{print $1,$2,$3,$4}' || echo "unknown")
+       | awk 'NR==2{print $1,$2,$3}' \
+       | xargs -I{} bash -c "TZ=\"$HIVE_TZ\" date -d \"{}\" \"+%-I:%M %p %Z\"" 2>/dev/null || echo "unknown")
   echo -e "  Governor:  ${BLD}$mode${RST}  ${busy_pct}% busy  |  next kick: ${CYN}$next${RST}"
 
   # Beads

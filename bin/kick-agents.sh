@@ -1,5 +1,5 @@
 #!/bin/bash
-# kick-agents.sh — fires work orders at the scanner, reviewer, and architect tmux sessions.
+# kick-agents.sh — fires work orders at the scanner, reviewer, architect, and outreach tmux sessions.
 # Called by systemd timers (or manually). Does NOT require Claude to be running
 # as a supervisor — it speaks directly to the named tmux sessions.
 #
@@ -7,10 +7,11 @@
 #   kick-agents.sh scanner    # kick scanner only
 #   kick-agents.sh reviewer   # kick reviewer only
 #   kick-agents.sh architect  # kick architect only
-#   kick-agents.sh all        # kick all three (default)
+#   kick-agents.sh outreach   # kick outreach only
+#   kick-agents.sh all        # kick all four (default)
 #
 # Systemd timer fires this every 15 min for scanner, every 30 min for reviewer,
-# every 60 min for architect.
+# every 2 hours for architect and outreach.
 
 set -euo pipefail
 
@@ -41,6 +42,7 @@ next_run() {
     scanner)  systemctl show kick-scanner.timer  --property=NextElapseUSecRealtime --value 2>/dev/null | xargs -I{} date -d "{}" '+%I:%M %p ET' 2>/dev/null || echo "unknown" ;;
     reviewer) systemctl show kick-reviewer.timer  --property=NextElapseUSecRealtime --value 2>/dev/null | xargs -I{} date -d "{}" '+%I:%M %p ET' 2>/dev/null || echo "unknown" ;;
     architect) systemctl show kick-architect.timer --property=NextElapseUSecRealtime --value 2>/dev/null | xargs -I{} date -d "{}" '+%I:%M %p ET' 2>/dev/null || echo "unknown" ;;
+    outreach) systemctl show kick-outreach.timer --property=NextElapseUSecRealtime --value 2>/dev/null | xargs -I{} date -d "{}" '+%I:%M %p ET' 2>/dev/null || echo "unknown" ;;
   esac
 }
 
@@ -93,6 +95,15 @@ the build, touch OAuth, or touch the update system. For new feature ideas, \
 open an issue with label architect-idea and wait for operator approval. \
 Send ntfy for all plans and PRs. Print your plan to this pane."
 
+OUTREACH_MSG="$PULL_INSTRUCTIONS \
+Then: Run an outreach pass per /tmp/supervised-agent/examples/kubestellar/agents/outreacher-CLAUDE.md. \
+Your primary objective is increasing organic search results for KubeStellar Console \
+using every marketing angle available. Find awesome lists, directories, comparison sites, \
+aggregators, community forums, and anywhere else Console should be listed. \
+Open PRs and issues to get Console added. Fork under clubanderson account for external PRs. \
+Also work on ACMM badge outreach to CNCF projects. \
+Send ntfy for all outreach actions. One outreach per project — never spam."
+
 case "$TARGET" in
   scanner)
     kick "issue-scanner" "$SCANNER_MSG" "scanner"
@@ -103,13 +114,17 @@ case "$TARGET" in
   architect)
     kick "feature" "$ARCHITECT_MSG" "architect"
     ;;
+  outreach)
+    kick "outreach" "$OUTREACH_MSG" "outreach"
+    ;;
   all)
     kick "issue-scanner" "$SCANNER_MSG" "scanner"
     kick "reviewer" "$REVIEWER_MSG" "reviewer"
     kick "feature" "$ARCHITECT_MSG" "architect"
+    kick "outreach" "$OUTREACH_MSG" "outreach"
     ;;
   *)
-    echo "Usage: $0 [scanner|reviewer|architect|all]" >&2
+    echo "Usage: $0 [scanner|reviewer|architect|outreach|all]" >&2
     exit 1
     ;;
 esac

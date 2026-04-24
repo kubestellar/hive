@@ -494,14 +494,34 @@ cmd_status() {
       else
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
       fi
-      # Detect busy: check more lines for active tool spinners
-      local pane_body
-      pane_body=$(echo "$pane" | tail -20)
-      # ◎ = active Copilot tool call; ⏺ = Claude active; ↳ = sub-task running
-      if echo "$pane_body" | grep -qE "^◎ |^⏺ |^↳ |Esc to cancel"; then
+      # Detect busy: check more lines for active tool spinners.
+      # Copilot uses ◐ (U+25D0), ◉ (U+25C9), ● (U+25CF); Claude uses ⏺; ↳ = sub-task.
+      local pane_body doing task_ctx log_age_str log_file
+      pane_body=$(echo "$pane" | tail -30)
+      if echo "$pane_body" | grep -qE "^[◐◉●◎] |^⏺ |^↳ |Esc to cancel"; then
         busy_flag="${YLW}working${RST}"
+        # Extract the last active tool description for context
+        doing=$(echo "$pane_body" \
+          | grep -E "^[◐◉●◎] |^⏺ |Esc to cancel" \
+          | tail -1 \
+          | sed 's/^[◐◉●◎⏺] //' \
+          | sed 's/ (Esc to cancel.*//' \
+          | cut -c1-50)
+        [[ -n "$doing" ]] && busy_flag="${YLW}working${RST}  ${CYN}${doing}${RST}"
       else
         busy_flag="idle"
+      fi
+      # Show log staleness so stalls are visible at a glance
+      log_file=$(grep "^AGENT_LOG_FILE=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null \
+                 | cut -d= -f2 | tr -d '"' || echo "")
+      if [[ -n "$log_file" && -f "$log_file" ]]; then
+        local log_age
+        log_age=$(( $(date +%s) - $(stat -c %Y "$log_file" 2>/dev/null || echo 0) ))
+        if   [[ $log_age -lt 120 ]];   then log_age_str="${GRN}$(( log_age ))s ago${RST}"
+        elif [[ $log_age -lt 3600 ]];  then log_age_str="${YLW}$(( log_age/60 ))m ago${RST}"
+        else                                log_age_str="${RED}$(( log_age/3600 ))h ago${RST}"
+        fi
+        busy_flag="${busy_flag}  log:${log_age_str}"
       fi
       printf "  ${GRN}%-12s${RST}  %-8s  %-8s  %-8s  %b\n" "$label" "running" "$cli" "$cadence" "$busy_flag"
     else

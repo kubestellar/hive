@@ -466,10 +466,12 @@ cmd_status() {
     if tmux has-session -t "$s" 2>/dev/null; then
       local pane line
       pane=$(tmux capture-pane -t "$s" -p 2>/dev/null || echo "")
-      # Detect actual running CLI from pane content
-      if echo "$pane" | grep -q "Claude Code\|bypass permissions\|claude doctor\|claude-code"; then
+      # Detect actual running CLI from last 5 lines of pane only
+      local pane_tail
+      pane_tail=$(echo "$pane" | tail -5)
+      if echo "$pane_tail" | grep -q "bypass permissions\|claude doctor\|Claude Code v"; then
         cli="claude"
-      elif echo "$pane" | grep -q "ctrl+q enqueue\|GitHub Copilot\|copilot"; then
+      elif echo "$pane_tail" | grep -q "ctrl+q enqueue\|/ commands.*help"; then
         cli="copilot"
       else
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")

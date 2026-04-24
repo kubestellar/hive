@@ -492,7 +492,7 @@ cmd_status() {
   busy_pct=$(cat /var/run/kick-governor/busyness_pct 2>/dev/null || echo "?")
   local next
   next=$(systemctl list-timers kick-governor.timer --no-pager 2>/dev/null \
-       | awk 'NR==2{print $1,$2}' || echo "unknown")
+       | awk 'NR==2{print $1,$2,$3,$4}' || echo "unknown")
   echo -e "  Governor:  ${BLD}$mode${RST}  ${busy_pct}% busy  |  next kick: ${CYN}$next${RST}"
 
   # Beads

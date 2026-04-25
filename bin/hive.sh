@@ -826,7 +826,7 @@ cmd_switch() {
   local launch_cmd
   case "$backend" in
     copilot) launch_cmd="/usr/bin/copilot --allow-all --model claude-opus-4.6" ;;
-    claude)  launch_cmd="/usr/bin/claude --dangerously-skip-permissions --model claude-opus-4-7" ;;
+    claude)  launch_cmd="/usr/bin/claude --dangerously-skip-permissions --model claude-opus-4.6" ;;
     gemini)  launch_cmd="/usr/bin/gemini --yolo" ;;
     goose)   launch_cmd="/usr/bin/goose --no-confirm" ;;
     *) die "Unknown backend: $backend (valid: copilot claude gemini goose)" ;;
@@ -853,6 +853,46 @@ cmd_switch() {
   cmd_status
 }
 
+
+cmd_model() {
+  local agent="${1:-}" model="${2:-}"
+  [[ -z "$agent" || -z "$model" ]] && die "Usage: hive model <agent> <model>  (e.g., claude-opus-4.6)"
+
+  # Map agent name → session, env file, and systemd service
+  local session envfile service
+  case "$agent" in
+    scanner)            session="issue-scanner"; envfile="issue-scanner"; service="claude-scanner" ;;
+    reviewer)           session="reviewer";      envfile="reviewer";      service="supervised-agent@reviewer" ;;
+    architect|feature)  session="feature";       envfile="feature";       service="supervised-agent@feature" ;;
+    outreach)           session="outreach";      envfile="outreach";      service="supervised-agent@outreach" ;;
+    supervisor)         session="supervisor";    envfile="supervisor";    service="supervised-agent@supervisor" ;;
+    *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;
+  esac
+
+  info "Restarting $agent with model $model"
+
+  # Update env file with new model
+  local ef="$ENV_DIR/${envfile}.env"
+  if [[ -f "$ef" ]]; then
+    # Update AGENT_LAUNCH_CMD to include --model flag
+    sudo sed -i "s|--model [^ ]*|--model $model|g" "$ef"
+    ok "Updated $ef with model=$model"
+  else
+    warn "Env file not found: $ef (proceeding anyway)"
+  fi
+
+  # Kill the tmux session
+  tmux kill-session -t "$session" 2>/dev/null || true
+  sleep 1
+
+  # Restart service to pick up new model
+  sudo systemctl restart "$service" 2>/dev/null && ok "Restarted $agent with model=$model" \
+    || warn "systemctl restart failed — trying kick fallback"
+  /usr/local/bin/kick-agents.sh "$agent" 2>/dev/null || true
+
+  sleep 4
+  cmd_status
+}
 # ── main ─────────────────────────────────────────────────────────────────────
 
 main() {
@@ -928,6 +968,7 @@ main() {
     logs)     shift; cmd_logs    "${1:-governor}" ;;
     stop)     shift; cmd_stop    "${1:-all}" ;;
     switch)   shift; cmd_switch  "$@" ;;
+    model)    shift; cmd_model   "$@" ;;
     dashboard)
       local DASHBOARD_DIR
       DASHBOARD_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)/../dashboard"

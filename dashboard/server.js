@@ -26,6 +26,21 @@ function fetchStatus() {
       try {
         statusCache = JSON.parse(stdout);
         lastFetch = Date.now();
+        // Read agent metrics from /var/run/hive-metrics/
+        try {
+          const metricsDir = '/var/run/hive-metrics';
+          if (fs.existsSync(metricsDir)) {
+            statusCache.metrics = {};
+            for (const f of fs.readdirSync(metricsDir)) {
+              if (f.endsWith('.json')) {
+                const agent = f.replace('.json', '');
+                try {
+                  statusCache.metrics[agent] = JSON.parse(fs.readFileSync(path.join(metricsDir, f), 'utf8'));
+                } catch (_) {}
+              }
+            }
+          }
+        } catch (_) {}
         // Record snapshot for sparklines
         const snap = {
           t: lastFetch,
@@ -33,6 +48,7 @@ function fetchStatus() {
           govPrs: statusCache.governor?.prs || 0,
           govTotal: (statusCache.governor?.issues || 0) + (statusCache.governor?.prs || 0),
           govActive: statusCache.governor?.active ? 1 : 0,
+          govMode: statusCache.governor?.mode || 'unknown',
           beadsWorkers: statusCache.beads?.workers || 0,
           beadsSupervisor: statusCache.beads?.supervisor || 0,
           repos: {},

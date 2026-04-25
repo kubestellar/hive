@@ -52,6 +52,13 @@
     .value.copilot { color: var(--cyan); }
     .value.claude { color: var(--purple); }
     .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; word-break: break-word; white-space: pre-line; line-height: 1.5; min-height: 3.4em; }
+    /* Agent metric gauges */
+    .agent-gauges { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .mini-gauge { flex: 1; min-width: 100px; }
+    .mini-gauge-label { font-size: 0.6rem; color: var(--muted); margin-bottom: 2px; }
+    .mini-gauge-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; position: relative; }
+    .mini-gauge-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    .mini-gauge-val { font-size: 0.65rem; color: var(--text); margin-top: 1px; }
     .agent-actions { margin-top: 10px; display: flex; gap: 6px; }
     .btn {
       font-size: 0.7rem; padding: 3px 8px; border-radius: 4px;
@@ -195,12 +202,32 @@
       return Math.floor(sec / 3600) + 'h';
     }
 
-    function renderAgents(agents) {
+    let currentMetrics = {};
+
+    function miniGauge(label, value, target, unit) {
+      const pct = target > 0 ? Math.min(value / target * 100, 100) : (value === 0 ? 100 : 0);
+      const color = pct >= 90 ? '#3fb950' : pct >= 70 ? '#d29922' : '#f85149';
+      return `<div class="mini-gauge">
+        <div class="mini-gauge-label">${label}</div>
+        <div class="mini-gauge-bar"><div class="mini-gauge-fill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="mini-gauge-val">${value}${unit} / ${target}${unit}</div>
+      </div>`;
+    }
+
+    function renderAgents(agents, metrics) {
+      currentMetrics = metrics || {};
       const el = document.getElementById('agents');
       const cards = agents.map(a => {
         const cls = a.state === 'stopped' ? 'stopped' : a.busy;
         const dotCls = a.state === 'stopped' ? 'stopped' : 'running';
         const doingEl = a.doing ? `<div class="doing">${esc(a.doing).replace(/\|/g, '\n')}</div>` : '';
+        // Metric gauges for agents that have them
+        let gaugesEl = '';
+        const m = currentMetrics[a.name];
+        if (m) {
+          const gs = Object.values(m).map(g => miniGauge(g.label, g.value, g.target, g.unit || '')).join('');
+          gaugesEl = `<div class="agent-gauges">${gs}</div>`;
+        }
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>
           <div class="agent-field"><span class="label">state</span><span class="value">${a.state}</span></div>
@@ -208,7 +235,7 @@
           <div class="agent-field"><span class="label">cadence</span><span class="value">${a.cadence}</span></div>
           <div class="agent-field"><span class="label">next kick</span><span class="value">${a.nextKick || '—'}</span></div>
           <div class="agent-field"><span class="label">busy</span><span class="value ${a.busy}">${a.busy}</span></div>
-          ${doingEl}
+          ${doingEl}${gaugesEl}
           ${a.name !== 'supervisor' ? `<div class="agent-actions">
             <button class="btn" onclick="kick('${a.name}')">kick</button>
             <select class="btn backend-select" onchange="switchCli('${a.name}', this.value); this.selectedIndex=0">
@@ -232,15 +259,50 @@
       const prsSpark = sparkSvg(getHistorySeries('govPrs'), '#bc8cff');
       const totalSpark = sparkSvg(getHistorySeries('govTotal'), '#3fb950');
       const total = (gov.issues || 0) + (gov.prs || 0);
+
+      // Gauge bar — thresholds: idle≤2, quiet≤10, busy≤20, surge>20
+      const maxQ = 30;
+      const pct = Math.min(total / maxQ * 100, 100);
+      const modeColors = { idle: '#238636', quiet: '#58a6ff', busy: '#d29922', surge: '#f85149' };
+      const modeColor = modeColors[gov.mode] || '#8b949e';
+
+      // Timeline strip from history
+      const modes = historyData.map(s => s.govMode || 'unknown');
+      const ticks = modes.map(m => `<div class="tick tick-${m}"></div>`).join('');
+      const firstTime = historyData.length > 0 ? new Date(historyData[0].t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+      const lastTime = historyData.length > 0 ? new Date(historyData[historyData.length-1].t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+
       el.innerHTML = `
         <div class="gov-title">Governor</div>
         <div class="gov-grid">
           <div class="gov-stat"><div class="label">timer</div><div class="val ${cls}">${gov.active ? '● active' : '⚠ DEAD'}</div></div>
-          <div class="gov-stat"><div class="label">mode</div><div class="val">${gov.mode}</div></div>
+          <div class="gov-stat"><div class="label">mode</div><div class="val" style="color:${modeColor}">${gov.mode}</div></div>
           <div class="gov-stat"><div class="label">actionable</div><div class="spark-row"><span class="val">${total}</span>${totalSpark}</div></div>
           <div class="gov-stat"><div class="label">issues</div><div class="spark-row"><span class="val">${gov.issues}</span>${issuesSpark}</div></div>
           <div class="gov-stat"><div class="label">PRs</div><div class="spark-row"><span class="val">${gov.prs}</span>${prsSpark}</div></div>
           <div class="gov-stat"><div class="label">next kick</div><div class="val">${gov.nextKick || '—'}</div></div>
+        </div>
+        <div class="gov-gauge">
+          <div class="gov-gauge-label">Queue depth: ${total} / ${maxQ}</div>
+          <div class="gov-gauge-bar">
+            <div class="zone zone-idle">≤2</div>
+            <div class="zone zone-quiet">≤10</div>
+            <div class="zone zone-busy">≤20</div>
+            <div class="zone zone-surge">>20</div>
+            <div class="gov-gauge-marker" style="left:${pct}%">
+              <div class="gov-gauge-val">${total}</div>
+            </div>
+          </div>
+        </div>
+        <div class="gov-timeline">
+          <div class="gov-timeline-label"><span>${firstTime}</span><span>Mode Timeline</span><span>${lastTime}</span></div>
+          <div class="gov-timeline-strip">${ticks || '<div class="tick tick-unknown" style="flex:1"></div>'}</div>
+          <div class="gov-timeline-legend">
+            <span class="tl-idle">idle</span>
+            <span class="tl-quiet">quiet</span>
+            <span class="tl-busy">busy</span>
+            <span class="tl-surge">surge</span>
+          </div>
         </div>`;
     }
 
@@ -272,7 +334,7 @@
     function render(data) {
       if (!data || data.error) return;
       document.getElementById('ts').textContent = new Date(data.timestamp).toLocaleTimeString();
-      renderAgents(data.agents || []);
+      renderAgents(data.agents || [], data.metrics || {});
       renderGovernor(data.governor || {});
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});

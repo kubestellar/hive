@@ -469,6 +469,17 @@ start_supervisor() {
 
 # ── status dashboard ─────────────────────
 
+# Convert cadence label (15min, 1h, 900) to seconds
+_label_to_secs() {
+  local v="$1"
+  if [[ "$v" =~ ^([0-9]+)min$ ]]; then echo $(( ${BASH_REMATCH[1]} * 60 ))
+  elif [[ "$v" =~ ^([0-9]+)h$ ]]; then echo $(( ${BASH_REMATCH[1]} * 3600 ))
+  elif [[ "$v" =~ ^([0-9]+)s$ ]]; then echo "${BASH_REMATCH[1]}"
+  elif [[ "$v" =~ ^[0-9]+$ ]]; then echo "$v"
+  else echo "0"
+  fi
+}
+
 cmd_status() {
   echo -e "\n${BLD}🐝 hive status — $(TZ="${HIVE_TZ:-UTC}" date '+%-I:%M %p %Z')${RST}\n"
 
@@ -477,12 +488,30 @@ cmd_status() {
   local LABELS=("supervisor" "scanner" "reviewer" "architect" "outreach")
   local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "feature" "outreach")
   local GOV_STATE="/var/run/kick-governor"
-  printf "  %-12s  %-8s  %-8s  %-8s  %s\n" "AGENT" "STATE" "CLI" "CADENCE" "BUSY"
-  printf "  %-12s  %-8s  %-8s  %-8s  %s\n" "-----" "-----" "---" "-------" "----"
+  printf "  %-12s  %-8s  %-8s  %-8s  %-8s  %s\n" "AGENT" "STATE" "CLI" "CADENCE" "KICK" "BUSY"
+  printf "  %-12s  %-8s  %-8s  %-8s  %-8s  %s\n" "-----" "-----" "---" "-------" "----" "----"
   for i in "${!SESSIONS[@]}"; do
     local s="${SESSIONS[$i]}" label="${LABELS[$i]}"
-    local cli cadence busy_flag
+    local cli cadence busy_flag next_kick
     cadence=$(cat "${GOV_STATE}/cadence_${label}" 2>/dev/null || echo "?")
+    # Calculate next kick
+    next_kick="—"
+    local _lk _cs _cs_secs
+    _lk=$(cat "${GOV_STATE}/last_kick_${label}" 2>/dev/null || echo "")
+    _cs=$(cat "${GOV_STATE}/cadence_${label}" 2>/dev/null || echo "")
+    _cs_secs=$(_label_to_secs "$_cs")
+    if [[ "$_cs_secs" -gt 0 && -n "$_lk" ]]; then
+      local _next=$(( _lk + _cs_secs )) _now=$(date +%s) _rem
+      if [[ $_next -le $_now ]]; then next_kick="${YLW}now${RST}"
+      else
+        _rem=$(( _next - _now ))
+        if   [[ $_rem -lt 120 ]];  then next_kick="${_rem}s"
+        elif [[ $_rem -lt 3600 ]]; then next_kick="$(( _rem / 60 ))m"
+        else                            next_kick="$(( _rem / 3600 ))h"
+        fi
+      fi
+    elif [[ "$cadence" == "paused" ]]; then next_kick="paused"
+    fi
     if tmux has-session -t "$s" 2>/dev/null; then
       local pane pane_tail
       pane=$(tmux capture-pane -t "$s" -p 2>/dev/null || echo "")
@@ -520,10 +549,10 @@ cmd_status() {
       else
         busy_flag="idle"
       fi
-      printf "  ${GRN}%-12s${RST}  %-8s  %-8s  %-8s  %b\n" "$label" "running" "$cli" "$cadence" "$busy_flag"
+      printf "  ${GRN}%-12s${RST}  %-8s  %-8s  %-8s  %b  %b\n" "$label" "running" "$cli" "$cadence" "$next_kick" "$busy_flag"
     else
       cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
-      printf "  ${RED}%-12s${RST}  %-8s  %-8s  %-8s\n" "$label" "stopped" "$cli" "$cadence"
+      printf "  ${RED}%-12s${RST}  %-8s  %-8s  %-8s  %-8s\n" "$label" "stopped" "$cli" "$cadence" "—"
     fi
   done
 
@@ -632,8 +661,25 @@ cmd_status_json() {
     fi
     # Escape doing for JSON
     doing=$(echo "$doing" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr -d '\n')
+    # Calculate next kick from governor state files
+    local nk="" _lk _cs _cs_secs
+    _lk=$(cat "/var/run/kick-governor/last_kick_${label}" 2>/dev/null || echo "")
+    _cs=$(cat "/var/run/kick-governor/cadence_${label}" 2>/dev/null || echo "")
+    _cs_secs=$(_label_to_secs "$_cs")
+    if [[ "$_cs_secs" -gt 0 && -n "$_lk" ]]; then
+      local _next=$(( _lk + _cs_secs )) _now=$(date +%s)
+      if [[ $_next -le $_now ]]; then nk="now"
+      else
+        local _rem=$(( _next - _now ))
+        if   [[ $_rem -lt 120 ]];  then nk="${_rem}s"
+        elif [[ $_rem -lt 3600 ]]; then nk="$(( _rem / 60 ))m"
+        else                            nk="$(( _rem / 3600 ))h"
+        fi
+      fi
+    elif [[ "$cadence" == "paused" ]]; then nk="paused"
+    fi
     [[ $i -gt 0 ]] && agents_json+=","
-    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\"}"
+    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\"}"
   done
   agents_json+="]"
 

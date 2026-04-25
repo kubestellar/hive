@@ -402,18 +402,25 @@ except Exception:
   local pct_used=0
   [[ "$TOKEN_BUDGET_WEEKLY" -gt 0 ]] && pct_used=$((used * 100 / TOKEN_BUDGET_WEEKLY))
 
-  local hours_left
-  hours_left=$(python3 -c "
+  local hours_left hours_elapsed
+  read -r hours_left hours_elapsed <<< "$(python3 -c "
 import datetime
 now = datetime.datetime.now()
 reset_day = $TOKEN_BUDGET_RESET_DAY
 days_ahead = (reset_day - now.weekday()) % 7
 if days_ahead == 0 and now.hour > 0: days_ahead = 7
 reset = (now + datetime.timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
-print(max(1, int((reset - now).total_seconds() // 3600)))
-" 2>/dev/null || echo 168)
+hours_left = max(1, int((reset - now).total_seconds() // 3600))
+# Hours since last reset
+total_hours = 168
+hours_elapsed = max(1, total_hours - hours_left)
+print(hours_left, hours_elapsed)
+" 2>/dev/null || echo "168 1")"
 
-  local projected=$((used + burn_hourly * hours_left))
+  # Project using average burn rate over elapsed week, not instantaneous hourly
+  local avg_hourly=0
+  [[ "$hours_elapsed" -gt 0 ]] && avg_hourly=$((used / hours_elapsed))
+  local projected=$((used + avg_hourly * hours_left))
   local projected_pct=0
   [[ "$TOKEN_BUDGET_WEEKLY" -gt 0 ]] && projected_pct=$((projected * 100 / TOKEN_BUDGET_WEEKLY))
 
@@ -422,7 +429,9 @@ BUDGET_WEEKLY=$TOKEN_BUDGET_WEEKLY
 BUDGET_USED=$used
 BUDGET_REMAINING=$remaining
 BUDGET_PCT_USED=$pct_used
-BURN_RATE_HOURLY=$burn_hourly
+BURN_RATE_HOURLY=$avg_hourly
+BURN_RATE_INSTANT=$burn_hourly
+HOURS_ELAPSED=$hours_elapsed
 HOURS_REMAINING=$hours_left
 PROJECTED_WEEKLY=$projected
 PROJECTED_PCT=$projected_pct

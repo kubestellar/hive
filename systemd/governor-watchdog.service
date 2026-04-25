@@ -1,0 +1,6 @@
+[Unit]
+Description=Governor watchdog — re-enables kick-governor.timer if it goes inactive
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'if ! systemctl is-active --quiet kick-governor.timer; then systemctl enable --now kick-governor.timer && logger -t governor-watchdog "re-enabled kick-governor.timer"; fi'

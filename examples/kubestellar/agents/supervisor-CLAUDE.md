@@ -337,3 +337,56 @@ Reviewer: <working on X | idle — kicked>
 Scanner: <active | idle — kicked>
 Architect: <working on X | idle>
 ```
+
+## Web Dashboard
+
+The hive web dashboard runs on port 3001 via systemd (`hive-dashboard.service`). It shows agent status, governor state, repo counts, and beads — all updating live via SSE.
+
+- **Launch**: `hive dashboard` (auto-starts if not running, opens browser)
+- **URL**: `http://192.168.4.56:3001`
+- **Controls**: Kick and Switch buttons on each agent card
+- **Widget**: Übersicht desktop widget downloadable from dashboard header (⬇ Widget button)
+
+The dashboard systemd service MUST run as `User=dev` — otherwise it cannot see tmux sessions (owned by dev) or access GitHub credentials. If agent states show as `stopped` and CLI shows `?`, check the service user.
+
+## Infrastructure Debugging — Common Failure Modes
+
+These are real failures discovered in production. Check for them on every startup and monitoring pass.
+
+### 1. Permission denied on `/var/run/kick-governor/`
+
+**Symptom**: Governor crashes every 15min, no agents get kicked, no ntfy notifications.
+**Cause**: Someone ran `hive` or governor commands with `sudo`, creating root-owned files. The governor service runs as `User=dev` and can't write to them.
+**Fix**: `sudo chown -R dev:dev /var/run/kick-governor/`
+**Check**: `ls -la /var/run/kick-governor/` — all files must be owned by `dev:dev`.
+
+### 2. Permission denied on `.beads/` directories
+
+**Symptom**: `bd dolt push` fails, beads counts show `?` in dashboard.
+**Cause**: Same as above — root-owned files from sudo operations.
+**Fix**: `sudo chown -R dev:dev /home/dev/kubestellar-console/.beads/ /home/dev/scanner-beads/.beads/`
+
+### 3. notify.sh syntax errors
+
+**Symptom**: Governor crashes with `Slack: command not found` or `ntfy: command not found`.
+**Cause**: Section divider comments in `notify.sh` missing the `#` prefix — bash executes them as commands.
+**Fix**: Every line in notify.sh must be a valid bash statement or a `#` comment. Check with `bash -n /usr/local/bin/notify.sh`.
+**Installed copy**: `/usr/local/bin/notify.sh` (source: `/tmp/hive/bin/notify.sh`)
+
+### 4. Dashboard shows agents as stopped / CLI as `?`
+
+**Symptom**: All agents show red outlines, state=stopped, cli=? in the web dashboard.
+**Cause**: Dashboard systemd service running as root. Root's tmux socket is different from dev's — it can't see the agent sessions.
+**Fix**: Ensure `/etc/systemd/system/hive-dashboard.service` has `User=dev`. Then `sudo systemctl daemon-reload && sudo systemctl restart hive-dashboard`.
+
+### 5. Stale node process blocking dashboard port
+
+**Symptom**: Dashboard service starts but returns old/broken responses, or widget endpoint returns 404.
+**Cause**: A manually started `node server.js &` process is still holding port 3001. Systemd's node process fails to bind and exits, but the stale one keeps serving old code.
+**Fix**: Find and kill the stale process: `ss -tlnp | grep 3001` to get PID, then `kill <PID>`. Restart service after.
+
+### 6. Governor `$2: unbound variable`
+
+**Symptom**: Governor crashes with `unbound variable` after successfully computing mode and attempting kick.
+**Cause**: `set -u` (nounset) in the script + functions called with fewer args than expected. The `ntfy()` shim in kick-agents.sh or kick-governor.sh doesn't guard args with `${1:-}`.
+**Fix**: All function parameters must use `${N:-default}` syntax, not `$N`, when `set -u` is active.

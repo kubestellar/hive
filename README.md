@@ -53,6 +53,28 @@ hive stop all               # stop everything
 
 ---
 
+## Web Dashboard
+
+`hive dashboard` launches a real-time web dashboard on port 3001.
+
+- **Live updates** via SSE — agent states, governor mode, repo counts, and beads refresh every 5 seconds
+- **Kick buttons** — one-click kick for any agent
+- **Switch dropdown** — switch agent CLI backend (copilot, claude, gemini, goose) from the UI
+- **Übersicht widget** — download a macOS desktop widget from the ⬇ Widget button in the header
+
+The dashboard runs as a systemd service (`hive-dashboard.service`) and auto-restarts on failure.
+
+```bash
+# Manual access
+open http://192.168.4.56:3001    # from LAN
+open http://localhost:3001       # from hive itself
+
+# Install Übersicht widget (macOS)
+curl -sf http://192.168.4.56:3001/api/widget | tar xzf - -C "$HOME/Library/Application Support/Übersicht/widgets/"
+```
+
+---
+
 ## How it works
 
 The **kick-governor** measures issue and PR backlog across your repos every 15 minutes and picks a mode:
@@ -141,6 +163,18 @@ hive logs scanner            # what is scanner doing?
 hive attach supervisor       # watch supervisor live
 journalctl -u claude-scanner # raw service log
 ```
+
+### Common issues
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| All agents idle, no ntfy | Governor crashing (check `hive logs governor`) | See below |
+| Governor: `Permission denied` on `/var/run/kick-governor/` | Root-owned files from `sudo` operations | `sudo chown -R dev:dev /var/run/kick-governor/` |
+| Governor: `Slack: command not found` | Broken comments in `notify.sh` | Reinstall: `sudo cp bin/notify.sh /usr/local/bin/notify.sh` |
+| Governor: `$2: unbound variable` | `set -u` + missing arg defaults | Use `${N:-}` syntax in all function params |
+| Dashboard: agents show `stopped` / CLI `?` | Service running as root (can't see dev's tmux) | Add `User=dev` to `hive-dashboard.service` |
+| Dashboard: widget download 404 | Stale node process on port 3001 | `ss -tlnp \| grep 3001` → `kill <PID>` → restart service |
+| `bd dolt push` fails | Root-owned `.beads/` files | `sudo chown -R dev:dev ~/.beads/ /home/dev/scanner-beads/.beads/` |
 
 ---
 

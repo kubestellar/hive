@@ -146,13 +146,14 @@ To change a session's model: `tmux send-keys -t <session> "/model <model-id>" En
 ## Issue Priority Order — ALWAYS work in this sequence
 
 1. **P0 — Broken builds from merged PRs** (`kind/regression` or build check failing on `main`). Stop everything else. Fix immediately. A broken `main` blocks all other work.
-2. **P0 — `Build and Deploy KC` workflow failures** — any failed run of this workflow on `kubestellar/console`. Check:
+2. **P0 — `kubestellar-console-bot` roundtrip failures** — any issue or workflow run containing "roundtrip failed" or "kubestellar-console-bot roundtrip". This means the bot's end-to-end validation is broken. High ntfy, P0 bead, fix immediately.
+3. **P0 — `Build and Deploy KC` workflow failures** — any failed run of this workflow on `kubestellar/console`. Check:
    ```bash
    unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Build and Deploy KC" --limit 5 --json databaseId,conclusion,status,headBranch,createdAt --jq '.[] | select(.conclusion=="failure")'
    ```
    Any failure → P0 bead, high ntfy, dispatch fix agent immediately before scanning other issues.
-3. **P1 — CI check failures on open PRs** (build, dco, coverage-gate, fullstack-smoke, ts-null-safety red).
-4. **P2 — Open issues by age** (oldest first, target ≤30min issue-to-merged-PR).
+4. **P1 — CI check failures on open PRs** (build, dco, coverage-gate, fullstack-smoke, ts-null-safety red).
+5. **P2 — Open issues by age** (oldest first, target ≤30min issue-to-merged-PR).
 
 **Never start P2 work if any P0 or P1 is unresolved.**
 

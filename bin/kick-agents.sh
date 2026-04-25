@@ -264,18 +264,30 @@ kick() {
   local message="$2"
   local agent="$3"
 
+  # After model switch, poll for the session to reappear before checking existence.
+  # apply_model_if_changed() sends /exit + agent-launch.sh, which kills the old
+  # session and starts a new one. Without polling, session_exists fails because
+  # the new CLI hasn't created its tmux session yet.
+  if [[ "${MODEL_SWITCHED[$agent]:-}" == "1" ]]; then
+    local MODEL_SWITCH_STARTUP_WAIT=30
+    local POLL_INTERVAL=3
+    local waited=0
+    log "MODEL SWITCH $agent — waiting up to ${MODEL_SWITCH_STARTUP_WAIT}s for session to start"
+    while (( waited < MODEL_SWITCH_STARTUP_WAIT )); do
+      if session_exists "$session" && session_idle "$session"; then
+        log "MODEL SWITCH $agent — session ready after ${waited}s"
+        break
+      fi
+      sleep "$POLL_INTERVAL"
+      (( waited += POLL_INTERVAL ))
+    done
+    MODEL_SWITCHED[$agent]=0
+  fi
+
   if ! session_exists "$session"; then
     log "SKIP $session — session not found"
     ntfy "$agent — not found" "Session $session does not exist. Next try: $(next_run "$agent")"
     return
-  fi
-
-  # After model switch, wait for CLI to finish starting up
-  if [[ "${MODEL_SWITCHED[$agent]:-}" == "1" ]]; then
-    local MODEL_SWITCH_STARTUP_WAIT=30
-    log "MODEL SWITCH $agent — waiting ${MODEL_SWITCH_STARTUP_WAIT}s for CLI startup"
-    sleep "$MODEL_SWITCH_STARTUP_WAIT"
-    MODEL_SWITCHED[$agent]=0
   fi
 
   if ! session_idle "$session"; then

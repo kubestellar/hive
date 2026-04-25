@@ -129,6 +129,9 @@ sqlite3 ~/.kubestellar-fix-loop/state.db "UPDATE cycles SET completed_at='$(date
 - Issues waiting on external author response
 - Items already being fixed (status='fixing')
 
+### Never skip based on these labels alone
+- `ai-needs-human` — **ignore this label.** Attempt the fix regardless. Only skip after reading the issue and determining it genuinely cannot be fixed without operator action (e.g., requires a secret, a deploy, or physical access). Do NOT let the label name stop you from reading and attempting the issue.
+
 ### Always close
 - Duplicate nightly issues (keep newest, close older)
 - Issues fixed by merged PRs

@@ -58,6 +58,9 @@
     .value.copilot { color: var(--cyan); }
     .value.claude { color: var(--purple); }
     .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; word-break: break-word; white-space: pre-line; line-height: 1.5; min-height: 3.4em; }
+    .summary-age { display: inline-block; font-size: 0.6rem; font-style: normal; border-radius: 3px; padding: 1px 5px; margin-right: 5px; vertical-align: middle; white-space: nowrap; }
+    .summary-age.age-recent { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.3); }
+    .summary-age.age-stale  { background: rgba(248,81,73,0.15);  color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
     /* Agent metric gauges — removed, replaced by health panel */
     .agent-actions { margin-top: 10px; display: flex; gap: 6px; }
 
@@ -429,7 +432,20 @@
         const cls = needsLogin ? 'needs-login' : (a.state === 'stopped' ? 'stopped' : a.busy);
         const dotCls = a.state === 'stopped' ? 'stopped' : 'running';
         // liveSummary is pushed via SSE every 5s — no separate fetch needed
-        const summaryEl = a.liveSummary ? `<div class="doing">${esc(a.liveSummary)}</div>` : '';
+        let summaryEl = '';
+        if (a.liveSummary) {
+          let ageBadge = '';
+          if (!a.doing && a.summaryUpdated) {
+            const ageMs = Date.now() - new Date(a.summaryUpdated).getTime();
+            const ageMin = Math.floor(ageMs / 60000);
+            if (ageMin >= 5) {
+              const ageStr = ageMin >= 60 ? `${Math.floor(ageMin/60)}h ${ageMin%60}m ago` : `${ageMin}m ago`;
+              const ageCls = ageMin >= 120 ? 'age-stale' : 'age-recent';
+              ageBadge = `<span class="summary-age ${ageCls}">${ageStr}</span>`;
+            }
+          }
+          summaryEl = `<div class="doing">${ageBadge}${esc(a.liveSummary)}</div>`;
+        }
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>

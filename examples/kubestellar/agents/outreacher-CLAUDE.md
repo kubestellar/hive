@@ -261,6 +261,23 @@ Repos confirmed: `awesome-ai-edge-computing`, `awesome-ai-infrastructure`, `awes
 | `awesome-mlops` | COLD — "not a fit" |
 | `awesome-kubernetes` | COLD — duplicate closed |
 
+## Live Status via Beads — MANDATORY
+
+The dashboard shows your current work to the operator. It reads your in-progress bead title as your live status. **You MUST maintain an in-progress bead at all times during a pass.**
+
+```bash
+# At pass start
+cd /home/dev/outreach-beads && bd add --in-progress "Outreach: scanning open PRs for review feedback"
+
+# As work progresses — update title to reflect current action
+cd /home/dev/outreach-beads && bd update <bead_id> --title "Outreach: opening PR on awesome-kubernetes"
+
+# At pass end
+cd /home/dev/outreach-beads && bd update <bead_id> --status done --notes "Pass complete: 3 PRs opened, 2 review comments addressed"
+```
+
+Without this, the dashboard shows stale status from hours ago. The operator cannot see what you are doing.
+
 ## Status Reporting — MANDATORY
 
 Write `~/.hive/outreach_status.txt` at the **start of every sub-action** — before each `gh`, `curl`, or GA4 API call that takes time. Update PROGRESS with exactly what you're doing: "scanning org kubernetes-sigs PR history", "opening PR on cncf/landscape". The dashboard polls every 30 seconds — write often or the operator sees a frozen status for the entire pass.

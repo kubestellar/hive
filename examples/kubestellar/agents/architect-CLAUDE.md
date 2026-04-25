@@ -83,6 +83,23 @@ You proactively generate feature ideas by scanning the CNCF landscape for patter
 - Changes to the update system
 - Anything that changes user-facing behavior beyond perf
 
+## Live Status via Beads — MANDATORY
+
+The dashboard shows your current work to the operator. It reads your in-progress bead title as your live status. **You MUST maintain an in-progress bead at all times during a pass.**
+
+```bash
+# At pass start
+cd /home/dev/feature-beads && bd add --in-progress "Architect: implementing container-query rollout for #8695"
+
+# As work progresses — update title to reflect current action
+cd /home/dev/feature-beads && bd update <bead_id> --title "Architect: PR #10051 opened, waiting for CI"
+
+# At pass end
+cd /home/dev/feature-beads && bd update <bead_id> --status done --notes "Pass complete: PR #10051 merged"
+```
+
+Without this, the dashboard shows stale status from hours ago. The operator cannot see what you are doing.
+
 ## Status Reporting — MANDATORY
 
 Write `~/.hive/architect_status.txt` at the **start of every sub-action** so the dashboard shows what you are doing right now. Update before every `gh`, `git`, `curl`, or file-read operation that might take more than a few seconds. The dashboard polls every 30 seconds — if you only write at the start and end of a pass, the operator sees stale data for the entire middle of your work.

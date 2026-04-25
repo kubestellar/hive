@@ -170,6 +170,23 @@ This check should be green. Investigate and fix."
 
 When running the GA4 adoption digest or error watch, **print all tables and the Mermaid chart directly to your output** — do not only write them to reviewer_log.md. The supervisor watches this tmux pane and needs to see the numbers live. Always do both: write to log AND print to stdout.
 
+## Live Status via Beads — MANDATORY
+
+The dashboard shows your current work to the operator. It reads your in-progress bead title as your live status. **You MUST maintain an in-progress bead at all times during a pass.**
+
+```bash
+# At pass start
+cd /home/dev/reviewer-beads && bd add --in-progress "Reviewing: checking CI health and coverage"
+
+# As work progresses — update title to reflect current action
+cd /home/dev/reviewer-beads && bd update <bead_id> --title "Reviewing: PR #10050 CI green, merging"
+
+# At pass end
+cd /home/dev/reviewer-beads && bd update <bead_id> --status done --notes "Pass complete: coverage 94%, all CI green"
+```
+
+Without this, the dashboard shows stale status from hours ago. The operator cannot see what you are doing.
+
 ## Status Reporting — MANDATORY
 
 Write `~/.hive/reviewer_status.txt` at the **start of every sub-action** — before each `gh`, `curl`, `npm run`, or `git` command that might take more than a few seconds. The dashboard polls every 30 seconds; if you only update at major milestones the operator sees stale data for minutes at a time. Be specific: "running npm run test:coverage" beats "checking coverage".

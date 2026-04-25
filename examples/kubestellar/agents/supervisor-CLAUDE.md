@@ -356,6 +356,23 @@ curl -s -H "Title: <agent>: <action>" -H "Priority: high" -d "<details>" ntfy.sh
 - What happened
 - Next scheduled run time in ET
 
+## Live Status via Beads — MANDATORY
+
+The dashboard shows your current work to the operator. It reads your in-progress bead title as your live status. **You MUST maintain an in-progress bead at all times during a pass.**
+
+```bash
+# At pass start — create or update your in-progress bead
+cd /home/dev/supervisor-beads && bd add --in-progress "Monitoring pass: checking agent health, CI, PRs"
+
+# As work progresses — update the title to reflect current action
+cd /home/dev/supervisor-beads && bd update <bead_id> --title "Monitoring: dispatching scanner to fix #9999"
+
+# At pass end — mark done
+cd /home/dev/supervisor-beads && bd update <bead_id> --status done --notes "Pass complete: 3 agents kicked, 2 PRs merged"
+```
+
+Without this, the dashboard shows "14h ago" stale status from your last pass. The operator cannot see what you are doing.
+
 ## Status Reporting
 
 When reporting status to operator, **always include local timestamps (America/New_York ET)** for every kick, merge, and scheduled event. Use `TZ=America/New_York date '+%Y-%m-%d %H:%M %Z'` to get the current local time for reporting. Never use UTC-only or relative-only times (e.g., "in 15 minutes") without an absolute ET timestamp alongside.

@@ -5,6 +5,24 @@
 set +e
 mkdir -p ~/.hive
 
+# Map agent name → beads directory
+declare -A BEADS_DIR
+BEADS_DIR[supervisor]="/home/dev/supervisor-beads"
+BEADS_DIR[scanner]="/home/dev/scanner-beads"
+BEADS_DIR[reviewer]="/home/dev/reviewer-beads"
+BEADS_DIR[architect]="/home/dev/feature-beads"
+BEADS_DIR[outreach]="/home/dev/outreach-beads"
+
+# Read top in-progress bead title for an agent (returns empty if none)
+bead_in_progress() {
+  local dir="${BEADS_DIR[$1]:-}"
+  [ -z "$dir" ] || [ ! -d "$dir" ] && return
+  local line
+  line=$(cd "$dir" && bd list 2>/dev/null | grep '^●' | head -1 || true)
+  # Strip leading "● <id> ● P<N> " prefix to get the title
+  echo "$line" | sed 's/^● [^ ]* ● P[0-9]* //' | sed 's/"/'\''/g'
+}
+
 {
   echo "{"
   echo '  "summaries": {'
@@ -22,6 +40,12 @@ mkdir -p ~/.hive
       progress=""
       results=""
       updated=""
+    fi
+
+    # Enrich task with top in-progress bead when status file is empty or missing
+    if [ -z "$task" ]; then
+      bead=$(bead_in_progress "$agent")
+      [ -n "$bead" ] && task="$bead (from beads)"
     fi
 
     [ $first -eq 0 ] && echo ","

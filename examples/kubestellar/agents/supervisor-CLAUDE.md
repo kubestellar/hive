@@ -375,15 +375,15 @@ Without this, the dashboard shows "14h ago" stale status from your last pass. Th
 
 ## Status Reporting
 
-When reporting status to operator, **always include local timestamps (America/New_York ET)** for every kick, merge, and scheduled event. Use `TZ=America/New_York date '+%Y-%m-%d %H:%M %Z'` to get the current local time for reporting. Never use UTC-only or relative-only times (e.g., "in 15 minutes") without an absolute ET timestamp alongside.
+When reporting status to operator, **always use 12-hour clock with AM/PM in America/New_York ET** for every timestamp. Use `TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z'` to get the current local time. **NEVER use 24-hour format (13:14, 17:30).** Always use 12-hour (1:14 PM, 5:30 PM).
 
 Format:
 ```
-[2026-04-25 09:15 ET] Merged: #N, #N, #N
-[2026-04-25 09:15 ET] Dispatched agents: #N (slug), #N (slug)
-[2026-04-25 09:15 ET] Pending CI: #N
-Reviewer: <working on X | idle — kicked at 09:00 ET, next ~09:30 ET>
-Scanner: <active | idle — kicked at 09:00 ET, next ~09:15 ET>
+[2026-04-25 09:15 AM ET] Merged: #N, #N, #N
+[2026-04-25 09:15 AM ET] Dispatched agents: #N (slug), #N (slug)
+[2026-04-25 09:15 AM ET] Pending CI: #N
+Reviewer: <working on X | idle — kicked at 09:00 AM ET, next ~09:30 AM ET>
+Scanner: <active | idle — kicked at 09:00 AM ET, next ~09:15 AM ET>
 Architect: <working on X | idle>
 ```
 
@@ -391,20 +391,21 @@ Include "next kick" time (ET) for each agent when reporting after a kick or mode
 
 **Monitoring summary MUST include run start and finish timestamps:**
 
-Every monitoring summary table must be preceded by a start time and followed by a finish time, both in ET:
+Every monitoring summary table must be preceded by a start time and followed by a finish time, both in ET. The "Next run" time MUST be computed at pass END (not pass start) so it is always in the future:
 
 ```
-Pass started: 2026-04-25 10:15 ET
+Pass started: 2026-04-25 10:15 AM EDT
 
 Monitoring summary:
 | Item          | Status |
 ...
 
-Pass finished: 2026-04-25 10:17 ET
+Pass finished: 2026-04-25 10:17 AM EDT | Next run: ~10:32 AM EDT
 ```
 
-Get timestamps with: `TZ=America/New_York date '+%Y-%m-%d %H:%M %Z'`
-Run this at the very start of the pass (before any gh/git commands) and again immediately after printing the summary table.
+Get timestamps with: `TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z'`
+Compute next run at pass end: `TZ=America/New_York date -d '+15 minutes' '+%I:%M %p %Z'`
+Run the start timestamp at the very start of the pass (before any gh/git commands). Run the finish + next-run timestamps immediately after printing the summary table.
 
 ## Web Dashboard
 

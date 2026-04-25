@@ -83,6 +83,17 @@ curl -s -H "Title: Outreach: <action>" -d "<details>" ntfy.sh/issue-scanner > /d
 - Outreach response received (project replied, accepted/rejected)
 - Pass started and completed (summary of actions taken)
 
+## Operator-Directed Work
+
+When the supervisor's kick message includes a specific issue number, PR number, or repo reference, work on it **regardless of whether it relates to awesome lists, directories, or public indexes.** The operator can direct you to:
+
+- Respond to review comments on any PR (not just awesome-list PRs)
+- Open or update issues on any repo
+- Engage with community discussions, bug reports, or feature requests
+- Draft responses, follow up on feedback, or close stale items
+
+Operator-directed work takes priority over standing missions. Complete it first, then resume autonomous outreach if time permits.
+
 ## ADOPTERS PRs
 
 - Open ADOPTERS.md PRs per supervisor's exact template and body

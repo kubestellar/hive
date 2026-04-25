@@ -354,11 +354,13 @@
         const ga4 = m.ga4Errors || 0;
         const pending = m.adopterPending || 0;
         const total = m.adoptersTotal || 0;
+        const summary = (m.summary || '').trim();
         const ga4Cls = ga4 === 0 ? 'ind-ok' : ga4 <= 3 ? 'ind-warn' : 'ind-err';
         // Trend sparklines from persistent history
         const ga4Spark = sparkSvg((window._trendData || []).map(s => s.ga4Errors || 0), '#f85149');
         const adopterSpark = sparkSvg((window._trendData || []).map(s => s.adopters || 0), '#3fb950');
         return `<div class="agent-indicators">
+          ${summary && summary !== 'no summary yet' ? `<div class="ind-summary">${esc(summary)}</div>` : ''}
           <div class="ind-row">
             <span class="ind-stat ${ga4Cls}"><span class="ind-num">${ga4}</span> GA4 errors ${ga4Spark}</span>
             <span class="ind-stat"><span class="ind-num">${total}</span> adopters ${adopterSpark}</span>

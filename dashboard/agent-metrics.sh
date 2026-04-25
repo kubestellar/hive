@@ -30,6 +30,10 @@ adopter_prs=$(unset GITHUB_TOKEN && gh pr list --repo kubestellar/console --stat
   --json number,headRefName --jq '[.[] | select(.headRefName | test("outreach|adopter")) | .number]' 2>/dev/null || echo "[]")
 adopter_prs=${adopter_prs:-"[]"}
 adopter_count=$(echo "$adopter_prs" | jq 'length' 2>/dev/null || echo 0)
+# Read agent-authored summary
+outreach_summary=$(cat /var/run/hive-metrics/outreach_summary.txt 2>/dev/null || echo "")
+outreach_summary=${outreach_summary:-"no summary yet"}
+outreach_summary_json=$(echo "$outreach_summary" | head -1 | head -c 120 | jq -Rs '.')
 # Count current adopters in ADOPTERS.MD (merged lines)
 adopters_total=$(unset GITHUB_TOKEN && gh api repos/kubestellar/console/contents/ADOPTERS.MD \
   --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0)
@@ -51,7 +55,7 @@ cat <<EOF
 {
   "scanner": {"pairs": $scanner_json},
   "reviewer": {},
-  "outreach": {"ga4Errors": $ga4_errors, "adopterPrs": $adopter_prs, "adopterPending": $adopter_count, "adoptersTotal": $adopters_total},
+  "outreach": {"ga4Errors": $ga4_errors, "adopterPrs": $adopter_prs, "adopterPending": $adopter_count, "adoptersTotal": $adopters_total, "summary": $outreach_summary_json},
   "architect": {"prs": $architect_prs, "closed": $architect_closed, "summary": $architect_summary_json}
 }
 EOF

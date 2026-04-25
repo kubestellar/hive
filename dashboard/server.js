@@ -113,17 +113,22 @@ function fetchStatus() {
         statusCache.health = healthChecks;
         statusCache.ciPassRate = ciPassRate;
         statusCache.agentMetrics = agentMetrics;
-        // Merge live summaries into each agent: prefer live pane `doing`, fall back to status file
+        // Single exec summary per agent: live pane when working, status file when idle
         statusCache.summaries = summariesCache;
         for (const a of (statusCache.agents || [])) {
           const s = summariesCache[a.name] || {};
-          // Build a merged summary string: live doing takes priority; file fields fill the rest
-          const parts = [];
-          if (a.doing) parts.push(a.doing);
-          if (s.task && s.task !== a.doing) parts.push(s.task);
-          if (s.progress) parts.push(`▫ ${s.progress}`);
-          if (s.results) parts.push(`✓ ${s.results}`);
-          a.liveSummary = parts.join('\n');
+          if (a.doing) {
+            // Agent is actively working — show only the live signal
+            a.liveSummary = a.doing;
+          } else if (s.task) {
+            // Agent is idle — show last known work as context
+            const parts = [s.task];
+            if (s.progress) parts.push(`▫ ${s.progress}`);
+            if (s.results) parts.push(`✓ ${s.results}`);
+            a.liveSummary = parts.join('\n');
+          } else {
+            a.liveSummary = '';
+          }
           a.summaryUpdated = s.updated || null;
         }
         // Record snapshot for sparklines

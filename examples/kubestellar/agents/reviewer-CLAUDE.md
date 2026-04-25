@@ -163,30 +163,38 @@ You own the health panel on the hive dashboard. Every pass, check these and open
 /tmp/hive/dashboard/health-check.sh
 ```
 
-This returns JSON with: `ci`, `brew`, `helm`, `nightly`, `weekly`, `vllm`, `pokprod` (1=ok, 0=fail, -1=unknown).
+This returns JSON with: `ci`, `brew`, `helm`, `nightly`, `nightlyRel`, `weekly`, `weeklyRel`, `hourly`, `vllm`, `pokprod` (1=ok, 0=fail, -1=unknown).
 
-**When a check is red (0):**
-1. Search for an existing open issue covering that failure
-2. If no open issue exists, create one:
-```bash
-unset GITHUB_TOKEN && gh issue create --repo kubestellar/console \
-  --title "🔴 Health: <check name> failing" \
-  --label "bug,health" \
-  --body "## Health Check Failure
+**When a check is red (0) — you MUST fix it via PR, not just report it:**
 
-**Check:** <name>
-**Status:** FAILING
-**Detected:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+1. Pull the failed workflow's logs:
+   ```bash
+   unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "<workflow name>" --limit 1 --json databaseId,conclusion --jq '.[0]'
+   unset GITHUB_TOKEN && gh run view <run_id> --repo kubestellar/console --log-failed 2>&1 | tail -80
+   ```
+2. Diagnose the root cause from the logs
+3. **Fix it yourself** — create a branch, fix the workflow or test code, open a PR:
+   ```bash
+   git checkout -b fix/nightly-<description>
+   # Make the fix
+   git add -A && git commit -s -m "🐛 Fix <workflow name>: <root cause>"
+   unset GITHUB_TOKEN && gh pr create --title "🐛 Fix <workflow name>: <root cause>" \
+     --body "The <workflow name> workflow has been failing since <date>.\n\nRoot cause: <explanation>\nFix: <what you changed>"
+   ```
+4. Send ntfy: `"Fixed <workflow>: <root cause>. PR #<N>"`
 
-## Details
-<what's wrong — e.g. nightly test suite conclusion=failure, brew formula stale>
+**Do NOT just file issues for red checks.** Your job is to fix them. File an issue only if the fix requires infrastructure changes you cannot make (e.g., secrets, runner config).
 
-## Expected
-This check should be green. Investigate and fix."
-```
-3. Send ntfy notification
+### Workflows you own (fix when red)
 
-**Do NOT duplicate** — if an open issue already covers the failure, comment on it instead of opening a new one.
+| Category | Workflows | Dashboard indicator |
+|----------|-----------|-------------------|
+| **Nightly** | Nightly Test Suite, Nightly Compliance & Perf, Nightly UX Journeys, Nightly Dashboard Health, Nightly DAST, Card Standard Nightly, Playwright Nightly | `nightly` |
+| **Hourly/Perf** | Perf — React commits per navigation, Perf TTFI Gate, Perf bundle size, Perf React commits idle | `hourly` |
+| **CI** | All PR check workflows (build, lint, test, ui-ux-standard, nil-safety) | `ci` |
+| **Weekly** | Weekly Coverage Review | `weekly` |
+
+**Every pass, check the last run of each category.** If any workflow in a category is red, diagnose and fix it. The dashboard shows the worst status in each category.
 
 ## GA4 Output Rule
 

@@ -36,10 +36,19 @@ weekly=$(gh run list --repo kubestellar/console --workflow "Weekly Coverage Revi
   --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
 weekly_ok=$( [ "$weekly" = "success" ] && echo 1 || echo 0 )
 
+# Hourly/Perf workflows — worst of all perf workflows
+hourly_worst=1
+for wf in "Perf — React commits per navigation" "Performance TTFI Gate"; do
+  result=$(gh run list --repo kubestellar/console --workflow "$wf" --limit 1 \
+    --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
+  if [ "$result" = "failure" ]; then hourly_worst=0; fi
+done
+hourly_ok=$hourly_worst
+
 # Deploy checks (placeholder — no endpoints configured yet)
 vllm_ok=-1
 pokprod_ok=-1
 
 cat <<EOF
-{"ci":${ci:-0},"brew":$brew_ok,"helm":$helm_ok,"nightly":$nightly_ok,"nightlyRel":$nightly_rel_ok,"weekly":$weekly_ok,"weeklyRel":$weekly_rel_ok,"vllm":$vllm_ok,"pokprod":$pokprod_ok}
+{"ci":${ci:-0},"brew":$brew_ok,"helm":$helm_ok,"nightly":$nightly_ok,"nightlyRel":$nightly_rel_ok,"weekly":$weekly_ok,"weeklyRel":$weekly_rel_ok,"hourly":$hourly_ok,"vllm":$vllm_ok,"pokprod":$pokprod_ok}
 EOF

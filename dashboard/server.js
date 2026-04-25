@@ -8,6 +8,7 @@ const PORT = process.env.HIVE_DASHBOARD_PORT || 3001;
 const REFRESH_MS = 5000;
 const HISTORY_DIR = '/var/run/hive-metrics/history';
 const HISTORY_FILE = path.join(HISTORY_DIR, 'daily.json');
+try { fs.mkdirSync(HISTORY_DIR, { recursive: true }); } catch (_) {}
 const PERSIST_INTERVAL_MS = 15 * 60 * 1000; // 15 min
 const MAX_PERSISTENT_POINTS = 30 * 24 * 4; // 30 days at 15-min intervals = 2880
 
@@ -61,7 +62,15 @@ setInterval(fetchSummaries, REFRESH_MS);
 
 // Historical data — keep last 2 hours of snapshots (5s intervals = ~1440 points)
 const MAX_HISTORY = 1440;
-const history = [];
+const SPARKLINE_FILE = path.join(HISTORY_DIR, 'sparkline.json');
+let history = [];
+try {
+  const raw = fs.readFileSync(SPARKLINE_FILE, 'utf8');
+  history = JSON.parse(raw);
+  // Trim to cap in case the file grew large before this limit was set
+  if (history.length > MAX_HISTORY) history = history.slice(-MAX_HISTORY);
+  console.log(`Loaded ${history.length} sparkline history points`);
+} catch (_) { /* first run */ }
 
 // Persistent history — 15-min snapshots, 30 days
 let persistentHistory = [];
@@ -155,6 +164,10 @@ function fetchStatus() {
         }
         history.push(snap);
         if (history.length > MAX_HISTORY) history.shift();
+        // Persist sparkline every 12 ticks (~60s) to avoid hammering disk on every 5s fetch
+        if (history.length % 12 === 0) {
+          try { fs.writeFileSync(SPARKLINE_FILE, JSON.stringify(history)); } catch (_) {}
+        }
         resolve(statusCache);
       } catch (e) {
         console.error('JSON parse error:', e.message);

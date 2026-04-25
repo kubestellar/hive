@@ -322,21 +322,17 @@
       if (!m) return '';
 
       if (name === 'issue-scanner' || name === 'scanner') {
-        const doing = m.doing || '';
         const pairs = m.pairs || [];
-        const doingHtml = doing ? `<div class="ind-summary">${esc(doing)}</div>` : '';
-        if (pairs.length === 0) return doingHtml + '<div class="agent-indicators"><span class="ind-empty">no active fixes</span></div>';
+        if (pairs.length === 0) return '<div class="agent-indicators"><span class="ind-empty">no active fixes</span></div>';
         const rows = pairs.map(p => `<div class="ind-pair">
           <a class="ind-tag ind-issue" href="https://github.com/kubestellar/console/issues/${p.issue}" target="_blank">⊙ #${p.issue}</a>
           <span class="ind-arrow">→</span>
           <a class="ind-tag ind-pr" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank">⎇ #${p.pr}</a>
         </div>`).join('');
-        return doingHtml + `<div class="agent-indicators"><span class="ind-label">Fixes (${pairs.length}):</span>${rows}</div>`;
+        return `<div class="agent-indicators"><span class="ind-label">Fixes (${pairs.length}):</span>${rows}</div>`;
       }
 
       if (name === 'reviewer') {
-        const doing = m.doing || '';
-        const doingHtml = doing ? `<div class="ind-summary">${esc(doing)}</div>` : '';
         const h = window._healthData || {};
         const groups = [
           { label: 'Artifacts', items: [
@@ -366,7 +362,7 @@
           const dotCls = v === 1 ? 'ok' : v === 0 ? 'fail' : 'unknown';
           return `<span class="ind-dot-item"><span class="health-dot ${dotCls}"></span><span class="ind-dlabel">${d.label}</span></span>`;
         };
-        return doingHtml + `<div class="agent-indicators">${groups.map(g =>
+        return `<div class="agent-indicators">${groups.map(g =>
           `<div class="ind-group"><span class="ind-group-label">${g.label}</span><div class="ind-dots">${g.items.map(renderItem).join('')}</div></div>`
         ).join('')}</div>`;
       }

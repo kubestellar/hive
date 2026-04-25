@@ -16,8 +16,23 @@ architect_model=$(echo "$agent_status" | jq -r '.agents[] | select(.name == "arc
 outreach_doing=$(echo "$agent_status" | jq -r '.agents[] | select(.name == "outreach") | .doing' 2>/dev/null || echo "")
 outreach_model=$(echo "$agent_status" | jq -r '.agents[] | select(.name == "outreach") | .model' 2>/dev/null || echo "?")
 
+# ── Scanner: active issue→PR pairs from open AI-authored PRs ──
+# Reads open PRs by clubanderson that reference an issue number in title/body
+scanner_pairs_json="[]"
+if command -v gh &>/dev/null; then
+  raw_prs=$(gh api 'repos/kubestellar/console/pulls?state=open&per_page=50' \
+    --jq '[.[] | select(.user.login == "clubanderson") | {pr: .number, title: .title, body: (.body // "")}]' 2>/dev/null || echo "[]")
+  scanner_pairs_json=$(echo "$raw_prs" | jq '[
+    .[] |
+    . as $p |
+    # extract first "Fixes #NNN" or "Closes #NNN" issue ref
+    ($p.body | capture("(?i)(fixes|closes|resolves) #(?P<issue>[0-9]+)") // null) as $ref |
+    if $ref then { issue: ($ref.issue | tonumber), pr: $p.pr } else empty end
+  ]' 2>/dev/null || echo "[]")
+fi
+
 # Build agent JSON with live summaries and model
-scanner_json=$(jq -n --arg doing "$scanner_doing" --arg model "$scanner_model" '{doing: $doing, model: $model}')
+scanner_json=$(jq -n --arg doing "$scanner_doing" --arg model "$scanner_model" --argjson pairs "$scanner_pairs_json" '{doing: $doing, model: $model, pairs: $pairs}')
 reviewer_json=$(jq -n --arg doing "$reviewer_doing" --arg model "$reviewer_model" '{doing: $doing, model: $model}')
 architect_json=$(jq -n --arg doing "$architect_doing" --arg model "$architect_model" '{doing: $doing, model: $model}')
 outreach_json=$(jq -n --arg doing "$outreach_doing" --arg model "$outreach_model" '{doing: $doing, model: $model}')

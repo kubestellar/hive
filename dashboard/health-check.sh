@@ -21,10 +21,15 @@ nightly=$(gh run list --repo kubestellar/console --workflow "Nightly Test Suite"
   --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
 nightly_ok=$( [ "$nightly" = "success" ] && echo 1 || echo 0 )
 
-# Release workflow
-release=$(gh run list --repo kubestellar/console --workflow "Release" --limit 1 \
-  --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
-release_ok=$( [ "$release" = "success" ] && echo 1 || echo 0 )
+# Release workflow — runs nightly AND weekly (Sunday), same workflow different cron
+# Nightly release: last non-Sunday scheduled run
+nightly_rel=$(gh run list --repo kubestellar/console --workflow "Release" --event schedule --limit 10 \
+  --json conclusion,createdAt --jq '[.[] | select((.createdAt | strptime("%Y-%m-%dT%H:%M:%SZ") | strftime("%u")) != "7")][0].conclusion // "none"' 2>/dev/null || echo "none")
+nightly_rel_ok=$( [ "$nightly_rel" = "success" ] && echo 1 || echo 0 )
+# Weekly release: last Sunday scheduled run
+weekly_rel=$(gh run list --repo kubestellar/console --workflow "Release" --event schedule --limit 10 \
+  --json conclusion,createdAt --jq '[.[] | select((.createdAt | strptime("%Y-%m-%dT%H:%M:%SZ") | strftime("%u")) == "7")][0].conclusion // "none"' 2>/dev/null || echo "none")
+weekly_rel_ok=$( [ "$weekly_rel" = "success" ] && echo 1 || echo 0 )
 
 # Weekly workflow
 weekly=$(gh run list --repo kubestellar/console --workflow "Weekly Coverage Review" --limit 1 \
@@ -36,5 +41,5 @@ vllm_ok=-1
 pokprod_ok=-1
 
 cat <<EOF
-{"ci":${ci:-0},"brew":$brew_ok,"helm":$helm_ok,"nightly":$nightly_ok,"release":$release_ok,"weekly":$weekly_ok,"vllm":$vllm_ok,"pokprod":$pokprod_ok}
+{"ci":${ci:-0},"brew":$brew_ok,"helm":$helm_ok,"nightly":$nightly_ok,"nightlyRel":$nightly_rel_ok,"weekly":$weekly_ok,"weeklyRel":$weekly_rel_ok,"vllm":$vllm_ok,"pokprod":$pokprod_ok}
 EOF

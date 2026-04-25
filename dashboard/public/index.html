@@ -316,7 +316,6 @@
     }
 
     let currentAgentMetrics = {};
-    let currentSummaries = {};
 
     function agentIndicators(name) {
       const m = currentAgentMetrics[name];
@@ -416,16 +415,8 @@
         const needsLogin = a.needsLogin === true;
         const cls = needsLogin ? 'needs-login' : (a.state === 'stopped' ? 'stopped' : a.busy);
         const dotCls = a.state === 'stopped' ? 'stopped' : 'running';
-        // Use comprehensive summary instead of doing spinner
-        const summary = currentSummaries[a.name] || {};
-        let summaryEl = '';
-        if (summary.task) {
-          const parts = [];
-          if (summary.task) parts.push(summary.task);
-          if (summary.progress) parts.push(`▫ ${summary.progress}`);
-          if (summary.results) parts.push(`✓ ${summary.results}`);
-          summaryEl = parts.length > 0 ? `<div class="doing">${esc(parts.join('\n'))}</div>` : '';
-        }
+        // liveSummary is pushed via SSE every 5s — no separate fetch needed
+        const summaryEl = a.liveSummary ? `<div class="doing">${esc(a.liveSummary)}</div>` : '';
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>
@@ -447,7 +438,6 @@
             </select>
             <select class="btn backend-select" onchange="switchModel('${a.name}', this.value); this.selectedIndex=0">
               <option value="" disabled selected>model ▾</option>
-              <option value="claude-opus-4-7">Opus 4.7</option>
               <option value="claude-opus-4-6">Opus 4.6</option>
               <option value="claude-sonnet-4-6">Sonnet 4.6</option>
               <option value="claude-sonnet-4-5">Sonnet 4.5</option>
@@ -577,12 +567,7 @@
       renderGovernor(data.governor || {});
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
-      // Fetch comprehensive summaries
-      fetch('/api/summaries').then(r => r.json()).then(d => {
-        currentSummaries = d.summaries || {};
-        // Re-render agents with updated summaries
-        renderAgents(data.agents || []);
-      }).catch(() => {});
+      // summaries are merged into a.liveSummary server-side and pushed via SSE — no extra fetch
     }
 
     function esc(s) {

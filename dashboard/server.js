@@ -17,6 +17,7 @@ let lastFetch = 0;
 let ciPassRate = 0;
 let healthChecks = {};
 let agentMetrics = {};
+let summariesCache = {};
 
 // Fetch CI pass rate + binary health checks every 60s
 function fetchHealthChecks() {
@@ -43,6 +44,20 @@ function fetchAgentMetrics() {
 }
 fetchAgentMetrics();
 setInterval(fetchAgentMetrics, 300000);  // every 5 min (REST API)
+
+// Fetch agent summaries from ~/.hive/<agent>_status.txt on every status refresh cycle
+function fetchSummaries() {
+  execFile(path.join(__dirname, 'agent-summaries.sh'), [], { timeout: 10000 }, (err, stdout) => {
+    if (!err && stdout.trim()) {
+      try {
+        const d = JSON.parse(stdout.trim());
+        summariesCache = d.summaries || {};
+      } catch (_) {}
+    }
+  });
+}
+fetchSummaries();
+setInterval(fetchSummaries, REFRESH_MS);
 
 // Historical data — keep last 2 hours of snapshots (5s intervals = ~1440 points)
 const MAX_HISTORY = 1440;
@@ -98,6 +113,19 @@ function fetchStatus() {
         statusCache.health = healthChecks;
         statusCache.ciPassRate = ciPassRate;
         statusCache.agentMetrics = agentMetrics;
+        // Merge live summaries into each agent: prefer live pane `doing`, fall back to status file
+        statusCache.summaries = summariesCache;
+        for (const a of (statusCache.agents || [])) {
+          const s = summariesCache[a.name] || {};
+          // Build a merged summary string: live doing takes priority; file fields fill the rest
+          const parts = [];
+          if (a.doing) parts.push(a.doing);
+          if (s.task && s.task !== a.doing) parts.push(s.task);
+          if (s.progress) parts.push(`▫ ${s.progress}`);
+          if (s.results) parts.push(`✓ ${s.results}`);
+          a.liveSummary = parts.join('\n');
+          a.summaryUpdated = s.updated || null;
+        }
         // Record snapshot for sparklines
         const snap = {
           t: lastFetch,

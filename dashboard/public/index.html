@@ -488,15 +488,35 @@
       return '';
     }
 
-    function agentTokenRow(name) {
+    function parseCadenceMinutes(cadence) {
+      if (!cadence || cadence === 'paused') return 0;
+      const m = cadence.match(/^(\d+)(m|h)$/);
+      if (!m) return 0;
+      const MINUTES_PER_HOUR = 60;
+      return m[2] === 'h' ? parseInt(m[1]) * MINUTES_PER_HOUR : parseInt(m[1]);
+    }
+
+    function agentTokenRow(name, cadence) {
       const byAgent = window._tokensByAgent || {};
       const t = byAgent[name];
       if (!t || (t.messages === 0 && t.sessions === 0)) return '';
       const total = (t.input || 0) + (t.output || 0) + (t.cacheRead || 0);
-      if (total > 0) {
-        return `<div class="agent-field"><span class="label">tokens (24h)</span><span class="value" style="color:var(--cyan)">${fmtTokens(total)} <span style="color:var(--muted);font-size:0.65rem">(${t.sessions} sess)</span></span></div>`;
+      if (total === 0) {
+        return `<div class="agent-field"><span class="label">tokens (24h)</span><span class="value" style="color:var(--muted)">${t.sessions} sess · ${t.messages} msgs</span></div>`;
       }
-      return `<div class="agent-field"><span class="label">tokens (24h)</span><span class="value" style="color:var(--muted)">${t.sessions} sess · ${t.messages} msgs</span></div>`;
+      const avg = t.avgPerSession || (t.sessions > 0 ? Math.floor(total / t.sessions) : 0);
+      let rows = `<div class="agent-field"><span class="label">tokens (24h)</span><span class="value" style="color:var(--cyan)">${fmtTokens(total)} <span style="color:var(--muted);font-size:0.65rem">(${t.sessions} sess)</span></span></div>`;
+      rows += `<div class="agent-field"><span class="label">avg/pass</span><span class="value">${fmtTokens(avg)}</span></div>`;
+      const intervalMin = parseCadenceMinutes(cadence);
+      if (intervalMin > 0 && avg > 0) {
+        const MINUTES_PER_HOUR = 60;
+        const HOURS_PER_WEEK = 168;
+        const passesPerHour = MINUTES_PER_HOUR / intervalMin;
+        const tokensPerHour = avg * passesPerHour;
+        const tokensPerWeek = tokensPerHour * HOURS_PER_WEEK;
+        rows += `<div class="agent-field"><span class="label">burn rate</span><span class="value" style="color:var(--yellow)">${fmtTokens(tokensPerHour)}/hr · ${fmtTokens(tokensPerWeek)}/wk</span></div>`;
+      }
+      return rows;
     }
 
     function renderAgents(agents) {
@@ -527,7 +547,7 @@
           <div class="agent-field"><span class="label">model</span><span class="value">${a.model || ''}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${a.cadence}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${a.nextKick || '—'}</span></div>
-          ${agentTokenRow(a.name)}
+          ${agentTokenRow(a.name, a.cadence)}
           <div class="agent-state ${a.busy}">${a.busy}</div>
           ${needsLogin ? '<div class="login-warning">⚠ NOT LOGGED IN — run /login</div>' : ''}
           ${summaryEl}${indEl}

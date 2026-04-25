@@ -187,6 +187,11 @@ for proj_name in os.listdir(projects_dir):
 # Sort sessions by most recent first
 sessions.sort(key=lambda s: s.get("mtime", 0), reverse=True)
 
+for aname, astats in by_agent.items():
+    s = astats["sessions"]
+    total = astats["input"] + astats["output"] + astats["cacheRead"]
+    astats["avgPerSession"] = total // s if s > 0 else 0
+
 result = {
     "timestamp": int(time.time() * 1000),
     "lookbackHours": lookback_hours,

@@ -931,9 +931,11 @@
 
       const modelChips = models.map(([name, m]) => {
         const mTotal = m.input + m.output + m.cacheRead;
+        const mSpark = sparkSvg(historyData.map(s => s.tokenModels?.[name] ?? 0), '#bc8cff');
         return `<div class="token-model-chip">
           <span class="mname">${esc(name)}</span>
           <span class="mcount">${fmtTokens(mTotal)} tokens · ${m.messages} msgs</span>
+          ${mSpark}
         </div>`;
       }).join('');
 
@@ -967,13 +969,13 @@
         <div class="token-title">Token Usage <span class="lookback">${tokens.lookbackHours || 24}h window · ${t.sessions} sessions</span></div>
         <div class="token-grid">
           <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--cyan)">${fmtTokens(totalTokens)}</span>${totalSpark}</div><div class="tlabel">total tokens</div></div>
-          <div class="token-stat"><div class="tval" style="color:var(--blue)">${fmtTokens(t.input)}</div><div class="tlabel">input</div></div>
-          <div class="token-stat"><div class="tval" style="color:var(--purple)">${fmtTokens(t.output)}</div><div class="tlabel">output</div></div>
-          <div class="token-stat"><div class="tval" style="color:var(--green)">${fmtTokens(t.cacheRead)}</div><div class="tlabel">cache read</div></div>
-          <div class="token-stat"><div class="tval" style="color:var(--yellow)">${fmtTokens(t.cacheCreate)}</div><div class="tlabel">cache create</div></div>
-          <div class="token-stat"><div class="tval">${t.messages}</div><div class="tlabel">messages</div></div>
-          ${agentSparkRows}
+          <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--blue)">${fmtTokens(t.input)}</span>${sparkSvg(getHistorySeries('tokenInput'), '#58a6ff')}</div><div class="tlabel">input</div></div>
+          <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--purple)">${fmtTokens(t.output)}</span>${sparkSvg(getHistorySeries('tokenOutput'), '#bc8cff')}</div><div class="tlabel">output</div></div>
+          <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--green)">${fmtTokens(t.cacheRead)}</span>${sparkSvg(getHistorySeries('tokenCacheRead'), '#3fb950')}</div><div class="tlabel">cache read</div></div>
+          <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--yellow)">${fmtTokens(t.cacheCreate)}</span>${sparkSvg(getHistorySeries('tokenCacheCreate'), '#d29922')}</div><div class="tlabel">cache create</div></div>
+          <div class="token-stat"><div class="spark-row"><span class="tval">${t.messages}</span>${sparkSvg(getHistorySeries('tokenMessages'), '#8b949e')}</div><div class="tlabel">messages</div></div>
         </div>
+        ${agentSparkRows ? `<div class="token-grid" style="margin-top:4px">${agentSparkRows}</div>` : ''}
         ${advisorHtml}
         <div class="token-models">${modelChips}</div>
         ${sessions.length > 0 ? `<details class="token-sessions"><summary>Active Sessions (${sessions.length})</summary>${sessionRows}</details>` : ''}
@@ -1057,11 +1059,23 @@
           // Token sparkline data
           snap.tokens = {};
           snap.tokenTotal = 0;
+          const _tt = data.tokens?.totals || {};
+          snap.tokenInput = _tt.input || 0;
+          snap.tokenOutput = _tt.output || 0;
+          snap.tokenCacheRead = _tt.cacheRead || 0;
+          snap.tokenCacheCreate = _tt.cacheCreate || 0;
+          snap.tokenMessages = _tt.messages || 0;
           const _ba = data.tokens?.byAgent || {};
           for (const [name, stats] of Object.entries(_ba)) {
             const t = (stats.input || 0) + (stats.output || 0) + (stats.cacheRead || 0);
             snap.tokens[name] = t;
             snap.tokenTotal += t;
+          }
+          // Per-model token data
+          snap.tokenModels = {};
+          const _bm = data.tokens?.byModel || {};
+          for (const [name, stats] of Object.entries(_bm)) {
+            snap.tokenModels[name] = (stats.input || 0) + (stats.output || 0) + (stats.cacheRead || 0);
           }
           historyData.push(snap);
           if (historyData.length > 200) historyData.shift();

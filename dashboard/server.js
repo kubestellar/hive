@@ -196,6 +196,11 @@ function fetchStatus() {
           adopterPrs: agentMetrics?.outreach?.adopterPending || 0,
           tokens: {},
           tokenTotal: 0,
+          tokenInput: 0,
+          tokenOutput: 0,
+          tokenCacheRead: 0,
+          tokenCacheCreate: 0,
+          tokenMessages: 0,
         };
         // Token sparkline data
         const tc = tokenCache || {};
@@ -207,6 +212,18 @@ function fetchStatus() {
           tokenTotal += t;
         }
         snap.tokenTotal = tokenTotal;
+        const tt = tc.totals || {};
+        snap.tokenInput = tt.input || 0;
+        snap.tokenOutput = tt.output || 0;
+        snap.tokenCacheRead = tt.cacheRead || 0;
+        snap.tokenCacheCreate = tt.cacheCreate || 0;
+        snap.tokenMessages = tt.messages || 0;
+        // Per-model token data
+        snap.tokenModels = {};
+        const bm = tc.byModel || {};
+        for (const [name, stats] of Object.entries(bm)) {
+          snap.tokenModels[name] = (stats.input || 0) + (stats.output || 0) + (stats.cacheRead || 0);
+        }
         for (const r of (statusCache.repos || [])) {
           snap.repos[r.name] = { issues: r.issues || 0, prs: r.prs || 0 };
         }
@@ -277,6 +294,19 @@ app.get('/api/timeline', (_req, res) => {
 });
 
 // SSE stream
+// Tmux pane preview — last N lines of an agent's tmux session
+const TMUX_PREVIEW_LINES = 30;
+app.get('/api/pane/:agent', (req, res) => {
+  const agent = req.params.agent;
+  const session = TMUX_SESSION[agent];
+  if (!session) return res.status(400).json({ error: `unknown agent: ${agent}` });
+  execFile('tmux', ['capture-pane', '-t', session, '-p', '-S', `-${TMUX_PREVIEW_LINES}`],
+    { timeout: 5000 }, (err, stdout) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ agent, session, lines: stdout.split('\n').slice(-TMUX_PREVIEW_LINES) });
+    });
+});
+
 app.get('/api/events', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',

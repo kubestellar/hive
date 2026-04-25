@@ -1,9 +1,15 @@
 #!/bin/bash
 # Fetch comprehensive agent exec summaries (task + progress + results)
 # Called by dashboard to populate agent cards
+#
+# Priority: in-progress bead > fresh status file > stale status file
+# A status file older than STALE_THRESHOLD_SEC is considered stale and
+# loses to an in-progress bead (which reflects real-time work).
 
 set +e
 mkdir -p ~/.hive
+
+STALE_THRESHOLD_SEC=1800  # 30 min
 
 # Map agent name → beads directory
 declare -A BEADS_DIR
@@ -21,6 +27,17 @@ bead_in_progress() {
   line=$(cd "$dir" && bd list 2>/dev/null | grep '^●' | head -1 || true)
   # Strip leading "● <id> ● P<N> " prefix to get the title
   echo "$line" | sed 's/^● [^ ]* ● P[0-9]* //' | sed 's/"/'\''/g'
+}
+
+# Check if status file is stale (older than STALE_THRESHOLD_SEC)
+is_stale() {
+  local file="$1"
+  [ ! -f "$file" ] && return 0
+  local now file_mtime age
+  now=$(date +%s)
+  file_mtime=$(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo 0)
+  age=$((now - file_mtime))
+  [ "$age" -gt "$STALE_THRESHOLD_SEC" ]
 }
 
 {
@@ -42,10 +59,15 @@ bead_in_progress() {
       updated=""
     fi
 
-    # Enrich task with top in-progress bead when status file is empty or missing
-    if [ -z "$task" ]; then
-      bead=$(bead_in_progress "$agent")
-      [ -n "$bead" ] && task="$bead (from beads)"
+    # Always check beads — prefer bead over stale status file
+    bead=$(bead_in_progress "$agent")
+    if [ -n "$bead" ]; then
+      if [ -z "$task" ] || is_stale "$file"; then
+        task="$bead"
+        progress=""
+        results=""
+        updated=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      fi
     fi
 
     [ $first -eq 0 ] && echo ","

@@ -28,23 +28,6 @@
     }
     .widget-dl:hover { background: var(--cyan); color: var(--bg); }
 
-    /* CLI token chips in header */
-    .cli-chip {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 2px 8px; border-radius: 4px; font-size: 0.68rem;
-      border: 1px solid var(--border);
-    }
-    .cli-chip .cli-name { font-weight: 600; }
-    .cli-chip.cli-claude { border-color: rgba(188,140,255,0.4); }
-    .cli-chip.cli-claude .cli-name { color: var(--purple); }
-    .cli-chip.cli-copilot { border-color: rgba(57,210,192,0.4); }
-    .cli-chip.cli-copilot .cli-name { color: var(--cyan); }
-    .cli-chip.cli-gemini { border-color: rgba(88,166,255,0.4); }
-    .cli-chip.cli-gemini .cli-name { color: var(--blue); }
-    .cli-chip.cli-other { border-color: var(--border); }
-    .cli-chip .cli-val { color: var(--text); font-weight: 700; }
-    .cli-chip .cli-detail { color: var(--muted); }
-
     /* Agent cards */
     .agents { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 24px; }
     .agent-card {
@@ -328,7 +311,6 @@
   </div>
 
   <h1><span class="bee">🐝</span> KubeStellar Hive Dashboard <span class="timestamp" id="ts"></span>
-    <span id="cli-tokens" style="display:flex;gap:10px;margin-left:12px;font-size:0.7rem;font-weight:400;align-items:center"></span>
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
 
@@ -721,26 +703,12 @@
 
     function renderTokens(tokens) {
       const el = document.getElementById('token-panel');
-      const cliEl = document.getElementById('cli-tokens');
 
       if (!tokens || !tokens.totals || tokens.totals.sessions === 0) {
         el.innerHTML = '';
-        cliEl.innerHTML = '';
         return;
       }
 
-      // Header CLI chips
-      const cliEntries = Object.entries(tokens.byCli || {}).sort((a, b) =>
-        (b[1].input + b[1].output + b[1].cacheRead) - (a[1].input + a[1].output + a[1].cacheRead)
-      );
-      cliEl.innerHTML = cliEntries.map(([name, c]) => {
-        const cTotal = c.input + c.output + c.cacheRead;
-        return `<span class="cli-chip cli-${name}">
-          <span class="cli-name">${esc(name)}</span>
-          <span class="cli-val">${fmtTokens(cTotal)}</span>
-          <span class="cli-detail">${c.sessions}s/${c.messages}m</span>
-        </span>`;
-      }).join('');
       const t = tokens.totals;
       const totalTokens = t.input + t.output + t.cacheRead;
       const models = Object.entries(tokens.byModel || {}).sort((a, b) =>

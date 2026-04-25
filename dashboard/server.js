@@ -194,7 +194,19 @@ function fetchStatus() {
           ga4Errors: agentMetrics?.outreach?.ga4Errors || 0,
           adopters: agentMetrics?.outreach?.adoptersTotal || 0,
           adopterPrs: agentMetrics?.outreach?.adopterPending || 0,
+          tokens: {},
+          tokenTotal: 0,
         };
+        // Token sparkline data
+        const tc = tokenCache || {};
+        const ba = tc.byAgent || {};
+        let tokenTotal = 0;
+        for (const [name, stats] of Object.entries(ba)) {
+          const t = (stats.input || 0) + (stats.output || 0) + (stats.cacheRead || 0);
+          snap.tokens[name] = t;
+          tokenTotal += t;
+        }
+        snap.tokenTotal = tokenTotal;
         for (const r of (statusCache.repos || [])) {
           snap.repos[r.name] = { issues: r.issues || 0, prs: r.prs || 0 };
         }

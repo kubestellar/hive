@@ -552,6 +552,12 @@
 
     function renderAgents(agents) {
       const el = document.getElementById('agents');
+      // Preserve custom prompt input values across re-renders
+      const savedInputs = {};
+      const focusedId = document.activeElement?.id;
+      el.querySelectorAll('.kick-prompt').forEach(inp => {
+        if (inp.value) savedInputs[inp.id] = inp.value;
+      });
       const cards = agents.map(a => {
         const needsLogin = a.needsLogin === true;
         const cls = needsLogin ? 'needs-login' : (a.state === 'stopped' ? 'stopped' : a.busy);
@@ -605,6 +611,15 @@
         </div>`;
       });
       el.innerHTML = cards.join('');
+      // Restore saved input values and focus
+      for (const [id, val] of Object.entries(savedInputs)) {
+        const inp = document.getElementById(id);
+        if (inp) inp.value = val;
+      }
+      if (focusedId) {
+        const prev = document.getElementById(focusedId);
+        if (prev) prev.focus();
+      }
     }
 
     function renderHealth(health) {
@@ -935,15 +950,29 @@
 
       const advisorHtml = buildCadenceAdvisor(tokens.byAgent || {});
 
+      const totalSpark = sparkSvg(getHistorySeries('tokenTotal'), '#39d2c0');
+      const agentNames = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+      const agentColors = { scanner: '#58a6ff', reviewer: '#3fb950', architect: '#bc8cff', outreach: '#39d2c0', supervisor: '#d29922' };
+      const agentSparkRows = agentNames.map(name => {
+        const ba = tokens.byAgent || {};
+        const aData = ba[name];
+        if (!aData) return '';
+        const aTotal = (aData.input || 0) + (aData.output || 0) + (aData.cacheRead || 0);
+        if (aTotal === 0) return '';
+        const aSpark = sparkSvg(historyData.map(s => s.tokens?.[name] ?? 0), agentColors[name] || '#8b949e');
+        return `<div class="token-stat"><div class="spark-row"><span class="tval" style="color:${agentColors[name]}">${fmtTokens(aTotal)}</span>${aSpark}</div><div class="tlabel">${name}</div></div>`;
+      }).join('');
+
       el.innerHTML = `<div class="token-panel">
         <div class="token-title">Token Usage <span class="lookback">${tokens.lookbackHours || 24}h window · ${t.sessions} sessions</span></div>
         <div class="token-grid">
-          <div class="token-stat"><div class="tval" style="color:var(--cyan)">${fmtTokens(totalTokens)}</div><div class="tlabel">total tokens</div></div>
+          <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--cyan)">${fmtTokens(totalTokens)}</span>${totalSpark}</div><div class="tlabel">total tokens</div></div>
           <div class="token-stat"><div class="tval" style="color:var(--blue)">${fmtTokens(t.input)}</div><div class="tlabel">input</div></div>
           <div class="token-stat"><div class="tval" style="color:var(--purple)">${fmtTokens(t.output)}</div><div class="tlabel">output</div></div>
           <div class="token-stat"><div class="tval" style="color:var(--green)">${fmtTokens(t.cacheRead)}</div><div class="tlabel">cache read</div></div>
           <div class="token-stat"><div class="tval" style="color:var(--yellow)">${fmtTokens(t.cacheCreate)}</div><div class="tlabel">cache create</div></div>
           <div class="token-stat"><div class="tval">${t.messages}</div><div class="tlabel">messages</div></div>
+          ${agentSparkRows}
         </div>
         ${advisorHtml}
         <div class="token-models">${modelChips}</div>
@@ -1025,6 +1054,15 @@
           };
           for (const r of (data.repos || [])) snap.repos[r.name] = { issues: r.issues || 0, prs: r.prs || 0 };
           for (const a of (data.agents || [])) snap.agents[a.name] = { busy: a.busy === 'working' ? 1 : 0 };
+          // Token sparkline data
+          snap.tokens = {};
+          snap.tokenTotal = 0;
+          const _ba = data.tokens?.byAgent || {};
+          for (const [name, stats] of Object.entries(_ba)) {
+            const t = (stats.input || 0) + (stats.output || 0) + (stats.cacheRead || 0);
+            snap.tokens[name] = t;
+            snap.tokenTotal += t;
+          }
           historyData.push(snap);
           if (historyData.length > 200) historyData.shift();
         } catch (err) {

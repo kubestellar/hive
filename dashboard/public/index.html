@@ -59,6 +59,15 @@
       transition: all 0.2s;
     }
     .btn:hover { background: var(--border); color: var(--text); }
+    .backend-select {
+      appearance: none; -webkit-appearance: none;
+      background: var(--surface); color: var(--muted);
+      font-size: 0.7rem; padding: 3px 8px; border-radius: 4px;
+      border: 1px solid var(--border); cursor: pointer; font-family: inherit;
+    }
+    .backend-select:hover { background: var(--border); color: var(--text); }
+    .backend-select option { background: var(--surface); color: var(--text); }
+    .backend-select option:disabled { color: var(--muted); }
 
     /* Governor */
     .governor {
@@ -157,7 +166,13 @@
           ${logAge}${doingEl}
           ${a.name !== 'supervisor' ? `<div class="agent-actions">
             <button class="btn" onclick="kick('${a.name}')">kick</button>
-            <button class="btn" onclick="switchCli('${a.name}')">switch</button>
+            <select class="btn backend-select" onchange="switchCli('${a.name}', this.value); this.selectedIndex=0">
+              <option value="" disabled selected>switch ▾</option>
+              <option value="copilot" ${a.cli === 'copilot' ? 'disabled' : ''}>copilot</option>
+              <option value="claude" ${a.cli === 'claude' ? 'disabled' : ''}>claude</option>
+              <option value="gemini" ${a.cli === 'gemini' ? 'disabled' : ''}>gemini</option>
+              <option value="goose" ${a.cli === 'goose' ? 'disabled' : ''}>goose</option>
+            </select>
           </div>` : ''}
         </div>`;
       });
@@ -219,9 +234,9 @@
       if (!data.ok) alert('Kick failed: ' + (data.error || 'unknown'));
     }
 
-    async function switchCli(agent) {
-      const backend = prompt('Switch to which backend?', 'copilot');
+    async function switchCli(agent, backend) {
       if (!backend) return;
+      if (!confirm(`Switch ${agent} to ${backend}?`)) return;
       const res = await fetch(`/api/switch/${agent}/${backend}`, { method: 'POST' });
       const data = await res.json();
       if (!data.ok) alert('Switch failed: ' + (data.error || 'unknown'));

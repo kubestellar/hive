@@ -20,6 +20,7 @@ let ciPassRate = 0;
 let healthChecks = {};
 let agentMetrics = {};
 let summariesCache = {};
+let activityCache = {};
 
 // Fetch CI pass rate + binary health checks every 60s
 function fetchHealthChecks() {
@@ -73,6 +74,18 @@ function fetchSummaries() {
 }
 fetchSummaries();
 setInterval(fetchSummaries, REFRESH_MS);
+
+// Fetch live agent activity from Claude Code JSONL session files
+function fetchActivity() {
+  execFile('python3', [path.join(__dirname, 'agent-activity.py')],
+    { timeout: 10000 }, (err, stdout) => {
+    if (!err && stdout.trim()) {
+      try { activityCache = JSON.parse(stdout.trim()); } catch (_) {}
+    }
+  });
+}
+fetchActivity();
+setInterval(fetchActivity, REFRESH_MS);
 
 // Historical data — keep last 2 hours of snapshots (5s intervals = ~1440 points)
 const MAX_HISTORY = 1440;
@@ -162,23 +175,18 @@ function fetchStatus() {
             }
           } catch (_) {}
         }
-        // Single exec summary per agent: live pane when working, status file when idle
+        // Activity from JSONL tailing + tmux scraping — no stale status file fallback
         statusCache.summaries = summariesCache;
         for (const a of (statusCache.agents || [])) {
-          const s = summariesCache[a.name] || {};
-          if (a.doing) {
-            // Agent is actively working — show only the live signal
-            a.liveSummary = a.doing;
-          } else if (s.task) {
-            // Agent is idle — show last known work as context
-            const parts = [s.task];
-            if (s.progress) parts.push(`▫ ${s.progress}`);
-            if (s.results) parts.push(`✓ ${s.results}`);
-            a.liveSummary = parts.join('\n');
+          const act = activityCache[a.name] || {};
+
+          if (act.summary) {
+            a.liveSummary = act.summary;
+            a.summaryUpdated = act.ts ? new Date(act.ts).toISOString() : null;
           } else {
             a.liveSummary = '';
+            a.summaryUpdated = null;
           }
-          a.summaryUpdated = s.updated || null;
         }
         // Record snapshot for sparklines
         const snap = {

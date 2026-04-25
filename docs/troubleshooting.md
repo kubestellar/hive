@@ -129,6 +129,32 @@ claude -p --model claude-opus-4-6 "say hello"
 
 If the slug is valid, you'll get a response. If not, you'll get an error.
 
+## CI check rules for merging PRs
+
+All agents that merge PRs (scanner, reviewer, supervisor) MUST follow these rules:
+
+### Non-negotiable
+
+1. **ALL required CI checks must show SUCCESS before merging.** Run `gh pr checks <number> --required` and verify every line says `pass`. If any check is `pending` or `fail`, WAIT.
+2. **The ONLY exception is `tide`.** Prow's merge queue (`tide`) stays pending forever without `lgtm`/`approved` labels. If `tide` is the only non-passing check, treat CI as green and merge.
+3. **Never batch-merge.** After merging one PR, wait for the next PR's CI to re-run against the updated base. PRs green before a merge may conflict after.
+4. **Merge sequence:** merge one → wait for next PR's CI to re-trigger and pass → merge next.
+
+### Why `tide` is safe to ignore
+
+`tide` is Prow's automatic merge controller. It requires `lgtm` + `approved` labels to queue a PR. Since AI-authored PRs use `--admin --squash` merge (bypassing Prow), `tide` will never transition to `success`. It is not a CI quality gate — it is a merge queue status indicator.
+
+### Checking CI status
+
+```sh
+# Check all checks (filter out tide)
+gh pr checks <number> --required 2>&1 | grep -v tide
+
+# Quick pass/fail summary
+gh pr checks <number> --required 2>&1 | grep -v tide | grep -E "fail|pending"
+# If no output → safe to merge
+```
+
 ## Clean reinstall
 
 ```sh

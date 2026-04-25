@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
+app.use(express.json());
 const PORT = process.env.HIVE_DASHBOARD_PORT || 3001;
 const REFRESH_MS = 5000;
 const HISTORY_DIR = '/var/run/hive-metrics/history';
@@ -246,6 +247,15 @@ app.get('/api/widget', (_req, res) => {
   tar.on('error', () => res.status(500).end());
 });
 
+// Map dashboard agent names to tmux session names
+const TMUX_SESSION = {
+  scanner: 'issue-scanner',
+  reviewer: 'reviewer',
+  architect: 'feature',
+  outreach: 'outreach',
+  supervisor: 'supervisor',
+};
+
 // Control endpoints
 app.post('/api/kick/:agent', (req, res) => {
   const agent = req.params.agent;
@@ -253,10 +263,25 @@ app.post('/api/kick/:agent', (req, res) => {
   if (!allowed.includes(agent)) {
     return res.status(400).json({ error: `invalid agent: ${agent}` });
   }
-  execFile('hive', ['kick', agent], { timeout: 30000 }, (err, stdout) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true, output: stdout.trim() });
-  });
+  const extraPrompt = (req.body && req.body.prompt) ? req.body.prompt.trim() : '';
+  if (extraPrompt && agent !== 'all') {
+    const session = TMUX_SESSION[agent];
+    if (!session) {
+      return res.status(400).json({ error: `no tmux session for ${agent}` });
+    }
+    execFile('tmux', ['send-keys', '-t', session, '-l', `OPERATOR DIRECTIVE: ${extraPrompt}`], { timeout: 10000 }, (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      execFile('tmux', ['send-keys', '-t', session, 'Enter'], { timeout: 5000 }, (err2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        res.json({ ok: true, output: `Sent custom prompt to ${agent}` });
+      });
+    });
+  } else {
+    execFile('hive', ['kick', agent], { timeout: 30000 }, (err, stdout) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ ok: true, output: stdout.trim() });
+    });
+  }
 });
 
 app.post('/api/switch/:agent/:backend', (req, res) => {

@@ -62,7 +62,14 @@
     .summary-age.age-recent { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.3); }
     .summary-age.age-stale  { background: rgba(248,81,73,0.15);  color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
     /* Agent metric gauges — removed, replaced by health panel */
-    .agent-actions { margin-top: 10px; display: flex; gap: 6px; }
+    .agent-actions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .kick-prompt {
+      flex: 1 1 100%; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;
+      font-family: inherit; outline: none; min-width: 0;
+    }
+    .kick-prompt:focus { border-color: var(--accent); }
+    .kick-prompt::placeholder { color: var(--muted); }
 
     /* Health status panel */
     .health { margin-bottom: 24px; }
@@ -463,6 +470,7 @@
           ${needsLogin ? '<div class="login-warning">⚠ NOT LOGGED IN — run /login</div>' : ''}
           ${summaryEl}${indEl}
           ${a.name !== 'supervisor' ? `<div class="agent-actions">
+            <input type="text" class="kick-prompt" id="kick-prompt-${a.name}" placeholder="custom prompt (optional)" />
             <button class="btn" onclick="kick('${a.name}')">kick</button>
             <select class="btn backend-select" onchange="switchCli('${a.name}', this.value); this.selectedIndex=0">
               <option value="" disabled selected>cli ▾</option>
@@ -642,9 +650,14 @@
     }
 
     async function kick(agent) {
-      const res = await fetch(`/api/kick/${agent}`, { method: 'POST' });
+      const input = document.getElementById(`kick-prompt-${agent}`);
+      const prompt = input ? input.value.trim() : '';
+      const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
+      if (prompt) opts.body = JSON.stringify({ prompt });
+      const res = await fetch(`/api/kick/${agent}`, opts);
       const data = await res.json();
-      if (!data.ok) alert('Kick failed: ' + (data.error || 'unknown'));
+      if (!data.ok) { alert('Kick failed: ' + (data.error || 'unknown')); return; }
+      if (input) input.value = '';
     }
 
     async function switchCli(agent, backend) {

@@ -31,6 +31,8 @@ function fetchStatus() {
           t: lastFetch,
           govIssues: statusCache.governor?.issues || 0,
           govPrs: statusCache.governor?.prs || 0,
+          govTotal: (statusCache.governor?.issues || 0) + (statusCache.governor?.prs || 0),
+          govActive: statusCache.governor?.active ? 1 : 0,
           beadsWorkers: statusCache.beads?.workers || 0,
           beadsSupervisor: statusCache.beads?.supervisor || 0,
           repos: {},

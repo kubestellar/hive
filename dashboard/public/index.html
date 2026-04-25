@@ -228,11 +228,14 @@
       el.className = `governor ${cls}`;
       const issuesSpark = sparkSvg(getHistorySeries('govIssues'), '#58a6ff');
       const prsSpark = sparkSvg(getHistorySeries('govPrs'), '#bc8cff');
+      const totalSpark = sparkSvg(getHistorySeries('govTotal'), '#3fb950');
+      const total = (gov.issues || 0) + (gov.prs || 0);
       el.innerHTML = `
         <div class="gov-title">Governor</div>
         <div class="gov-grid">
           <div class="gov-stat"><div class="label">timer</div><div class="val ${cls}">${gov.active ? '● active' : '⚠ DEAD'}</div></div>
           <div class="gov-stat"><div class="label">mode</div><div class="val">${gov.mode}</div></div>
+          <div class="gov-stat"><div class="label">actionable</div><div class="spark-row"><span class="val">${total}</span>${totalSpark}</div></div>
           <div class="gov-stat"><div class="label">issues</div><div class="spark-row"><span class="val">${gov.issues}</span>${issuesSpark}</div></div>
           <div class="gov-stat"><div class="label">PRs</div><div class="spark-row"><span class="val">${gov.prs}</span>${prsSpark}</div></div>
           <div class="gov-stat"><div class="label">next kick</div><div class="val">${gov.nextKick || '—'}</div></div>
@@ -309,6 +312,8 @@
             t: Date.now(),
             govIssues: data.governor?.issues || 0,
             govPrs: data.governor?.prs || 0,
+            govTotal: (data.governor?.issues || 0) + (data.governor?.prs || 0),
+            govActive: data.governor?.active ? 1 : 0,
             beadsWorkers: data.beads?.workers || 0,
             beadsSupervisor: data.beads?.supervisor || 0,
             repos: {},

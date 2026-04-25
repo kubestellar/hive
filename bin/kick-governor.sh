@@ -48,7 +48,7 @@ REPOS=(
 
 # ── Exempt-label filter ─────────────────────────────────────────────────────
 # Issues matching any of these labels are NOT counted toward the actionable queue.
-EXEMPT_LABEL_REGEX="nightly-tests|LFX|do-not-merge|meta-tracker|auto-qa-tuning-report|hold|adopters"
+EXEMPT_LABEL_REGEX="nightly-tests|LFX|do-not-merge|meta-tracker|auto-qa-tuning-report|hold|adopters|changes-requested|waiting-on-author"
 
 # ── Queue depth thresholds ──────────────────────────────────────────────────
 # SURGE → BUSY → QUIET → IDLE as queue drains.

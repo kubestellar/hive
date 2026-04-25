@@ -143,6 +143,97 @@
     /* Pulse animation for working agents */
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
     .agent-card.working .agent-name { animation: pulse 2s ease-in-out infinite; }
+
+    /* Temperature gauge */
+    .temp-gauge { margin: 12px 0 8px; }
+    .temp-gauge-label { font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; display: flex; justify-content: space-between; }
+    .temp-gauge-track {
+      position: relative; height: 24px; border-radius: 12px; overflow: visible;
+      background: linear-gradient(to right, #238636 0%, #238636 7%, #1f6feb 7%, #1f6feb 33%, #d29922 33%, #d29922 67%, #f85149 67%, #f85149 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .temp-gauge-glow {
+      position: absolute; top: 0; left: 0; height: 100%; border-radius: 12px;
+      background: linear-gradient(to right, rgba(35,134,54,0.25), rgba(248,81,73,0.25));
+      filter: blur(6px); pointer-events: none;
+    }
+    .temp-gauge-ticks {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 4px; font-size: 0.55rem; color: rgba(255,255,255,0.6); pointer-events: none;
+    }
+    .temp-gauge-needle {
+      position: absolute; top: -4px; width: 4px; height: 32px;
+      background: #fff; border-radius: 2px;
+      box-shadow: 0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.4);
+      transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 2;
+    }
+    .temp-gauge-needle::after {
+      content: attr(data-val); position: absolute; bottom: -16px; left: 50%;
+      transform: translateX(-50%); font-size: 0.75rem; font-weight: 700; color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    }
+    .temp-gauge-labels {
+      display: flex; justify-content: space-between; margin-top: 4px;
+      font-size: 0.6rem; color: var(--muted);
+    }
+    .temp-gauge-labels span { text-align: center; }
+    .tl-idle { color: #238636; }
+    .tl-quiet { color: #1f6feb; }
+    .tl-busy { color: #d29922; }
+    .tl-surge { color: #f85149; }
+
+    /* Timeline strip */
+    .gov-timeline { margin-top: 10px; }
+    .gov-timeline-label { display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--muted); margin-bottom: 2px; }
+    .gov-timeline-strip { display: flex; height: 6px; border-radius: 3px; overflow: hidden; }
+    .gov-timeline-strip .tick { flex: 1; min-width: 1px; }
+    .tick-idle { background: #238636; }
+    .tick-quiet { background: #1f6feb; }
+    .tick-busy { background: #d29922; }
+    .tick-surge { background: #f85149; }
+    .tick-unknown { background: #484f58; }
+    .gov-timeline-legend { display: flex; gap: 12px; font-size: 0.6rem; margin-top: 3px; }
+
+    /* Agent indicators */
+    .agent-indicators { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.75rem; }
+    .ind-label { color: var(--muted); font-size: 0.65rem; }
+    .ind-empty { color: var(--muted); font-style: italic; font-size: 0.7rem; }
+    .ind-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+    .ind-tag {
+      background: rgba(31,111,235,0.15); color: #58a6ff; border: 1px solid rgba(31,111,235,0.3);
+      border-radius: 4px; padding: 1px 6px; font-size: 0.65rem; text-decoration: none;
+    }
+    .ind-tag:hover { background: rgba(31,111,235,0.3); }
+    .ind-pair { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+    .ind-issue { background: rgba(35,134,54,0.15); color: #3fb950; border-color: rgba(35,134,54,0.3); }
+    .ind-issue:hover { background: rgba(35,134,54,0.3); }
+    .ind-pr { background: rgba(138,99,210,0.15); color: #bc8cff; border-color: rgba(138,99,210,0.3); }
+    .ind-pr:hover { background: rgba(138,99,210,0.3); }
+    .ind-arrow { color: var(--muted); font-size: 0.7rem; }
+    .ind-dots { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ind-dot-item { display: flex; align-items: center; gap: 3px; }
+    .ind-dlabel { font-size: 0.6rem; color: var(--muted); }
+    .ind-stat { display: inline-flex; align-items: baseline; gap: 3px; margin-right: 10px; }
+    .ind-num { font-weight: 700; font-size: 0.9rem; color: var(--text); }
+    .ind-err { color: #f85149; }
+    .ind-err .ind-num { color: #f85149; }
+    .ind-warn { color: #d29922; }
+    .ind-warn .ind-num { color: #d29922; }
+    .ind-ok { color: #3fb950; }
+    .ind-ok .ind-num { color: #3fb950; }
+    .ind-row { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    /* Health dots (reused inside reviewer indicators) */
+    .health-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+    .health-dot.ok { background: #3fb950; }
+    .health-dot.fail { background: #f85149; }
+    .health-dot.unknown { background: #8b949e; }
+    .health-ci { font-weight: 700; font-size: 0.7rem; }
+    .health-ci.good { color: #3fb950; }
+    .health-ci.warn { color: #d29922; }
+    .health-ci.bad { color: #f85149; }
   </style>
 </head>
 <body>
@@ -222,10 +313,14 @@
       if (!m) return '';
 
       if (name === 'issue-scanner' || name === 'scanner') {
-        const items = m.items || [];
-        if (items.length === 0) return '<div class="agent-indicators"><span class="ind-empty">no active items</span></div>';
-        return `<div class="agent-indicators"><span class="ind-label">Working on:</span>
-          <div class="ind-tags">${items.map(n => `<a class="ind-tag" href="https://github.com/kubestellar/console/issues/${n}" target="_blank">#${n}</a>`).join('')}</div></div>`;
+        const pairs = m.pairs || [];
+        if (pairs.length === 0) return '<div class="agent-indicators"><span class="ind-empty">no active fixes</span></div>';
+        const rows = pairs.map(p => `<div class="ind-pair">
+          <a class="ind-tag ind-issue" href="https://github.com/kubestellar/console/issues/${p.issue}" target="_blank">⊙ #${p.issue}</a>
+          <span class="ind-arrow">→</span>
+          <a class="ind-tag ind-pr" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank">⎇ #${p.pr}</a>
+        </div>`).join('');
+        return `<div class="agent-indicators"><span class="ind-label">Fixes (${pairs.length}):</span>${rows}</div>`;
       }
 
       if (name === 'reviewer') {
@@ -251,10 +346,19 @@
       }
 
       if (name === 'outreach') {
+        const ga4 = m.ga4Errors || 0;
+        const pending = m.adopterPending || 0;
+        const total = m.adoptersTotal || 0;
+        const ga4Cls = ga4 === 0 ? 'ind-ok' : ga4 <= 3 ? 'ind-warn' : 'ind-err';
+        // Trend sparklines from persistent history
+        const ga4Spark = sparkSvg((window._trendData || []).map(s => s.ga4Errors || 0), '#f85149');
+        const adopterSpark = sparkSvg((window._trendData || []).map(s => s.adopters || 0), '#3fb950');
         return `<div class="agent-indicators">
-          <span class="ind-stat"><span class="ind-num">${m.prsOpened || 0}</span> PRs</span>
-          <span class="ind-stat"><span class="ind-num">${m.reposTargeted || 0}</span> repos</span>
-          ${m.errors > 0 ? `<span class="ind-stat ind-err"><span class="ind-num">${m.errors}</span> errors</span>` : ''}
+          <div class="ind-row">
+            <span class="ind-stat ${ga4Cls}"><span class="ind-num">${ga4}</span> GA4 errors ${ga4Spark}</span>
+            <span class="ind-stat"><span class="ind-num">${total}</span> adopters ${adopterSpark}</span>
+            <span class="ind-stat"><span class="ind-num">${pending}</span> PRs pending</span>
+          </div>
         </div>`;
       }
 
@@ -354,16 +458,18 @@
           <div class="gov-stat"><div class="label">PRs</div><div class="spark-row"><span class="val">${gov.prs}</span>${prsSpark}</div></div>
           <div class="gov-stat"><div class="label">next kick</div><div class="val">${gov.nextKick || '—'}</div></div>
         </div>
-        <div class="gov-gauge">
-          <div class="gov-gauge-label">Queue depth: ${total} / ${maxQ}</div>
-          <div class="gov-gauge-bar">
-            <div class="zone zone-idle">≤2</div>
-            <div class="zone zone-quiet">≤10</div>
-            <div class="zone zone-busy">≤20</div>
-            <div class="zone zone-surge">>20</div>
-            <div class="gov-gauge-marker" style="left:${pct}%">
-              <div class="gov-gauge-val">${total}</div>
-            </div>
+        <div class="temp-gauge">
+          <div class="temp-gauge-label"><span>Queue: ${total}</span><span>max ${maxQ}</span></div>
+          <div class="temp-gauge-track">
+            <div class="temp-gauge-glow" style="width:100%"></div>
+            <div class="temp-gauge-ticks"><span>0</span><span>2</span><span>10</span><span>20</span><span>${maxQ}</span></div>
+            <div class="temp-gauge-needle" style="left:${pct}%" data-val="${total}"></div>
+          </div>
+          <div class="temp-gauge-labels">
+            <span class="tl-idle">idle</span>
+            <span class="tl-quiet">quiet</span>
+            <span class="tl-busy">busy</span>
+            <span class="tl-surge">surge</span>
           </div>
         </div>
         <div class="gov-timeline">
@@ -476,6 +582,13 @@
 
     // Initial fetch then SSE
     fetch('/api/status').then(r => r.json()).then(render).catch(console.error);
+    // Fetch persistent trends for sparklines (day/week)
+    window._trendData = [];
+    fetch('/api/trends?range=week').then(r => r.json()).then(d => { window._trendData = d; }).catch(() => {});
+    // Refresh trends every 15 min
+    setInterval(() => {
+      fetch('/api/trends?range=week').then(r => r.json()).then(d => { window._trendData = d; }).catch(() => {});
+    }, 900000);
     connect();
   </script>
 </body>

@@ -6,6 +6,10 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.HIVE_DASHBOARD_PORT || 3001;
 const REFRESH_MS = 5000;
+const HISTORY_DIR = '/var/run/hive-metrics/history';
+const HISTORY_FILE = path.join(HISTORY_DIR, 'daily.json');
+const PERSIST_INTERVAL_MS = 15 * 60 * 1000; // 15 min
+const MAX_PERSISTENT_POINTS = 30 * 24 * 4; // 30 days at 15-min intervals = 2880
 
 // Cache for status data
 let statusCache = null;
@@ -44,6 +48,41 @@ setInterval(fetchAgentMetrics, 30000);
 const MAX_HISTORY = 1440;
 const history = [];
 
+// Persistent history — 15-min snapshots, 30 days
+let persistentHistory = [];
+try {
+  const raw = fs.readFileSync(HISTORY_FILE, 'utf8');
+  persistentHistory = JSON.parse(raw);
+  console.log(`Loaded ${persistentHistory.length} persistent history points`);
+} catch (_) { /* first run */ }
+
+function persistSnapshot() {
+  if (!statusCache) return;
+  const am = agentMetrics || {};
+  const snap = {
+    t: Date.now(),
+    govIssues: statusCache.governor?.issues || 0,
+    govPrs: statusCache.governor?.prs || 0,
+    govTotal: (statusCache.governor?.issues || 0) + (statusCache.governor?.prs || 0),
+    govMode: statusCache.governor?.mode || 'unknown',
+    ga4Errors: am.outreach?.ga4Errors || 0,
+    adopters: am.outreach?.adoptersTotal || 0,
+    adopterPrs: am.outreach?.adopterPending || 0,
+    ciPassRate: ciPassRate || 0,
+  };
+  persistentHistory.push(snap);
+  if (persistentHistory.length > MAX_PERSISTENT_POINTS) {
+    persistentHistory = persistentHistory.slice(-MAX_PERSISTENT_POINTS);
+  }
+  try {
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(persistentHistory));
+  } catch (e) { console.error('Failed to persist history:', e.message); }
+}
+// Persist every 15 min
+setInterval(persistSnapshot, PERSIST_INTERVAL_MS);
+// Also persist on startup after first fetch
+setTimeout(persistSnapshot, 10000);
+
 function fetchStatus() {
   return new Promise((resolve) => {
     execFile('hive', ['status', '--json'], { timeout: 30000 }, (err, stdout) => {
@@ -71,6 +110,9 @@ function fetchStatus() {
           beadsSupervisor: statusCache.beads?.supervisor || 0,
           repos: {},
           agents: {},
+          ga4Errors: agentMetrics?.outreach?.ga4Errors || 0,
+          adopters: agentMetrics?.outreach?.adoptersTotal || 0,
+          adopterPrs: agentMetrics?.outreach?.adopterPending || 0,
         };
         for (const r of (statusCache.repos || [])) {
           snap.repos[r.name] = { issues: r.issues || 0, prs: r.prs || 0 };
@@ -106,6 +148,19 @@ app.get('/api/status', async (_req, res) => {
 app.get('/api/history', (_req, res) => {
   const step = Math.max(1, Math.floor(history.length / 120));
   const sampled = history.filter((_, i) => i % step === 0 || i === history.length - 1);
+  res.json(sampled);
+});
+
+// Persistent history API — day/week/month trends
+app.get('/api/trends', (req, res) => {
+  const range = req.query?.range || 'week';
+  const now = Date.now();
+  const ranges = { day: 86400000, week: 604800000, month: 2592000000 };
+  const cutoff = now - (ranges[range] || ranges.week);
+  const filtered = persistentHistory.filter(s => s.t >= cutoff);
+  // Downsample to ~200 points max
+  const step = Math.max(1, Math.floor(filtered.length / 200));
+  const sampled = filtered.filter((_, i) => i % step === 0 || i === filtered.length - 1);
   res.json(sampled);
 });
 

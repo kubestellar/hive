@@ -181,9 +181,11 @@ check_rate_limit() {
     local pane_text
     pane_text=$($TMUX_BIN capture-pane -t "$session" -p 2>/dev/null || true)
 
-    # Check for rate limit / usage limit messages
+    # Check for actual rate limit / usage exhaustion messages.
+    # Match Claude/Copilot error phrases only — avoid false positives from the
+    # supervisor's own status table ("Rate limits │ No issues detected").
     local limit_line
-    limit_line=$(echo "$pane_text" | grep -i "out of.*usage\|rate limit\|resets " | tail -1 || true)
+    limit_line=$(echo "$pane_text" | grep -iE "you('re| are) out of|out of extra usage|extra usage.*resets|resets [0-9]+(:[0-9]+)?[aApP][mM]" | tail -1 || true)
 
     if [ -z "$limit_line" ]; then
       return 0
@@ -271,7 +273,7 @@ kick() {
     # Also check if session is stuck on a rate limit
     local pane_text
     pane_text=$($TMUX_BIN capture-pane -t "$session" -p 2>/dev/null || true)
-    if echo "$pane_text" | grep -qi "out of.*usage\|rate limit"; then
+    if echo "$pane_text" | grep -qiE "you('re| are) out of|out of extra usage|extra usage.*resets"; then
       log "RATE-LIMITED $session — switching backend"
       switch_backend "$session" "$agent"
       sleep 15

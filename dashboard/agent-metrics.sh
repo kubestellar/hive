@@ -16,29 +16,40 @@ architect_model=$(echo "$agent_status" | jq -r '.agents[] | select(.name == "arc
 outreach_doing=$(echo "$agent_status" | jq -r '.agents[] | select(.name == "outreach") | .doing' 2>/dev/null || echo "")
 outreach_model=$(echo "$agent_status" | jq -r '.agents[] | select(.name == "outreach") | .model' 2>/dev/null || echo "?")
 
-# ── Scanner: active issue→PR pairs from open AI-authored PRs ──
-# Reads open PRs by clubanderson that reference an issue number in title/body
+# ── Scanner: issue→PR pairs from open + recently merged AI-authored PRs ──
+RECENT_MERGED_HOURS=24
 scanner_pairs_json="[]"
 if command -v gh &>/dev/null; then
-  raw_prs=$(gh api 'repos/kubestellar/console/pulls?state=open&per_page=50' \
-    --jq '[.[] | select(.user.login == "clubanderson") | {pr: .number, title: .title, body: (.body // "")}]' 2>/dev/null || echo "[]")
-  scanner_pairs_json=$(echo "$raw_prs" | jq '[
+  # Open PRs
+  open_prs=$(gh api 'repos/kubestellar/console/pulls?state=open&per_page=50' \
+    --jq '[.[] | select(.user.login == "clubanderson") | {pr: .number, title: .title, body: (.body // ""), created: .created_at, state: "open"}]' 2>/dev/null || echo "[]")
+  # Recently merged PRs (last 24h)
+  since=$(date -u -d "-${RECENT_MERGED_HOURS} hours" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v-${RECENT_MERGED_HOURS}H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "")
+  merged_prs="[]"
+  if [ -n "$since" ]; then
+    merged_prs=$(gh api "repos/kubestellar/console/pulls?state=closed&per_page=30&sort=updated&direction=desc" \
+      --jq "[.[] | select(.user.login == \"clubanderson\" and .merged_at != null and .merged_at >= \"$since\") | {pr: .number, title: .title, body: (.body // \"\"), merged: .merged_at, state: \"merged\"}]" 2>/dev/null || echo "[]")
+  fi
+  all_prs=$(echo "$open_prs" "$merged_prs" | jq -s 'add' 2>/dev/null || echo "[]")
+  scanner_pairs_json=$(echo "$all_prs" | jq '[
     .[] |
     . as $p |
-    # extract first "Fixes/Closes/Resolves #NNN" issue ref using match()
     ($p.body | match("(?i)(fixes|closes|resolves) #([0-9]+)"; "g") // null) as $m |
-    if $m then { issue: ($m.captures[1].string | tonumber), pr: $p.pr, prTitle: $p.title } else empty end
+    if $m then { issue: ($m.captures[1].string | tonumber), pr: $p.pr, prTitle: $p.title, state: $p.state, created: ($p.created // null), merged: ($p.merged // null) } else empty end
   ]' 2>/dev/null || echo "[]")
-  # Enrich pairs with issue titles via GitHub API
+  # Enrich with issue titles
   if [ "$scanner_pairs_json" != "[]" ]; then
     enriched="[]"
     while IFS= read -r pair; do
       issue_num=$(echo "$pair" | jq -r '.issue')
       pr_num=$(echo "$pair" | jq -r '.pr')
       pr_title=$(echo "$pair" | jq -r '.prTitle')
+      pr_state=$(echo "$pair" | jq -r '.state')
+      pr_created=$(echo "$pair" | jq -r '.created // empty')
+      pr_merged=$(echo "$pair" | jq -r '.merged // empty')
       issue_title=$(gh api "repos/kubestellar/console/issues/${issue_num}" --jq '.title' 2>/dev/null || echo "")
-      enriched=$(echo "$enriched" | jq --argjson n "$issue_num" --argjson p "$pr_num" --arg pt "$pr_title" --arg it "$issue_title" \
-        '. + [{issue: $n, pr: $p, prTitle: $pt, issueTitle: $it}]')
+      enriched=$(echo "$enriched" | jq --argjson n "$issue_num" --argjson p "$pr_num" --arg pt "$pr_title" --arg it "$issue_title" --arg st "$pr_state" --arg cr "$pr_created" --arg mr "$pr_merged" \
+        '. + [{issue: $n, pr: $p, prTitle: $pt, issueTitle: $it, state: $st, created: $cr, merged: $mr}]')
     done < <(echo "$scanner_pairs_json" | jq -c '.[]')
     scanner_pairs_json="$enriched"
   fi

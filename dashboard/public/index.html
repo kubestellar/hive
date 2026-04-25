@@ -248,6 +248,8 @@
     .ind-issue:hover { background: rgba(35,134,54,0.3); }
     .ind-pr { background: rgba(138,99,210,0.15); color: #bc8cff; border-color: rgba(138,99,210,0.3); }
     .ind-pr:hover { background: rgba(138,99,210,0.3); }
+    .ind-merged { background: rgba(63,185,80,0.15); color: #3fb950; border-color: rgba(63,185,80,0.3); }
+    .ind-merged:hover { background: rgba(63,185,80,0.3); }
     .ind-arrow { color: var(--muted); font-size: 0.7rem; }
     .ind-dots { display: flex; flex-wrap: wrap; gap: 8px; }
     .ind-dot-item { display: flex; align-items: center; gap: 3px; }
@@ -355,18 +357,25 @@
       if (name === 'issue-scanner' || name === 'scanner') {
         const pairs = m.pairs || [];
         if (pairs.length === 0) return '<div class="agent-indicators"><span class="ind-empty">no active fixes</span></div>';
-        const rows = pairs.map(p => {
+        const openPairs = pairs.filter(p => p.state !== 'merged');
+        const mergedPairs = pairs.filter(p => p.state === 'merged');
+        const renderPair = (p) => {
           const issueLabel = p.issueTitle ? `⊙ #${p.issue} — ${esc(p.issueTitle.length > 48 ? p.issueTitle.slice(0, 48) + '…' : p.issueTitle)}` : `⊙ #${p.issue}`;
           const issueTip = p.issueTitle ? esc(p.issueTitle) : '';
-          const prLabel = p.prTitle ? `⎇ #${p.pr}` : `⎇ #${p.pr}`;
+          const prIcon = p.state === 'merged' ? '✓' : '⎇';
+          const prCls = p.state === 'merged' ? 'ind-pr ind-merged' : 'ind-pr';
           const prTip = p.prTitle ? esc(p.prTitle) : '';
           return `<div class="ind-pair">
           <a class="ind-tag ind-issue" href="https://github.com/kubestellar/console/issues/${p.issue}" target="_blank" title="${issueTip}">${issueLabel}</a>
           <span class="ind-arrow">→</span>
-          <a class="ind-tag ind-pr" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank" title="${prTip}">${prLabel}</a>
+          <a class="ind-tag ${prCls}" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank" title="${prTip}">${prIcon} #${p.pr}</a>
         </div>`;
-        }).join('');
-        return `<div class="agent-indicators"><span class="ind-label">Fixes (${pairs.length}):</span>${rows}</div>`;
+        };
+        let html = '';
+        if (openPairs.length > 0) html += `<div class="agent-indicators"><span class="ind-label">In progress (${openPairs.length}):</span>${openPairs.map(renderPair).join('')}</div>`;
+        if (mergedPairs.length > 0) html += `<div class="agent-indicators"><span class="ind-label">Merged today (${mergedPairs.length}):</span>${mergedPairs.map(renderPair).join('')}</div>`;
+        if (!html) html = '<div class="agent-indicators"><span class="ind-empty">no active fixes</span></div>';
+        return html;
       }
 
       if (name === 'reviewer') {

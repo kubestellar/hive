@@ -502,7 +502,13 @@ cmd_status() {
     _cs_secs=$(_label_to_secs "$_cs")
     if [[ "$_cs_secs" -gt 0 && -n "$_lk" ]]; then
       local _next=$(( _lk + _cs_secs )) _now=$(date +%s) _rem
-      if [[ $_next -le $_now ]]; then next_kick="${YLW}now${RST}"
+      if [[ $_next -le $_now ]]; then
+        local _min=$(date +%-M) _sec=$(date +%-S)
+        local _til=$(( (5 - (_min % 5)) * 60 - _sec ))
+        [[ $_til -le 0 ]] && _til=$((5 * 60 + _til))
+        if   [[ $_til -lt 120 ]];  then next_kick="${YLW}<${_til}s${RST}"
+        else next_kick="${YLW}<$(( _til / 60 ))m${RST}"
+        fi
       else
         _rem=$(( _next - _now ))
         if   [[ $_rem -lt 120 ]];  then next_kick="${_rem}s"
@@ -668,7 +674,14 @@ cmd_status_json() {
     _cs_secs=$(_label_to_secs "$_cs")
     if [[ "$_cs_secs" -gt 0 && -n "$_lk" ]]; then
       local _next=$(( _lk + _cs_secs )) _now=$(date +%s)
-      if [[ $_next -le $_now ]]; then nk="now"
+      if [[ $_next -le $_now ]]; then
+        # Overdue — show time until next governor tick (every 5 min)
+        local _min=$(date +%-M) _sec=$(date +%-S)
+        local _til=$(( (5 - (_min % 5)) * 60 - _sec ))
+        [[ $_til -le 0 ]] && _til=$((5 * 60 + _til))
+        if   [[ $_til -lt 120 ]];  then nk="<${_til}s"
+        else nk="<$(( _til / 60 ))m"
+        fi
       else
         local _rem=$(( _next - _now ))
         if   [[ $_rem -lt 120 ]];  then nk="${_rem}s"

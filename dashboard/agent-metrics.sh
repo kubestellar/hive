@@ -61,14 +61,11 @@ reviewer_json=$(jq -n --arg doing "$reviewer_doing" --arg model "$reviewer_model
 architect_json=$(jq -n --arg doing "$architect_doing" --arg model "$architect_model" '{doing: $doing, model: $model}')
 outreach_json=$(jq -n --arg doing "$outreach_doing" --arg model "$outreach_model" '{doing: $doing, model: $model}')
 
-# ── Reviewer: coverage from reviewer.json ──
-REVIEWER_METRICS_FILE="/var/run/hive-metrics/reviewer.json"
-coverage_value=0
+# ── Reviewer: coverage from README badge gist (authoritative source) ──
+COVERAGE_BADGE_URL="https://gist.githubusercontent.com/clubanderson/b9a9ae8469f1897a22d5a40629bc1e82/raw/coverage-badge.json"
 coverage_target=91
-if [ -f "$REVIEWER_METRICS_FILE" ]; then
-  coverage_value=$(jq -r '.coverage.value // 0' "$REVIEWER_METRICS_FILE" 2>/dev/null || echo 0)
-  coverage_target=$(jq -r '.coverage.target // 91' "$REVIEWER_METRICS_FILE" 2>/dev/null || echo 91)
-fi
+coverage_value=$(curl -sf "$COVERAGE_BADGE_URL" 2>/dev/null | jq -r '.message // "0"' | tr -d '%' || echo 0)
+coverage_value=${coverage_value:-0}
 reviewer_json=$(echo "$reviewer_json" | jq --argjson cv "$coverage_value" --argjson ct "$coverage_target" '. + {coverage: $cv, coverageTarget: $ct}')
 
 # ── Outreach: growth, adoption, reach metrics ──

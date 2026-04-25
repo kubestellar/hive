@@ -345,8 +345,6 @@
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
 
-  <div class="agents" id="agents"></div>
-
   <div class="governor" id="governor"></div>
 
   <div class="token-usage" id="token-panel" style="margin-bottom: 24px;"></div>
@@ -356,10 +354,12 @@
     <div class="repo-grid" id="repos"></div>
   </div>
 
-  <div style="margin-top: 16px;">
+  <div style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">Beads</h2>
     <div class="beads" id="beads"></div>
   </div>
+
+  <div class="agents" id="agents"></div>
 
   <script>
     // ── Sparkline helper ──
@@ -984,6 +984,7 @@
 
     function render(data) {
       if (!data || data.error) return;
+      const scrollY = window.scrollY;
       document.getElementById('ts').textContent = new Date(data.timestamp).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true});
       currentAgentMetrics = data.agentMetrics || {};
       window._healthData = data.health || {};
@@ -995,7 +996,7 @@
       renderTokens(data.tokens || {});
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
-      // summaries are merged into a.liveSummary server-side and pushed via SSE — no extra fetch
+      requestAnimationFrame(() => window.scrollTo(0, scrollY));
     }
 
     function esc(s) {

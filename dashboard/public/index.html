@@ -96,6 +96,13 @@
       transition: all 0.2s;
     }
     .btn:hover { background: var(--border); color: var(--text); }
+    .terminal-link {
+      font-size: 0.7rem; padding: 3px 8px; border-radius: 4px;
+      border: 1px solid var(--cyan); background: transparent;
+      color: var(--cyan); cursor: pointer; font-family: inherit;
+      text-decoration: none; transition: all 0.2s; display: inline-block;
+    }
+    .terminal-link:hover { background: var(--cyan); color: var(--bg); }
     .backend-select {
       appearance: none; -webkit-appearance: none;
       background: var(--surface); color: var(--muted);
@@ -557,6 +564,21 @@
       return rows;
     }
 
+    const AGENT_TMUX_SESSION = {
+      supervisor: 'supervisor',
+      scanner: 'issue-scanner',
+      reviewer: 'reviewer',
+      architect: 'feature',
+      outreach: 'outreach',
+    };
+    const TTYD_PORT = 7681;
+
+    function terminalUrl(agentName) {
+      const session = AGENT_TMUX_SESSION[agentName] || agentName;
+      const host = window.location.hostname;
+      return `http://${host}:${TTYD_PORT}/?arg=${encodeURIComponent(session)}`;
+    }
+
     function renderAgents(agents) {
       const el = document.getElementById('agents');
       // Preserve custom prompt input values across re-renders
@@ -586,7 +608,7 @@
         }
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
-          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>
+          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a></div>
           <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
           <div class="agent-field"><span class="label">model</span><span class="value">${a.model || ''} ${a.govBackend ? modelChip(a.govBackend, a.govModel, a.govReason) : ''}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${a.cadence}</span></div>

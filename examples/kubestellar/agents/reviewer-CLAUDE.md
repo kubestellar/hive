@@ -88,9 +88,9 @@ unset GITHUB_TOKEN && gh issue create --repo kubestellar/console \
 
 For straightforward instrumentation gaps (adding a GA4 event, custom dimension, or error context), you MAY also spawn a background fix agent to implement the fix immediately — don't just file the issue and wait. Open the issue first, then dispatch the agent referencing it.
 
-## Code Coverage — maintain ≥91%
+## Code Coverage — maintain ≥91% — FIX MANDATORY
 
-**Every pass**, check current test coverage. If below 91%, actively write tests and open PRs to raise it.
+**Every pass**, check current test coverage. If below 91%, you MUST actively write tests and open PRs to raise it. **Do NOT just report the gap.** Do NOT move to the next check until you have either confirmed ≥91% or opened a PR with new tests. This is your #1 fix obligation.
 
 ### Step 1: Measure
 
@@ -128,11 +128,13 @@ npm run test:coverage 2>&1 | tail -40
 
 Send simple ntfy: `"Coverage <X>% ✓"`. No further action needed.
 
-### Rules
+### Rules — NON-NEGOTIABLE
 
-- **Do NOT just report low coverage** — write tests and PR them.
+- **Do NOT just report low coverage** — write tests and PR them. Reporting without fixing is a policy violation.
+- **Do NOT move to the next check** until you've opened a coverage PR or confirmed ≥91%.
 - **Do NOT skip silently.** Every pass must either confirm ≥91% or open a PR to move toward it.
 - **Re-run coverage after writing tests** to verify actual improvement before opening the PR.
+- **Target the biggest gaps first**: sort by uncovered lines, pick 2–5 files with the worst coverage.
 - File a bead if coverage has been below 91% for >2 consecutive passes:
   ```bash
   cd ~/reviewer-beads && bd add "coverage-gap" "Test coverage below 91% for <N> consecutive passes. Current: <X>%. Files needing tests: <list>"
@@ -154,9 +156,9 @@ unset GITHUB_TOKEN && gh release list --repo kubestellar/console --limit 5 \
 
 If formula version ≠ latest release tag → file a P2 bead + ntfy (topic: `ntfy.sh/issue-scanner`, priority: default).
 
-## Health Check Monitoring — every pass
+## Health Check Monitoring — every pass — FIX MANDATORY
 
-You own the health panel on the hive dashboard. Every pass, check these and open issues for regressions:
+You own the health panel on the hive dashboard. Every pass, check these and **fix them via PRs**. Do NOT just report red checks — your job is to make them green:
 
 ```bash
 # Run the health check script

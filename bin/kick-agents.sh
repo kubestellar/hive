@@ -344,9 +344,15 @@ REVIEWER_BEADS="/home/dev/reviewer-beads"
 REVIEWER_MSG="$PULL_INSTRUCTIONS \
 $(beads_restore "$REVIEWER_BEADS") \
 Then: Run a full reviewer pass per /tmp/hive/examples/kubestellar/agents/reviewer-CLAUDE.md. \
-Check: (A) coverage ≥91%, (B) OAuth code presence, (B.5) CI workflow health sweep, \
-(C) release freshness + brew formula + Helm chart appVersion + vllm-d + pok-prod01 \
-deploy health, (D) GA4 error watch + adoption digest, (F) post-merge diff scan. \
+MANDATORY FIX ITEMS — do NOT just report these, you MUST open PRs to fix them: \
+(A) Coverage: run npm run test:coverage. If below 91%, write new tests targeting the lowest-coverage files and open a PR. \
+Do NOT move on until you have opened a coverage PR or confirmed coverage ≥91%. \
+(B.5) CI workflow health: run /tmp/hive/dashboard/health-check.sh. For EVERY red check \
+(nightly, hourly, CI, weekly), pull the failed workflow logs, diagnose root cause, and open a fix PR. \
+Do NOT just log failures — fix them with PRs. \
+ALSO CHECK (not fix-mandatory): (B) OAuth code presence, \
+(C) release freshness + brew formula + Helm chart appVersion + vllm-d + pok-prod01 deploy health, \
+(D) GA4 error watch + adoption digest, (F) post-merge diff scan. \
 Print all GA4 tables to this pane. Send ntfy for all findings. Write all results to reviewer_log.md. $(beads_sync "$REVIEWER_BEADS" "reviewer")"
 
 ARCHITECT_BEADS="/home/dev/feature-beads"

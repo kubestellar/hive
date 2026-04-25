@@ -76,6 +76,59 @@ sudo -u "$AGENT_USER" tmux attach -t "$AGENT_SESSION_NAME"
 sudo -u "$AGENT_USER" tmux capture-pane -t "$AGENT_SESSION_NAME" -p -S -50
 ```
 
+## Switching Claude Code models via tmux
+
+The `/model` slash command inside Claude Code has a picker with only three choices: **Default** (Opus 4.7), **Sonnet** (Sonnet 4.6), and **Haiku** (Haiku 4.5). There is no picker entry for Opus 4.6.
+
+To select a model not shown in the picker, pass the **full model slug** to `/model`:
+
+```
+/model claude-opus-4-6
+```
+
+### Known model slugs
+
+| Alias in picker | Full slug | Notes |
+|----------------|-----------|-------|
+| Default (Opus 4.7) | `claude-opus-4-7` | Latest, highest capability |
+| — | `claude-opus-4-6` | Not in picker — must use full slug |
+| Sonnet | `claude-sonnet-4-6` | Best for everyday tasks |
+| Haiku | `claude-haiku-4-5` | Fastest |
+
+### What does NOT work
+
+| Command | Result |
+|---------|--------|
+| `/model opus 4` | `Model 'opus 4' not found` |
+| `/model claude-opus-4` | `Model 'claude-opus-4' not found` |
+| `/model --model claude-opus-4-6` | `Model '--model claude-opus-4-6' not found` (treats flag as model name) |
+| `/fast` | Toggles "Fast mode" billing tier for Opus 4.6 — does NOT switch the model itself |
+
+### Sending via tmux (supervisor)
+
+When switching an agent's model via `tmux send-keys`, the full sequence is:
+
+```sh
+tmux send-keys -t <session> '/model claude-opus-4-6'
+tmux send-keys -t <session> Enter
+```
+
+Confirm by reading the pane — the footer should show `Opus 4.6`:
+
+```sh
+tmux capture-pane -t <session> -p | grep -i opus
+```
+
+### Confirming with `claude -p`
+
+To verify a slug works before sending it to an agent session:
+
+```sh
+claude -p --model claude-opus-4-6 "say hello"
+```
+
+If the slug is valid, you'll get a response. If not, you'll get an error.
+
 ## Clean reinstall
 
 ```sh

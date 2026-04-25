@@ -50,7 +50,7 @@
     .value.idle { color: var(--muted); }
     .value.copilot { color: var(--cyan); }
     .value.claude { color: var(--purple); }
-    .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; word-break: break-word; }
+    .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; word-break: break-word; white-space: pre-line; line-height: 1.5; min-height: 3.4em; }
     .agent-actions { margin-top: 10px; display: flex; gap: 6px; }
     .btn {
       font-size: 0.7rem; padding: 3px 8px; border-radius: 4px;
@@ -155,15 +155,14 @@
       const cards = agents.map(a => {
         const cls = a.state === 'stopped' ? 'stopped' : a.busy;
         const dotCls = a.state === 'stopped' ? 'stopped' : 'running';
-        const logAge = a.logAgeSec >= 0 ? `<div class="agent-field"><span class="label">log</span><span class="value">${formatAge(a.logAgeSec)} ago</span></div>` : '';
-        const doingEl = a.doing ? `<div class="doing">${esc(a.doing)}</div>` : '';
+        const doingEl = a.doing ? `<div class="doing">${esc(a.doing).replace(/\|/g, '\n')}</div>` : '';
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>
           <div class="agent-field"><span class="label">state</span><span class="value">${a.state}</span></div>
           <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
           <div class="agent-field"><span class="label">cadence</span><span class="value">${a.cadence}</span></div>
           <div class="agent-field"><span class="label">busy</span><span class="value ${a.busy}">${a.busy}</span></div>
-          ${logAge}${doingEl}
+          ${doingEl}
           ${a.name !== 'supervisor' ? `<div class="agent-actions">
             <button class="btn" onclick="kick('${a.name}')">kick</button>
             <select class="btn backend-select" onchange="switchCli('${a.name}', this.value); this.selectedIndex=0">

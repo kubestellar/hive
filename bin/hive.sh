@@ -513,7 +513,7 @@ cmd_status() {
           | tail -1 \
           | sed 's/^[◐◑◒◓◉●◎○⏺] //' \
           | sed 's/ (Esc to cancel.*//' \
-          | cut -c1-50 || true)
+          | cut -c1-60 || true)
         [[ -n "$doing" ]] && busy_flag="${YLW}working${RST}  ${CYN}${doing}${RST}"
       elif [[ -n "$queued_tasks" ]]; then
         busy_flag="${CYN}queued(${queued_tasks})${RST}"
@@ -524,13 +524,7 @@ cmd_status() {
       log_file=$(grep "^AGENT_LOG_FILE=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null \
                  | cut -d= -f2 | tr -d '"' || echo "")
       if [[ -n "$log_file" && -f "$log_file" ]]; then
-        local log_age
-        log_age=$(( $(date +%s) - $(stat -c %Y "$log_file" 2>/dev/null || echo 0) ))
-        if   [[ $log_age -lt 120 ]];   then log_age_str="${GRN}$(( log_age ))s ago${RST}"
-        elif [[ $log_age -lt 3600 ]];  then log_age_str="${YLW}$(( log_age/60 ))m ago${RST}"
-        else                                log_age_str="${RED}$(( log_age/3600 ))h ago${RST}"
-        fi
-        busy_flag="${busy_flag}  log:${log_age_str}"
+        : # log age removed — busy/doing is sufficient
       fi
       printf "  ${GRN}%-12s${RST}  %-8s  %-8s  %-8s  %b\n" "$label" "running" "$cli" "$cadence" "$busy_flag"
     else
@@ -635,10 +629,11 @@ cmd_status_json() {
         busy="working"
         doing=$(echo "$pane" | tail -30 \
           | grep -E "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel" \
-          | tail -1 \
+          | tail -3 \
           | sed 's/^[◐◑◒◓◉●◎○⏺] //' \
           | sed 's/ (Esc to cancel.*//' \
-          | cut -c1-80 || true)
+          | cut -c1-120 \
+          | paste -sd '|' || true)
       fi
       local log_file
       log_file=$(grep "^AGENT_LOG_FILE=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null \

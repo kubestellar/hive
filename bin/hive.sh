@@ -51,7 +51,7 @@ load_conf() {
     . "$CONF"
   fi
   # Defaults
-  HIVE_REPOS="${HIVE_REPOS:-kubestellar/console kubestellar/kubestellar kubestellar/docs kubestellar/homebrew-tap kubestellar/console-kb}"
+  HIVE_REPOS="${HIVE_REPOS:-kubestellar/console kubestellar/console-marketplace kubestellar/docs kubestellar/homebrew-tap kubestellar/console-kb}"
   NTFY_TOPIC="${NTFY_TOPIC:-}"
   NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
   SLACK_WEBHOOK="${SLACK_WEBHOOK:-}"

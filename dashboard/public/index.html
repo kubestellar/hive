@@ -17,13 +17,14 @@
       background: var(--bg); color: var(--text);
       padding: 24px; min-height: 100vh;
     }
-    h1 { font-size: 1.4rem; margin-bottom: 20px; }
+    h1 { font-size: 1.4rem; margin-bottom: 20px; display: flex; align-items: center; }
     h1 span.bee { font-size: 1.6rem; }
     .timestamp { color: var(--muted); font-size: 0.8rem; margin-left: 12px; }
+    .header-spacer { flex: 1; }
     .widget-dl {
-      float: right; font-size: 0.75rem; color: var(--cyan); text-decoration: none;
+      font-size: 0.75rem; color: var(--cyan); text-decoration: none;
       border: 1px solid var(--cyan); border-radius: 6px; padding: 4px 10px;
-      transition: background 0.2s, color 0.2s;
+      transition: background 0.2s, color 0.2s; margin-left: auto; margin-right: auto;
     }
     .widget-dl:hover { background: var(--cyan); color: var(--bg); }
 
@@ -205,6 +206,7 @@
           <div class="agent-field"><span class="label">state</span><span class="value">${a.state}</span></div>
           <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
           <div class="agent-field"><span class="label">cadence</span><span class="value">${a.cadence}</span></div>
+          <div class="agent-field"><span class="label">next kick</span><span class="value">${a.nextKick || '—'}</span></div>
           <div class="agent-field"><span class="label">busy</span><span class="value ${a.busy}">${a.busy}</span></div>
           ${doingEl}
           ${a.name !== 'supervisor' ? `<div class="agent-actions">

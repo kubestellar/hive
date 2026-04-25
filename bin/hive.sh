@@ -629,7 +629,6 @@ cmd_status_json() {
           | cut -c1-120 \
           | paste -sd '|' || true)
       fi
-      fi
     fi
     # Escape doing for JSON
     doing=$(echo "$doing" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr -d '\n')

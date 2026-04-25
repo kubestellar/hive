@@ -9,28 +9,28 @@
 # entirely under load. Scanner and reviewer always have priority.
 #
 #   SURGE (queue > SURGE_THRESHOLD, default 20):
-#     scanner   → every 10 min
-#     reviewer  → every 10 min
+#     scanner   → every 15 min
+#     reviewer  → every 30 min
 #     architect → PAUSED
-#     outreach  → PAUSED
+#     outreach  → every 30 min
 #
 #   BUSY (queue > BUSY_THRESHOLD, default 10):
 #     scanner   → every 15 min
 #     reviewer  → every 15 min
-#     architect → PAUSED
-#     outreach  → PAUSED
+#     architect → every 1 hour
+#     outreach  → every 1 hour
 #
 #   QUIET (queue > IDLE_THRESHOLD, default 2):
 #     scanner   → every 15 min
 #     reviewer  → every 30 min
-#     architect → every 1 hour
+#     architect → every 30 min
 #     outreach  → every 2 hours
 #
 #   IDLE (queue ≤ IDLE_THRESHOLD):
 #     scanner   → every 30 min
 #     reviewer  → every 1 hour
 #     architect → every 30 min  (jam — queue is clear)
-#     outreach  → every 30 min  (jam — queue is clear)
+#     outreach  → every 2 hours
 #
 # State lives in STATE_DIR (tmpfs — cleared on reboot, fine for kick timing).
 # Logs go to journald via stdout + LOG_FILE for human review.
@@ -69,9 +69,9 @@ CADENCE_REVIEWER_BUSY_SEC="${CADENCE_REVIEWER_BUSY_SEC:-900}"     # 15 min
 CADENCE_REVIEWER_QUIET_SEC="${CADENCE_REVIEWER_QUIET_SEC:-1800}"  # 30 min
 CADENCE_REVIEWER_IDLE_SEC="${CADENCE_REVIEWER_IDLE_SEC:-3600}"    # 1 hour
 
-CADENCE_ARCHITECT_SURGE_SEC="${CADENCE_ARCHITECT_SURGE_SEC:-0}"   # PAUSED
-CADENCE_ARCHITECT_BUSY_SEC="${CADENCE_ARCHITECT_BUSY_SEC:-0}"     # PAUSED
-CADENCE_ARCHITECT_QUIET_SEC="${CADENCE_ARCHITECT_QUIET_SEC:-3600}"  # 1 hour
+CADENCE_ARCHITECT_SURGE_SEC="${CADENCE_ARCHITECT_SURGE_SEC:-0}"     # PAUSED
+CADENCE_ARCHITECT_BUSY_SEC="${CADENCE_ARCHITECT_BUSY_SEC:-3600}"    # 1 hour
+CADENCE_ARCHITECT_QUIET_SEC="${CADENCE_ARCHITECT_QUIET_SEC:-1800}"  # 30 min
 CADENCE_ARCHITECT_IDLE_SEC="${CADENCE_ARCHITECT_IDLE_SEC:-1800}"    # 30 min (jam)
 
 CADENCE_SUPERVISOR_SURGE_SEC="${CADENCE_SUPERVISOR_SURGE_SEC:-300}"   # 5 min

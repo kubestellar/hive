@@ -12,9 +12,9 @@
 set -euo pipefail
 
 HIVE_VERSION="0.2.0"
-CONF="/etc/supervised-agent/hive.conf"
-ENV_DIR="/etc/supervised-agent"
-REPO_DIR="/tmp/supervised-agent"
+CONF="/etc/hive/hive.conf"
+ENV_DIR="/etc/hive"
+REPO_DIR="/tmp/hive"
 LOG="/var/log/hive.log"
 
 RED='\033[0;31m'; YLW='\033[1;33m'; GRN='\033[0;32m'
@@ -74,7 +74,7 @@ usage() {
 ${BLD}SETUP${RST}
   1. sudo apt install tmux
   2. curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/main/install.sh | sudo bash
-  3. sudo nano /etc/supervised-agent/hive.conf   # set NTFY_TOPIC, HIVE_REPOS, HIVE_BACKENDS
+  3. sudo nano /etc/hive/hive.conf   # set NTFY_TOPIC, HIVE_REPOS, HIVE_BACKENDS
   4. hive supervisor
 
 ${BLD}COMMANDS${RST}
@@ -334,9 +334,9 @@ ensure_agents() {
 
   local services=(
     "claude-scanner.service:scanner"
-    "supervised-agent@reviewer.service:reviewer"
-    "supervised-agent@feature.service:architect"
-    "supervised-agent@outreach.service:outreach"
+    "hive@reviewer.service:reviewer"
+    "hive@feature.service:architect"
+    "hive@outreach.service:outreach"
   )
   local all_units=("${services[@]}" "kick-governor.timer:governor")
 
@@ -807,10 +807,10 @@ cmd_logs() {
   case "${1:-governor}" in
     governor)           exec journalctl -u kick-governor -f --no-pager ;;
     scanner)            exec journalctl -u claude-scanner -f --no-pager ;;
-    reviewer)           exec journalctl -u "supervised-agent@reviewer" -f --no-pager ;;
-    architect|feature)  exec journalctl -u "supervised-agent@feature" -f --no-pager ;;
-    outreach)           exec journalctl -u "supervised-agent@outreach" -f --no-pager ;;
-    supervisor)         exec journalctl -u "supervised-agent@supervisor" -f --no-pager ;;
+    reviewer)           exec journalctl -u "hive@reviewer" -f --no-pager ;;
+    architect|feature)  exec journalctl -u "hive@feature" -f --no-pager ;;
+    outreach)           exec journalctl -u "hive@outreach" -f --no-pager ;;
+    supervisor)         exec journalctl -u "hive@supervisor" -f --no-pager ;;
     *) die "Unknown agent. Use: governor scanner reviewer architect outreach supervisor" ;;
   esac
 }
@@ -826,17 +826,17 @@ cmd_stop() {
   local target="${1:-all}"
   if [[ "$target" == "all" ]]; then
     info "Stopping all agents..."
-    for svc in claude-scanner supervised-agent@reviewer supervised-agent@feature supervised-agent@outreach supervised-agent@supervisor; do
+    for svc in claude-scanner hive@reviewer hive@feature hive@outreach hive@supervisor; do
       sudo systemctl stop "$svc" 2>/dev/null && ok "Stopped $svc" || true
     done
     sudo systemctl stop kick-governor.timer 2>/dev/null && ok "Stopped governor" || true
   else
     case "$target" in
       scanner)  sudo systemctl stop claude-scanner ;;
-      reviewer) sudo systemctl stop "supervised-agent@reviewer" ;;
-      architect|feature) sudo systemctl stop "supervised-agent@feature" ;;
-      outreach) sudo systemctl stop "supervised-agent@outreach" ;;
-      supervisor) sudo systemctl stop "supervised-agent@supervisor" ;;
+      reviewer) sudo systemctl stop "hive@reviewer" ;;
+      architect|feature) sudo systemctl stop "hive@feature" ;;
+      outreach) sudo systemctl stop "hive@outreach" ;;
+      supervisor) sudo systemctl stop "hive@supervisor" ;;
       *) die "Unknown agent: $target" ;;
     esac
     ok "Stopped $target"
@@ -853,10 +853,10 @@ cmd_switch() {
   local session envfile service
   case "$agent" in
     scanner)            session="issue-scanner"; envfile="issue-scanner"; service="claude-scanner" ;;
-    reviewer)           session="reviewer";      envfile="reviewer";      service="supervised-agent@reviewer" ;;
-    architect|feature)  session="feature";       envfile="feature";       service="supervised-agent@feature" ;;
-    outreach)           session="outreach";      envfile="outreach";      service="supervised-agent@outreach" ;;
-    supervisor)         session="supervisor";    envfile="supervisor";    service="supervised-agent@supervisor" ;;
+    reviewer)           session="reviewer";      envfile="reviewer";      service="hive@reviewer" ;;
+    architect|feature)  session="feature";       envfile="feature";       service="hive@feature" ;;
+    outreach)           session="outreach";      envfile="outreach";      service="hive@outreach" ;;
+    supervisor)         session="supervisor";    envfile="supervisor";    service="hive@supervisor" ;;
     *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;
   esac
 
@@ -900,10 +900,10 @@ cmd_model() {
   local session envfile service
   case "$agent" in
     scanner)            session="issue-scanner"; envfile="issue-scanner"; service="claude-scanner" ;;
-    reviewer)           session="reviewer";      envfile="reviewer";      service="supervised-agent@reviewer" ;;
-    architect|feature)  session="feature";       envfile="feature";       service="supervised-agent@feature" ;;
-    outreach)           session="outreach";      envfile="outreach";      service="supervised-agent@outreach" ;;
-    supervisor)         session="supervisor";    envfile="supervisor";    service="supervised-agent@supervisor" ;;
+    reviewer)           session="reviewer";      envfile="reviewer";      service="hive@reviewer" ;;
+    architect|feature)  session="feature";       envfile="feature";       service="hive@feature" ;;
+    outreach)           session="outreach";      envfile="outreach";      service="hive@outreach" ;;
+    supervisor)         session="supervisor";    envfile="supervisor";    service="hive@supervisor" ;;
     *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;
   esac
 

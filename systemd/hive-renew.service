@@ -1,0 +1,12 @@
+[Unit]
+Description=Kill the agent tmux session so hive.service re-registers its /loop cron before the TTL expires
+Requisite=hive.service
+After=hive.service
+
+[Service]
+Type=oneshot
+User=__AGENT_USER__
+Group=__AGENT_USER__
+EnvironmentFile=/etc/hive/agent.env
+ExecStart=/bin/sh -c '/usr/bin/tmux kill-session -t "$AGENT_SESSION_NAME" 2>/dev/null || true'
+SuccessExitStatus=0 1

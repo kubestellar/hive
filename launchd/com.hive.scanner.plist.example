@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  supervised-agent scanner — macOS LaunchAgent
+  hive scanner — macOS LaunchAgent
   Fires a standalone scanner script on a fixed schedule.
 
   This is the "hybrid" pattern: a deterministic bash scanner runs on a timer
@@ -12,19 +12,19 @@
   See examples/kubestellar-fixer.md for a full case study.
 
   Install:
-    cp launchd/com.supervised-agent.scanner.plist.example \
-       ~/Library/LaunchAgents/com.supervised-agent.scanner.plist
+    cp launchd/com.hive.scanner.plist.example \
+       ~/Library/LaunchAgents/com.hive.scanner.plist
     # Edit paths below
-    launchctl load -w ~/Library/LaunchAgents/com.supervised-agent.scanner.plist
+    launchctl load -w ~/Library/LaunchAgents/com.hive.scanner.plist
 
   Uninstall:
-    launchctl unload ~/Library/LaunchAgents/com.supervised-agent.scanner.plist
-    rm ~/Library/LaunchAgents/com.supervised-agent.scanner.plist
+    launchctl unload ~/Library/LaunchAgents/com.hive.scanner.plist
+    rm ~/Library/LaunchAgents/com.hive.scanner.plist
 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.supervised-agent.scanner</string>
+    <string>com.hive.scanner</string>
 
     <key>ProgramArguments</key>
     <array>

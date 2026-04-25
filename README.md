@@ -18,7 +18,7 @@ sudo apt install tmux
 curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/main/install.sh | sudo bash
 
 # 3. configure
-sudo nano /etc/supervised-agent/hive.conf
+sudo nano /etc/hive/hive.conf
 
 # 4. start
 hive supervisor
@@ -88,7 +88,7 @@ The **kick-governor** measures issue and PR backlog across your repos every 15 m
 
 Architect and outreach are **opportunistic** — they fill idle cycles and pause entirely under load. Supervisor runs every 30 min regardless of mode.
 
-Cadences are tunable in `/etc/supervised-agent/governor.env` — no restart needed.
+Cadences are tunable in `/etc/hive/governor.env` — no restart needed.
 
 ---
 
@@ -131,7 +131,7 @@ hive sends alerts to any combination of ntfy, Slack, and Discord. Set whichever 
 
 ## Config
 
-`/etc/supervised-agent/hive.conf` — the only file you need to edit:
+`/etc/hive/hive.conf` — the only file you need to edit:
 
 ```bash
 # Repos to watch (space-separated)

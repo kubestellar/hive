@@ -3,7 +3,7 @@
 #
 # Source this file, then call: notify "<title>" "<body>" [priority]
 #
-# Reads from environment (set in /etc/supervised-agent/hive.conf or governor.env):
+# Reads from environment (set in /etc/hive/hive.conf or governor.env):
 #   NTFY_TOPIC      - ntfy.sh topic (free push to phone/desktop)
 #   NTFY_SERVER     - ntfy server (default: https://ntfy.sh)
 #   SLACK_WEBHOOK   - Slack incoming webhook URL

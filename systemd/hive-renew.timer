@@ -8,7 +8,7 @@ OnBootSec=5min
 OnUnitActiveSec=6d
 # Stagger in case coordinated hosts all refresh together.
 RandomizedDelaySec=15min
-Unit=supervised-agent-renew.service
+Unit=hive-renew.service
 
 [Install]
 WantedBy=timers.target

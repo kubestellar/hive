@@ -1,12 +1,12 @@
 [Unit]
-Description=Run the supervised-agent healthcheck every 20 minutes
+Description=Run the hive healthcheck every 20 minutes
 
 [Timer]
 # First check 5 minutes after boot so the agent has time to come up.
 OnBootSec=5min
 # Then every 20 minutes.
 OnUnitActiveSec=20min
-Unit=supervised-agent-healthcheck.service
+Unit=hive-healthcheck.service
 
 [Install]
 WantedBy=timers.target

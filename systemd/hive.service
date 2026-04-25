@@ -1,5 +1,5 @@
 [Unit]
-Description=Supervised AI agent (24/7 session with auto-restart)
+Description=Hive agent (24/7 session with auto-restart)
 After=network-online.target
 Wants=network-online.target
 
@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=__AGENT_USER__
 Group=__AGENT_USER__
-EnvironmentFile=/etc/supervised-agent/agent.env
+EnvironmentFile=/etc/hive/agent.env
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/usr/local/bin/agent-supervisor.sh
 Restart=always

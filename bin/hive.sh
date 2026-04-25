@@ -719,8 +719,13 @@ cmd_status_json() {
       fi
     elif [[ "$cadence" == "paused" ]]; then nk="paused"
     fi
+    # Governor-assigned model
+    local gov_backend gov_model gov_cost
+    gov_backend=$(grep '^BACKEND=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "")
+    gov_model=$(grep '^MODEL=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "")
+    gov_cost=$(grep '^COST_WEIGHT=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "0")
     [[ $i -gt 0 ]] && agents_json+=","
-    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"needsLogin\":$needs_login}"
+    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"needsLogin\":$needs_login,\"govBackend\":\"$gov_backend\",\"govModel\":\"$gov_model\",\"govCostWeight\":$gov_cost}"
   done
   agents_json+="]"
 
@@ -797,8 +802,24 @@ for a in agents:
 print('[' + ','.join(rows) + ']')
 " 2>/dev/null || echo "[]")
 
+  # Budget state from governor
+  local _budget_json="{}"
+  local _bf="$GOV_STATE/budget_state"
+  if [[ -f "$_bf" ]]; then
+    _budget_json=$(python3 -c "
+import json
+d = {}
+for line in open('$_bf'):
+    k, _, v = line.strip().partition('=')
+    if k and v:
+        try: d[k] = int(v)
+        except ValueError: d[k] = v
+print(json.dumps(d))
+" 2>/dev/null || echo "{}")
+  fi
+
   cat <<ENDJSON
-{"timestamp":"$now","agents":$agents_json,"governor":{"mode":"$gov_mode","active":$([ "$gov_active" = "active" ] && echo true || echo false),"issues":$gov_qi,"prs":$gov_qp,"nextKick":"$gov_next"},"cadenceMatrix":$_cm,"repos":$repos_json,"beads":{"workers":$beads_workers,"supervisor":$beads_supervisor}}
+{"timestamp":"$now","agents":$agents_json,"governor":{"mode":"$gov_mode","active":$([ "$gov_active" = "active" ] && echo true || echo false),"issues":$gov_qi,"prs":$gov_qp,"nextKick":"$gov_next"},"budget":$_budget_json,"cadenceMatrix":$_cm,"repos":$repos_json,"beads":{"workers":$beads_workers,"supervisor":$beads_supervisor}}
 ENDJSON
 }
 

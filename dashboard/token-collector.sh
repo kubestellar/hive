@@ -21,13 +21,28 @@ mkdir -p "$METRICS_DIR"
 # Find JSONL files modified in the lookback window
 cutoff=$(date -d "-${LOOKBACK_SECS} seconds" +%s 2>/dev/null || date -v-${LOOKBACK_SECS}S +%s 2>/dev/null || echo 0)
 
-python3 - "$CLAUDE_PROJECTS" "$cutoff" "$LOOKBACK_HOURS" <<'PYEOF'
-import json, os, sys, glob, time
+BUDGET_RESET_DAY="${TOKEN_BUDGET_RESET_DAY:-6}"  # 0=Mon, 6=Sun
+
+python3 - "$CLAUDE_PROJECTS" "$cutoff" "$LOOKBACK_HOURS" "$BUDGET_RESET_DAY" <<'PYEOF'
+import json, os, sys, glob, time, datetime
 from collections import defaultdict
 
 projects_dir = sys.argv[1]
 cutoff = int(sys.argv[2])
 lookback_hours = int(sys.argv[3])
+budget_reset_day = int(sys.argv[4])
+
+now = time.time()
+SECONDS_PER_HOUR = 3600
+one_hour_ago = now - SECONDS_PER_HOUR
+
+now_dt = datetime.datetime.now()
+days_since_reset = (now_dt.weekday() - budget_reset_day) % 7
+if days_since_reset == 0 and now_dt.hour == 0:
+    days_since_reset = 7
+weekly_cutoff = (now_dt - datetime.timedelta(days=days_since_reset)).replace(
+    hour=0, minute=0, second=0, microsecond=0
+).timestamp()
 
 if not os.path.isdir(projects_dir):
     print(json.dumps({"error": "no claude projects dir", "sessions": [], "byModel": {}, "totals": {}}))
@@ -38,6 +53,10 @@ by_model = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, "cacheC
 by_cli = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, "cacheCreate": 0, "messages": 0, "sessions": 0})
 by_agent = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, "cacheCreate": 0, "messages": 0, "sessions": 0})
 totals = {"input": 0, "output": 0, "cacheRead": 0, "cacheCreate": 0, "messages": 0, "sessions": 0}
+
+weekly_by_agent = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, "sessions": 0})
+weekly_totals = {"input": 0, "output": 0, "cacheRead": 0, "sessions": 0}
+hourly_by_agent = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, "sessions": 0})
 
 AGENT_KEYWORDS = {
     "scanner": ["scanner", "scanner-beads"],
@@ -56,7 +75,8 @@ for proj_name in os.listdir(projects_dir):
             mtime = os.path.getmtime(fpath)
         except OSError:
             continue
-        if mtime < cutoff:
+        scan_cutoff = min(cutoff, weekly_cutoff)
+        if mtime < scan_cutoff:
             continue
 
         sid = ""
@@ -140,6 +160,29 @@ for proj_name in os.listdir(projects_dir):
             cli = "other"
 
         session_tokens = inp + out + cache_read
+
+        # Weekly aggregation (for budget engine)
+        if mtime >= weekly_cutoff and cli == "claude":
+            weekly_by_agent[agent]["input"] += inp
+            weekly_by_agent[agent]["output"] += out
+            weekly_by_agent[agent]["cacheRead"] += cache_read
+            weekly_by_agent[agent]["sessions"] += 1
+            weekly_totals["input"] += inp
+            weekly_totals["output"] += out
+            weekly_totals["cacheRead"] += cache_read
+            weekly_totals["sessions"] += 1
+
+        # Hourly aggregation (for burn rate)
+        if mtime >= one_hour_ago and cli == "claude":
+            hourly_by_agent[agent]["input"] += inp
+            hourly_by_agent[agent]["output"] += out
+            hourly_by_agent[agent]["cacheRead"] += cache_read
+            hourly_by_agent[agent]["sessions"] += 1
+
+        # 24h aggregation (existing behavior)
+        if mtime < cutoff:
+            continue
+
         sessions.append({
             "id": sid[:12] if sid else os.path.basename(fpath)[:12],
             "model": model,
@@ -192,6 +235,13 @@ for aname, astats in by_agent.items():
     total = astats["input"] + astats["output"] + astats["cacheRead"]
     astats["avgPerSession"] = total // s if s > 0 else 0
 
+# Compute hourly burn rate per agent
+hourly_rates = {}
+for aname, hstats in hourly_by_agent.items():
+    hourly_rates[aname] = hstats["input"] + hstats["output"] + hstats["cacheRead"]
+
+weekly_total_tokens = weekly_totals["input"] + weekly_totals["output"] + weekly_totals["cacheRead"]
+
 result = {
     "timestamp": int(time.time() * 1000),
     "lookbackHours": lookback_hours,
@@ -199,7 +249,17 @@ result = {
     "byModel": dict(by_model),
     "byCli": dict(by_cli),
     "byAgent": dict(by_agent),
-    "sessions": sessions[:20],  # top 20 most recent
+    "sessions": sessions[:20],
+    "weekly": {
+        "totals": weekly_totals,
+        "totalTokens": weekly_total_tokens,
+        "byAgent": dict(weekly_by_agent),
+        "resetDay": budget_reset_day,
+    },
+    "hourlyBurnRate": {
+        "total": sum(hourly_rates.values()),
+        "byAgent": hourly_rates,
+    },
 }
 
 print(json.dumps(result))

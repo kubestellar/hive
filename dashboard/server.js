@@ -138,6 +138,29 @@ function fetchStatus() {
         statusCache.ciPassRate = ciPassRate;
         statusCache.agentMetrics = agentMetrics;
         statusCache.tokens = tokenCache;
+        // Attach governor model/budget state
+        try {
+          const budgetFile = path.join(GOVERNOR_STATE_DIR, 'budget_state');
+          if (fs.existsSync(budgetFile)) {
+            const blines = fs.readFileSync(budgetFile, 'utf8').trim().split('\n');
+            const budget = {};
+            for (const l of blines) { const [k,v] = l.split('='); if (k && v) budget[k] = isNaN(v) ? v : Number(v); }
+            statusCache.budget = budget;
+          }
+        } catch (_) {}
+        for (const a of (statusCache.agents || [])) {
+          try {
+            const mf = path.join(GOVERNOR_STATE_DIR, `model_${a.name}`);
+            if (fs.existsSync(mf)) {
+              const ml = fs.readFileSync(mf, 'utf8').trim().split('\n');
+              const m = {};
+              for (const l of ml) { const [k,v] = l.split('='); if (k && v) m[k] = v; }
+              a.govBackend = m.BACKEND;
+              a.govModel = m.MODEL;
+              a.govCostWeight = Number(m.COST_WEIGHT || 0);
+            }
+          } catch (_) {}
+        }
         // Single exec summary per agent: live pane when working, status file when idle
         statusCache.summaries = summariesCache;
         for (const a of (statusCache.agents || [])) {
@@ -344,6 +367,58 @@ app.post('/api/model/:agent/:model', (req, res) => {
 // Token usage
 app.get('/api/tokens', (_req, res) => {
   res.json(tokenCache || { error: 'no data yet' });
+});
+
+// Model advisor — reads governor state files
+const GOVERNOR_STATE_DIR = '/var/run/kick-governor';
+app.get('/api/model-advisor', (_req, res) => {
+  const agents = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+  const result = { mode: 'unknown', budget: {}, agents: [] };
+
+  try {
+    const modeFile = path.join(GOVERNOR_STATE_DIR, 'mode');
+    if (fs.existsSync(modeFile)) result.mode = fs.readFileSync(modeFile, 'utf8').trim();
+  } catch (_) {}
+
+  try {
+    const budgetFile = path.join(GOVERNOR_STATE_DIR, 'budget_state');
+    if (fs.existsSync(budgetFile)) {
+      const lines = fs.readFileSync(budgetFile, 'utf8').trim().split('\n');
+      for (const line of lines) {
+        const [k, v] = line.split('=');
+        if (k && v) result.budget[k] = isNaN(v) ? v : Number(v);
+      }
+    }
+  } catch (_) {}
+
+  for (const agent of agents) {
+    const entry = { name: agent, backend: 'unknown', model: 'unknown', costWeight: 0, reason: '' };
+    try {
+      const mf = path.join(GOVERNOR_STATE_DIR, `model_${agent}`);
+      if (fs.existsSync(mf)) {
+        const lines = fs.readFileSync(mf, 'utf8').trim().split('\n');
+        for (const line of lines) {
+          const [k, v] = line.split('=');
+          if (k === 'BACKEND') entry.backend = v;
+          else if (k === 'MODEL') entry.model = v;
+          else if (k === 'COST_WEIGHT') entry.costWeight = Number(v);
+          else if (k === 'REASON') entry.reason = v;
+          else if (k === 'PREV_BACKEND' && v) entry.prevBackend = v;
+          else if (k === 'PREV_MODEL' && v) entry.prevModel = v;
+        }
+        entry.changed = (entry.prevBackend && entry.prevBackend !== entry.backend) ||
+                         (entry.prevModel && entry.prevModel !== entry.model);
+      }
+    } catch (_) {}
+
+    try {
+      const cf = path.join(GOVERNOR_STATE_DIR, `cadence_${agent}`);
+      if (fs.existsSync(cf)) entry.cadence = fs.readFileSync(cf, 'utf8').trim();
+    } catch (_) {}
+
+    result.agents.push(entry);
+  }
+  res.json(result);
 });
 
 // Comprehensive exec summaries (task + progress + results)

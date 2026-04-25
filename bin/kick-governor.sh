@@ -84,6 +84,48 @@ CADENCE_OUTREACH_BUSY_SEC="${CADENCE_OUTREACH_BUSY_SEC:-3600}"      # 1 hour
 CADENCE_OUTREACH_QUIET_SEC="${CADENCE_OUTREACH_QUIET_SEC:-7200}"    # 2 hours
 CADENCE_OUTREACH_IDLE_SEC="${CADENCE_OUTREACH_IDLE_SEC:-7200}"      # 2 hours
 
+# ── Token budget ────────────────────────────────────────────────────────────
+TOKEN_BUDGET_WEEKLY="${TOKEN_BUDGET_WEEKLY:-50000000}"
+TOKEN_BUDGET_SAFETY_PCT="${TOKEN_BUDGET_SAFETY_PCT:-85}"
+TOKEN_BUDGET_RESET_DAY="${TOKEN_BUDGET_RESET_DAY:-0}"  # 0=Sunday
+TOKEN_COLLECTOR_JSON="/var/run/hive-metrics/tokens.json"
+
+# ── Cost weights (relative to Haiku=1) ──────────────────────────────────────
+COST_WEIGHT_OPUS="${COST_WEIGHT_OPUS:-15}"
+COST_WEIGHT_SONNET="${COST_WEIGHT_SONNET:-3}"
+COST_WEIGHT_HAIKU="${COST_WEIGHT_HAIKU:-1}"
+
+# ── Model selection table: MODEL_<MODE>_<AGENT>=backend:model ───────────────
+# Priority agents (scanner, reviewer) get metered Claude in surge/busy.
+# Non-priority agents (architect, outreach) use copilot (free/unlimited).
+# Supervisor is lightweight — Haiku or copilot.
+MODEL_SURGE_SCANNER="${MODEL_SURGE_SCANNER:-claude:claude-sonnet-4-6}"
+MODEL_SURGE_REVIEWER="${MODEL_SURGE_REVIEWER:-claude:claude-sonnet-4-6}"
+MODEL_SURGE_ARCHITECT="${MODEL_SURGE_ARCHITECT:-claude:claude-opus-4-6}"
+MODEL_SURGE_OUTREACH="${MODEL_SURGE_OUTREACH:-copilot:claude-opus-4.6}"
+MODEL_SURGE_SUPERVISOR="${MODEL_SURGE_SUPERVISOR:-claude:claude-haiku-4-5}"
+
+MODEL_BUSY_SCANNER="${MODEL_BUSY_SCANNER:-claude:claude-sonnet-4-6}"
+MODEL_BUSY_REVIEWER="${MODEL_BUSY_REVIEWER:-claude:claude-sonnet-4-6}"
+MODEL_BUSY_ARCHITECT="${MODEL_BUSY_ARCHITECT:-copilot:claude-sonnet-4.6}"
+MODEL_BUSY_OUTREACH="${MODEL_BUSY_OUTREACH:-copilot:claude-sonnet-4.6}"
+MODEL_BUSY_SUPERVISOR="${MODEL_BUSY_SUPERVISOR:-claude:claude-haiku-4-5}"
+
+MODEL_QUIET_SCANNER="${MODEL_QUIET_SCANNER:-claude:claude-haiku-4-5}"
+MODEL_QUIET_REVIEWER="${MODEL_QUIET_REVIEWER:-copilot:claude-sonnet-4.6}"
+MODEL_QUIET_ARCHITECT="${MODEL_QUIET_ARCHITECT:-copilot:claude-opus-4.6}"
+MODEL_QUIET_OUTREACH="${MODEL_QUIET_OUTREACH:-copilot:claude-sonnet-4.6}"
+MODEL_QUIET_SUPERVISOR="${MODEL_QUIET_SUPERVISOR:-claude:claude-haiku-4-5}"
+
+MODEL_IDLE_SCANNER="${MODEL_IDLE_SCANNER:-copilot:claude-sonnet-4.6}"
+MODEL_IDLE_REVIEWER="${MODEL_IDLE_REVIEWER:-copilot:claude-sonnet-4.6}"
+MODEL_IDLE_ARCHITECT="${MODEL_IDLE_ARCHITECT:-copilot:claude-opus-4.6}"
+MODEL_IDLE_OUTREACH="${MODEL_IDLE_OUTREACH:-copilot:claude-sonnet-4.6}"
+MODEL_IDLE_SUPERVISOR="${MODEL_IDLE_SUPERVISOR:-copilot:claude-sonnet-4.6}"
+
+RATE_LIMIT_FALLBACK_BACKEND="${RATE_LIMIT_FALLBACK_BACKEND:-copilot}"
+RATE_LIMIT_COOLDOWN="${RATE_LIMIT_COOLDOWN:-1800}"  # 30 min
+
 # ── Paths ───────────────────────────────────────────────────────────────────
 STATE_DIR="/var/run/kick-governor"
 LOG_FILE="/var/log/kick-governor.log"
@@ -275,6 +317,216 @@ get_cadence() {
   esac
 }
 
+# ── Model selection ──────────────────────────────────────────────────────────
+
+convert_model_notation() {
+  local model="$1" target_backend="$2"
+  case "$target_backend" in
+    copilot) echo "$model" | sed -E 's/([0-9])-([0-9])/\1.\2/g' ;;
+    *)       echo "$model" | sed -E 's/([0-9])\.([0-9])/\1-\2/g' ;;
+  esac
+}
+
+get_model_selection() {
+  local agent="$1" mode="$2"
+  local upper_mode upper_agent
+  upper_mode=$(echo "$mode" | tr '[:lower:]' '[:upper:]')
+  upper_agent=$(echo "$agent" | tr '[:lower:]' '[:upper:]')
+  local var_name="MODEL_${upper_mode}_${upper_agent}"
+  local selection="${!var_name}"
+  if [[ -z "$selection" ]]; then
+    selection="copilot:claude-sonnet-4.6"
+  fi
+  echo "$selection"
+}
+
+get_cost_weight() {
+  local backend="$1" model="$2"
+  case "$backend" in
+    copilot|goose) echo 0; return ;;
+  esac
+  case "$model" in
+    *opus*)   echo "${COST_WEIGHT_OPUS}" ;;
+    *sonnet*) echo "${COST_WEIGHT_SONNET}" ;;
+    *haiku*)  echo "${COST_WEIGHT_HAIKU}" ;;
+    *)        echo "${COST_WEIGHT_SONNET}" ;;
+  esac
+}
+
+is_rate_limited() {
+  local backend="$1"
+  local rl_file="$STATE_DIR/rate_limits"
+  [[ ! -f "$rl_file" ]] && return 1
+  local now
+  now=$(date +%s)
+  while IFS=: read -r rl_backend rl_time _rl_agent; do
+    if [[ "$rl_backend" == "$backend" ]] && (( now - rl_time < RATE_LIMIT_COOLDOWN )); then
+      return 0
+    fi
+  done < "$rl_file"
+  return 1
+}
+
+compute_budget_state() {
+  local budget_file="$STATE_DIR/budget_state"
+  local used=0 burn_hourly=0
+
+  if [[ -f "$TOKEN_COLLECTOR_JSON" ]]; then
+    read -r used burn_hourly <<< "$(python3 -c "
+import json
+try:
+    with open('$TOKEN_COLLECTOR_JSON') as f:
+        d = json.load(f)
+    weekly = d.get('weekly', {})
+    used = weekly.get('totalTokens', 0)
+    hourly = d.get('hourlyBurnRate', {}).get('total', 0)
+    if used == 0 and hourly == 0:
+        ba = d.get('byAgent', {})
+        for stats in ba.values():
+            used += stats.get('input', 0) + stats.get('output', 0) + stats.get('cacheRead', 0)
+    print(used, hourly)
+except Exception:
+    print(0, 0)
+" 2>/dev/null || echo "0 0")"
+  fi
+
+  local remaining=$((TOKEN_BUDGET_WEEKLY - used))
+  [[ "$remaining" -lt 0 ]] && remaining=0
+  local pct_used=0
+  [[ "$TOKEN_BUDGET_WEEKLY" -gt 0 ]] && pct_used=$((used * 100 / TOKEN_BUDGET_WEEKLY))
+
+  local hours_left
+  hours_left=$(python3 -c "
+import datetime
+now = datetime.datetime.now()
+reset_day = $TOKEN_BUDGET_RESET_DAY
+days_ahead = (reset_day - now.weekday()) % 7
+if days_ahead == 0 and now.hour > 0: days_ahead = 7
+reset = (now + datetime.timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
+print(max(1, int((reset - now).total_seconds() // 3600)))
+" 2>/dev/null || echo 168)
+
+  local projected=$((used + burn_hourly * hours_left))
+  local projected_pct=0
+  [[ "$TOKEN_BUDGET_WEEKLY" -gt 0 ]] && projected_pct=$((projected * 100 / TOKEN_BUDGET_WEEKLY))
+
+  cat > "$budget_file" <<BUDGETEOF
+BUDGET_WEEKLY=$TOKEN_BUDGET_WEEKLY
+BUDGET_USED=$used
+BUDGET_REMAINING=$remaining
+BUDGET_PCT_USED=$pct_used
+BURN_RATE_HOURLY=$burn_hourly
+HOURS_REMAINING=$hours_left
+PROJECTED_WEEKLY=$projected
+PROJECTED_PCT=$projected_pct
+LAST_UPDATED=$(date -Iseconds)
+BUDGETEOF
+
+  echo "$projected_pct"
+}
+
+optimize_model_assignment() {
+  local mode="$1"
+  local agents=(scanner reviewer architect outreach supervisor)
+  local priority_agents=(scanner reviewer)
+
+  local projected_pct
+  projected_pct=$(compute_budget_state)
+
+  declare -A assignments
+  for agent in "${agents[@]}"; do
+    assignments[$agent]=$(get_model_selection "$agent" "$mode")
+  done
+
+  if (( projected_pct > TOKEN_BUDGET_SAFETY_PCT )); then
+    log "BUDGET PRESSURE: projected ${projected_pct}% > safety ${TOKEN_BUDGET_SAFETY_PCT}%"
+
+    for agent in outreach architect supervisor; do
+      local current="${assignments[$agent]}"
+      local backend="${current%%:*}"
+      if [[ "$backend" != "copilot" && "$backend" != "goose" ]]; then
+        local model="${current#*:}"
+        local copilot_model
+        copilot_model=$(convert_model_notation "$model" "copilot")
+        assignments[$agent]="copilot:${copilot_model}"
+        log "  budget override: $agent -> copilot (was $backend)"
+      fi
+    done
+
+    if (( projected_pct > 95 )); then
+      for agent in "${priority_agents[@]}"; do
+        local current="${assignments[$agent]}"
+        local backend="${current%%:*}"
+        local model="${current#*:}"
+        case "$model" in
+          *opus*)
+            local new_model="${model/opus/sonnet}"
+            assignments[$agent]="${backend}:${new_model}"
+            log "  budget override: $agent opus->sonnet"
+            ;;
+          *sonnet*)
+            local new_model="${model/sonnet/haiku}"
+            assignments[$agent]="${backend}:${new_model}"
+            log "  budget override: $agent sonnet->haiku"
+            ;;
+        esac
+      done
+    fi
+
+    if (( projected_pct > 99 )); then
+      for agent in "${agents[@]}"; do
+        local current="${assignments[$agent]}"
+        local model="${current#*:}"
+        local copilot_model
+        copilot_model=$(convert_model_notation "$model" "copilot")
+        assignments[$agent]="copilot:${copilot_model}"
+      done
+      log "  BUDGET CRITICAL: all agents -> copilot"
+    fi
+  fi
+
+  for agent in "${agents[@]}"; do
+    local selection="${assignments[$agent]}"
+    local backend="${selection%%:*}"
+    local model="${selection#*:}"
+
+    if is_rate_limited "$backend"; then
+      local fallback="${RATE_LIMIT_FALLBACK_BACKEND}"
+      local fb_model
+      fb_model=$(convert_model_notation "$model" "$fallback")
+      backend="$fallback"
+      model="$fb_model"
+      log "  rate-limit swap: $agent -> $fallback"
+    fi
+
+    local lock_file="$STATE_DIR/model_lock_${agent}"
+    if [[ -f "$lock_file" ]]; then
+      log "  LOCKED: $agent (manual override — skipping)"
+      continue
+    fi
+
+    local cost_weight
+    cost_weight=$(get_cost_weight "$backend" "$model")
+    local prev_backend prev_model
+    prev_backend=$(grep '^BACKEND=' "$STATE_DIR/model_${agent}" 2>/dev/null | cut -d= -f2)
+    prev_model=$(grep '^MODEL=' "$STATE_DIR/model_${agent}" 2>/dev/null | cut -d= -f2)
+
+    cat > "$STATE_DIR/model_${agent}" <<MODELEOF
+BACKEND=$backend
+MODEL=$model
+COST_WEIGHT=$cost_weight
+REASON=${mode}_mode
+PREV_BACKEND=${prev_backend:-}
+PREV_MODEL=${prev_model:-}
+UPDATED=$(date -Iseconds)
+MODELEOF
+
+    if [[ -n "$prev_backend" && ("$prev_backend" != "$backend" || "$prev_model" != "$model") ]]; then
+      log "MODEL CHANGE ${agent}: ${prev_backend}:${prev_model} -> ${backend}:${model}"
+    fi
+  done
+}
+
 # ── Last-kick tracking ───────────────────────────────────────────────────────
 
 last_kick_file() { echo "$STATE_DIR/last_kick_${1}"; }
@@ -370,6 +622,9 @@ for _agent in scanner reviewer architect outreach supervisor; do
   fi > "$STATE_DIR/cadence_${_agent}"
 done
 
+# Run model optimizer — writes model state files before agents are kicked
+optimize_model_assignment "$mode"
+
 # Report mode transitions
 if [ -n "$prev_mode" ] && [ "$prev_mode" != "$mode" ]; then
   log "MODE CHANGE ${prev_mode} → ${mode} (queue=${queue_depth} threshold=${BUSY_THRESHOLD_ISSUES})"
@@ -380,6 +635,14 @@ if [ -n "$prev_mode" ] && [ "$prev_mode" != "$mode" ]; then
 fi
 
 log "MODE=${mode} queue=${queue_depth} scanner=$(secs_to_label "$(get_cadence scanner "$mode")") reviewer=$(secs_to_label "$(get_cadence reviewer "$mode")") architect=$(secs_to_label "$(get_cadence architect "$mode")") outreach=$(secs_to_label "$(get_cadence outreach "$mode")")"
+
+# Log model assignments
+budget_pct=$(grep '^PROJECTED_PCT=' "$STATE_DIR/budget_state" 2>/dev/null | cut -d= -f2 || echo "?")
+log "BUDGET projected=${budget_pct}% models: $(for _a in scanner reviewer architect outreach supervisor; do
+  _b=$(grep '^BACKEND=' "$STATE_DIR/model_${_a}" 2>/dev/null | cut -d= -f2 || echo "?")
+  _m=$(grep '^MODEL=' "$STATE_DIR/model_${_a}" 2>/dev/null | cut -d= -f2 || echo "?")
+  printf '%s=%s:%s ' "$_a" "$_b" "$_m"
+done)"
 
 maybe_kick scanner    "$mode"
 maybe_kick reviewer   "$mode"

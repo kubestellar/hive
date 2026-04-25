@@ -372,6 +372,62 @@ If you find a bug or improvement idea, file a beads issue for the scanner — do
 Fork under clubanderson account for all external PRs to third-party repos. \
 Send ntfy for every new listing secured. One outreach per project — never spam. $(beads_sync "$OUTREACH_BEADS" "outreach")"
 
+# ── Governor model integration ──────────────────────────────────────
+# Reads /var/run/kick-governor/model_<agent> written by the governor's
+# optimize_model_assignment(). If the model changed, restarts the agent
+# with the new backend/model and returns 1 (skip this kick cycle).
+GOVERNOR_STATE_DIR="/var/run/kick-governor"
+
+apply_model_if_changed() {
+  local agent="$1" session="$2"
+  local model_file="$GOVERNOR_STATE_DIR/model_${agent}"
+  [[ ! -f "$model_file" ]] && return 0
+
+  local gov_backend gov_model
+  gov_backend=$(grep '^BACKEND=' "$model_file" 2>/dev/null | cut -d= -f2)
+  gov_model=$(grep '^MODEL=' "$model_file" 2>/dev/null | cut -d= -f2)
+  [[ -z "$gov_backend" || -z "$gov_model" ]] && return 0
+
+  local cur_backend
+  cur_backend=$(get_current_backend "$agent")
+  local cur_model
+  cur_model=$(get_model_for "$agent" "$cur_backend")
+
+  if [[ "$cur_backend" == "$gov_backend" && "$cur_model" == "$gov_model" ]]; then
+    return 0
+  fi
+
+  log "MODEL SWITCH $agent: ${cur_backend}:${cur_model} → ${gov_backend}:${gov_model} (governor)"
+
+  if ! session_exists "$session"; then
+    set_current_backend "$agent" "$gov_backend"
+    BACKEND_MODEL[$gov_backend]="$gov_model"
+    AGENT_MODEL_OVERRIDE["${agent}-${gov_backend}"]="$gov_model"
+    return 0
+  fi
+
+  if ! session_idle "$session"; then
+    log "MODEL SWITCH $agent — session busy, will apply on next kick"
+    return 0
+  fi
+
+  capture_handoff_state "$session" "$agent"
+
+  $TMUX_BIN send-keys -t "$session" "/exit" 2>/dev/null || true
+  $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
+  sleep 3
+
+  $TMUX_BIN send-keys -t "$session" "agent-launch.sh --backend $gov_backend --model $gov_model" 2>/dev/null || true
+  $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
+
+  set_current_backend "$agent" "$gov_backend"
+  BACKEND_MODEL[$gov_backend]="$gov_model"
+  AGENT_MODEL_OVERRIDE["${agent}-${gov_backend}"]="$gov_model"
+
+  log "MODEL SWITCH $agent — relaunched with ${gov_backend}:${gov_model}"
+  return 1
+}
+
 _now_et=$(TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z')
 SUPERVISOR_MSG="MONITORING PASS — Pass started: ${_now_et}
 
@@ -395,25 +451,25 @@ Do all of the following right now:
 
 case "$TARGET" in
   scanner)
-    kick "issue-scanner" "$SCANNER_MSG" "scanner"
+    apply_model_if_changed "scanner" "issue-scanner" && kick "issue-scanner" "$SCANNER_MSG" "scanner"
     ;;
   reviewer)
-    kick "reviewer" "$REVIEWER_MSG" "reviewer"
+    apply_model_if_changed "reviewer" "reviewer" && kick "reviewer" "$REVIEWER_MSG" "reviewer"
     ;;
   architect)
-    kick "feature" "$ARCHITECT_MSG" "architect"
+    apply_model_if_changed "architect" "feature" && kick "feature" "$ARCHITECT_MSG" "architect"
     ;;
   outreach)
-    kick "outreach" "$OUTREACH_MSG" "outreach"
+    apply_model_if_changed "outreach" "outreach" && kick "outreach" "$OUTREACH_MSG" "outreach"
     ;;
   supervisor)
-    kick "supervisor" "$SUPERVISOR_MSG" "supervisor"
+    apply_model_if_changed "supervisor" "supervisor" && kick "supervisor" "$SUPERVISOR_MSG" "supervisor"
     ;;
   all)
-    kick "issue-scanner" "$SCANNER_MSG" "scanner"
-    kick "reviewer" "$REVIEWER_MSG" "reviewer"
-    kick "feature" "$ARCHITECT_MSG" "architect"
-    kick "outreach" "$OUTREACH_MSG" "outreach"
+    apply_model_if_changed "scanner" "issue-scanner" && kick "issue-scanner" "$SCANNER_MSG" "scanner"
+    apply_model_if_changed "reviewer" "reviewer" && kick "reviewer" "$REVIEWER_MSG" "reviewer"
+    apply_model_if_changed "architect" "feature" && kick "feature" "$ARCHITECT_MSG" "architect"
+    apply_model_if_changed "outreach" "outreach" && kick "outreach" "$OUTREACH_MSG" "outreach"
     # supervisor is NOT kicked in "all" — it has its own cadence via governor
     ;;
   *)

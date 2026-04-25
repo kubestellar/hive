@@ -309,6 +309,22 @@
     .advisor-tip { font-size: 0.72rem; color: var(--text); padding: 4px 8px; background: rgba(210,153,34,0.08); border-left: 2px solid var(--yellow); border-radius: 0 4px 4px 0; }
     .advisor-tip b { color: var(--cyan); }
 
+    /* Budget bar */
+    .budget-bar { margin: 8px 0; }
+    .budget-bar-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; display: flex; justify-content: space-between; }
+    .budget-bar-track { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+    .budget-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+    .budget-bar-fill.safe { background: var(--green); }
+    .budget-bar-fill.warning { background: var(--yellow); }
+    .budget-bar-fill.danger { background: var(--red); }
+
+    /* Model chip on agent cards */
+    .model-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; }
+    .model-chip.free { background: rgba(63,185,80,0.12); color: var(--green); }
+    .model-chip.haiku { background: rgba(88,166,255,0.12); color: var(--blue); }
+    .model-chip.sonnet { background: rgba(210,153,34,0.12); color: var(--yellow); }
+    .model-chip.opus { background: rgba(248,81,73,0.12); color: var(--red); }
+
     /* Health dots (reused inside reviewer indicators) */
     .health-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
     .health-dot.ok { background: #3fb950; }
@@ -559,7 +575,7 @@
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>
           <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
-          <div class="agent-field"><span class="label">model</span><span class="value">${a.model || ''}</span></div>
+          <div class="agent-field"><span class="label">model</span><span class="value">${a.model || ''} ${a.govBackend ? modelChip(a.govBackend, a.govModel) : ''}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${a.cadence}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${a.nextKick || '—'}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
@@ -616,7 +632,7 @@
       }).join('');
     }
 
-    function renderGovernor(gov, cadenceMatrix) {
+    function renderGovernor(gov, cadenceMatrix, data) {
       const el = document.getElementById('governor');
       const cls = gov.active ? 'active' : 'dead';
       el.className = `governor ${cls}`;
@@ -674,11 +690,13 @@
             <span class="tl-surge">surge</span>
           </div>
         </div>
+        ${renderBudgetBar(data.budget || {})}
         ${renderCadenceMatrix(cadenceMatrix, currentMode, modes)}`;
     }
 
     function renderCadenceMatrix(matrix, currentMode, modes) {
       if (!matrix || !matrix.length) return '';
+      const agents = window._lastAgents || [];
       const agentOrder = ['supervisor', 'scanner', 'reviewer', 'architect', 'outreach'];
       const rows = agentOrder.map(aname => {
         const row = matrix.find(r => r.agent === aname);
@@ -691,7 +709,9 @@
           const pausedCls = isPaused ? ' paused' : '';
           return `<td class="${colCls}${pausedCls}">${isPaused ? '—' : val}</td>`;
         }).join('');
-        return `<tr><td>${aname}</td>${cells}</tr>`;
+        const agentData = agents.find(a => a.name === aname);
+        const mChip = agentData && agentData.govBackend ? modelChip(agentData.govBackend, agentData.govModel) : '';
+        return `<tr><td>${aname}</td>${cells}<td>${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
         const isActive = m === currentMode;
@@ -699,7 +719,7 @@
         return `<th class="${cls}">${m}${isActive ? ' ◀' : ''}</th>`;
       }).join('');
       return `<table class="gov-matrix">
-        <thead><tr><th></th>${headers}</tr></thead>
+        <thead><tr><th></th>${headers}<th>model</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     }
@@ -734,6 +754,37 @@
       if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
       if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
       return String(n);
+    }
+
+    function renderBudgetBar(budget) {
+      if (!budget || !budget.BUDGET_WEEKLY) return '';
+      const PCT_SAFE = 50;
+      const PCT_WARN = 85;
+      const pct = budget.PROJECTED_PCT || 0;
+      const used = budget.BUDGET_USED || 0;
+      const weekly = budget.BUDGET_WEEKLY;
+      const fillCls = pct < PCT_SAFE ? 'safe' : pct < PCT_WARN ? 'warning' : 'danger';
+      const burnRate = budget.BURN_RATE_HOURLY || 0;
+      const hoursLeft = budget.HOURS_REMAINING || 0;
+      return `<div class="budget-bar">
+        <div class="budget-bar-label">
+          <span>Token Budget: ${fmtTokens(used)} / ${fmtTokens(weekly)} (${budget.BUDGET_PCT_USED || 0}% used)</span>
+          <span>Projected: ${pct}% · ${fmtTokens(burnRate)}/hr · ${hoursLeft}h left</span>
+        </div>
+        <div class="budget-bar-track"><div class="budget-bar-fill ${fillCls}" style="width:${Math.min(pct, 100)}%"></div></div>
+      </div>`;
+    }
+
+    function modelChip(backend, model) {
+      if (!backend || backend === 'unknown') return '';
+      const isFree = backend === 'copilot' || backend === 'goose';
+      let tier = 'sonnet';
+      if (isFree) tier = 'free';
+      else if (model && model.includes('haiku')) tier = 'haiku';
+      else if (model && model.includes('opus')) tier = 'opus';
+      const shortModel = model ? model.replace(/^claude-/, '').replace(/-\d+-\d+$/, m => m.replace(/-/g, '.').slice(0, 4)) : '?';
+      const label = isFree ? `${backend}` : shortModel;
+      return `<span class="model-chip ${tier}" title="${backend}:${model}">${label}</span>`;
     }
 
     function buildCadenceAdvisor(byAgent) {
@@ -791,6 +842,38 @@
       for (const r of rows) {
         if (r.cli === 'copilot' && r.avg === 0 && !r.isPaused) {
           tips.push(`<b>${r.name}</b> runs on copilot (unlimited tokens, no metering). Token burn unknown — consider switching to claude CLI for visibility.`);
+        }
+      }
+
+      // Model-aware tips from governor assignments
+      const OPUS_COST = 15;
+      const SONNET_COST = 3;
+      for (const r of rows) {
+        const agentData = agents.find(a => a.name === r.name);
+        if (!agentData) continue;
+        const gb = agentData.govBackend;
+        const gm = agentData.govModel || '';
+        if (gb === 'copilot' || gb === 'goose') {
+          if (r.weeklyBurn > 0) {
+            tips.push(`<b>${r.name}</b> assigned to ${gb} (free) — ${fmtTokens(r.weeklyBurn)}/wk savings vs metered CLI.`);
+          }
+        } else if (gm.includes('opus') && r.weeklyBurn > 0) {
+          const sonnetBurn = Math.round(r.weeklyBurn * SONNET_COST / OPUS_COST);
+          tips.push(`<b>${r.name}</b> on Opus (${OPUS_COST}x) — switching to Sonnet would save ~${fmtTokens(r.weeklyBurn - sonnetBurn)}/wk in cost-adjusted tokens.`);
+        }
+      }
+
+      const budget = window._lastBudget || {};
+      if (budget.PROJECTED_PCT) {
+        const SAFE_THRESHOLD = 50;
+        const WARN_THRESHOLD = 85;
+        if (budget.PROJECTED_PCT > WARN_THRESHOLD) {
+          tips.push(`Budget projected at <b>${budget.PROJECTED_PCT}%</b> — governor is auto-downgrading models to stay within budget.`);
+        } else if (budget.PROJECTED_PCT < SAFE_THRESHOLD) {
+          const paused = rows.filter(r => r.isPaused);
+          if (paused.length > 0) {
+            tips.push(`Budget at ${budget.PROJECTED_PCT}% — headroom to enable paused agents: ${paused.map(r => `<b>${r.name}</b>`).join(', ')}.`);
+          }
         }
       }
 
@@ -875,8 +958,9 @@
       window._healthData = data.health || {};
       window._tokensByAgent = (data.tokens || {}).byAgent || {};
       window._lastAgents = data.agents || [];
+      window._lastBudget = data.budget || {};
       renderAgents(data.agents || []);
-      renderGovernor(data.governor || {}, data.cadenceMatrix || []);
+      renderGovernor(data.governor || {}, data.cadenceMatrix || [], data);
       renderTokens(data.tokens || {});
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});

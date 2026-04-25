@@ -567,7 +567,7 @@
 
     function renderCadenceMatrix(matrix, currentMode, modes) {
       if (!matrix || !matrix.length) return '';
-      const agentOrder = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+      const agentOrder = ['supervisor', 'scanner', 'reviewer', 'architect', 'outreach'];
       const rows = agentOrder.map(aname => {
         const row = matrix.find(r => r.agent === aname);
         if (!row) return '';

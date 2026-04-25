@@ -38,6 +38,8 @@
     .agent-card.working { border-color: var(--yellow); }
     .agent-card.idle { border-color: var(--border); }
     .agent-card.stopped { border-color: var(--red); }
+    .agent-card.needs-login { border-color: #ef4444; }
+    .login-warning { background: rgba(239,68,68,0.15); color: #ef4444; font-size: 0.75rem; font-weight: 700; text-align: center; padding: 4px 8px; border-radius: 4px; margin-top: 6px; }
     .agent-state { text-align: right; font-size: 0.75rem; font-weight: 600; margin-top: 6px; }
     .agent-state.working { color: var(--green); }
     .agent-state.idle { color: var(--muted); }
@@ -411,7 +413,8 @@
     function renderAgents(agents) {
       const el = document.getElementById('agents');
       const cards = agents.map(a => {
-        const cls = a.state === 'stopped' ? 'stopped' : a.busy;
+        const needsLogin = a.needsLogin === true;
+        const cls = needsLogin ? 'needs-login' : (a.state === 'stopped' ? 'stopped' : a.busy);
         const dotCls = a.state === 'stopped' ? 'stopped' : 'running';
         // Use comprehensive summary instead of doing spinner
         const summary = currentSummaries[a.name] || {};
@@ -431,6 +434,7 @@
           <div class="agent-field"><span class="label">interval</span><span class="value">${a.cadence}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${a.nextKick || '—'}</span></div>
           <div class="agent-state ${a.busy}">${a.busy}</div>
+          ${needsLogin ? '<div class="login-warning">⚠ NOT LOGGED IN — run /login</div>' : ''}
           ${summaryEl}${indEl}
           ${a.name !== 'supervisor' ? `<div class="agent-actions">
             <button class="btn" onclick="kick('${a.name}')">kick</button>
@@ -443,11 +447,11 @@
             </select>
             <select class="btn backend-select" onchange="switchModel('${a.name}', this.value); this.selectedIndex=0">
               <option value="" disabled selected>model ▾</option>
-              <option value="claude-opus-4.7">Opus 4.7</option>
-              <option value="claude-opus-4.6">Opus 4.6</option>
-              <option value="claude-sonnet-4.6">Sonnet 4.6</option>
-              <option value="claude-sonnet-4.5">Sonnet 4.5</option>
-              <option value="claude-haiku-4.5">Haiku 4.5</option>
+              <option value="claude-opus-4-7">Opus 4.7</option>
+              <option value="claude-opus-4-6">Opus 4.6</option>
+              <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+              <option value="claude-sonnet-4-5">Sonnet 4.5</option>
+              <option value="claude-haiku-4-5">Haiku 4.5</option>
               <option value="gpt-5.4">GPT-5.4</option>
               <option value="gpt-5.2">GPT-5.2</option>
             </select>

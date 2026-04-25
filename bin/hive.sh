@@ -530,6 +530,11 @@ cmd_status() {
       else
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
       fi
+      # Detect login required
+      local needs_login="false"
+      if echo "$pane" | grep -qiE "Not logged in|Run /login|Please run /login"; then
+        needs_login="true"
+      fi
       # Detect busy: check recent lines for active tool spinners.
       # Copilot uses ◐ ◑ ◒ ◓ ◉ ● ◎ ○; Claude uses ⏺; ↳ = sub-task.
       # Copilot renders spinner ABOVE the ❯ prompt, so we scan the last ~10 lines
@@ -540,7 +545,9 @@ cmd_status() {
       local queued_tasks
       queued_tasks=$(echo "$pane" | grep -oP '\d+(?= background /tasks)' | tail -1 || true)
 
-      if echo "$recent_lines" | grep -qE "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel|↳ "; then
+      if [[ "$needs_login" == "true" ]]; then
+        busy_flag="${RED}⚠ NOT LOGGED IN${RST}"
+      elif echo "$recent_lines" | grep -qE "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel|↳ "; then
         # Spinner or "Esc to cancel" found in recent output — actively working
         busy_flag="${YLW}working${RST}"
         doing=$(echo "$pane_body" \
@@ -657,6 +664,11 @@ cmd_status_json() {
       # Claude Code footer may show "Claude Opus 4.6" or just "Opus 4.6"
       model=$(echo "$pane" | grep -oE 'Claude [A-Za-z]+ [0-9.]+|Opus [0-9.]+|Sonnet [0-9.]+|Haiku [0-9.]+|GPT-[0-9.]+|Gemini [^ ]+' | tail -1 || echo "")
       model=${model:-"?"}
+      # Detect login required
+      local needs_login="false"
+      if echo "$pane" | grep -qiE "Not logged in|Run /login|Please run /login"; then
+        needs_login="true"
+      fi
       # Strip prompt, separator lines, and status bar to detect actual work output
       recent_lines=$(echo "$pane" | grep -vE '^[─━═]+$|^❯|^\s*$|^ / commands|^[[:space:]]*~/' | tail -15)
       if echo "$recent_lines" | grep -qE "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel|↳ |Running .* pass|background /tasks"; then
@@ -697,7 +709,7 @@ cmd_status_json() {
     elif [[ "$cadence" == "paused" ]]; then nk="paused"
     fi
     [[ $i -gt 0 ]] && agents_json+=","
-    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\"}"
+    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"needsLogin\":$needs_login}"
   done
   agents_json+="]"
 

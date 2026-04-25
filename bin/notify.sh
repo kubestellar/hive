@@ -1,22 +1,22 @@
 #!/bin/bash
-# notify.sh — shared notification library for hive scripts.
+# notify.sh - shared notification library for hive scripts.
 #
 # Source this file, then call: notify "<title>" "<body>" [priority]
 #
 # Reads from environment (set in /etc/supervised-agent/hive.conf or governor.env):
-#   NTFY_TOPIC      — ntfy.sh topic (free push to phone/desktop)
-#   NTFY_SERVER     — ntfy server (default: https://ntfy.sh)
-#   SLACK_WEBHOOK   — Slack incoming webhook URL
-#   DISCORD_WEBHOOK — Discord webhook URL
+#   NTFY_TOPIC      - ntfy.sh topic (free push to phone/desktop)
+#   NTFY_SERVER     - ntfy server (default: https://ntfy.sh)
+#   SLACK_WEBHOOK   - Slack incoming webhook URL
+#   DISCORD_WEBHOOK - Discord webhook URL
 #
-# Priority: "default" | "high" | "low"  (maps to ntfy priority; Slack/Discord get ⚠ prefix on high)
+# Priority: "default" | "high" | "low"
 
 notify() {
   local title="${1:-}"
   local body="${2:-}"
   local priority="${3:-default}"
 
- ntfy ──────────────────────────────────────────────────────────  # 
+  # -- ntfy --
   if [[ -n "${NTFY_TOPIC:-}" ]]; then
     local server="${NTFY_SERVER:-https://ntfy.sh}"
     local pri_flag=()
@@ -28,10 +28,10 @@ notify() {
       "${server}/${NTFY_TOPIC}" >/dev/null 2>&1 || true
   fi
 
-  Slack # ── ─────────────────────────────────────────────
+  # -- Slack --
   if [[ -n "${SLACK_WEBHOOK:-}" ]]; then
     local prefix=""
-    [[ "$priority" == "high" ]] && prefix="⚠️ "
+    [[ "$priority" == "high" ]] && prefix="WARNING "
     local escaped_title escaped_body
     escaped_title=$(printf '%s' "${prefix}${title}" | sed 's/"/\\"/g')
     escaped_body=$(printf '%s' "${body}" | sed 's/"/\\"/g')
@@ -41,10 +41,10 @@ notify() {
       "${SLACK_WEBHOOK}" >/dev/null 2>&1 || true
   fi
 
-  Discord # ── ──────────────────
+  # -- Discord --
   if [[ -n "${DISCORD_WEBHOOK:-}" ]]; then
     local prefix=""
-    [[ "$priority" == "high" ]] && prefix="⚠️ "
+    [[ "$priority" == "high" ]] && prefix="WARNING "
     local escaped_title escaped_body
     escaped_title=$(printf '%s' "${prefix}${title}" | sed 's/"/\\"/g')
     escaped_body=$(printf '%s' "${body}" | sed 's/"/\\"/g')

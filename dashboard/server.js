@@ -212,6 +212,21 @@ app.get('/api/trends', (req, res) => {
   res.json(sampled);
 });
 
+// Timeline API — 24h of mode snapshots for the governor timeline strip
+const TIMELINE_24H_MS = 24 * 60 * 60 * 1000;
+app.get('/api/timeline', (_req, res) => {
+  const cutoff = Date.now() - TIMELINE_24H_MS;
+  // Combine persistent (15-min) + recent (5s) history, deduped by time
+  const combined = [...persistentHistory, ...history]
+    .filter(s => s.t >= cutoff)
+    .sort((a, b) => a.t - b.t);
+  // Downsample to ~200 ticks for the strip
+  const MAX_TICKS = 200;
+  const step = Math.max(1, Math.floor(combined.length / MAX_TICKS));
+  const sampled = combined.filter((_, i) => i % step === 0 || i === combined.length - 1);
+  res.json(sampled.map(s => ({ t: s.t, mode: s.govMode || 'unknown' })));
+});
+
 // SSE stream
 app.get('/api/events', (req, res) => {
   res.writeHead(200, {

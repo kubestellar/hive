@@ -380,6 +380,18 @@
 
       if (name === 'reviewer') {
         const h = window._healthData || {};
+        const cov = m.coverage || 0;
+        const covTarget = m.coverageTarget || 91;
+        const covCls = cov >= covTarget ? 'ind-ok' : cov >= covTarget - 10 ? 'ind-warn' : 'ind-err';
+        const covBar = `<div class="agent-indicators"><div class="ind-group"><span class="ind-group-label">COVERAGE</span><div class="ind-dots">
+          <span class="ind-dot-item"><span class="ind-num ${covCls}">${cov}%</span><span class="ind-dlabel">current</span></span>
+          <span class="ind-dot-item"><span class="ind-dlabel">goal: ${covTarget}%</span></span>
+          <span class="ind-dot-item" style="flex:1;max-width:120px">
+            <div style="background:var(--border);border-radius:3px;height:6px;width:100%;position:relative">
+              <div style="background:${cov >= covTarget ? 'var(--green)' : cov >= covTarget - 10 ? 'var(--yellow)' : 'var(--red)'};height:100%;border-radius:3px;width:${Math.min(cov / covTarget * 100, 100)}%"></div>
+            </div>
+          </span>
+        </div></div></div>`;
         const groups = [
           { label: 'Artifacts', items: [
             { key: 'brew', label: 'Brew' },
@@ -408,7 +420,7 @@
           const dotCls = v === 1 ? 'ok' : v === 0 ? 'fail' : 'unknown';
           return `<span class="ind-dot-item"><span class="health-dot ${dotCls}"></span><span class="ind-dlabel">${d.label}</span></span>`;
         };
-        return `<div class="agent-indicators">${groups.map(g =>
+        return `${covBar}<div class="agent-indicators">${groups.map(g =>
           `<div class="ind-group"><span class="ind-group-label">${g.label}</span><div class="ind-dots">${g.items.map(renderItem).join('')}</div></div>`
         ).join('')}</div>`;
       }
@@ -545,11 +557,12 @@
       const modeColors = { idle: '#238636', quiet: '#58a6ff', busy: '#d29922', surge: '#f85149' };
       const modeColor = modeColors[gov.mode] || '#8b949e';
 
-      // Timeline strip from history
-      const historyModes = historyData.map(s => s.govMode || 'unknown');
-      const ticks = historyModes.map(m => `<div class="tick tick-${m}"></div>`).join('');
-      const firstTime = historyData.length > 0 ? new Date(historyData[0].t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
-      const lastTime = historyData.length > 0 ? new Date(historyData[historyData.length-1].t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+      // Timeline strip from 24h persistent timeline data
+      const tlData = window._timelineData || [];
+      const tlModes = tlData.map(s => s.mode || 'unknown');
+      const ticks = tlModes.map(m => `<div class="tick tick-${m}"></div>`).join('');
+      const firstTime = tlData.length > 0 ? new Date(tlData[0].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}) : '';
+      const lastTime = tlData.length > 0 ? new Date(tlData[tlData.length-1].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}) : '';
 
       el.innerHTML = `
         <div class="gov-title">Governor</div>
@@ -642,7 +655,7 @@
 
     function render(data) {
       if (!data || data.error) return;
-      document.getElementById('ts').textContent = new Date(data.timestamp).toLocaleTimeString();
+      document.getElementById('ts').textContent = new Date(data.timestamp).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true});
       currentAgentMetrics = data.agentMetrics || {};
       window._healthData = data.health || {};
       renderAgents(data.agents || []);
@@ -731,9 +744,18 @@
     window._trendData = [];
     fetch('/api/trends?range=week').then(r => r.json()).then(d => { window._trendData = d; }).catch(() => {});
     // Refresh trends every 15 min
+    const TREND_REFRESH_MS = 900000;
     setInterval(() => {
       fetch('/api/trends?range=week').then(r => r.json()).then(d => { window._trendData = d; }).catch(() => {});
-    }, 900000);
+    }, TREND_REFRESH_MS);
+    // Fetch 24h timeline for governor mode strip
+    window._timelineData = [];
+    function fetchTimeline() {
+      fetch('/api/timeline').then(r => r.json()).then(d => { window._timelineData = d; }).catch(() => {});
+    }
+    fetchTimeline();
+    const TIMELINE_REFRESH_MS = 60000;
+    setInterval(fetchTimeline, TIMELINE_REFRESH_MS);
     connect();
   </script>
 </body>

@@ -17,6 +17,7 @@ These are non-negotiable. Violating any of these is a supervisor failure.
 5. **NEVER skip backend verification.** On every startup and monitoring pass, run `hive status` to confirm all agents are on their correct CLI backend (copilot on this host).
 6. **NEVER forget beads.** You read your beads at startup. Agents read theirs via the BEADS_RESTORE instructions you send. If an agent isn't reading/writing beads, that's YOUR failure — you sent an incomplete work order.
 7. **NEVER ignore agent questions.** Monitor all 4 panes. If an agent is stuck or asking a question, answer it immediately via tmux send-keys.
+8. **NEVER use 24-hour clock.** Every timestamp you output MUST be 12-hour with AM/PM. Use `TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z'`. Correct: `1:17 PM EDT`. Wrong: `13:17 EDT`. If you find yourself writing an hour > 12, stop and fix it.
 
 ## Session Bootstrap (do this automatically on every start)
 

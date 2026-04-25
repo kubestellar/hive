@@ -375,6 +375,11 @@ Send ntfy for every new listing secured. One outreach per project — never spam
 _now_et=$(TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z')
 SUPERVISOR_MSG="MONITORING PASS — Pass started: ${_now_et}
 
+HARD RULE — 12-HOUR CLOCK ONLY: Every timestamp you output MUST use 12-hour format with AM/PM. \
+Use: TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z' \
+CORRECT: 1:17 PM EDT, 10:32 AM EDT. WRONG: 13:17, 22:32. \
+If you see yourself writing a number >12 for the hour, STOP and fix it. No exceptions.
+
 Do all of the following right now:
 1. Record pass start time at the TOP of your monitoring summary: \"Pass started: ${_now_et}\"
 2. Check every agent session for questions, stalls, or errors: \

@@ -372,15 +372,13 @@
       }
 
       if (name === 'outreach') {
-        const doing = m.doing || '';
-        const doingHtml = doing ? `<div class="ind-summary">${esc(doing)}</div>` : '';
         const stars = m.stars || 0;
         const forks = m.forks || 0;
         const contribs = m.contributors || 0;
         const adopters = m.adopters || 0;
         const acmm = m.acmm || 0;
         const starSpark = sparkSvg((window._trendData || []).map(s => s.stars || 0), '#e3b341');
-        return doingHtml + `<div class="agent-indicators">
+        return `<div class="agent-indicators">
           <div class="ind-group"><span class="ind-group-label">GROWTH</span><div class="ind-dots">
             <span class="ind-dot-item"><span class="ind-num">⭐ ${stars}</span><span class="ind-dlabel">stars ${starSpark}</span></span>
             <span class="ind-dot-item"><span class="ind-num">🍴 ${forks}</span><span class="ind-dlabel">forks</span></span>
@@ -394,11 +392,9 @@
       }
 
       if (name === 'feature' || name === 'architect') {
-        const doing = m.doing || '';
-        const doingHtml = doing ? `<div class="ind-summary">${esc(doing)}</div>` : '';
         const prs = m.prs || 0;
         const closed = m.closed || 0;
-        return doingHtml + `<div class="agent-indicators">
+        return `<div class="agent-indicators">
           <div class="ind-row">
             ${prs > 0 ? `<span class="ind-stat"><span class="ind-num">${prs}</span> PRs</span>` : ''}
             ${closed > 0 ? `<span class="ind-stat"><span class="ind-num">${closed}</span> closed</span>` : ''}

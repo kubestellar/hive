@@ -372,6 +372,23 @@ Architect: <working on X | idle>
 
 Include "next kick" time (ET) for each agent when reporting after a kick or mode change.
 
+**Monitoring summary MUST include run start and finish timestamps:**
+
+Every monitoring summary table must be preceded by a start time and followed by a finish time, both in ET:
+
+```
+Pass started: 2026-04-25 10:15 ET
+
+Monitoring summary:
+| Item          | Status |
+...
+
+Pass finished: 2026-04-25 10:17 ET
+```
+
+Get timestamps with: `TZ=America/New_York date '+%Y-%m-%d %H:%M %Z'`
+Run this at the very start of the pass (before any gh/git commands) and again immediately after printing the summary table.
+
 ## Web Dashboard
 
 The hive web dashboard runs on port 3001 via systemd (`hive-dashboard.service`). It shows agent status, governor state, repo counts, and beads — all updating live via SSE.

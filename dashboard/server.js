@@ -158,6 +158,7 @@ function fetchStatus() {
               a.govBackend = m.BACKEND;
               a.govModel = m.MODEL;
               a.govCostWeight = Number(m.COST_WEIGHT || 0);
+              a.govReason = m.REASON || '';
             }
           } catch (_) {}
         }

@@ -581,7 +581,7 @@
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>
           <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
-          <div class="agent-field"><span class="label">model</span><span class="value">${a.model || ''} ${a.govBackend ? modelChip(a.govBackend, a.govModel) : ''}</span></div>
+          <div class="agent-field"><span class="label">model</span><span class="value">${a.model || ''} ${a.govBackend ? modelChip(a.govBackend, a.govModel, a.govReason) : ''}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${a.cadence}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${a.nextKick || '—'}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
@@ -725,7 +725,7 @@
           return `<td class="${colCls}${pausedCls}">${isPaused ? '—' : val}</td>`;
         }).join('');
         const agentData = agents.find(a => a.name === aname);
-        const mChip = agentData && agentData.govBackend ? modelChip(agentData.govBackend, agentData.govModel) : '';
+        const mChip = agentData && agentData.govBackend ? modelChip(agentData.govBackend, agentData.govModel, agentData.govReason) : '';
         return `<tr><td>${aname}</td>${cells}<td>${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
@@ -809,7 +809,7 @@
       </div>`;
     }
 
-    function modelChip(backend, model) {
+    function modelChip(backend, model, reason) {
       if (!backend || backend === 'unknown') return '';
       const isFree = backend === 'copilot' || backend === 'goose';
       let tier = 'sonnet';
@@ -818,7 +818,10 @@
       else if (model && model.includes('opus')) tier = 'opus';
       const shortModel = model ? model.replace(/^claude-/, '').replace(/-\d+-\d+$/, m => m.replace(/-/g, '.').slice(0, 4)) : '?';
       const label = isFree ? `${backend}` : shortModel;
-      return `<span class="model-chip ${tier}" title="${backend}:${model}">${label}</span>`;
+      const isBudgetOverride = reason && (reason.includes('budget_downgrade') || reason.includes('budget_critical'));
+      const overrideIcon = isBudgetOverride ? ' ⬇' : '';
+      const overrideTitle = isBudgetOverride ? ` (${reason})` : '';
+      return `<span class="model-chip ${tier}" title="${backend}:${model}${overrideTitle}">${label}${overrideIcon}</span>`;
     }
 
     function buildCadenceAdvisor(byAgent) {

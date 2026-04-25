@@ -441,8 +441,10 @@ optimize_model_assignment() {
   projected_pct=$(compute_budget_state)
 
   declare -A assignments
+  declare -A override_reasons
   for agent in "${agents[@]}"; do
     assignments[$agent]=$(get_model_selection "$agent" "$mode")
+    override_reasons[$agent]=""
   done
 
   if (( projected_pct > TOKEN_BUDGET_SAFETY_PCT )); then
@@ -456,6 +458,7 @@ optimize_model_assignment() {
         local copilot_model
         copilot_model=$(convert_model_notation "$model" "copilot")
         assignments[$agent]="copilot:${copilot_model}"
+        override_reasons[$agent]="budget_downgrade"
         log "  budget override: $agent -> copilot (was $backend)"
       fi
     done
@@ -469,11 +472,13 @@ optimize_model_assignment() {
           *opus*)
             local new_model="${model/opus/sonnet}"
             assignments[$agent]="${backend}:${new_model}"
+            override_reasons[$agent]="budget_downgrade"
             log "  budget override: $agent opus->sonnet"
             ;;
           *sonnet*)
             local new_model="${model/sonnet/haiku}"
             assignments[$agent]="${backend}:${new_model}"
+            override_reasons[$agent]="budget_downgrade"
             log "  budget override: $agent sonnet->haiku"
             ;;
         esac
@@ -487,6 +492,7 @@ optimize_model_assignment() {
         local copilot_model
         copilot_model=$(convert_model_notation "$model" "copilot")
         assignments[$agent]="copilot:${copilot_model}"
+        override_reasons[$agent]="budget_critical"
       done
       log "  BUDGET CRITICAL: all agents -> copilot"
     fi
@@ -522,7 +528,7 @@ optimize_model_assignment() {
 BACKEND=$backend
 MODEL=$model
 COST_WEIGHT=$cost_weight
-REASON=${mode}_mode
+REASON=${override_reasons[$agent]:-${mode}_mode}
 PREV_BACKEND=${prev_backend:-}
 PREV_MODEL=${prev_model:-}
 UPDATED=$(date -Iseconds)

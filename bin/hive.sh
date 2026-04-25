@@ -720,12 +720,13 @@ cmd_status_json() {
     elif [[ "$cadence" == "paused" ]]; then nk="paused"
     fi
     # Governor-assigned model
-    local gov_backend gov_model gov_cost
+    local gov_backend gov_model gov_cost gov_reason
     gov_backend=$(grep '^BACKEND=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "")
     gov_model=$(grep '^MODEL=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "")
     gov_cost=$(grep '^COST_WEIGHT=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "0")
+    gov_reason=$(grep '^REASON=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "")
     [[ $i -gt 0 ]] && agents_json+=","
-    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"needsLogin\":$needs_login,\"govBackend\":\"$gov_backend\",\"govModel\":\"$gov_model\",\"govCostWeight\":$gov_cost}"
+    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"needsLogin\":$needs_login,\"govBackend\":\"$gov_backend\",\"govModel\":\"$gov_model\",\"govCostWeight\":$gov_cost,\"govReason\":\"$gov_reason\"}"
   done
   agents_json+="]"
 

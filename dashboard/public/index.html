@@ -366,21 +366,26 @@
       }
 
       if (name === 'outreach') {
-        const ga4 = m.ga4Errors || 0;
-        const pending = m.adopterPending || 0;
-        const total = m.adoptersTotal || 0;
         const summary = (m.summary || '').trim();
-        const ga4Cls = ga4 === 0 ? 'ind-ok' : ga4 <= 3 ? 'ind-warn' : 'ind-err';
-        // Trend sparklines from persistent history
-        const ga4Spark = sparkSvg((window._trendData || []).map(s => s.ga4Errors || 0), '#f85149');
-        const adopterSpark = sparkSvg((window._trendData || []).map(s => s.adopters || 0), '#3fb950');
+        const stars = m.stars || 0;
+        const forks = m.forks || 0;
+        const contribs = m.contributors || 0;
+        const adopters = m.adopters || 0;
+        const mktplace = m.marketplace || 0;
+        const brew = m.brewFormulas || 0;
+        const starSpark = sparkSvg((window._trendData || []).map(s => s.stars || 0), '#e3b341');
         return `<div class="agent-indicators">
           ${summary && summary !== 'no summary yet' ? `<div class="ind-summary">${esc(summary)}</div>` : ''}
-          <div class="ind-row">
-            <span class="ind-stat ${ga4Cls}"><span class="ind-num">${ga4}</span> GA4 errors ${ga4Spark}</span>
-            <span class="ind-stat"><span class="ind-num">${total}</span> adopters ${adopterSpark}</span>
-            <span class="ind-stat"><span class="ind-num">${pending}</span> PRs pending</span>
-          </div>
+          <div class="ind-group"><span class="ind-group-label">GROWTH</span><div class="ind-dots">
+            <span class="ind-dot-item"><span class="ind-num">⭐ ${stars}</span><span class="ind-dlabel">stars ${starSpark}</span></span>
+            <span class="ind-dot-item"><span class="ind-num">🍴 ${forks}</span><span class="ind-dlabel">forks</span></span>
+            <span class="ind-dot-item"><span class="ind-num">👥 ${contribs}</span><span class="ind-dlabel">contributors</span></span>
+          </div></div>
+          <div class="ind-group"><span class="ind-group-label">ADOPTION</span><div class="ind-dots">
+            <span class="ind-dot-item"><span class="ind-num">${adopters}</span><span class="ind-dlabel">adopters</span></span>
+            <span class="ind-dot-item"><span class="ind-num">${mktplace}</span><span class="ind-dlabel">marketplace</span></span>
+            <span class="ind-dot-item"><span class="ind-num">${brew}</span><span class="ind-dlabel">brew formulas</span></span>
+          </div></div>
         </div>`;
       }
 

@@ -18,25 +18,25 @@ fi
 
 # ── Reviewer: health checks come from health-check.sh separately ──
 
-# ── Outreach: GA4 errors, adopter PRs, adoption stats ──
-# REST API for issues with ga4-error label
-ga4_errors=$(gh api "repos/kubestellar/console/issues?state=open&labels=ga4-error&per_page=1" \
-  --jq 'length' 2>/dev/null || echo 0)
-ga4_errors=${ga4_errors:-0}
-# REST API for outreach/adopter PRs
-adopter_prs=$(gh api "repos/kubestellar/console/pulls?state=open&per_page=100" \
-  --jq '[.[] | select(.head.ref | test("outreach|adopter")) | .number]' 2>/dev/null || echo "[]")
-adopter_prs=${adopter_prs:-"[]"}
-adopter_count=$(echo "$adopter_prs" | jq 'length' 2>/dev/null || echo 0)
+# ── Outreach: growth, adoption, reach metrics ──
+# Growth stats (REST API)
+stars=$(gh api repos/kubestellar/console --jq '.stargazers_count' 2>/dev/null || echo 0)
+forks=$(gh api repos/kubestellar/console --jq '.forks_count' 2>/dev/null || echo 0)
+contributors=$(gh api repos/kubestellar/console/contributors?per_page=1 -i 2>/dev/null | grep -oP 'page=\K\d+(?=>; rel="last")' || echo 0)
+[ "$contributors" = "0" ] && contributors=$(gh api repos/kubestellar/console/contributors --jq 'length' 2>/dev/null || echo 0)
+
+# Adoption stats
+adopters_total=$(gh api repos/kubestellar/console/contents/ADOPTERS.MD \
+  --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0)
+adopters_total=$(( adopters_total > 2 ? adopters_total - 2 : 0 ))
+marketplace=$(gh api repos/kubestellar/console-marketplace/contents/registry.json \
+  --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | jq 'length' 2>/dev/null || echo 0)
+brew_formulas=$(gh api repos/kubestellar/homebrew-tap/contents/Formula --jq 'length' 2>/dev/null || echo 0)
+
 # Read agent-authored summary
 outreach_summary=$(cat /var/run/hive-metrics/outreach_summary.txt 2>/dev/null || echo "")
 outreach_summary=${outreach_summary:-"no summary yet"}
 outreach_summary_json=$(echo "$outreach_summary" | head -1 | head -c 120 | jq -Rs '.')
-# Count current adopters in ADOPTERS.MD (merged lines)
-adopters_total=$(gh api repos/kubestellar/console/contents/ADOPTERS.MD \
-  --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0)
-# Subtract header rows (2)
-adopters_total=$(( adopters_total > 2 ? adopters_total - 2 : 0 ))
 
 # ── Architect: exec summary from status file + PR/proposal counts ──
 architect_lines=$(tmux capture-pane -t feature -p -S -500 2>/dev/null)
@@ -53,7 +53,7 @@ cat <<EOF
 {
   "scanner": {"pairs": $scanner_json},
   "reviewer": {},
-  "outreach": {"ga4Errors": $ga4_errors, "adopterPrs": $adopter_prs, "adopterPending": $adopter_count, "adoptersTotal": $adopters_total, "summary": $outreach_summary_json},
+  "outreach": {"stars": ${stars:-0}, "forks": ${forks:-0}, "contributors": ${contributors:-0}, "adopters": $adopters_total, "marketplace": ${marketplace:-0}, "brewFormulas": ${brew_formulas:-0}, "summary": $outreach_summary_json},
   "architect": {"prs": $architect_prs, "closed": $architect_closed, "summary": $architect_summary_json}
 }
 EOF

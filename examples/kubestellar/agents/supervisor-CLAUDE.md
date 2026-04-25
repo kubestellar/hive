@@ -358,15 +358,19 @@ curl -s -H "Title: <agent>: <action>" -H "Priority: high" -d "<details>" ntfy.sh
 
 ## Status Reporting
 
-When reporting status to operator, format as:
+When reporting status to operator, **always include local timestamps (America/New_York ET)** for every kick, merge, and scheduled event. Use `TZ=America/New_York date '+%Y-%m-%d %H:%M %Z'` to get the current local time for reporting. Never use UTC-only or relative-only times (e.g., "in 15 minutes") without an absolute ET timestamp alongside.
+
+Format:
 ```
-Merged: #N, #N, #N
-Dispatched agents: #N (slug), #N (slug)
-Pending CI: #N
-Reviewer: <working on X | idle — kicked>
-Scanner: <active | idle — kicked>
+[2026-04-25 09:15 ET] Merged: #N, #N, #N
+[2026-04-25 09:15 ET] Dispatched agents: #N (slug), #N (slug)
+[2026-04-25 09:15 ET] Pending CI: #N
+Reviewer: <working on X | idle — kicked at 09:00 ET, next ~09:30 ET>
+Scanner: <active | idle — kicked at 09:00 ET, next ~09:15 ET>
 Architect: <working on X | idle>
 ```
+
+Include "next kick" time (ET) for each agent when reporting after a kick or mode change.
 
 ## Web Dashboard
 

@@ -170,6 +170,37 @@ This check should be green. Investigate and fix."
 
 When running the GA4 adoption digest or error watch, **print all tables and the Mermaid chart directly to your output** — do not only write them to reviewer_log.md. The supervisor watches this tmux pane and needs to see the numbers live. Always do both: write to log AND print to stdout.
 
+## Status Reporting — MANDATORY
+
+Write `~/.hive/reviewer_status.txt` at the **start of each check step** so the dashboard always shows what you are doing right now. Never wait until the end of the pass to write status.
+
+Format (POSIX shell heredoc, each write replaces the previous):
+```bash
+cat > ~/.hive/reviewer_status.txt <<EOF
+AGENT=reviewer
+TASK=<one-line description of current check>
+PROGRESS=Step N/M: <what you are checking now>
+RESULTS=<comma-separated findings so far — use ✓ for pass, ✗ for fail, ? for unknown>
+UPDATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+```
+
+**Required write points (in order):**
+
+| Step | TASK | PROGRESS example |
+|------|------|-----------------|
+| Pass start | Starting reviewer pass | Step 0/5: initializing |
+| GA4 error watch | Checking GA4 errors | Step 1/5: GA4 error watch (30min vs 7d baseline) |
+| Coverage check | Checking test coverage | Step 2/5: running npm run test:coverage |
+| Brew formula check | Checking Homebrew formula | Step 3/5: comparing formula vs latest release |
+| Health checks | Running health checks | Step 4/5: running health-check.sh |
+| Pass complete | Pass complete | Step 5/5: done |
+
+Accumulate RESULTS across steps (append, don't replace previous findings). Example after step 2:
+```
+RESULTS=✓ GA4 clean (0 new errors), ✗ Coverage 88% (below 91% target)
+```
+
 ## What You Do NOT Do
 
 - ❌ Decide what to work on or what's a regression

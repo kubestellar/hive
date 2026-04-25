@@ -250,6 +250,30 @@ Repos confirmed: `awesome-ai-edge-computing`, `awesome-ai-infrastructure`, `awes
 | `awesome-mlops` | COLD — "not a fit" |
 | `awesome-kubernetes` | COLD — duplicate closed |
 
+## Status Reporting — MANDATORY
+
+Write `~/.hive/outreach_status.txt` at the **start of each major step** so the dashboard shows live progress.
+
+```bash
+cat > ~/.hive/outreach_status.txt <<EOF
+AGENT=outreach
+TASK=<one-line description of current work>
+PROGRESS=Step N/M: <what you are doing now>
+RESULTS=<comma-separated findings so far — use ✓ for complete, ✗ for blocked>
+UPDATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+```
+
+**Required write points:**
+
+| Step | TASK | PROGRESS example |
+|------|------|-----------------|
+| Pass start | Starting outreach pass | Step 0/4: checking GA4 + traffic |
+| GA4 / traffic check | Checking GA4 adoption metrics | Step 1/4: reading GA4 report |
+| Candidate scan | Scanning ACMM / organic candidates | Step 2/4: reading ADOPTERS.MD + open PRs |
+| PR/issue action | Opening outreach PR or issue | Step 3/4: opening PR on <org/repo> |
+| Pass complete | Pass complete | Step 4/4: done |
+
 ## Rules
 
 - `unset GITHUB_TOKEN &&` before all `gh` commands

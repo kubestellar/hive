@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🐝 Hive Dashboard</title>
+  <title>🐝 KubeStellar Hive Dashboard</title>
   <style>
     :root {
       --bg: #0d1117; --surface: #161b22; --border: #30363d;
@@ -18,7 +18,7 @@
       padding: 24px; min-height: 100vh;
     }
     h1 { font-size: 1.4rem; margin-bottom: 20px; display: flex; align-items: center; }
-    h1 span.bee { font-size: 1.6rem; }
+    h1 span.bee { font-size: 1.6rem; margin-right: 8px; }
     .timestamp { color: var(--muted); font-size: 0.8rem; margin-left: 12px; }
     .header-spacer { flex: 1; }
     .widget-dl {
@@ -58,6 +58,9 @@
     .value.copilot { color: var(--cyan); }
     .value.claude { color: var(--purple); }
     .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; word-break: break-word; white-space: pre-line; line-height: 1.5; min-height: 3.4em; }
+    .summary-age { display: inline-block; font-size: 0.6rem; font-style: normal; border-radius: 3px; padding: 1px 5px; margin-right: 5px; vertical-align: middle; white-space: nowrap; }
+    .summary-age.age-recent { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.3); }
+    .summary-age.age-stale  { background: rgba(248,81,73,0.15);  color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
     /* Agent metric gauges — removed, replaced by health panel */
     .agent-actions { margin-top: 10px; display: flex; gap: 6px; }
 
@@ -190,6 +193,27 @@
     .tl-busy { color: #d29922; }
     .tl-surge { color: #f85149; }
 
+    /* Governor cadence matrix table */
+    .gov-matrix { margin-top: 14px; width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    .gov-matrix th { color: var(--muted); font-weight: 600; padding: 3px 8px; text-align: center; border-bottom: 1px solid var(--border); }
+    .gov-matrix th.mode-active { border-radius: 4px 4px 0 0; padding: 4px 10px; font-weight: 700; }
+    .gov-matrix th.mode-idle  { color: #238636; }
+    .gov-matrix th.mode-quiet { color: #1f6feb; }
+    .gov-matrix th.mode-busy  { color: #d29922; }
+    .gov-matrix th.mode-surge { color: #f85149; }
+    .gov-matrix th.mode-active.mode-idle  { background: rgba(35,134,54,0.15); }
+    .gov-matrix th.mode-active.mode-quiet { background: rgba(31,111,235,0.15); }
+    .gov-matrix th.mode-active.mode-busy  { background: rgba(210,153,34,0.15); }
+    .gov-matrix th.mode-active.mode-surge { background: rgba(248,81,73,0.15); }
+    .gov-matrix td { padding: 3px 8px; text-align: center; color: var(--muted); border-bottom: 1px solid rgba(48,54,61,0.5); }
+    .gov-matrix td:first-child { text-align: left; color: var(--text); font-weight: 600; min-width: 72px; }
+    .gov-matrix td.col-active { font-weight: 700; color: var(--text); }
+    .gov-matrix td.col-active.mode-idle  { background: rgba(35,134,54,0.08); color: #3fb950; }
+    .gov-matrix td.col-active.mode-quiet { background: rgba(31,111,235,0.08); color: #58a6ff; }
+    .gov-matrix td.col-active.mode-busy  { background: rgba(210,153,34,0.08); color: #d29922; }
+    .gov-matrix td.col-active.mode-surge { background: rgba(248,81,73,0.08); color: #f85149; }
+    .gov-matrix td.paused { color: #484f58; font-style: italic; }
+
     /* Timeline strip */
     .gov-timeline { margin-top: 10px; }
     .gov-timeline-label { display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--muted); margin-bottom: 2px; }
@@ -250,7 +274,7 @@
     <span class="dot-live">●</span> live
   </div>
 
-  <h1><span class="bee">🐝</span> Hive Dashboard <span class="timestamp" id="ts"></span>
+  <h1><span class="bee">🐝</span> KubeStellar Hive Dashboard <span class="timestamp" id="ts"></span>
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
 
@@ -408,7 +432,20 @@
         const cls = needsLogin ? 'needs-login' : (a.state === 'stopped' ? 'stopped' : a.busy);
         const dotCls = a.state === 'stopped' ? 'stopped' : 'running';
         // liveSummary is pushed via SSE every 5s — no separate fetch needed
-        const summaryEl = a.liveSummary ? `<div class="doing">${esc(a.liveSummary)}</div>` : '';
+        let summaryEl = '';
+        if (a.liveSummary) {
+          let ageBadge = '';
+          if (!a.doing && a.summaryUpdated) {
+            const ageMs = Date.now() - new Date(a.summaryUpdated).getTime();
+            const ageMin = Math.floor(ageMs / 60000);
+            if (ageMin >= 5) {
+              const ageStr = ageMin >= 60 ? `${Math.floor(ageMin/60)}h ${ageMin%60}m ago` : `${ageMin}m ago`;
+              const ageCls = ageMin >= 120 ? 'age-stale' : 'age-recent';
+              ageBadge = `<span class="summary-age ${ageCls}">${ageStr}</span>`;
+            }
+          }
+          summaryEl = `<div class="doing">${ageBadge}${esc(a.liveSummary)}</div>`;
+        }
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>
@@ -468,7 +505,7 @@
       }).join('');
     }
 
-    function renderGovernor(gov) {
+    function renderGovernor(gov, cadenceMatrix) {
       const el = document.getElementById('governor');
       const cls = gov.active ? 'active' : 'dead';
       el.className = `governor ${cls}`;
@@ -476,6 +513,8 @@
       const prsSpark = sparkSvg(getHistorySeries('govPrs'), '#bc8cff');
       const totalSpark = sparkSvg(getHistorySeries('govTotal'), '#3fb950');
       const total = (gov.issues || 0) + (gov.prs || 0);
+      const currentMode = gov.mode || 'idle';
+      const modes = ['idle', 'quiet', 'busy', 'surge'];
 
       // Gauge bar — thresholds: idle≤2, quiet≤10, busy≤20, surge>20
       const maxQ = 30;
@@ -484,8 +523,8 @@
       const modeColor = modeColors[gov.mode] || '#8b949e';
 
       // Timeline strip from history
-      const modes = historyData.map(s => s.govMode || 'unknown');
-      const ticks = modes.map(m => `<div class="tick tick-${m}"></div>`).join('');
+      const historyModes = historyData.map(s => s.govMode || 'unknown');
+      const ticks = historyModes.map(m => `<div class="tick tick-${m}"></div>`).join('');
       const firstTime = historyData.length > 0 ? new Date(historyData[0].t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
       const lastTime = historyData.length > 0 ? new Date(historyData[historyData.length-1].t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
 
@@ -522,7 +561,35 @@
             <span class="tl-busy">busy</span>
             <span class="tl-surge">surge</span>
           </div>
-        </div>`;
+        </div>
+        ${renderCadenceMatrix(cadenceMatrix, currentMode, modes)}`;
+    }
+
+    function renderCadenceMatrix(matrix, currentMode, modes) {
+      if (!matrix || !matrix.length) return '';
+      const agentOrder = ['supervisor', 'scanner', 'reviewer', 'architect', 'outreach'];
+      const rows = agentOrder.map(aname => {
+        const row = matrix.find(r => r.agent === aname);
+        if (!row) return '';
+        const cells = modes.map(m => {
+          const val = row[m] || '?';
+          const isActive = m === currentMode;
+          const isPaused = val === 'paused';
+          const colCls = isActive ? `col-active mode-${m}` : '';
+          const pausedCls = isPaused ? ' paused' : '';
+          return `<td class="${colCls}${pausedCls}">${isPaused ? '—' : val}</td>`;
+        }).join('');
+        return `<tr><td>${aname}</td>${cells}</tr>`;
+      }).join('');
+      const headers = modes.map(m => {
+        const isActive = m === currentMode;
+        const cls = `mode-${m}${isActive ? ' mode-active' : ''}`;
+        return `<th class="${cls}">${m}${isActive ? ' ◀' : ''}</th>`;
+      }).join('');
+      return `<table class="gov-matrix">
+        <thead><tr><th></th>${headers}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
     }
 
     function renderRepos(repos) {
@@ -556,7 +623,7 @@
       currentAgentMetrics = data.agentMetrics || {};
       window._healthData = data.health || {};
       renderAgents(data.agents || []);
-      renderGovernor(data.governor || {});
+      renderGovernor(data.governor || {}, data.cadenceMatrix || []);
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
       // summaries are merged into a.liveSummary server-side and pushed via SSE — no extra fetch

@@ -366,8 +366,15 @@
     let historyData = [];
     const SPARK_W = 80, SPARK_H = 20;
 
-    function sparkSvg(values, color) {
-      if (!values || values.length < 2) return '';
+    function sparkSvg(rawValues, color) {
+      if (!rawValues || rawValues.length < 2) return '';
+      // Fill zero gaps: if a value is 0 but neighbors are non-zero, carry forward
+      const values = [...rawValues];
+      for (let i = 1; i < values.length; i++) {
+        if (values[i] === 0 && values[i - 1] > 0) {
+          values[i] = values[i - 1];
+        }
+      }
       const min = Math.min(...values);
       const max = Math.max(...values);
       const range = max - min || 1;

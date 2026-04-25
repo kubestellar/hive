@@ -654,7 +654,8 @@ cmd_status_json() {
       fi
       local recent_lines
       # Extract model from anywhere in pane
-      model=$(echo "$pane" | grep -o 'Claude [^ ]* [0-9.]*\|GPT-[0-9.]*\|Gemini [^ ]*' | tail -1 || echo "")
+      # Claude Code footer may show "Claude Opus 4.6" or just "Opus 4.6"
+      model=$(echo "$pane" | grep -oE 'Claude [A-Za-z]+ [0-9.]+|Opus [0-9.]+|Sonnet [0-9.]+|Haiku [0-9.]+|GPT-[0-9.]+|Gemini [^ ]+' | tail -1 || echo "")
       model=${model:-"?"}
       # Strip prompt, separator lines, and status bar to detect actual work output
       recent_lines=$(echo "$pane" | grep -vE '^[─━═]+$|^❯|^\s*$|^ / commands|^[[:space:]]*~/' | tail -15)

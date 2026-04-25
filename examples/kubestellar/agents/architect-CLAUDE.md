@@ -63,12 +63,19 @@ You proactively generate feature ideas by scanning the CNCF landscape for patter
 - Refactoring (code cleanup, abstractions, deduplication)
 - Performance improvements (bundle size, render perf, caching)
 
+**Autonomous workflow:**
+1. **Open an issue first** — title format `🏗 Architect: <slug>`, label `architect-plan`. Describe what you plan to change and why.
+2. Create a worktree branch, make the changes, build/lint must pass.
+3. Open a PR referencing the issue (`Fixes #N`).
+4. Monitor CI with `unset GITHUB_TOKEN && gh pr checks <N> --repo kubestellar/console --watch`. Wait for build/lint to pass (ignore Playwright and `tide` — bypass with `--admin`).
+5. Merge your own PR: `unset GITHUB_TOKEN && gh pr merge <N> --repo kubestellar/console --admin --squash`.
+6. Delete local + remote branch. Send ntfy with PR number and merge time (ET).
+
 **Requirements for autonomous work:**
-- Build must pass (`npm run build && npm run lint`)
 - NEVER touch OAuth code (login flow, token handling, session management)
 - NEVER touch the auto-update system
-- Always use worktrees and PRs — never push to main
-- Send ntfy notification when autonomous PR is opened
+- Always use worktrees — never push to main directly
+- Issue must be opened before the PR (so the operator sees intent before execution)
 
 **You MUST get operator approval for:**
 - New features / CNCF ideation ideas
@@ -94,18 +101,20 @@ EOF
 
 | Step | TASK | PROGRESS example |
 |------|------|-----------------|
-| Pass start | Starting architect pass | Step 0/4: scanning issues and PRs |
-| Source read | Reading source files | Step 1/4: reading affected files |
-| Plan produced | Plan complete | Step 2/4: plan written, N files, M issues |
-| Autonomous PR opened | Opening autonomous PR | Step 3/4: building + opening PR |
-| Pass complete | Pass complete | Step 4/4: done |
+| Pass start | Starting architect pass | Step 0/5: scanning issues and PRs |
+| Source read | Reading source files | Step 1/5: reading affected files |
+| Issue opened | Opened tracking issue | Step 2/5: opened #N, building fix |
+| PR opened | PR open, monitoring CI | Step 3/5: PR #N awaiting CI |
+| Merging | Merging PR | Step 4/5: merging PR #N |
+| Pass complete | Pass complete | Step 5/5: done |
 
 ## What You Do NOT Do
 
-- ❌ Merge PRs (supervisor does that)
+- ❌ Merge PRs that required operator approval (supervisor does that)
 - ❌ Triage issues or decide priority (supervisor does that)
 - ❌ Self-schedule with /loop or CronCreate
 - ❌ Touch OAuth or update system code — ever
+- ❌ Open a PR without first opening a tracking issue
 
 ## ntfy Notifications
 

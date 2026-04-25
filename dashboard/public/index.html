@@ -413,18 +413,29 @@
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name}</div>
           <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
-          <div class="agent-field"><span class="label">cadence</span><span class="value">${a.cadence}</span></div>
-          <div class="agent-field"><span class="label">next kick</span><span class="value">${a.nextKick || '—'}</span></div>
+          <div class="agent-field"><span class="label">model</span><span class="value">${a.model || ''}</span></div>
+          <div class="agent-field"><span class="label">interval</span><span class="value">${a.cadence}</span></div>
+          <div class="agent-field"><span class="label">next run</span><span class="value">${a.nextKick || '—'}</span></div>
           <div class="agent-state ${a.busy}">${a.busy}</div>
           ${doingEl}${indEl}
           ${a.name !== 'supervisor' ? `<div class="agent-actions">
             <button class="btn" onclick="kick('${a.name}')">kick</button>
             <select class="btn backend-select" onchange="switchCli('${a.name}', this.value); this.selectedIndex=0">
-              <option value="" disabled selected>switch ▾</option>
+              <option value="" disabled selected>cli ▾</option>
               <option value="copilot" ${a.cli === 'copilot' ? 'disabled' : ''}>copilot</option>
               <option value="claude" ${a.cli === 'claude' ? 'disabled' : ''}>claude</option>
               <option value="gemini" ${a.cli === 'gemini' ? 'disabled' : ''}>gemini</option>
               <option value="goose" ${a.cli === 'goose' ? 'disabled' : ''}>goose</option>
+            </select>
+            <select class="btn backend-select" onchange="switchModel('${a.name}', this.value); this.selectedIndex=0">
+              <option value="" disabled selected>model ▾</option>
+              <option value="claude-opus-4.7">Opus 4.7</option>
+              <option value="claude-opus-4.6">Opus 4.6</option>
+              <option value="claude-sonnet-4.6">Sonnet 4.6</option>
+              <option value="claude-sonnet-4.5">Sonnet 4.5</option>
+              <option value="claude-haiku-4.5">Haiku 4.5</option>
+              <option value="gpt-5.4">GPT-5.4</option>
+              <option value="gpt-5.2">GPT-5.2</option>
             </select>
           </div>` : ''}
         </div>`;
@@ -568,6 +579,14 @@
       const res = await fetch(`/api/switch/${agent}/${backend}`, { method: 'POST' });
       const data = await res.json();
       if (!data.ok) alert('Switch failed: ' + (data.error || 'unknown'));
+    }
+
+    async function switchModel(agent, model) {
+      if (!model) return;
+      if (!confirm(`Switch ${agent} model to ${model}?`)) return;
+      const res = await fetch(`/api/model/${agent}/${encodeURIComponent(model)}`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) alert('Model switch failed: ' + (data.error || 'unknown'));
     }
 
     // SSE connection

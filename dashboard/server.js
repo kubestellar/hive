@@ -228,6 +228,18 @@ app.post('/api/switch/:agent/:backend', (req, res) => {
   });
 });
 
+app.post('/api/model/:agent/:model', (req, res) => {
+  const { agent, model } = req.params;
+  const allowedAgents = ['scanner', 'reviewer', 'architect', 'outreach'];
+  if (!allowedAgents.includes(agent)) {
+    return res.status(400).json({ error: `invalid agent: ${agent}` });
+  }
+  execFile('hive', ['model', agent, decodeURIComponent(model)], { timeout: 30000 }, (err, stdout) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ ok: true, output: stdout.trim() });
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`🐝 Hive Dashboard running at http://localhost:${PORT}`);
 });

@@ -309,7 +309,10 @@ ALL bd commands must be run from $BEADS_DIR — never from a different directory
 # Beads end-of-pass sync: persist state to remote so next restart restores cleanly.
 BEADS_SYNC="At the END of this pass: update beads for everything you worked on \
 (cd $BEADS_DIR && bd close <id> --reason '...' for completed, bd update <id> --status blocked --description '...' for blockers). \
-Then run: cd $BEADS_DIR && bd dolt push."
+Then run: cd $BEADS_DIR && bd dolt push. \
+EXEC SUMMARY — write a ONE-LINE status (max 140 chars) summarizing what you did this pass to /var/run/hive-metrics/\${AGENT_NAME}_summary.txt. \
+Example: echo 'Fixed 3 issues, opened 2 PRs, merged 1. Nightly tests still red.' > /var/run/hive-metrics/\${AGENT_NAME}_summary.txt \
+Use your agent name: scanner, reviewer, architect, or outreach. This line appears on the hive dashboard."
 
 SCANNER_MSG="$PULL_INSTRUCTIONS \
 $BEADS_RESTORE \

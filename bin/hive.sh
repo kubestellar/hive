@@ -653,10 +653,11 @@ cmd_status_json() {
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
       fi
       local recent_lines
-      recent_lines=$(echo "$pane" | tail -10)
-      if echo "$recent_lines" | grep -qE "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel|↳ "; then
+      # Strip prompt, separator lines, and status bar to detect actual work output
+      recent_lines=$(echo "$pane" | grep -vE '^[─━═]+$|^❯|^\s*$|^ / commands|^[[:space:]]*~/' | tail -15)
+      if echo "$recent_lines" | grep -qE "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel|↳ |Running .* pass|background /tasks"; then
         busy="working"
-        doing=$(echo "$pane" | tail -30 \
+        doing=$(echo "$recent_lines" \
           | grep -E "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel" \
           | tail -3 \
           | sed 's/^[◐◑◒◓◉●◎○⏺] //' \

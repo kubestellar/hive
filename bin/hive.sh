@@ -659,9 +659,9 @@ cmd_status_json() {
   local agents_json="["
   for i in "${!SESSIONS[@]}"; do
     local s="${SESSIONS[$i]}" label="${LABELS[$i]}"
-    local cli cadence state busy doing model
+    local cli cadence state busy doing model needs_login
     cadence=$(cat "${GOV_STATE}/cadence_${label}" 2>/dev/null || echo "?")
-    state="stopped"; cli="?"; busy="idle"; doing=""; model="?"
+    state="stopped"; cli="?"; busy="idle"; doing=""; model="?"; needs_login="false"
 
     if tmux has-session -t "$s" 2>/dev/null; then
       state="running"
@@ -682,7 +682,6 @@ cmd_status_json() {
       model=${model:-"?"}
       # Detect login required — only check footer (last 5 lines) to avoid
       # false positives from pane content mentioning "not logged in"
-      local needs_login="false"
       if echo "$pane_tail" | grep -qE "Not logged in|Run /login|Please run /login"; then
         needs_login="true"
       fi

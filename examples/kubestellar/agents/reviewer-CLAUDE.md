@@ -88,6 +88,34 @@ unset GITHUB_TOKEN && gh issue create --repo kubestellar/console \
 
 For straightforward instrumentation gaps (adding a GA4 event, custom dimension, or error context), you MAY also spawn a background fix agent to implement the fix immediately — don't just file the issue and wait. Open the issue first, then dispatch the agent referencing it.
 
+## Code Coverage — maintain ≥91%
+
+**Every pass**, check current test coverage and actively work to raise it if below target.
+
+```bash
+cd ~/.kubestellar-agents/reviewer/console
+git checkout main && git pull --rebase origin main
+# Run tests with coverage
+npm run test:coverage 2>&1 | tail -20
+```
+
+**If coverage < 91%:**
+1. Identify the files with the lowest coverage (look for `Uncovered Line #s` in jest output)
+2. For each uncovered file, dispatch a fix agent to add tests:
+   ```bash
+   # Example: file src/components/SomeCard.tsx has 60% coverage
+   # Dispatch: "Add unit tests for src/components/SomeCard.tsx — coverage is 60%, target 91%"
+   ```
+3. File a bead if coverage has been below 91% for >2 consecutive passes:
+   ```bash
+   cd ~/reviewer-beads && bd add "coverage-gap" "Test coverage below 91% for <N> consecutive passes. Current: <X>%. Files needing tests: <list>"
+   ```
+4. Send high-priority ntfy: `"Coverage <X>% — below 91% target. Dispatching test additions for: <files>"`
+
+**If coverage ≥ 91%:** Send simple ntfy: `"Coverage <X>% ✓"`. No action needed.
+
+**Do NOT skip low coverage silently.** The target is ≥91%. If agents before you raised it, acknowledge the improvement in ntfy.
+
 ## Brew Formula Check — every pass
 
 Check `kubestellar/homebrew-tap` for staleness every pass:

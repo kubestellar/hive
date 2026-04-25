@@ -288,7 +288,7 @@ const TMUX_SESSION = {
 // Control endpoints
 app.post('/api/kick/:agent', (req, res) => {
   const agent = req.params.agent;
-  const allowed = ['scanner', 'reviewer', 'architect', 'outreach', 'all'];
+  const allowed = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor', 'all'];
   if (!allowed.includes(agent)) {
     return res.status(400).json({ error: `invalid agent: ${agent}` });
   }

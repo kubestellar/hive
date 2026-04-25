@@ -36,7 +36,16 @@ if not os.path.isdir(projects_dir):
 sessions = []
 by_model = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, "cacheCreate": 0, "messages": 0})
 by_cli = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, "cacheCreate": 0, "messages": 0, "sessions": 0})
+by_agent = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, "cacheCreate": 0, "messages": 0, "sessions": 0})
 totals = {"input": 0, "output": 0, "cacheRead": 0, "cacheCreate": 0, "messages": 0, "sessions": 0}
+
+AGENT_KEYWORDS = {
+    "scanner": ["scanner", "scanner-beads"],
+    "reviewer": ["reviewer", "reviewer-beads"],
+    "architect": ["architect", "feature-beads"],
+    "outreach": ["outreach", "outreach-beads"],
+    "supervisor": ["supervisor"],
+}
 
 for proj_name in os.listdir(projects_dir):
     proj_dir = os.path.join(projects_dir, proj_name)
@@ -52,6 +61,7 @@ for proj_name in os.listdir(projects_dir):
 
         sid = ""
         model = "unknown"
+        agent = "unknown"
         inp = 0
         out = 0
         cache_read = 0
@@ -59,6 +69,7 @@ for proj_name in os.listdir(projects_dir):
         msg_count = 0
         first_ts = ""
         last_ts = ""
+        agent_detected = False
 
         try:
             with open(fpath) as f:
@@ -70,6 +81,18 @@ for proj_name in os.listdir(projects_dir):
 
                     if "sessionId" in d and not sid:
                         sid = d["sessionId"]
+
+                    if not agent_detected and d.get("type") == "user":
+                        raw = d.get("message", "")
+                        if isinstance(raw, dict):
+                            raw = raw.get("content", "")
+                        if isinstance(raw, str):
+                            rl = raw.lower()
+                            for aname, kws in AGENT_KEYWORDS.items():
+                                if any(kw in rl for kw in kws):
+                                    agent = aname
+                                    break
+                        agent_detected = True
 
                     if d.get("type") == "assistant" and "message" in d:
                         msg = d["message"]
@@ -121,6 +144,7 @@ for proj_name in os.listdir(projects_dir):
             "id": sid[:12] if sid else os.path.basename(fpath)[:12],
             "model": model,
             "cli": cli,
+            "agent": agent,
             "input": inp,
             "output": out,
             "cacheRead": cache_read,
@@ -146,6 +170,13 @@ for proj_name in os.listdir(projects_dir):
         by_cli[cli]["messages"] += msg_count
         by_cli[cli]["sessions"] += 1
 
+        by_agent[agent]["input"] += inp
+        by_agent[agent]["output"] += out
+        by_agent[agent]["cacheRead"] += cache_read
+        by_agent[agent]["cacheCreate"] += cache_create
+        by_agent[agent]["messages"] += msg_count
+        by_agent[agent]["sessions"] += 1
+
         totals["input"] += inp
         totals["output"] += out
         totals["cacheRead"] += cache_read
@@ -162,6 +193,7 @@ result = {
     "totals": totals,
     "byModel": dict(by_model),
     "byCli": dict(by_cli),
+    "byAgent": dict(by_agent),
     "sessions": sessions[:20],  # top 20 most recent
 }
 

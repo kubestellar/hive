@@ -506,6 +506,17 @@
       return '';
     }
 
+    function agentTokenRow(name) {
+      const byAgent = window._tokensByAgent || {};
+      const t = byAgent[name];
+      if (!t || (t.messages === 0 && t.sessions === 0)) return '';
+      const total = (t.input || 0) + (t.output || 0) + (t.cacheRead || 0);
+      if (total > 0) {
+        return `<div class="agent-field"><span class="label">tokens (24h)</span><span class="value" style="color:var(--cyan)">${fmtTokens(total)} <span style="color:var(--muted);font-size:0.65rem">(${t.sessions} sess)</span></span></div>`;
+      }
+      return `<div class="agent-field"><span class="label">tokens (24h)</span><span class="value" style="color:var(--muted)">${t.sessions} sess · ${t.messages} msgs</span></div>`;
+    }
+
     function renderAgents(agents) {
       const el = document.getElementById('agents');
       const cards = agents.map(a => {
@@ -534,10 +545,11 @@
           <div class="agent-field"><span class="label">model</span><span class="value">${a.model || ''}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${a.cadence}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${a.nextKick || '—'}</span></div>
+          ${agentTokenRow(a.name)}
           <div class="agent-state ${a.busy}">${a.busy}</div>
           ${needsLogin ? '<div class="login-warning">⚠ NOT LOGGED IN — run /login</div>' : ''}
           ${summaryEl}${indEl}
-          ${a.name !== 'supervisor' ? `<div class="agent-actions">
+          <div class="agent-actions">
             <input type="text" class="kick-prompt" id="kick-prompt-${a.name}" placeholder="custom prompt (optional)" />
             <button class="btn" onclick="kick('${a.name}')">kick</button>
             <select class="btn backend-select" onchange="switchCli('${a.name}', this.value); this.selectedIndex=0">
@@ -556,7 +568,7 @@
               <option value="gpt-5.4">GPT-5.4</option>
               <option value="gpt-5.2">GPT-5.2</option>
             </select>
-          </div>` : ''}
+          </div>
         </div>`;
       });
       el.innerHTML = cards.join('');
@@ -775,6 +787,7 @@
       document.getElementById('ts').textContent = new Date(data.timestamp).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true});
       currentAgentMetrics = data.agentMetrics || {};
       window._healthData = data.health || {};
+      window._tokensByAgent = (data.tokens || {}).byAgent || {};
       renderAgents(data.agents || []);
       renderGovernor(data.governor || {}, data.cadenceMatrix || []);
       renderTokens(data.tokens || {});

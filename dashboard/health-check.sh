@@ -16,10 +16,19 @@ brew_ok=$( [ "$formula_ver" = "$latest_rel" ] && echo 1 || echo 0 )
 # Helm chart exists
 helm_ok=$(gh api repos/kubestellar/console/contents/deploy/helm/kubestellar-console/Chart.yaml --jq '.name' >/dev/null 2>&1 && echo 1 || echo 0)
 
-# Nightly Test Suite workflow
-nightly=$(gh run list --repo kubestellar/console --workflow "Nightly Test Suite" --limit 1 \
-  --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
-nightly_ok=$( [ "$nightly" = "success" ] && echo 1 || echo 0 )
+# Nightly workflows — check each individually
+check_workflow() {
+  local result
+  result=$(gh run list --repo kubestellar/console --workflow "$1" --limit 1 \
+    --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
+  [ "$result" = "success" ] && echo 1 || echo 0
+}
+
+nightly_ok=$(check_workflow "Nightly Test Suite")
+nightly_compliance_ok=$(check_workflow "Nightly Compliance & Perf")
+nightly_dashboard_ok=$(check_workflow "Nightly Dashboard Health")
+nightly_ghaw_ok=$(check_workflow "Nightly gh-aw Version Check")
+nightly_playwright_ok=$(check_workflow "Playwright Cross-Browser (Nightly)")
 
 # Release workflow — runs nightly AND weekly (Sunday), same workflow different cron
 # Nightly release: last non-Sunday scheduled run
@@ -50,5 +59,5 @@ vllm_ok=-1
 pokprod_ok=-1
 
 cat <<EOF
-{"ci":${ci:-0},"brew":$brew_ok,"helm":$helm_ok,"nightly":$nightly_ok,"nightlyRel":$nightly_rel_ok,"weekly":$weekly_ok,"weeklyRel":$weekly_rel_ok,"hourly":$hourly_ok,"vllm":$vllm_ok,"pokprod":$pokprod_ok}
+{"ci":${ci:-0},"brew":$brew_ok,"helm":$helm_ok,"nightly":$nightly_ok,"nightlyCompliance":$nightly_compliance_ok,"nightlyDashboard":$nightly_dashboard_ok,"nightlyGhaw":$nightly_ghaw_ok,"nightlyPlaywright":$nightly_playwright_ok,"nightlyRel":$nightly_rel_ok,"weekly":$weekly_ok,"weeklyRel":$weekly_rel_ok,"hourly":$hourly_ok,"vllm":$vllm_ok,"pokprod":$pokprod_ok}
 EOF

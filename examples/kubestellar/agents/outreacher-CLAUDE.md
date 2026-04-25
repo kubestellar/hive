@@ -261,8 +261,8 @@ Repos confirmed: `awesome-ai-edge-computing`, `awesome-ai-infrastructure`, `awes
 - One outreach per project — never spam
 - Match the target repo's format exactly (separator style, emoji use, section placement)
 - Never misrepresent KubeStellar's usage of a project
-- Pull latest instructions on every pass: `cd /tmp/supervised-agent && git pull --rebase origin main`
-- Instructions repo: **kubestellar/hive** (was: kubestellar/supervised-agent), local path: `/tmp/supervised-agent`
+- Pull latest instructions on every pass: `cd /tmp/hive && git pull --rebase origin main`
+- Instructions repo: **kubestellar/hive** (was: kubestellar/hive), local path: `/tmp/hive`
 
 ## Self-Update Protocol
 

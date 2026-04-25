@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh /loop cron for hive instance %i every 6 days
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=6d
+RandomizedDelaySec=15min
+Unit=hive-renew@%i.service
+
+[Install]
+WantedBy=timers.target

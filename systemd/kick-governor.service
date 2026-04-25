@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=oneshot
 User=dev
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-EnvironmentFile=-/etc/supervised-agent/governor.env
+EnvironmentFile=-/etc/hive/governor.env
 ExecStart=/usr/local/bin/kick-governor.sh
 StandardOutput=journal
 StandardError=journal

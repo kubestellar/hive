@@ -33,10 +33,14 @@
     .agent-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 8px; padding: 16px; transition: border-color 0.3s;
+      position: relative;
     }
     .agent-card.working { border-color: var(--yellow); }
     .agent-card.idle { border-color: var(--border); }
     .agent-card.stopped { border-color: var(--red); }
+    .agent-state { text-align: right; font-size: 0.75rem; font-weight: 600; margin-top: 6px; }
+    .agent-state.working { color: var(--green); }
+    .agent-state.idle { color: var(--muted); }
     .agent-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
     .agent-name .dot {
       display: inline-block; width: 8px; height: 8px;
@@ -386,8 +390,8 @@
           <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
           <div class="agent-field"><span class="label">cadence</span><span class="value">${a.cadence}</span></div>
           <div class="agent-field"><span class="label">next kick</span><span class="value">${a.nextKick || '—'}</span></div>
-          <div class="agent-field"><span class="value ${a.busy}">${a.busy}</span></div>
           ${doingEl}${indEl}
+          <div class="agent-state ${a.busy}">${a.busy}</div>
           ${a.name !== 'supervisor' ? `<div class="agent-actions">
             <button class="btn" onclick="kick('${a.name}')">kick</button>
             <select class="btn backend-select" onchange="switchCli('${a.name}', this.value); this.selectedIndex=0">

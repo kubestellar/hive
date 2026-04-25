@@ -1,0 +1,21 @@
+#!/bin/bash
+# Lightweight status writer for agents to call during work
+# Usage: agent_status_write <agent_name> <task> [<progress>] [<results>]
+
+agent_name=$1
+task=$2
+progress=$3
+results=$4
+
+mkdir -p ~/.hive
+status_file=~/.hive/${agent_name}_status.txt
+
+cat > "$status_file" << ENTRY
+AGENT=$agent_name
+TASK=$task
+PROGRESS=$progress
+RESULTS=$results
+UPDATED=$(date -Iseconds)
+ENTRY
+
+chmod 644 "$status_file"

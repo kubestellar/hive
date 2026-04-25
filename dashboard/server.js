@@ -240,6 +240,21 @@ app.post('/api/model/:agent/:model', (req, res) => {
   });
 });
 
+// Comprehensive exec summaries (task + progress + results)
+app.get('/api/summaries', (req, res) => {
+  execFile(path.join(__dirname, 'agent-summaries.sh'), [], { timeout: 10000 }, (err, stdout) => {
+    if (err) {
+      return res.json({ summaries: {} });
+    }
+    try {
+      const data = JSON.parse(stdout.trim());
+      res.json(data);
+    } catch (e) {
+      res.json({ summaries: {} });
+    }
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`🐝 Hive Dashboard running at http://localhost:${PORT}`);
 });

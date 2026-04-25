@@ -495,23 +495,23 @@ cmd_status() {
       else
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
       fi
-      # Detect busy: check more lines for active tool spinners.
-      # Copilot uses ◐ (U+25D0), ◉ (U+25C9), ● (U+25CF); Claude uses ⏺; ↳ = sub-task.
-      # Key: only mark working if the prompt line (❯) is NOT the last non-empty line —
-      # if ❯ is last, the agent is at the idle prompt even if spinner lines exist above.
-      local pane_body doing task_ctx log_age_str log_file last_content
+      # Detect busy: check recent lines for active tool spinners.
+      # Copilot uses ◐ ◑ ◒ ◓ ◉ ● ◎ ○; Claude uses ⏺; ↳ = sub-task.
+      # Copilot renders spinner ABOVE the ❯ prompt, so we scan the last ~10 lines
+      # for spinner characters or "Esc to cancel" — not just the final line.
+      local pane_body doing task_ctx log_age_str log_file recent_lines
       pane_body=$(echo "$pane" | tail -30)
-      last_content=$(echo "$pane" | grep -v '^\s*$' | tail -1 || true)
+      recent_lines=$(echo "$pane" | tail -10)
       local queued_tasks
       queued_tasks=$(echo "$pane" | grep -oP '\d+(?= background /tasks)' | tail -1 || true)
 
-      if echo "$last_content" | grep -qE "^[◐◉] |^⏺ |Esc to cancel|↳ "; then
-        # Spinner is the last meaningful line — actively working
+      if echo "$recent_lines" | grep -qE "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel|↳ "; then
+        # Spinner or "Esc to cancel" found in recent output — actively working
         busy_flag="${YLW}working${RST}"
         doing=$(echo "$pane_body" \
-          | grep -E "^[◐◉●◎] |^⏺ |Esc to cancel" \
+          | grep -E "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel" \
           | tail -1 \
-          | sed 's/^[◐◉●◎⏺] //' \
+          | sed 's/^[◐◑◒◓◉●◎○⏺] //' \
           | sed 's/ (Esc to cancel.*//' \
           | cut -c1-50 || true)
         [[ -n "$doing" ]] && busy_flag="${YLW}working${RST}  ${CYN}${doing}${RST}"
@@ -629,14 +629,14 @@ cmd_status_json() {
       else
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
       fi
-      local last_content
-      last_content=$(echo "$pane" | grep -v '^\s*$' | tail -1 || true)
-      if echo "$last_content" | grep -qE "^[◐◉] |^⏺ |Esc to cancel|↳ "; then
+      local recent_lines
+      recent_lines=$(echo "$pane" | tail -10)
+      if echo "$recent_lines" | grep -qE "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel|↳ "; then
         busy="working"
         doing=$(echo "$pane" | tail -30 \
-          | grep -E "^[◐◉●◎] |^⏺ |Esc to cancel" \
+          | grep -E "^[◐◑◒◓◉●◎○] |^⏺ |Esc to cancel" \
           | tail -1 \
-          | sed 's/^[◐◉●◎⏺] //' \
+          | sed 's/^[◐◑◒◓◉●◎○⏺] //' \
           | sed 's/ (Esc to cancel.*//' \
           | cut -c1-80 || true)
       fi

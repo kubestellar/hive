@@ -25,9 +25,9 @@ if command -v gh &>/dev/null; then
   scanner_pairs_json=$(echo "$raw_prs" | jq '[
     .[] |
     . as $p |
-    # extract first "Fixes #NNN" or "Closes #NNN" issue ref
-    ($p.body | capture("(?i)(fixes|closes|resolves) #(?P<issue>[0-9]+)") // null) as $ref |
-    if $ref then { issue: ($ref.issue | tonumber), pr: $p.pr } else empty end
+    # extract first "Fixes/Closes/Resolves #NNN" issue ref using match()
+    ($p.body | match("(?i)(fixes|closes|resolves) #([0-9]+)"; "g") // null) as $m |
+    if $m then { issue: ($m.captures[1].string | tonumber), pr: $p.pr } else empty end
   ]' 2>/dev/null || echo "[]")
 fi
 

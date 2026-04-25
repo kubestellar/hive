@@ -17,7 +17,7 @@ LOOP_PROMPT="${AGENT_LOOP_PROMPT:-You are the KubeStellar Scanner in EXECUTOR MO
 
 # ─── CLI detection & failover ───────────────────────────────────────────────
 
-CLAUDE_CMD="/usr/bin/claude --dangerously-skip-permissions --model claude-opus-4.6"
+CLAUDE_CMD="/usr/bin/claude --dangerously-skip-permissions --model claude-opus-4-6"
 COPILOT_CMD="/usr/bin/copilot --allow-all"
 ACTIVE_CLI="${AGENT_CLI:-claude}"
 

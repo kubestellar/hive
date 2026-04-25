@@ -294,6 +294,21 @@
     .token-session-row .smsgs { color: var(--muted); min-width: 50px; }
     .token-session-row .sproj { color: var(--muted); font-size: 0.65rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+    /* Cadence advisor */
+    .advisor-section { margin: 12px 0; padding: 12px; background: rgba(88,166,255,0.05); border: 1px solid rgba(88,166,255,0.15); border-radius: 6px; }
+    .advisor-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; }
+    .advisor-total { font-size: 0.8rem; margin-bottom: 10px; }
+    .advisor-bars { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+    .advisor-bar-row { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; }
+    .advisor-agent { min-width: 70px; color: var(--text); font-weight: 600; }
+    .advisor-bar-track { flex: 1; height: 10px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+    .advisor-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+    .advisor-pct { min-width: 30px; text-align: right; color: var(--muted); }
+    .advisor-burn { min-width: 80px; text-align: right; color: var(--muted); font-size: 0.65rem; }
+    .advisor-tips { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .advisor-tip { font-size: 0.72rem; color: var(--text); padding: 4px 8px; background: rgba(210,153,34,0.08); border-left: 2px solid var(--yellow); border-radius: 0 4px 4px 0; }
+    .advisor-tip b { color: var(--cyan); }
+
     /* Health dots (reused inside reviewer indicators) */
     .health-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
     .health-dot.ok { background: #3fb950; }
@@ -721,6 +736,86 @@
       return String(n);
     }
 
+    function buildCadenceAdvisor(byAgent) {
+      const agents = window._lastAgents || [];
+      if (!agents.length || !byAgent) return '';
+
+      const MINUTES_PER_HOUR = 60;
+      const HOURS_PER_WEEK = 168;
+      const AGENT_ORDER = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+      const rows = [];
+      let totalWeeklyBurn = 0;
+
+      for (const name of AGENT_ORDER) {
+        const agentData = agents.find(a => a.name === name);
+        const tokenData = byAgent[name];
+        if (!agentData || !tokenData) continue;
+
+        const avg = tokenData.avgPerSession || 0;
+        const cadenceMin = parseCadenceMinutes(agentData.cadence);
+        const isPaused = !cadenceMin;
+        const passesPerHour = isPaused ? 0 : MINUTES_PER_HOUR / cadenceMin;
+        const weeklyBurn = avg * passesPerHour * HOURS_PER_WEEK;
+        totalWeeklyBurn += weeklyBurn;
+
+        rows.push({ name, avg, cadenceMin, isPaused, passesPerHour, weeklyBurn, cli: agentData.cli });
+      }
+
+      if (totalWeeklyBurn === 0) return '';
+
+      const tips = [];
+      const sorted = [...rows].filter(r => r.weeklyBurn > 0).sort((a, b) => b.weeklyBurn - a.weeklyBurn);
+
+      if (sorted.length > 0) {
+        const top = sorted[0];
+        const topPct = Math.round((top.weeklyBurn / totalWeeklyBurn) * 100);
+        if (topPct > 60) {
+          const DOUBLE_CADENCE = 2;
+          tips.push(`<b>${top.name}</b> uses ${topPct}% of weekly tokens. Doubling interval to ${top.cadenceMin * DOUBLE_CADENCE}m would halve its burn.`);
+        }
+      }
+
+      const architect = rows.find(r => r.name === 'architect');
+      if (architect) {
+        if (architect.isPaused) {
+          tips.push(`<b>architect</b> is paused — no feature work happening. Consider enabling at 1h cadence.`);
+        } else if (architect.weeklyBurn > 0) {
+          const architectPct = Math.round((architect.weeklyBurn / totalWeeklyBurn) * 100);
+          if (architectPct < 15 && architect.cadenceMin > 15) {
+            const HALVE_CADENCE = 2;
+            tips.push(`<b>architect</b> is only ${architectPct}% of burn. Could increase to ${Math.max(15, Math.floor(architect.cadenceMin / HALVE_CADENCE))}m for more feature work.`);
+          }
+        }
+      }
+
+      for (const r of rows) {
+        if (r.cli === 'copilot' && r.avg === 0 && !r.isPaused) {
+          tips.push(`<b>${r.name}</b> runs on copilot (unlimited tokens, no metering). Token burn unknown — consider switching to claude CLI for visibility.`);
+        }
+      }
+
+      const barRows = rows.filter(r => r.weeklyBurn > 0 || !r.isPaused).map(r => {
+        const pct = totalWeeklyBurn > 0 ? Math.round((r.weeklyBurn / totalWeeklyBurn) * 100) : 0;
+        const barColor = r.name === 'scanner' ? 'var(--blue)' : r.name === 'reviewer' ? 'var(--green)' : r.name === 'architect' ? 'var(--purple)' : r.name === 'outreach' ? 'var(--cyan)' : 'var(--yellow)';
+        const label = r.isPaused ? 'paused' : `${fmtTokens(r.weeklyBurn)}/wk`;
+        return `<div class="advisor-bar-row">
+          <span class="advisor-agent">${r.name}</span>
+          <div class="advisor-bar-track"><div class="advisor-bar-fill" style="width:${Math.max(pct, 2)}%;background:${barColor}"></div></div>
+          <span class="advisor-pct">${r.isPaused ? '—' : pct + '%'}</span>
+          <span class="advisor-burn">${label}</span>
+        </div>`;
+      }).join('');
+
+      const tipsHtml = tips.length > 0 ? `<div class="advisor-tips">${tips.map(t => `<div class="advisor-tip">💡 ${t}</div>`).join('')}</div>` : '';
+
+      return `<div class="advisor-section">
+        <div class="advisor-title">Cadence Advisor <span style="color:var(--muted);font-size:0.7rem">weekly projection at current cadence</span></div>
+        <div class="advisor-total">Projected: <b style="color:var(--cyan)">${fmtTokens(totalWeeklyBurn)}</b> tokens/week</div>
+        <div class="advisor-bars">${barRows}</div>
+        ${tipsHtml}
+      </div>`;
+    }
+
     function renderTokens(tokens) {
       const el = document.getElementById('token-panel');
 
@@ -755,6 +850,8 @@
         </div>`;
       }).join('');
 
+      const advisorHtml = buildCadenceAdvisor(tokens.byAgent || {});
+
       el.innerHTML = `<div class="token-panel">
         <div class="token-title">Token Usage <span class="lookback">${tokens.lookbackHours || 24}h window · ${t.sessions} sessions</span></div>
         <div class="token-grid">
@@ -765,6 +862,7 @@
           <div class="token-stat"><div class="tval" style="color:var(--yellow)">${fmtTokens(t.cacheCreate)}</div><div class="tlabel">cache create</div></div>
           <div class="token-stat"><div class="tval">${t.messages}</div><div class="tlabel">messages</div></div>
         </div>
+        ${advisorHtml}
         <div class="token-models">${modelChips}</div>
         ${sessions.length > 0 ? `<details class="token-sessions"><summary>Active Sessions (${sessions.length})</summary>${sessionRows}</details>` : ''}
       </div>`;
@@ -776,6 +874,7 @@
       currentAgentMetrics = data.agentMetrics || {};
       window._healthData = data.health || {};
       window._tokensByAgent = (data.tokens || {}).byAgent || {};
+      window._lastAgents = data.agents || [];
       renderAgents(data.agents || []);
       renderGovernor(data.governor || {}, data.cadenceMatrix || []);
       renderTokens(data.tokens || {});

@@ -348,11 +348,17 @@
       if (name === 'issue-scanner' || name === 'scanner') {
         const pairs = m.pairs || [];
         if (pairs.length === 0) return '<div class="agent-indicators"><span class="ind-empty">no active fixes</span></div>';
-        const rows = pairs.map(p => `<div class="ind-pair">
-          <a class="ind-tag ind-issue" href="https://github.com/kubestellar/console/issues/${p.issue}" target="_blank">⊙ #${p.issue}</a>
+        const rows = pairs.map(p => {
+          const issueLabel = p.issueTitle ? `⊙ #${p.issue} — ${esc(p.issueTitle.length > 48 ? p.issueTitle.slice(0, 48) + '…' : p.issueTitle)}` : `⊙ #${p.issue}`;
+          const issueTip = p.issueTitle ? esc(p.issueTitle) : '';
+          const prLabel = p.prTitle ? `⎇ #${p.pr}` : `⎇ #${p.pr}`;
+          const prTip = p.prTitle ? esc(p.prTitle) : '';
+          return `<div class="ind-pair">
+          <a class="ind-tag ind-issue" href="https://github.com/kubestellar/console/issues/${p.issue}" target="_blank" title="${issueTip}">${issueLabel}</a>
           <span class="ind-arrow">→</span>
-          <a class="ind-tag ind-pr" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank">⎇ #${p.pr}</a>
-        </div>`).join('');
+          <a class="ind-tag ind-pr" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank" title="${prTip}">${prLabel}</a>
+        </div>`;
+        }).join('');
         return `<div class="agent-indicators"><span class="ind-label">Fixes (${pairs.length}):</span>${rows}</div>`;
       }
 
@@ -536,7 +542,7 @@
           <div class="gov-stat"><div class="label">actionable</div><div class="spark-row"><span class="val">${total}</span>${totalSpark}</div></div>
           <div class="gov-stat"><div class="label">issues</div><div class="spark-row"><span class="val">${gov.issues}</span>${issuesSpark}</div></div>
           <div class="gov-stat"><div class="label">PRs</div><div class="spark-row"><span class="val">${gov.prs}</span>${prsSpark}</div></div>
-          <div class="gov-stat"><div class="label">next kick</div><div class="val">${gov.nextKick || '—'}</div></div>
+          <div class="gov-stat"><div class="label">next run</div><div class="val">${gov.nextKick || '—'}</div></div>
         </div>
         <div class="temp-gauge">
           <div class="temp-gauge-label"><span>Queue: ${total}</span><span>max ${maxQ}</span></div>
@@ -599,7 +605,7 @@
         const pSpark = sparkSvg(historyData.map(s => s.repos?.[r.name]?.prs ?? 0), '#bc8cff');
         return `
         <div class="repo-card">
-          <div class="repo-name">${r.name}</div>
+          <div class="repo-name">${r.full || r.name}</div>
           <div class="repo-stats">
             <div class="repo-stat"><div class="spark-row"><span class="num">${r.issues >= 0 ? r.issues : '?'}</span>${iSpark}</div><div class="label">issues</div></div>
             <div class="repo-stat"><div class="spark-row"><span class="num">${r.prs >= 0 ? r.prs : '?'}</span>${pSpark}</div><div class="label">PRs</div></div>

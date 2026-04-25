@@ -27,8 +27,21 @@ if command -v gh &>/dev/null; then
     . as $p |
     # extract first "Fixes/Closes/Resolves #NNN" issue ref using match()
     ($p.body | match("(?i)(fixes|closes|resolves) #([0-9]+)"; "g") // null) as $m |
-    if $m then { issue: ($m.captures[1].string | tonumber), pr: $p.pr } else empty end
+    if $m then { issue: ($m.captures[1].string | tonumber), pr: $p.pr, prTitle: $p.title } else empty end
   ]' 2>/dev/null || echo "[]")
+  # Enrich pairs with issue titles via GitHub API
+  if [ "$scanner_pairs_json" != "[]" ]; then
+    enriched="[]"
+    while IFS= read -r pair; do
+      issue_num=$(echo "$pair" | jq -r '.issue')
+      pr_num=$(echo "$pair" | jq -r '.pr')
+      pr_title=$(echo "$pair" | jq -r '.prTitle')
+      issue_title=$(gh api "repos/kubestellar/console/issues/${issue_num}" --jq '.title' 2>/dev/null || echo "")
+      enriched=$(echo "$enriched" | jq --argjson n "$issue_num" --argjson p "$pr_num" --arg pt "$pr_title" --arg it "$issue_title" \
+        '. + [{issue: $n, pr: $p, prTitle: $pt, issueTitle: $it}]')
+    done < <(echo "$scanner_pairs_json" | jq -c '.[]')
+    scanner_pairs_json="$enriched"
+  fi
 fi
 
 # Build agent JSON with live summaries and model

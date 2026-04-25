@@ -36,6 +36,19 @@ function fetchHealthChecks() {
 fetchHealthChecks();
 setInterval(fetchHealthChecks, 300000);  // every 5 min (REST API)
 
+// Fetch token usage from JSONL session files every 60s
+let tokenCache = {};
+function fetchTokens() {
+  execFile(path.join(__dirname, 'token-collector.sh'), [], { timeout: 30000 }, (err, stdout) => {
+    if (!err && stdout.trim()) {
+      try { tokenCache = JSON.parse(stdout.trim()); } catch (_) {}
+    }
+  });
+}
+fetchTokens();
+const TOKEN_REFRESH_MS = 60000;
+setInterval(fetchTokens, TOKEN_REFRESH_MS);
+
 // Fetch per-agent metrics every 30s
 function fetchAgentMetrics() {
   execFile(path.join(__dirname, 'agent-metrics.sh'), [], { timeout: 15000 }, (err, stdout) => {
@@ -124,6 +137,7 @@ function fetchStatus() {
         statusCache.health = healthChecks;
         statusCache.ciPassRate = ciPassRate;
         statusCache.agentMetrics = agentMetrics;
+        statusCache.tokens = tokenCache;
         // Single exec summary per agent: live pane when working, status file when idle
         statusCache.summaries = summariesCache;
         for (const a of (statusCache.agents || [])) {
@@ -325,6 +339,11 @@ app.post('/api/model/:agent/:model', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true, output: stdout.trim() });
   });
+});
+
+// Token usage
+app.get('/api/tokens', (_req, res) => {
+  res.json(tokenCache || { error: 'no data yet' });
 });
 
 // Comprehensive exec summaries (task + progress + results)

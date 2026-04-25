@@ -28,6 +28,23 @@
     }
     .widget-dl:hover { background: var(--cyan); color: var(--bg); }
 
+    /* CLI token chips in header */
+    .cli-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 4px; font-size: 0.68rem;
+      border: 1px solid var(--border);
+    }
+    .cli-chip .cli-name { font-weight: 600; }
+    .cli-chip.cli-claude { border-color: rgba(188,140,255,0.4); }
+    .cli-chip.cli-claude .cli-name { color: var(--purple); }
+    .cli-chip.cli-copilot { border-color: rgba(57,210,192,0.4); }
+    .cli-chip.cli-copilot .cli-name { color: var(--cyan); }
+    .cli-chip.cli-gemini { border-color: rgba(88,166,255,0.4); }
+    .cli-chip.cli-gemini .cli-name { color: var(--blue); }
+    .cli-chip.cli-other { border-color: var(--border); }
+    .cli-chip .cli-val { color: var(--text); font-weight: 700; }
+    .cli-chip .cli-detail { color: var(--muted); }
+
     /* Agent cards */
     .agents { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 24px; }
     .agent-card {
@@ -267,6 +284,33 @@
     .ind-row { display: flex; flex-wrap: wrap; gap: 12px; }
     .ind-summary { font-size: 0.7rem; color: var(--text); margin-bottom: 4px; line-height: 1.4; opacity: 0.85; }
 
+    /* Token usage panel */
+    .token-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+    }
+    .token-title { font-size: 1rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .token-title .lookback { font-size: 0.7rem; color: var(--muted); font-weight: 400; }
+    .token-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .token-stat { text-align: center; }
+    .token-stat .tval { font-size: 1.3rem; font-weight: 700; }
+    .token-stat .tlabel { font-size: 0.65rem; color: var(--muted); }
+    .token-models { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .token-model-chip {
+      background: rgba(188,140,255,0.1); border: 1px solid rgba(188,140,255,0.25);
+      border-radius: 6px; padding: 6px 10px; font-size: 0.72rem;
+    }
+    .token-model-chip .mname { color: var(--purple); font-weight: 600; }
+    .token-model-chip .mcount { color: var(--muted); margin-left: 6px; }
+    .token-sessions { font-size: 0.7rem; color: var(--muted); }
+    .token-sessions summary { cursor: pointer; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .token-session-row { display: flex; gap: 8px; padding: 2px 0; align-items: baseline; }
+    .token-session-row .sid { color: var(--cyan); font-family: monospace; min-width: 90px; }
+    .token-session-row .smodel { color: var(--purple); min-width: 120px; }
+    .token-session-row .stokens { color: var(--text); font-weight: 600; min-width: 80px; text-align: right; }
+    .token-session-row .smsgs { color: var(--muted); min-width: 50px; }
+    .token-session-row .sproj { color: var(--muted); font-size: 0.65rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
     /* Health dots (reused inside reviewer indicators) */
     .health-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
     .health-dot.ok { background: #3fb950; }
@@ -284,12 +328,15 @@
   </div>
 
   <h1><span class="bee">🐝</span> KubeStellar Hive Dashboard <span class="timestamp" id="ts"></span>
+    <span id="cli-tokens" style="display:flex;gap:10px;margin-left:12px;font-size:0.7rem;font-weight:400;align-items:center"></span>
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
 
   <div class="agents" id="agents"></div>
 
   <div class="governor" id="governor"></div>
+
+  <div class="token-usage" id="token-panel" style="margin-bottom: 24px;"></div>
 
   <div class="repos">
     <h2>Repositories</h2>
@@ -653,6 +700,76 @@
         <div class="bead-stat"><div class="spark-row"><span class="num">${beads.supervisor >= 0 ? beads.supervisor : '?'}</span>${sSpark}</div><div class="label">supervisor</div></div>`;
     }
 
+    function fmtTokens(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    function renderTokens(tokens) {
+      const el = document.getElementById('token-panel');
+      const cliEl = document.getElementById('cli-tokens');
+
+      if (!tokens || !tokens.totals || tokens.totals.sessions === 0) {
+        el.innerHTML = '';
+        cliEl.innerHTML = '';
+        return;
+      }
+
+      // Header CLI chips
+      const cliEntries = Object.entries(tokens.byCli || {}).sort((a, b) =>
+        (b[1].input + b[1].output + b[1].cacheRead) - (a[1].input + a[1].output + a[1].cacheRead)
+      );
+      cliEl.innerHTML = cliEntries.map(([name, c]) => {
+        const cTotal = c.input + c.output + c.cacheRead;
+        return `<span class="cli-chip cli-${name}">
+          <span class="cli-name">${esc(name)}</span>
+          <span class="cli-val">${fmtTokens(cTotal)}</span>
+          <span class="cli-detail">${c.sessions}s/${c.messages}m</span>
+        </span>`;
+      }).join('');
+      const t = tokens.totals;
+      const totalTokens = t.input + t.output + t.cacheRead;
+      const models = Object.entries(tokens.byModel || {}).sort((a, b) =>
+        (b[1].input + b[1].output + b[1].cacheRead) - (a[1].input + a[1].output + a[1].cacheRead)
+      );
+      const sessions = tokens.sessions || [];
+
+      const modelChips = models.map(([name, m]) => {
+        const mTotal = m.input + m.output + m.cacheRead;
+        return `<div class="token-model-chip">
+          <span class="mname">${esc(name)}</span>
+          <span class="mcount">${fmtTokens(mTotal)} tokens · ${m.messages} msgs</span>
+        </div>`;
+      }).join('');
+
+      const sessionRows = sessions.map(s => {
+        const age = s.lastActive ? new Date(s.lastActive).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}) : '';
+        return `<div class="token-session-row">
+          <span class="sid">${esc(s.id)}</span>
+          <span class="smodel">${esc(s.model)}</span>
+          <span class="stokens">${fmtTokens(s.total)}</span>
+          <span class="smsgs">${s.messages} msgs</span>
+          <span class="sproj">${esc(s.project)} · ${age}</span>
+        </div>`;
+      }).join('');
+
+      el.innerHTML = `<div class="token-panel">
+        <div class="token-title">Token Usage <span class="lookback">${tokens.lookbackHours || 24}h window · ${t.sessions} sessions</span></div>
+        <div class="token-grid">
+          <div class="token-stat"><div class="tval" style="color:var(--cyan)">${fmtTokens(totalTokens)}</div><div class="tlabel">total tokens</div></div>
+          <div class="token-stat"><div class="tval" style="color:var(--blue)">${fmtTokens(t.input)}</div><div class="tlabel">input</div></div>
+          <div class="token-stat"><div class="tval" style="color:var(--purple)">${fmtTokens(t.output)}</div><div class="tlabel">output</div></div>
+          <div class="token-stat"><div class="tval" style="color:var(--green)">${fmtTokens(t.cacheRead)}</div><div class="tlabel">cache read</div></div>
+          <div class="token-stat"><div class="tval" style="color:var(--yellow)">${fmtTokens(t.cacheCreate)}</div><div class="tlabel">cache create</div></div>
+          <div class="token-stat"><div class="tval">${t.messages}</div><div class="tlabel">messages</div></div>
+        </div>
+        <div class="token-models">${modelChips}</div>
+        ${sessions.length > 0 ? `<details class="token-sessions"><summary>Active Sessions (${sessions.length})</summary>${sessionRows}</details>` : ''}
+      </div>`;
+    }
+
     function render(data) {
       if (!data || data.error) return;
       document.getElementById('ts').textContent = new Date(data.timestamp).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true});
@@ -660,6 +777,7 @@
       window._healthData = data.health || {};
       renderAgents(data.agents || []);
       renderGovernor(data.governor || {}, data.cadenceMatrix || []);
+      renderTokens(data.tokens || {});
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
       // summaries are merged into a.liveSummary server-side and pushed via SSE — no extra fetch

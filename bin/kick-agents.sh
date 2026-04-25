@@ -298,68 +298,79 @@ PULL_INSTRUCTIONS="First: cd /tmp/hive && git pull --rebase origin main. Re-read
 HARD RULE — enforced before any other action: never touch any issue or PR that carries a label containing the word 'hold' (case-insensitive). \
 Do not comment on it, do not merge it, do not reference it in other PRs, do not create sub-issues from it. Treat it as if it does not exist."
 
-# Beads startup restore: read in-progress and open items so agent picks up where it left off.
-# Scanner, reviewer, feature, and outreach all share /home/dev/scanner-beads/.
-# Supervisor uses /home/dev/kubestellar-console/.beads/ (console DB).
-BEADS_DIR="/home/dev/scanner-beads"
-BEADS_RESTORE="Then read your beads from $BEADS_DIR: run 'cd $BEADS_DIR && bd list --json' to see all open/in-progress items. \
+# Beads startup restore + end-of-pass sync.
+# Each agent has its own beads directory.
+beads_restore() {
+  local dir="$1"
+  echo "Then read your beads from $dir: run 'cd $dir && bd list --json' to see all open/in-progress items. \
 Resume any item with status in_progress first (bd show <id>). \
-For new work, run 'cd $BEADS_DIR && bd ready --json' to find unblocked items. \
-Claim each item before starting it: cd $BEADS_DIR && bd update <id> --claim. \
-ALL bd commands must be run from $BEADS_DIR — never from a different directory."
+For new work, run 'cd $dir && bd ready --json' to find unblocked items. \
+Claim each item before starting it: cd $dir && bd update <id> --claim. \
+ALL bd commands must be run from $dir — never from a different directory."
+}
 
-# Beads end-of-pass sync: persist state to remote so next restart restores cleanly.
-BEADS_SYNC="At the END of this pass: update beads for everything you worked on \
-(cd $BEADS_DIR && bd close <id> --reason '...' for completed, bd update <id> --status blocked --description '...' for blockers). \
-Then run: cd $BEADS_DIR && bd dolt push. \
-EXEC SUMMARY — write a ONE-LINE status (max 140 chars) summarizing what you did this pass to /var/run/hive-metrics/\${AGENT_NAME}_summary.txt. \
-Example: echo 'Fixed 3 issues, opened 2 PRs, merged 1. Nightly tests still red.' > /var/run/hive-metrics/\${AGENT_NAME}_summary.txt \
-Use your agent name: scanner, reviewer, architect, or outreach. This line appears on the hive dashboard."
+beads_sync() {
+  local dir="$1"
+  local agent_name="$2"
+  echo "At the END of this pass: update beads for everything you worked on \
+(cd $dir && bd close <id> --reason '...' for completed, bd update <id> --status blocked --description '...' for blockers). \
+Then run: cd $dir && bd dolt push. \
+EXEC SUMMARY — write a ONE-LINE status (max 140 chars) summarizing what you did this pass to /var/run/hive-metrics/${agent_name}_summary.txt. \
+Example: echo 'Fixed 3 issues, opened 2 PRs, merged 1. Nightly tests still red.' > /var/run/hive-metrics/${agent_name}_summary.txt \
+Use your agent name: ${agent_name}. This line appears on the hive dashboard."
+}
 
+SCANNER_BEADS="/home/dev/scanner-beads"
 SCANNER_MSG="$PULL_INSTRUCTIONS \
-$BEADS_RESTORE \
+$(beads_restore "$SCANNER_BEADS") \
 Then: Run a full scan pass per your policy (project_scanner_policy.md). \
 Oldest-first. Check all 5 repos: kubestellar/console, console-kb, docs, \
 console-marketplace, kubestellar-mcp. \
 For EVERY open issue that does not already have an active PR, dispatch a background fix agent using the Agent tool with worktrees. \
 Do NOT just count issues and stop — your job is to FIX them, not report them. \
 Merge AI-authored PRs with green CI. Send ntfy (curl -s -H 'Title: Scanner: <action>' -d '<details>' ntfy.sh/issue-scanner) for every merge and external PR review. \
-Log to cron_scan_log.md. $BEADS_SYNC"
+Log to cron_scan_log.md. $(beads_sync "$SCANNER_BEADS" "scanner")"
 
+REVIEWER_BEADS="/home/dev/reviewer-beads"
 REVIEWER_MSG="$PULL_INSTRUCTIONS \
-$BEADS_RESTORE \
+$(beads_restore "$REVIEWER_BEADS") \
 Then: Run a full reviewer pass per /tmp/hive/examples/kubestellar/agents/reviewer-CLAUDE.md. \
 Check: (A) coverage ≥91%, (B) OAuth code presence, (B.5) CI workflow health sweep, \
 (C) release freshness + brew formula + Helm chart appVersion + vllm-d + pok-prod01 \
 deploy health, (D) GA4 error watch + adoption digest, (F) post-merge diff scan. \
-Print all GA4 tables to this pane. Send ntfy for all findings. Write all results to reviewer_log.md. $BEADS_SYNC"
+Print all GA4 tables to this pane. Send ntfy for all findings. Write all results to reviewer_log.md. $(beads_sync "$REVIEWER_BEADS" "reviewer")"
 
+ARCHITECT_BEADS="/home/dev/feature-beads"
 ARCHITECT_MSG="$PULL_INSTRUCTIONS \
-$BEADS_RESTORE \
+$(beads_restore "$ARCHITECT_BEADS") \
 Then: Run an architect pass per /tmp/hive/examples/kubestellar/agents/architect-CLAUDE.md. \
 Pull main, scan the codebase for refactor or perf improvement opportunities. \
 You may work autonomously on refactors and perf as long as you do not break \
 the build, touch OAuth, or touch the update system. For new feature ideas, \
 open an issue with label architect-idea and wait for operator approval. \
-Send ntfy for all plans and PRs. Print your plan to this pane. $BEADS_SYNC"
+Send ntfy for all plans and PRs. Print your plan to this pane. $(beads_sync "$ARCHITECT_BEADS" "architect")"
 
+OUTREACH_BEADS="/home/dev/outreach-beads"
 OUTREACH_MSG="$PULL_INSTRUCTIONS \
-$BEADS_RESTORE \
+$(beads_restore "$OUTREACH_BEADS") \
 Then: Run an outreach pass per /tmp/hive/examples/kubestellar/agents/outreacher-CLAUDE.md. \
-LANE — outreach owns ONLY: awesome lists, directories, comparison sites, aggregators, \
+LANE — outreach owns: awesome lists, directories, comparison sites, aggregators, \
 community forums, package registries, CNCF landscape entries, and any public index where \
 KubeStellar Console should be listed. Target 200+ awesome-list placements. \
+OPERATOR-DIRECTED WORK — when the operator sends a custom kick prompt referencing a specific \
+issue, PR, or task, you may work on it regardless of lane boundaries. Follow the operator's \
+instructions exactly. This override applies ONLY to the specific work the operator requested. \
 GA4 STRATEGY — read GA4 data for console.kubestellar.io to inform outreach decisions: \
 which pages get the most traffic, which search terms bring visitors, which features have \
 highest engagement. Use this to (a) prioritise which Console capabilities to pitch on each \
 platform, (b) identify traffic gaps where new listings would have the most impact, and \
 (c) track whether previous outreach placements are driving referral traffic. \
 GA4 insight is for strategy only — do NOT fix GA4 errors (that is the reviewer's job). \
-LANE BOUNDARIES — outreach must NEVER: touch GitHub issues or PRs in any kubestellar repo, \
-fix bugs, review code, implement features, merge PRs, or do anything the scanner/reviewer/architect agents do. \
+LANE BOUNDARIES (default, unless overridden by operator directive) — outreach must NEVER: \
+fix bugs, review code, implement features, or do anything the scanner/reviewer/architect agents do. \
 If you find a bug or improvement idea, file a beads issue for the scanner — do not act on it yourself. \
 Fork under clubanderson account for all external PRs to third-party repos. \
-Send ntfy for every new listing secured. One outreach per project — never spam. $BEADS_SYNC"
+Send ntfy for every new listing secured. One outreach per project — never spam. $(beads_sync "$OUTREACH_BEADS" "outreach")"
 
 _now_et=$(TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z')
 SUPERVISOR_MSG="MONITORING PASS — Pass started: ${_now_et}

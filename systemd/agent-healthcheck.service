@@ -1,0 +1,11 @@
+[Unit]
+Description=Scanner healthcheck (detect cron_scan_log.md stall, respawn, notify ntfy)
+Requisite=supervised-agent@scanner.service
+After=supervised-agent@scanner.service
+
+[Service]
+Type=oneshot
+User=dev
+Group=dev
+Environment=NTFY_TOPIC=issue-scanner
+ExecStart=/usr/local/bin/scanner-healthcheck.sh

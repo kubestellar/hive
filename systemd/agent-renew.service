@@ -1,0 +1,14 @@
+[Unit]
+Description=Kill scanner tmux session so supervised-agent@scanner.service re-registers the /loop cron before the 7-day TTL expires
+Requisite=supervised-agent@scanner.service
+After=supervised-agent@scanner.service
+
+[Service]
+Type=oneshot
+User=dev
+Group=dev
+# Killing the session is a no-op if it's already gone; the supervisor will
+# respawn it within ~10s and send a fresh /loop prompt.
+ExecStart=/usr/bin/tmux kill-session -t issue-scanner
+# Succeed even if the session is already dead.
+SuccessExitStatus=0 1

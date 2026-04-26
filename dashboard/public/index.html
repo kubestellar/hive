@@ -841,7 +841,7 @@
           const val = row[m] || '?';
           const isActive = m === currentMode;
           const isPaused = val === 'paused';
-          const showPaused = isPaused || (isActive && agentPaused);
+          const showPaused = isPaused || agentPaused;
           const colCls = isActive ? `col-active mode-${m}` : '';
           const pausedCls = showPaused ? ' paused' : '';
           const dot = (isActive && isWorking && !agentPaused) ? '<span class="active-dot"></span>' : '';

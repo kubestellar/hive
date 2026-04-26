@@ -74,7 +74,7 @@ setInterval(fetchTokens, TOKEN_REFRESH_MS);
 
 // Fetch per-agent metrics every 30s
 function fetchAgentMetrics() {
-  execFile(path.join(__dirname, 'agent-metrics.sh'), [], { timeout: 15000 }, (err, stdout) => {
+  execFile(path.join(__dirname, 'agent-metrics.sh'), [], { timeout: 60000 }, (err, stdout) => {
     if (!err && stdout.trim()) {
       try { agentMetrics = JSON.parse(stdout.trim()); } catch (_) {}
     }

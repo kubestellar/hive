@@ -37,21 +37,24 @@ if command -v gh &>/dev/null; then
     ($p.body | match("(?i)(fixes|closes|resolves) #([0-9]+)"; "g") // null) as $m |
     if $m then { issue: ($m.captures[1].string | tonumber), pr: $p.pr, prTitle: $p.title, state: $p.state, created: ($p.created // null), merged: ($p.merged // null) } else empty end
   ]' 2>/dev/null || echo "[]")
-  # Enrich with issue titles
+  # Enrich with issue titles (parallel fetch)
   if [ "$scanner_pairs_json" != "[]" ]; then
-    enriched="[]"
-    while IFS= read -r pair; do
-      issue_num=$(echo "$pair" | jq -r '.issue')
-      pr_num=$(echo "$pair" | jq -r '.pr')
-      pr_title=$(echo "$pair" | jq -r '.prTitle')
-      pr_state=$(echo "$pair" | jq -r '.state')
-      pr_created=$(echo "$pair" | jq -r '.created // empty')
-      pr_merged=$(echo "$pair" | jq -r '.merged // empty')
-      issue_title=$(gh api "repos/kubestellar/console/issues/${issue_num}" --jq '.title' 2>/dev/null || echo "")
-      enriched=$(echo "$enriched" | jq --argjson n "$issue_num" --argjson p "$pr_num" --arg pt "$pr_title" --arg it "$issue_title" --arg st "$pr_state" --arg cr "$pr_created" --arg mr "$pr_merged" \
-        '. + [{issue: $n, pr: $p, prTitle: $pt, issueTitle: $it, state: $st, created: $cr, merged: $mr}]')
-    done < <(echo "$scanner_pairs_json" | jq -c '.[]')
-    scanner_pairs_json="$enriched"
+    issue_tmp=$(mktemp -d)
+    # Fetch all unique issue titles in parallel
+    unique_issues=$(echo "$scanner_pairs_json" | jq -r '.[].issue' | sort -un | grep -v '^0$')
+    for inum in $unique_issues; do
+      (gh api "repos/kubestellar/console/issues/${inum}" --jq '.title' > "$issue_tmp/$inum" 2>/dev/null || echo "" > "$issue_tmp/$inum") &
+    done
+    wait
+    # Build title lookup JSON
+    title_map="{}"
+    for inum in $unique_issues; do
+      ititle=$(cat "$issue_tmp/$inum" 2>/dev/null || echo "")
+      title_map=$(echo "$title_map" | jq --arg k "$inum" --arg v "$ititle" '. + {($k): $v}')
+    done
+    rm -rf "$issue_tmp"
+    # Merge titles into pairs
+    scanner_pairs_json=$(echo "$scanner_pairs_json" | jq --argjson titles "$title_map" '[.[] | .issueTitle = ($titles[(.issue|tostring)] // "")]')
   fi
 fi
 
@@ -68,24 +71,21 @@ coverage_value=$(curl -sf "$COVERAGE_BADGE_URL" 2>/dev/null | jq -r '.message //
 coverage_value=${coverage_value:-0}
 reviewer_json=$(echo "$reviewer_json" | jq --argjson cv "$coverage_value" --argjson ct "$coverage_target" '. + {coverage: $cv, coverageTarget: $ct}')
 
-# ── Outreach: growth, adoption, reach metrics ──
-# Growth stats (REST API)
-stars=$(gh api repos/kubestellar/console --jq '.stargazers_count' 2>/dev/null || echo 0)
-forks=$(gh api repos/kubestellar/console --jq '.forks_count' 2>/dev/null || echo 0)
-contributors=$(gh api repos/kubestellar/console/contributors?per_page=1 -i 2>/dev/null | grep -oP 'page=\K\d+(?=>; rel="last")' || echo 0)
-[ "$contributors" = "0" ] && contributors=$(gh api repos/kubestellar/console/contributors --jq 'length' 2>/dev/null || echo 0)
-
-# Adoption stats
-adopters_total=$(gh api repos/kubestellar/console/contents/ADOPTERS.MD \
-  --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0)
-adopters_total=$(( adopters_total > 2 ? adopters_total - 2 : 0 ))
-
-# ACMM badges adopted
-acmm_count=$(unset GITHUB_TOKEN && gh api repos/kubestellar/docs/contents/src/app/%5Blocale%5D/acmm-leaderboard/page.tsx \
-  --jq '.content' 2>/dev/null | base64 -d 2>/dev/null \
-  | sed -n '/BADGE_PARTICIPANTS = new Set/,/\]);/p' \
-  | grep -cP '^\s+"[a-zA-Z]' || echo 0)
+# ── Outreach: growth, adoption, reach metrics (parallel) ──
+outreach_tmp=$(mktemp -d)
+(gh api repos/kubestellar/console --jq '.stargazers_count' > "$outreach_tmp/stars" 2>/dev/null || echo 0 > "$outreach_tmp/stars") &
+(gh api repos/kubestellar/console --jq '.forks_count' > "$outreach_tmp/forks" 2>/dev/null || echo 0 > "$outreach_tmp/forks") &
+(c=$(gh api repos/kubestellar/console/contributors?per_page=1 -i 2>/dev/null | grep -oP 'page=\K\d+(?=>; rel="last")' || echo 0); [ "$c" = "0" ] && c=$(gh api repos/kubestellar/console/contributors --jq 'length' 2>/dev/null || echo 0); echo "$c" > "$outreach_tmp/contribs") &
+(a=$(gh api repos/kubestellar/console/contents/ADOPTERS.MD --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0); a=$(( a > 2 ? a - 2 : 0 )); echo "$a" > "$outreach_tmp/adopters") &
+(unset GITHUB_TOKEN && gh api repos/kubestellar/docs/contents/src/app/%5Blocale%5D/acmm-leaderboard/page.tsx --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | sed -n '/BADGE_PARTICIPANTS = new Set/,/\]);/p' | grep -cP '^\s+"[a-zA-Z]' > "$outreach_tmp/acmm" 2>/dev/null || echo 0 > "$outreach_tmp/acmm") &
+wait
+stars=$(cat "$outreach_tmp/stars" 2>/dev/null || echo 0)
+forks=$(cat "$outreach_tmp/forks" 2>/dev/null || echo 0)
+contributors=$(cat "$outreach_tmp/contribs" 2>/dev/null || echo 0)
+adopters_total=$(cat "$outreach_tmp/adopters" 2>/dev/null || echo 0)
+acmm_count=$(cat "$outreach_tmp/acmm" 2>/dev/null || echo 0)
 acmm_count=${acmm_count:-0}
+rm -rf "$outreach_tmp"
 
 # ── Architect: PR counts from tmux (live doing is summary) ──
 architect_lines=$(tmux capture-pane -t feature -p -S -500 2>/dev/null)

@@ -290,6 +290,9 @@ def scrape_tmux(session):
     except (subprocess.SubprocessError, OSError):
         return None
 
+    raw_stripped = [l for l in raw.splitlines() if l.strip()]
+    at_prompt = any(l.strip().startswith('❯') for l in raw_stripped[-3:]) if raw_stripped else False
+
     lines = []
     is_working = False
     for line in raw.splitlines():
@@ -305,6 +308,9 @@ def scrape_tmux(session):
                 lines.append(cleaned)
         elif line.strip() and len(line.strip()) > 5:
             lines.append(line.strip())
+
+    if at_prompt:
+        is_working = False
 
     unique = []
     for l in lines:

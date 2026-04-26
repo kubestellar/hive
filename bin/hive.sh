@@ -561,9 +561,14 @@ cmd_status() {
       local queued_tasks
       queued_tasks=$(echo "$pane" | grep -oP '\d+(?= background /tasks)' | tail -1 || true)
 
+      local at_prompt=false
+      if echo "$pane" | tail -5 | LC_ALL=C.UTF-8 grep -qE '^❯'; then
+        at_prompt=true
+      fi
+
       if [[ "$needs_login" == "true" ]]; then
         busy_flag="${RED}⚠ NOT LOGGED IN${RST}"
-      elif echo "$recent_lines" | LC_ALL=C.UTF-8 grep -qE "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|↳ |agent still running|Scampering|Evaporating|Perambulating|Puttering|Sautéed|Precipitating|Pouncing|Thinking"; then
+      elif [[ "$at_prompt" == "false" ]] && echo "$recent_lines" | LC_ALL=C.UTF-8 grep -qE "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|↳ |agent still running|Scampering|Evaporating|Perambulating|Puttering|Sautéed|Precipitating|Pouncing|Thinking"; then
         # Spinner or "Esc to cancel" found in recent output — actively working
         busy_flag="${YLW}working${RST}"
         doing=$(echo "$pane_body" \
@@ -692,8 +697,12 @@ cmd_status_json() {
       fi
       # Strip prompt, separator lines, and status bar to detect actual work output
       # LC_ALL=C.UTF-8 required — server runs LANG=C which breaks multi-byte UTF-8 grep
+      local at_prompt_json=false
+      if echo "$pane" | tail -5 | LC_ALL=C.UTF-8 grep -qE '^❯'; then
+        at_prompt_json=true
+      fi
       recent_lines=$(echo "$pane" | LC_ALL=C.UTF-8 grep -vE '^[─━═]+$|^❯|^\s*$|^ / commands|^[[:space:]]*~/' | tail -15)
-      if echo "$recent_lines" | LC_ALL=C.UTF-8 grep -qE "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|↳ |Running .* pass|background /tasks|agent still running|Scampering|Evaporating|Perambulating|Puttering|Sautéed|Precipitating|Pouncing|Thinking"; then
+      if [[ "$at_prompt_json" == "false" ]] && echo "$recent_lines" | LC_ALL=C.UTF-8 grep -qE "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|↳ |Running .* pass|background /tasks|agent still running|Scampering|Evaporating|Perambulating|Puttering|Sautéed|Precipitating|Pouncing|Thinking"; then
         busy="working"
         doing=$(echo "$recent_lines" \
           | LC_ALL=C.UTF-8 grep -E "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|agent still running" \

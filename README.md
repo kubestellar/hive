@@ -32,8 +32,10 @@ That's it. `hive supervisor` installs missing tools, starts all agents, sets the
 
 ```bash
 hive supervisor             # start everything
-hive status                 # live terminal dashboard
+hive status                 # live terminal dashboard (cached repo data)
+hive status --repos         # refresh repo issue/PR counts from GitHub API
 hive status --json          # machine-readable JSON output
+hive status --json --repos  # JSON with fresh repo data (used by dashboard slow path)
 hive status --watch 5       # auto-refresh every 5 seconds (in-place overwrite)
 hive dashboard              # launch web dashboard (port 3001)
 hive attach supervisor      # watch the supervisor  (Ctrl+B D to leave)
@@ -58,9 +60,12 @@ hive stop all               # stop everything
 `hive dashboard` launches a real-time web dashboard on port 3001.
 
 - **Live updates** via SSE — agent states, governor mode, repo counts, and beads refresh every 5 seconds
+- **Sparkline history** — per-agent busy time and restart count sparklines with rolling history
+- **Restart tracking** — 24-hour restart count per agent with color-coded thresholds (yellow >0, red >5)
 - **Kick buttons** — one-click kick for any agent
 - **Switch dropdown** — switch agent CLI backend (copilot, claude, gemini, goose) from the UI
-- **Übersicht widget** — download a macOS desktop widget from the ⬇ Widget button in the header
+- **Übersicht widget** — download a macOS desktop widget from the button in the header
+- **Fast/slow refresh** — agent status refreshes every 5s; GitHub repo data refreshes every 60s to avoid API rate limits
 
 The dashboard runs as a systemd service (`hive-dashboard.service`) and auto-restarts on failure.
 
@@ -81,14 +86,18 @@ The **kick-governor** measures issue and PR backlog across your repos every 15 m
 
 | Mode | Trigger | Scanner | Reviewer | Architect | Outreach | Supervisor |
 |------|---------|---------|----------|-----------|----------|-----------|
-| SURGE | queue > 20 | 10 min | 10 min | **paused** | **paused** | 30 min |
-| BUSY  | queue > 10 | 15 min | 15 min | **paused** | **paused** | 30 min |
-| QUIET | queue > 2  | 15 min | 30 min | 1 h        | 2 h        | 30 min |
-| IDLE  | queue ≤ 2  | 30 min | 1 h    | 30 min     | 30 min     | 30 min |
+| SURGE | queue > 20 | 10 min | 10 min | **paused** | **paused** | 5 min |
+| BUSY  | queue > 10 | 15 min | 15 min | **paused** | **paused** | 5 min |
+| QUIET | queue > 2  | 15 min | 30 min | 1 h        | 2 h        | 5 min |
+| IDLE  | queue ≤ 2  | 30 min | 1 h    | 30 min     | 30 min     | 5 min |
 
-Architect and outreach are **opportunistic** — they fill idle cycles and pause entirely under load. Supervisor runs every 30 min regardless of mode.
+Architect and outreach are **opportunistic** — they fill idle cycles and pause entirely under load. Supervisor runs every 5 min regardless of mode.
 
 Cadences are tunable in `/etc/hive/governor.env` — no restart needed.
+
+### Restart tracking
+
+Each supervisor process tracks agent restarts in `/var/run/kick-governor/restarts_<session>`. The count is a rolling 24-hour window — old timestamps are pruned automatically. The dashboard and `hive status --json` both expose the `restarts` field per agent.
 
 ---
 
@@ -96,12 +105,14 @@ Cadences are tunable in `/etc/hive/governor.env` — no restart needed.
 
 Set `HIVE_BACKENDS` in `hive.conf`. `HIVE_AUTO_INSTALL=true` installs missing backends on startup.
 
-| Backend | Type | Models |
-|---------|------|--------|
-| `copilot` | Cloud | Claude Sonnet/Opus via GitHub Copilot |
-| `claude` | Cloud | Claude Sonnet/Opus via Anthropic |
-| `gemini` | Cloud | Gemini Pro/Flash via Google |
-| `goose` | Cloud or local | Any model via config |
+| Backend | Type | Description |
+|---------|------|-------------|
+| `claude` | CLI | Anthropic's CLI — runs Claude models directly |
+| `gemini` | CLI | Google's CLI — runs Gemini models directly |
+| `copilot` | Aggregate | GitHub Copilot — routes to Claude, GPT, Gemini, and other vendor models |
+| `goose` | Aggregate | Block's Goose — routes to any model via config (cloud or local) |
+
+**CLI backends** (`claude`, `gemini`) are single-vendor tools that run their own models. **Aggregate backends** (`copilot`, `goose`) are multi-vendor routers — they can call models from different providers through a single interface.
 
 ### Local models (optional)
 
@@ -175,6 +186,7 @@ journalctl -u claude-scanner # raw service log
 | Dashboard: agents show `stopped` / CLI `?` | Service running as root (can't see dev's tmux) | Add `User=dev` to `hive-dashboard.service` |
 | Dashboard: widget download 404 | Stale node process on port 3001 | `ss -tlnp \| grep 3001` → `kill <PID>` → restart service |
 | `bd dolt push` fails | Root-owned `.beads/` files | `sudo chown -R dev:dev ~/.beads/ /home/dev/scanner-beads/.beads/` |
+| Beads: `?` in status | `bd list` blocked by stale lock | `sudo killall -9 bd && rm -f /home/dev/scanner-beads/.beads/embeddeddolt/.lock` |
 
 ---
 

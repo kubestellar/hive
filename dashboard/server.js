@@ -18,6 +18,8 @@ const MAX_PERSISTENT_POINTS = 30 * 24 * 4; // 30 days at 15-min intervals = 2880
 // Cache for status data
 let statusCache = null;
 let lastFetch = 0;
+// Last known good beads values (bd timeout returns -1)
+let lastGoodBeads = { workers: 0, supervisor: 0 };
 let ciPassRate = 0;
 let healthChecks = {};
 let agentMetrics = {};
@@ -172,15 +174,22 @@ setTimeout(persistSnapshot, 10000);
 function fetchStatus() {
   return new Promise((resolve) => {
     const hiveEnv = { ...process.env, HIVE_TZ: process.env.HIVE_TZ || 'America/New_York' };
-    execFile('hive', ['status', '--json'], { timeout: 30000, env: hiveEnv }, (err, stdout) => {
+    execFile('/usr/local/bin/hive', ['status', '--json'], { timeout: 30000, env: hiveEnv }, (err, stdout, stderr) => {
       if (err) {
-        console.error('hive status --json failed:', err.message);
+        console.error('hive status --json failed:', err.message, stderr ? 'stderr: ' + stderr.slice(0, 200) : '');
         resolve(statusCache); // return stale data
         return;
       }
       try {
         statusCache = JSON.parse(stdout);
         lastFetch = Date.now();
+        // Replace -1 (bd timeout) with last known good beads values
+        if (statusCache.beads) {
+          if (statusCache.beads.workers >= 0) lastGoodBeads.workers = statusCache.beads.workers;
+          else statusCache.beads.workers = lastGoodBeads.workers;
+          if (statusCache.beads.supervisor >= 0) lastGoodBeads.supervisor = statusCache.beads.supervisor;
+          else statusCache.beads.supervisor = lastGoodBeads.supervisor;
+        }
         // Build reviewer metrics from live data
         statusCache.health = healthChecks;
         statusCache.ciPassRate = ciPassRate;
@@ -274,7 +283,7 @@ function fetchStatus() {
           snap.repos[r.name] = { issues: r.issues || 0, prs: r.prs || 0 };
         }
         for (const a of (statusCache.agents || [])) {
-          snap.agents[a.name] = { busy: a.busy === 'working' ? 1 : 0 };
+          snap.agents[a.name] = { busy: a.busy === 'working' ? 1 : 0, restarts: a.restarts || 0 };
         }
         history.push(snap);
         if (history.length > MAX_HISTORY) history.shift();
@@ -291,12 +300,52 @@ function fetchStatus() {
   });
 }
 
-// Background refresh loop
+// Background refresh loop — fast (agents only, no GH API calls)
 setInterval(fetchStatus, REFRESH_MS);
 fetchStatus();
 
+// Slow refresh for repo data (GH API) — every 5min to reduce GH token spend
+const REPO_REFRESH_MS = 300000;
+function fetchRepoStatus() {
+  const hiveEnv = { ...process.env, HIVE_TZ: process.env.HIVE_TZ || 'America/New_York' };
+  execFile('/usr/local/bin/hive', ['status', '--json', '--repos'], { timeout: 30000, env: hiveEnv }, (err, stdout) => {
+    if (err) { console.error('hive status --json --repos failed:', err.message); return; }
+    try {
+      const data = JSON.parse(stdout);
+      if (statusCache && data.repos) statusCache.repos = data.repos;
+    } catch (_) {}
+  });
+}
+setInterval(fetchRepoStatus, REPO_REFRESH_MS);
+fetchRepoStatus();
+
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Git version — cached, refreshed every 5 min
+let gitVersionCache = { hash: '?', short: '?', behind: 0, dirty: false, ts: 0 };
+const GIT_VERSION_REFRESH_MS = 300000;
+function refreshGitVersion() {
+  const hiveDir = '/tmp/hive';
+  execFile('git', ['-C', hiveDir, 'rev-parse', 'HEAD'], { timeout: 5000 }, (err, hash) => {
+    if (err) return;
+    gitVersionCache.hash = hash.trim();
+    gitVersionCache.short = hash.trim().slice(0, 7);
+    gitVersionCache.ts = Date.now();
+    execFile('git', ['-C', hiveDir, 'status', '--porcelain'], { timeout: 5000 }, (e2, status) => {
+      if (!e2) gitVersionCache.dirty = status.trim().length > 0;
+    });
+    execFile('git', ['-C', hiveDir, 'fetch', 'origin', 'main', '--quiet'], { timeout: 10000 }, () => {
+      execFile('git', ['-C', hiveDir, 'rev-list', 'HEAD..origin/main', '--count'], { timeout: 5000 }, (e3, count) => {
+        if (!e3) gitVersionCache.behind = parseInt(count.trim(), 10) || 0;
+      });
+    });
+  });
+}
+refreshGitVersion();
+setInterval(refreshGitVersion, GIT_VERSION_REFRESH_MS);
+
+app.get('/api/version', (_req, res) => res.json(gitVersionCache));
 
 // JSON API
 app.get('/api/status', async (_req, res) => {
@@ -417,7 +466,7 @@ app.post('/api/kick/:agent', (req, res) => {
       });
     });
   } else {
-    execFile('hive', ['kick', agent], { timeout: 30000 }, (err, stdout) => {
+    execFile('/usr/local/bin/hive', ['kick', agent], { timeout: 30000 }, (err, stdout) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ ok: true, output: stdout.trim() });
     });
@@ -434,7 +483,7 @@ app.post('/api/switch/:agent/:backend', (req, res) => {
   if (!allowedBackends.includes(backend)) {
     return res.status(400).json({ error: `invalid backend: ${backend}` });
   }
-  execFile('hive', ['switch', agent, backend], { timeout: 30000 }, (err, stdout) => {
+  execFile('/usr/local/bin/hive', ['switch', agent, backend], { timeout: 30000 }, (err, stdout) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true, output: stdout.trim() });
   });
@@ -446,7 +495,7 @@ app.post('/api/model/:agent/:model', (req, res) => {
   if (!allowedAgents.includes(agent)) {
     return res.status(400).json({ error: `invalid agent: ${agent}` });
   }
-  execFile('hive', ['model', agent, decodeURIComponent(model)], { timeout: 30000 }, (err, stdout) => {
+  execFile('/usr/local/bin/hive', ['model', agent, decodeURIComponent(model)], { timeout: 30000 }, (err, stdout) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true, output: stdout.trim() });
   });

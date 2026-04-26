@@ -40,7 +40,7 @@
 <text x="505" y="352" text-anchor="middle" font-size="12" font-weight="600" fill="#1e293b" font-family="ui-sans-serif,system-ui,sans-serif">supervisor</text>
 
 <!-- Backend CLI label under agents -->
-<text x="505" y="378" text-anchor="middle" font-size="9" fill="#7c3aed" font-family="ui-sans-serif,system-ui,sans-serif">claude · copilot · gemini · goose</text>
+<text x="505" y="378" text-anchor="middle" font-size="9" fill="#7c3aed" font-family="ui-sans-serif,system-ui,sans-serif">CLI: claude · gemini  |  Aggregate: copilot · goose</text>
 
 <!-- Local model stack (bottom) -->
 <rect x="230" y="430" width="130" height="34" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.5"/>

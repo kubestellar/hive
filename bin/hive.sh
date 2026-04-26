@@ -308,7 +308,7 @@ init_beads() {
       (cd "$bdir" && bd init 2>/dev/null) && ok "Beads initialised in $bdir" || warn "bd init failed in $bdir"
     else
       local count
-      count=$(cd "$bdir" && bd list --json 2>/dev/null \
+      count=$(cd "$bdir" && timeout 8 bd list --json 2>/dev/null \
         | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("items",[])))' 2>/dev/null || echo '?')
       ok "$bdir ($count items)"
     fi
@@ -506,9 +506,9 @@ cmd_status() {
   echo -e "\n${BLD}🐝 hive status — $(TZ="${HIVE_TZ:-UTC}" date '+%-I:%M %p %Z')${RST}\n"
 
   # Sessions
-  local SESSIONS=(supervisor issue-scanner reviewer feature outreach)
+  local SESSIONS=(supervisor issue-scanner reviewer architect outreach)
   local LABELS=("supervisor" "scanner" "reviewer" "architect" "outreach")
-  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "feature" "outreach")
+  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "architect" "outreach")
   local GOV_STATE="/var/run/kick-governor"
   printf "  %-12s  %-8s  %-8s  %-8s  %-8s  %s\n" "AGENT" "STATE" "CLI" "CADENCE" "KICK" "BUSY"
   printf "  %-12s  %-8s  %-8s  %-8s  %-8s  %s\n" "-----" "-----" "---" "-------" "----" "----"
@@ -563,11 +563,11 @@ cmd_status() {
 
       if [[ "$needs_login" == "true" ]]; then
         busy_flag="${RED}⚠ NOT LOGGED IN${RST}"
-      elif echo "$recent_lines" | grep -qE "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|↳ |agent still running|Scampering|Evaporating|Perambulating|Puttering|Sautéed"; then
+      elif echo "$recent_lines" | LC_ALL=C.UTF-8 grep -qE "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|↳ |agent still running|Scampering|Evaporating|Perambulating|Puttering|Sautéed|Precipitating|Pouncing|Thinking"; then
         # Spinner or "Esc to cancel" found in recent output — actively working
         busy_flag="${YLW}working${RST}"
         doing=$(echo "$pane_body" \
-          | grep -E "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|agent still running" \
+          | LC_ALL=C.UTF-8 grep -E "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|agent still running" \
           | tail -1 \
           | sed 's/^[◐◑◒◓◉●◎○⏺✻✶✸✹✢✽·*] //' \
           | sed 's/ (Esc to cancel.*//' \
@@ -610,13 +610,22 @@ cmd_status() {
   echo ""
   printf "  %-28s  %-14s  %s\n" "REPO" "ISSUES" "PRS"
   printf "  %-28s  %-14s  %s\n" "----" "------" "---"
+  local fetch_repos=false
+  [[ " $* " == *" --repos "* ]] && fetch_repos=true
   for repo in ${HIVE_REPOS:-}; do
     local rname issues prs
     local prev_issues prev_prs
     local itag ptag
     rname="${repo##*/}"
-    issues=$(gh issue list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "?")
-    prs=$(   gh pr    list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "?")
+    if [[ "$fetch_repos" == "true" ]]; then
+      issues=$(gh issue list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "?")
+      prs=$(   gh pr    list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "?")
+      [[ "$issues" != "?" ]] && echo "$issues" > "$STATUS_CACHE/${rname}_issues"
+      [[ "$prs"    != "?" ]] && echo "$prs"    > "$STATUS_CACHE/${rname}_prs"
+    else
+      issues=$(cat "$STATUS_CACHE/${rname}_issues" 2>/dev/null || echo "?")
+      prs=$(cat "$STATUS_CACHE/${rname}_prs" 2>/dev/null || echo "?")
+    fi
 
     # Trend vs last run
     prev_issues=$(cat "$STATUS_CACHE/${rname}_issues" 2>/dev/null || echo "")
@@ -625,18 +634,14 @@ cmd_status() {
     ptag=$(trend_marker "$prs"    "$prev_prs"    "prs")
 
     printf "  %-28s  %-14s  %s\n" "$rname" "${issues}${itag}" "${prs}${ptag}"
-
-    # Save for next run
-    [[ "$issues" != "?" ]] && echo "$issues" > "$STATUS_CACHE/${rname}_issues"
-    [[ "$prs"    != "?" ]] && echo "$prs"    > "$STATUS_CACHE/${rname}_prs"
   done
 
   # Beads
   echo ""
   local wc sc
-  wc=$(cd "$BEADS_WORKER_DIR"     2>/dev/null && bd list --json 2>/dev/null \
+  wc=$(cd "$BEADS_WORKER_DIR"     2>/dev/null && timeout 8 bd list --json 2>/dev/null \
      | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '?')
-  sc=$(cd "$BEADS_SUPERVISOR_DIR" 2>/dev/null && bd list --json 2>/dev/null \
+  sc=$(cd "$BEADS_SUPERVISOR_DIR" 2>/dev/null && timeout 8 bd list --json 2>/dev/null \
      | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '?')
   echo -e "  Beads:     workers ${BLD}$wc${RST}  |  supervisor ${BLD}$sc${RST}"
   echo ""
@@ -645,9 +650,9 @@ cmd_status() {
 # ── status JSON ──────────────────────────────────────────────────────────────
 
 cmd_status_json() {
-  local SESSIONS=(supervisor issue-scanner reviewer feature outreach)
+  local SESSIONS=(supervisor issue-scanner reviewer architect outreach)
   local LABELS=("supervisor" "scanner" "reviewer" "architect" "outreach")
-  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "feature" "outreach")
+  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "architect" "outreach")
   local GOV_STATE="/var/run/kick-governor"
   local STATUS_CACHE="/var/run/kick-governor/repo_cache"
   mkdir -p "$STATUS_CACHE" 2>/dev/null || true
@@ -686,11 +691,12 @@ cmd_status_json() {
         needs_login="true"
       fi
       # Strip prompt, separator lines, and status bar to detect actual work output
-      recent_lines=$(echo "$pane" | grep -vE '^[─━═]+$|^❯|^\s*$|^ / commands|^[[:space:]]*~/' | tail -15)
-      if echo "$recent_lines" | grep -qE "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|↳ |Running .* pass|background /tasks|agent still running|Scampering|Evaporating|Perambulating|Puttering|Sautéed"; then
+      # LC_ALL=C.UTF-8 required — server runs LANG=C which breaks multi-byte UTF-8 grep
+      recent_lines=$(echo "$pane" | LC_ALL=C.UTF-8 grep -vE '^[─━═]+$|^❯|^\s*$|^ / commands|^[[:space:]]*~/' | tail -15)
+      if echo "$recent_lines" | LC_ALL=C.UTF-8 grep -qE "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|↳ |Running .* pass|background /tasks|agent still running|Scampering|Evaporating|Perambulating|Puttering|Sautéed|Precipitating|Pouncing|Thinking"; then
         busy="working"
         doing=$(echo "$recent_lines" \
-          | grep -E "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|agent still running" \
+          | LC_ALL=C.UTF-8 grep -E "^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ |Esc to cancel|agent still running" \
           | tail -3 \
           | sed 's/^[◐◑◒◓◉●◎○⏺✻✶✸✹✢✽·*] //' \
           | sed 's/ (Esc to cancel.*//' \
@@ -725,8 +731,12 @@ cmd_status_json() {
     gov_model=$(grep '^MODEL=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "")
     gov_cost=$(grep '^COST_WEIGHT=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "0")
     gov_reason=$(grep '^REASON=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "")
+    # Restart count from state file (maintained by supervisor, keyed by session name)
+    local restarts_24h=0
+    restarts_24h=$(head -1 "/var/run/kick-governor/restarts_${s}" 2>/dev/null | tr -dc '0-9' || echo "0")
+    [[ -z "$restarts_24h" ]] && restarts_24h=0
     [[ $i -gt 0 ]] && agents_json+=","
-    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"needsLogin\":$needs_login,\"govBackend\":\"$gov_backend\",\"govModel\":\"$gov_model\",\"govCostWeight\":$gov_cost,\"govReason\":\"$gov_reason\"}"
+    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"needsLogin\":$needs_login,\"restarts\":$restarts_24h,\"govBackend\":\"$gov_backend\",\"govModel\":\"$gov_model\",\"govCostWeight\":$gov_cost,\"govReason\":\"$gov_reason\"}"
   done
   agents_json+="]"
 
@@ -740,32 +750,39 @@ cmd_status_json() {
        | awk 'NR==2{print $1,$2,$3,$4}' \
        | xargs -I{} bash -c "TZ=\"$HIVE_TZ\" date -d \"{}\" \"+%-I:%M %p %Z\"" 2>/dev/null || echo "")
 
-  # Repos
+  # Repos — only fetch from GH API when --repos flag is passed; otherwise use cache
   local STATUS_CACHE="/var/run/kick-governor/repo_cache"
   mkdir -p "$STATUS_CACHE" 2>/dev/null || true
   local repos_json="["
   local first_repo=true
+  local fetch_repos=false
+  [[ " $* " == *" --repos "* ]] && fetch_repos=true
   for repo in ${HIVE_REPOS:-}; do
     local rname issues prs
     rname="${repo##*/}"
-    issues=$(gh issue list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
-    prs=$(   gh pr    list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
-    # Fall back to cached values when rate limited
-    [[ "$issues" == "-1" ]] && issues=$(cat "$STATUS_CACHE/${rname}_issues" 2>/dev/null || echo "-1")
-    [[ "$prs"    == "-1" ]] && prs=$(   cat "$STATUS_CACHE/${rname}_prs"    2>/dev/null || echo "-1")
+    if [[ "$fetch_repos" == "true" ]]; then
+      issues=$(gh issue list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
+      prs=$(   gh pr    list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
+      [[ "$issues" != "-1" ]] && echo "$issues" > "$STATUS_CACHE/${rname}_issues"
+      [[ "$prs"    != "-1" ]] && echo "$prs"    > "$STATUS_CACHE/${rname}_prs"
+    else
+      issues="-1"
+      prs="-1"
+    fi
+    # Fall back to cached values
+    [[ "$issues" == "-1" ]] && issues=$(cat "$STATUS_CACHE/${rname}_issues" 2>/dev/null || echo "0")
+    [[ "$prs"    == "-1" ]] && prs=$(   cat "$STATUS_CACHE/${rname}_prs"    2>/dev/null || echo "0")
     [[ "$first_repo" == "false" ]] && repos_json+=","
     first_repo=false
     repos_json+="{\"name\":\"$rname\",\"full\":\"$repo\",\"issues\":$issues,\"prs\":$prs}"
-    [[ "$issues" != "-1" ]] && echo "$issues" > "$STATUS_CACHE/${rname}_issues"
-    [[ "$prs"    != "-1" ]] && echo "$prs"    > "$STATUS_CACHE/${rname}_prs"
   done
   repos_json+="]"
 
   # Beads
   local beads_workers beads_supervisor
-  beads_workers=$(cd "$BEADS_WORKER_DIR" 2>/dev/null && bd list --json 2>/dev/null \
+  beads_workers=$(cd "$BEADS_WORKER_DIR" 2>/dev/null && timeout 8 bd list --json 2>/dev/null \
      | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '-1')
-  beads_supervisor=$(cd "$BEADS_SUPERVISOR_DIR" 2>/dev/null && bd list --json 2>/dev/null \
+  beads_supervisor=$(cd "$BEADS_SUPERVISOR_DIR" 2>/dev/null && timeout 8 bd list --json 2>/dev/null \
      | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '-1')
 
   # Cadence matrix — read from governor config
@@ -1012,16 +1029,17 @@ main() {
 
     status)
       shift
-      local watch_interval=0 json_mode=false
+      local watch_interval=0 json_mode=false repos_flag=""
       while [[ $# -gt 0 ]]; do
         case "$1" in
           -w|--watch)  watch_interval="${2:-5}"; shift 2 || shift ;;
           --json)      json_mode=true; shift ;;
+          --repos)     repos_flag="--repos"; shift ;;
           *)           watch_interval="$1"; shift ;;
         esac
       done
       if [[ "$json_mode" == "true" ]]; then
-        cmd_status_json
+        cmd_status_json $repos_flag
       elif [[ "$watch_interval" -gt 0 ]] 2>/dev/null; then
         trap 'tput cnorm 2>/dev/null; printf "\n"; exit 0' INT TERM
         tput civis 2>/dev/null  # hide cursor
@@ -1030,7 +1048,7 @@ main() {
         while true; do
           cols=$(tput cols 2>/dev/null || echo 120)
           local buf
-          buf=$(cmd_status 2>/dev/null || true)
+          buf=$(cmd_status $repos_flag 2>/dev/null || true)
           # Move to top-left, overwrite each line padded to terminal width
           tput cup 0 0 2>/dev/null
           while IFS= read -r line; do
@@ -1041,7 +1059,7 @@ main() {
           sleep "$watch_interval"
         done
       else
-        cmd_status
+        cmd_status $repos_flag
       fi
       ;;
     attach)   shift; cmd_attach  "${1:-supervisor}" ;;

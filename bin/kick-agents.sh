@@ -439,7 +439,7 @@ ALSO CHECK (not fix-mandatory): (B) OAuth code presence, \
 (F) GA4 error watch + adoption digest, (G) post-merge diff scan. \
 Print all GA4 tables to this pane. Send ntfy for all findings. Write all results to reviewer_log.md. $(beads_sync "$REVIEWER_BEADS" "reviewer")"
 
-ARCHITECT_BEADS="/home/dev/feature-beads"
+ARCHITECT_BEADS="/home/dev/architect-beads"
 ARCHITECT_MSG="$PULL_INSTRUCTIONS \
 $(beads_restore "$ARCHITECT_BEADS") \
 Then: Run an architect pass per /tmp/hive/examples/kubestellar/agents/architect-CLAUDE.md. \
@@ -545,7 +545,7 @@ Do all of the following right now:
 2. Check every agent session for questions, stalls, or errors: \
    tmux capture-pane -t issue-scanner -p | tail -20 \
    tmux capture-pane -t reviewer -p | tail -20 \
-   tmux capture-pane -t feature -p | tail -20 \
+   tmux capture-pane -t architect -p | tail -20 \
    tmux capture-pane -t outreach -p | tail -20 \
    If any agent has an unresolved question or idle prompt, respond immediately via tmux send-keys. \
 3. Check for AI-authored PRs with CI green across all kubestellar repos — merge any that are ready. \
@@ -561,7 +561,7 @@ case "$TARGET" in
     apply_model_if_changed "reviewer" "reviewer" && kick "reviewer" "$REVIEWER_MSG" "reviewer"
     ;;
   architect)
-    apply_model_if_changed "architect" "feature" && kick "feature" "$ARCHITECT_MSG" "architect"
+    apply_model_if_changed "architect" "feature" && kick "architect" "$ARCHITECT_MSG" "architect"
     ;;
   outreach)
     apply_model_if_changed "outreach" "outreach" && kick "outreach" "$OUTREACH_MSG" "outreach"
@@ -572,7 +572,7 @@ case "$TARGET" in
   all)
     apply_model_if_changed "scanner" "issue-scanner" && kick "issue-scanner" "$SCANNER_MSG" "scanner"
     apply_model_if_changed "reviewer" "reviewer" && kick "reviewer" "$REVIEWER_MSG" "reviewer"
-    apply_model_if_changed "architect" "feature" && kick "feature" "$ARCHITECT_MSG" "architect"
+    apply_model_if_changed "architect" "feature" && kick "architect" "$ARCHITECT_MSG" "architect"
     apply_model_if_changed "outreach" "outreach" && kick "outreach" "$OUTREACH_MSG" "outreach"
     # supervisor is NOT kicked in "all" — it has its own cadence via governor
     ;;

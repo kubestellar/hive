@@ -16,7 +16,7 @@ declare -A BEADS_DIR
 BEADS_DIR[supervisor]="/home/dev/supervisor-beads"
 BEADS_DIR[scanner]="/home/dev/scanner-beads"
 BEADS_DIR[reviewer]="/home/dev/reviewer-beads"
-BEADS_DIR[architect]="/home/dev/feature-beads"
+BEADS_DIR[architect]="/home/dev/architect-beads"
 BEADS_DIR[outreach]="/home/dev/outreach-beads"
 
 # Read top in-progress bead title for an agent (returns empty if none)

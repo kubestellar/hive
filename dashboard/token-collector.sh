@@ -61,7 +61,7 @@ hourly_by_agent = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, 
 AGENT_KEYWORDS = {
     "scanner": ["scanner", "scanner-beads"],
     "reviewer": ["reviewer", "reviewer-beads"],
-    "architect": ["architect", "feature-beads"],
+    "architect": ["architect", "architect-beads"],
     "outreach": ["outreach", "outreach-beads"],
     "supervisor": ["supervisor"],
 }

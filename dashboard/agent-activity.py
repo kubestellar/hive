@@ -48,7 +48,7 @@ SPINNER_RE = re.compile(r"^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*⏺] |E
 AGENT_KEYWORDS = {
     "scanner": ["scanner", "scanner-beads"],
     "reviewer": ["reviewer", "reviewer-beads"],
-    "architect": ["architect", "feature-beads"],
+    "architect": ["architect", "architect-beads"],
     "outreach": ["outreach", "outreach-beads"],
     "supervisor": ["supervisor"],
 }

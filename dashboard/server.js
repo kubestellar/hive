@@ -391,7 +391,7 @@ app.get('/api/widget', (_req, res) => {
 const TMUX_SESSION = {
   scanner: 'issue-scanner',
   reviewer: 'reviewer',
-  architect: 'feature',
+  architect: 'architect',
   outreach: 'outreach',
   supervisor: 'supervisor',
 };

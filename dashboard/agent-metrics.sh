@@ -89,7 +89,7 @@ acmm_count=${acmm_count:-0}
 rm -rf "$outreach_tmp"
 
 # ── Architect: PR counts from tmux (live doing is summary) ──
-architect_lines=$(tmux capture-pane -t feature -p -S -500 2>/dev/null)
+architect_lines=$(tmux capture-pane -t architect -p -S -500 2>/dev/null)
 architect_prs=$(echo "$architect_lines" | grep -oP 'pull/\d+' | sort -u | wc -l)
 architect_prs=${architect_prs:-0}
 architect_closed=$(echo "$architect_lines" | grep -ciP 'closed|resolved|stale')

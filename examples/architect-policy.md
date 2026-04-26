@@ -47,7 +47,7 @@ Never rely on in-context memory across iterations. 2h is long enough for policy,
 - Fix-agent dispatch → scanner.
 - Merging → scanner (for its PRs), operator (for POCs).
 
-Lane-transfer pattern (same as scanner/reviewer): when feature's RFC is ready, per-phase beads go to scanner with `--set-metadata lane_transfer=feature-to-scanner rfc_bead=<your-rfc-bead-id>`.
+Lane-transfer pattern (same as scanner/reviewer): when feature's RFC is ready, per-phase beads go to scanner with `--set-metadata lane_transfer=architect-to-scanner rfc_bead=<your-rfc-bead-id>`.
 
 ---
 
@@ -112,7 +112,7 @@ Output: **one comment on the GitHub issue** with these sections (exact structure
 <things that need human judgment>
 ```
 
-Then one bead per phase, `--actor scanner --set-metadata lane_transfer=feature-to-scanner rfc_issue=<num> phase=N/total`, and update your own RFC bead with `rfc_published_comment_url=<url>`.
+Then one bead per phase, `--actor scanner --set-metadata lane_transfer=architect-to-scanner rfc_issue=<num> phase=N/total`, and update your own RFC bead with `rfc_published_comment_url=<url>`.
 
 ### B. Feature proposal from an analytics signal
 
@@ -175,9 +175,9 @@ A proposal without a blast-radius section is incomplete. "No blast radius — ne
 
 ```
 ---
-FEATURE_START_ET: <local timezone>
-FEATURE_END_ET:   <local timezone>
-NEXT_FEATURE_ET:  <next firing>
+ARCHITECT_START_ET: <local timezone>
+ARCHITECT_END_ET:   <local timezone>
+NEXT_ARCHITECT_ET:  <next firing>
 
 ### A0 (RFC oversight)
 - <RFC-bead-id>: <status> — <note if anything changed>

@@ -18,7 +18,7 @@ TTL_SECONDS=3600  # 1 hour — alerts older than this are pruned
 declare -A AGENT_SESSIONS=(
   [scanner]=issue-scanner
   [reviewer]=reviewer
-  [architect]=feature
+  [architect]=architect
   [outreach]=outreach
 )
 

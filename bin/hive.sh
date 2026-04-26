@@ -61,7 +61,7 @@ load_conf() {
   BEADS_SUPERVISOR_DIR="${BEADS_SUPERVISOR_DIR:-/home/dev/supervisor-beads}"
   BEADS_SCANNER_DIR="${BEADS_SCANNER_DIR:-/home/dev/scanner-beads}"
   BEADS_REVIEWER_DIR="${BEADS_REVIEWER_DIR:-/home/dev/reviewer-beads}"
-  BEADS_FEATURE_DIR="${BEADS_FEATURE_DIR:-/home/dev/feature-beads}"
+  BEADS_ARCHITECT_DIR="${BEADS_ARCHITECT_DIR:-/home/dev/architect-beads}"
   BEADS_OUTREACH_DIR="${BEADS_OUTREACH_DIR:-/home/dev/outreach-beads}"
   BEADS_WORKER_DIR="${BEADS_WORKER_DIR:-/home/dev/scanner-beads}"
   AGENT_USER="${AGENT_USER:-dev}"
@@ -339,7 +339,7 @@ ensure_agents() {
   local services=(
     "claude-scanner.service:scanner"
     "hive@reviewer.service:reviewer"
-    "hive@feature.service:architect"
+    "hive@architect.service:architect"
     "hive@outreach.service:outreach"
   )
   local all_units=("${services[@]}" "kick-governor.timer:governor")
@@ -403,14 +403,14 @@ kick_agents() {
   declare -A AGENT_BEADS_DIR
   AGENT_BEADS_DIR["issue-scanner"]="${BEADS_SCANNER_DIR:-/home/${AGENT_USER:-dev}/scanner-beads}"
   AGENT_BEADS_DIR["reviewer"]="${BEADS_REVIEWER_DIR:-/home/${AGENT_USER:-dev}/reviewer-beads}"
-  AGENT_BEADS_DIR["feature"]="${BEADS_FEATURE_DIR:-/home/${AGENT_USER:-dev}/feature-beads}"
+  AGENT_BEADS_DIR["architect"]="${BEADS_ARCHITECT_DIR:-/home/${AGENT_USER:-dev}/architect-beads}"
   AGENT_BEADS_DIR["outreach"]="${BEADS_OUTREACH_DIR:-/home/${AGENT_USER:-dev}/outreach-beads}"
 
   # Expected model substring — must be visible in pane before kick is safe to send.
   # Copilot shows "claude-opus-4-6" in bottom-right; Claude Code shows "Opus 4.6".
   local expected_model="4.6"
 
-  for session in issue-scanner reviewer feature outreach; do
+  for session in issue-scanner reviewer architect outreach; do
     if ! tmux has-session -t "$session" 2>/dev/null; then
       warn "$session session not ready yet — governor will kick on next cycle"
       continue
@@ -506,9 +506,9 @@ cmd_status() {
   echo -e "\n${BLD}🐝 hive status — $(TZ="${HIVE_TZ:-UTC}" date '+%-I:%M %p %Z')${RST}\n"
 
   # Sessions
-  local SESSIONS=(supervisor issue-scanner reviewer feature outreach)
+  local SESSIONS=(supervisor issue-scanner reviewer architect outreach)
   local LABELS=("supervisor" "scanner" "reviewer" "architect" "outreach")
-  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "feature" "outreach")
+  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "architect" "outreach")
   local GOV_STATE="/var/run/kick-governor"
   printf "  %-12s  %-8s  %-8s  %-8s  %-8s  %s\n" "AGENT" "STATE" "CLI" "CADENCE" "KICK" "BUSY"
   printf "  %-12s  %-8s  %-8s  %-8s  %-8s  %s\n" "-----" "-----" "---" "-------" "----" "----"
@@ -645,9 +645,9 @@ cmd_status() {
 # ── status JSON ──────────────────────────────────────────────────────────────
 
 cmd_status_json() {
-  local SESSIONS=(supervisor issue-scanner reviewer feature outreach)
+  local SESSIONS=(supervisor issue-scanner reviewer architect outreach)
   local LABELS=("supervisor" "scanner" "reviewer" "architect" "outreach")
-  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "feature" "outreach")
+  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "architect" "outreach")
   local GOV_STATE="/var/run/kick-governor"
   local STATUS_CACHE="/var/run/kick-governor/repo_cache"
   mkdir -p "$STATUS_CACHE" 2>/dev/null || true
@@ -831,7 +831,7 @@ cmd_attach() {
   # map friendly names to session names
   case "$name" in
     scanner|issue-scanner) name="issue-scanner" ;;
-    architect|feature)     name="feature" ;;
+    architect|feature)     name="architect" ;;
     supervisor|reviewer|outreach) ;;
     *) die "Unknown agent: $name. Use: supervisor scanner reviewer architect outreach" ;;
   esac
@@ -851,7 +851,7 @@ cmd_logs() {
     governor)           exec journalctl -u kick-governor -f --no-pager ;;
     scanner)            exec journalctl -u claude-scanner -f --no-pager ;;
     reviewer)           exec journalctl -u "hive@reviewer" -f --no-pager ;;
-    architect|feature)  exec journalctl -u "hive@feature" -f --no-pager ;;
+    architect|feature)  exec journalctl -u "hive@architect" -f --no-pager ;;
     outreach)           exec journalctl -u "hive@outreach" -f --no-pager ;;
     supervisor)         exec journalctl -u "hive@supervisor" -f --no-pager ;;
     *) die "Unknown agent. Use: governor scanner reviewer architect outreach supervisor" ;;
@@ -869,7 +869,7 @@ cmd_stop() {
   local target="${1:-all}"
   if [[ "$target" == "all" ]]; then
     info "Stopping all agents..."
-    for svc in claude-scanner hive@reviewer hive@feature hive@outreach hive@supervisor; do
+    for svc in claude-scanner hive@reviewer hive@architect hive@outreach hive@supervisor; do
       sudo systemctl stop "$svc" 2>/dev/null && ok "Stopped $svc" || true
     done
     sudo systemctl stop kick-governor.timer 2>/dev/null && ok "Stopped governor" || true
@@ -877,7 +877,7 @@ cmd_stop() {
     case "$target" in
       scanner)  sudo systemctl stop claude-scanner ;;
       reviewer) sudo systemctl stop "hive@reviewer" ;;
-      architect|feature) sudo systemctl stop "hive@feature" ;;
+      architect|feature) sudo systemctl stop "hive@architect" ;;
       outreach) sudo systemctl stop "hive@outreach" ;;
       supervisor) sudo systemctl stop "hive@supervisor" ;;
       *) die "Unknown agent: $target" ;;
@@ -897,7 +897,7 @@ cmd_switch() {
   case "$agent" in
     scanner)            session="issue-scanner"; envfile="issue-scanner"; service="claude-scanner" ;;
     reviewer)           session="reviewer";      envfile="reviewer";      service="hive@reviewer" ;;
-    architect|feature)  session="feature";       envfile="feature";       service="hive@feature" ;;
+    architect|feature)  session="architect";       envfile="architect";       service="hive@architect" ;;
     outreach)           session="outreach";      envfile="outreach";      service="hive@outreach" ;;
     supervisor)         session="supervisor";    envfile="supervisor";    service="hive@supervisor" ;;
     *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;
@@ -944,7 +944,7 @@ cmd_model() {
   case "$agent" in
     scanner)            session="issue-scanner"; envfile="issue-scanner"; service="claude-scanner" ;;
     reviewer)           session="reviewer";      envfile="reviewer";      service="hive@reviewer" ;;
-    architect|feature)  session="feature";       envfile="feature";       service="hive@feature" ;;
+    architect|feature)  session="architect";       envfile="architect";       service="hive@architect" ;;
     outreach)           session="outreach";      envfile="outreach";      service="hive@outreach" ;;
     supervisor)         session="supervisor";    envfile="supervisor";    service="hive@supervisor" ;;
     *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;

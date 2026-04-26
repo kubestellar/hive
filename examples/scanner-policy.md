@@ -147,7 +147,7 @@ If a GitHub issue is open AND has no linked PR (in flight or merged), **scanner 
 
 Sequence for every unPR'd issue:
 
-1. **Does it need architecture first?** Cross-cutting pattern, fundamental decision (algorithm / storage / protocol), touches >3 files or any public API → file `--actor feature --set-metadata lane_transfer=scanner-to-feature` and continue. Feature will RFC, scanner implements the phase beads later.
+1. **Does it need architecture first?** Cross-cutting pattern, fundamental decision (algorithm / storage / protocol), touches >3 files or any public API → file `--actor feature --set-metadata lane_transfer=scanner-to-architect` and continue. Feature will RFC, scanner implements the phase beads later.
 2. **Is an external contributor engaged?** Check for: assignee set, recent non-maintainer comment in last 14d, a fork visible, or a draft/WIP PR referencing the issue. If yes → leave it, record `contributor_engaged=<login>`, nudge in 14 days if it's gone quiet.
 3. **Is it an intentional tracker?** Keep an exempt list (mentorship trackers, CI-aggregator issues, umbrella trackers). Skip those.
 4. **Otherwise → claim it.** Bundle small related issues into one PR when possible. Large single issues → one fix agent, one PR.

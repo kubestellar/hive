@@ -560,7 +560,7 @@
         </div>`;
       }
 
-      if (name === 'feature' || name === 'architect') {
+      if (name === 'architect') {
         const prs = m.prs || 0;
         const closed = m.closed || 0;
         return `<div class="agent-indicators">
@@ -609,7 +609,7 @@
       supervisor: 'supervisor',
       scanner: 'issue-scanner',
       reviewer: 'reviewer',
-      architect: 'feature',
+      architect: 'architect',
       outreach: 'outreach',
     };
     const TTYD_PORT = 7681;
@@ -938,12 +938,12 @@
       const architect = rows.find(r => r.name === 'architect');
       if (architect) {
         if (architect.isPaused) {
-          tips.push(`<b>architect</b> is paused — no feature work happening. Consider enabling at 1h cadence.`);
+          tips.push(`<b>architect</b> is paused — no architect work happening. Consider enabling at 1h cadence.`);
         } else if (architect.weeklyBurn > 0) {
           const architectPct = Math.round((architect.weeklyBurn / totalWeeklyBurn) * 100);
           if (architectPct < 15 && architect.cadenceMin > 15) {
             const HALVE_CADENCE = 2;
-            tips.push(`<b>architect</b> is only ${architectPct}% of burn. Could increase to ${Math.max(15, Math.floor(architect.cadenceMin / HALVE_CADENCE))}m for more feature work.`);
+            tips.push(`<b>architect</b> is only ${architectPct}% of burn. Could increase to ${Math.max(15, Math.floor(architect.cadenceMin / HALVE_CADENCE))}m for more architect work.`);
           }
         }
       }

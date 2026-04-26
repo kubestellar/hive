@@ -322,6 +322,31 @@ fetchRepoStatus();
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Git version — cached, refreshed every 5 min
+let gitVersionCache = { hash: '?', short: '?', behind: 0, dirty: false, ts: 0 };
+const GIT_VERSION_REFRESH_MS = 300000;
+function refreshGitVersion() {
+  const hiveDir = '/tmp/hive';
+  execFile('git', ['-C', hiveDir, 'rev-parse', 'HEAD'], { timeout: 5000 }, (err, hash) => {
+    if (err) return;
+    gitVersionCache.hash = hash.trim();
+    gitVersionCache.short = hash.trim().slice(0, 7);
+    gitVersionCache.ts = Date.now();
+    execFile('git', ['-C', hiveDir, 'status', '--porcelain'], { timeout: 5000 }, (e2, status) => {
+      if (!e2) gitVersionCache.dirty = status.trim().length > 0;
+    });
+    execFile('git', ['-C', hiveDir, 'fetch', 'origin', 'main', '--quiet'], { timeout: 10000 }, () => {
+      execFile('git', ['-C', hiveDir, 'rev-list', 'HEAD..origin/main', '--count'], { timeout: 5000 }, (e3, count) => {
+        if (!e3) gitVersionCache.behind = parseInt(count.trim(), 10) || 0;
+      });
+    });
+  });
+}
+refreshGitVersion();
+setInterval(refreshGitVersion, GIT_VERSION_REFRESH_MS);
+
+app.get('/api/version', (_req, res) => res.json(gitVersionCache));
+
 // JSON API
 app.get('/api/status', async (_req, res) => {
   const data = statusCache || await fetchStatus();

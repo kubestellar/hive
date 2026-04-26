@@ -308,7 +308,7 @@ init_beads() {
       (cd "$bdir" && bd init 2>/dev/null) && ok "Beads initialised in $bdir" || warn "bd init failed in $bdir"
     else
       local count
-      count=$(cd "$bdir" && bd list --json 2>/dev/null \
+      count=$(cd "$bdir" && timeout 8 bd list --json 2>/dev/null \
         | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("items",[])))' 2>/dev/null || echo '?')
       ok "$bdir ($count items)"
     fi
@@ -639,9 +639,9 @@ cmd_status() {
   # Beads
   echo ""
   local wc sc
-  wc=$(cd "$BEADS_WORKER_DIR"     2>/dev/null && bd list --json 2>/dev/null \
+  wc=$(cd "$BEADS_WORKER_DIR"     2>/dev/null && timeout 8 bd list --json 2>/dev/null \
      | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '?')
-  sc=$(cd "$BEADS_SUPERVISOR_DIR" 2>/dev/null && bd list --json 2>/dev/null \
+  sc=$(cd "$BEADS_SUPERVISOR_DIR" 2>/dev/null && timeout 8 bd list --json 2>/dev/null \
      | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '?')
   echo -e "  Beads:     workers ${BLD}$wc${RST}  |  supervisor ${BLD}$sc${RST}"
   echo ""
@@ -780,9 +780,9 @@ cmd_status_json() {
 
   # Beads
   local beads_workers beads_supervisor
-  beads_workers=$(cd "$BEADS_WORKER_DIR" 2>/dev/null && bd list --json 2>/dev/null \
+  beads_workers=$(cd "$BEADS_WORKER_DIR" 2>/dev/null && timeout 8 bd list --json 2>/dev/null \
      | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '-1')
-  beads_supervisor=$(cd "$BEADS_SUPERVISOR_DIR" 2>/dev/null && bd list --json 2>/dev/null \
+  beads_supervisor=$(cd "$BEADS_SUPERVISOR_DIR" 2>/dev/null && timeout 8 bd list --json 2>/dev/null \
      | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else len(d.get("items",[])))' 2>/dev/null || echo '-1')
 
   # Cadence matrix — read from governor config

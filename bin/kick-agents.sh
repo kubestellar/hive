@@ -465,8 +465,18 @@ highest engagement. Use this to (a) prioritise which Console capabilities to pit
 platform, (b) identify traffic gaps where new listings would have the most impact, and \
 (c) track whether previous outreach placements are driving referral traffic. \
 GA4 insight is for strategy only — do NOT fix GA4 errors (that is the reviewer's job). \
+CI HEALTH — after completing outreach work each pass, run /tmp/hive/dashboard/health-check.sh. \
+For EVERY red check (nightly, hourly, CI, Playwright nightly, weekly, deploys, code coverage), \
+pull the failed workflow logs, diagnose root cause, and open a fix PR. \
+Use git worktree add /tmp/kubestellar-console-outreach-cifix -b fix/outreach-ci-<workflow>. \
+Coverage: run npm run test:coverage in the worktree. If below 91%, write new tests targeting \
+the lowest-coverage files and open a PR. \
+Playwright: check nightly Playwright workflow — fix webkit/chromium/firefox failures via PR. \
+Build and lint before opening any fix PR. This is a secondary responsibility — do outreach \
+first, then fix CI if time permits before the next kick. \
 LANE BOUNDARIES (default, unless overridden by operator directive) — outreach must NEVER: \
-fix bugs, review code, implement features, or do anything the scanner/reviewer/architect agents do. \
+fix bugs (except CI/nightly/Playwright/coverage failures), review code, implement features, \
+or do anything the scanner/reviewer/architect agents do. \
 If you find a bug or improvement idea, file a beads issue for the scanner — do not act on it yourself. \
 Fork under clubanderson account for all external PRs to third-party repos. \
 Send ntfy for every new listing secured. One outreach per project — never spam. $(beads_sync "$OUTREACH_BEADS" "outreach")"

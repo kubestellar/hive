@@ -20,6 +20,9 @@
     h1 { font-size: 1.4rem; margin-bottom: 20px; display: flex; align-items: center; }
     h1 span.bee { font-size: 1.6rem; margin-right: 8px; }
     .timestamp { color: var(--muted); font-size: 0.8rem; margin-left: 12px; }
+    .git-version { font-size: 0.65rem; color: var(--muted); margin-left: 10px; font-weight: 400; font-family: monospace; }
+    .git-version .git-behind { color: var(--yellow); font-weight: 600; }
+    .git-version .git-dirty { color: var(--yellow); }
     .header-spacer { flex: 1; }
     .widget-dl {
       font-size: 0.75rem; color: var(--cyan); text-decoration: none;
@@ -54,10 +57,14 @@
     .agent-field .label { color: var(--muted); }
     .agent-field .value { text-align: right; }
     .value.working { color: var(--yellow); }
+    .restart-label { font-size: 0.6rem; color: var(--muted); margin-left: 3px; }
+    .restart-warn { color: var(--yellow); }
+    .restart-high { color: var(--red); }
+    .restart-spark { display: inline-block; margin-left: 6px; vertical-align: middle; }
     .value.idle { color: var(--muted); }
     .value.copilot { color: var(--cyan); }
     .value.claude { color: var(--purple); }
-    .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; word-break: break-word; white-space: pre-line; line-height: 1.5; min-height: 3.4em; }
+    .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; word-break: break-word; white-space: pre-line; line-height: 1.5; min-height: 5.6em; }
     .summary-age { display: inline-block; font-size: 0.6rem; font-style: normal; border-radius: 3px; padding: 1px 5px; margin-right: 5px; vertical-align: middle; white-space: nowrap; }
     .summary-age.age-recent { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.3); }
     .summary-age.age-stale  { background: rgba(248,81,73,0.15);  color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
@@ -235,6 +242,8 @@
     .gov-matrix td.col-active.mode-busy  { background: rgba(210,153,34,0.08); color: #d29922; }
     .gov-matrix td.col-active.mode-surge { background: rgba(248,81,73,0.08); color: #f85149; }
     .gov-matrix td.paused { color: #484f58; font-style: italic; }
+    @keyframes cadence-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .gov-matrix td.col-active.agent-working { animation: cadence-pulse 2.5s ease-in-out infinite; }
 
     /* Timeline strip */
     .gov-timeline { margin-top: 10px; }
@@ -304,6 +313,13 @@
     .token-sessions summary { cursor: pointer; font-weight: 600; color: var(--text); margin-bottom: 4px; }
     .token-session-row { display: flex; gap: 8px; padding: 2px 0; align-items: baseline; }
     .token-session-row .sid { color: var(--cyan); font-family: monospace; min-width: 90px; }
+    .token-session-row .sagent { font-weight: 600; min-width: 70px; font-size: 0.65rem; }
+    .token-session-row .sagent.a-scanner { color: #58a6ff; }
+    .token-session-row .sagent.a-reviewer { color: #3fb950; }
+    .token-session-row .sagent.a-architect { color: #bc8cff; }
+    .token-session-row .sagent.a-outreach { color: #39d2c0; }
+    .token-session-row .sagent.a-supervisor { color: #d29922; }
+    .token-session-row .sagent.a-unknown { color: var(--muted); font-style: italic; }
     .token-session-row .smodel { color: var(--purple); min-width: 120px; }
     .token-session-row .stokens { color: var(--text); font-weight: 600; min-width: 80px; text-align: right; }
     .token-session-row .smsgs { color: var(--muted); min-width: 50px; }
@@ -384,6 +400,7 @@
   </div>
 
   <h1><span class="bee">🐝</span> KubeStellar Hive Dashboard <span class="timestamp" id="ts"></span>
+    <span class="git-version" id="git-version"></span>
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
 
@@ -438,6 +455,14 @@
         for (const k of keys) v = v?.[k];
         return v ?? 0;
       });
+    }
+
+    function restartSparkSvg(agentName) {
+      const series = historyData
+        .map(s => s.agents?.[agentName]?.restarts)
+        .filter(v => v != null);
+      if (series.length < 2 || Math.max(...series) === 0) return '';
+      return sparkSvg(series, '#f85149');
     }
 
     async function fetchHistory() {
@@ -655,6 +680,7 @@
           <div class="agent-field"><span class="label">interval</span><span class="value">${a.cadence}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${a.nextKick || '—'}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
+          <div class="agent-field"><span class="label">restarts</span><span class="value${(a.restarts || 0) > 5 ? ' restart-high' : (a.restarts || 0) > 0 ? ' restart-warn' : ''}">${a.restarts || 0}<span class="restart-label">24h</span><span class="restart-spark">${restartSparkSvg(a.name)}</span></span></div>
           <div class="agent-state ${a.busy}">${a.busy}</div>
           ${needsLogin ? '<div class="login-warning">⚠ NOT LOGGED IN — run /login</div>' : ''}
           ${summaryEl}${indEl}
@@ -792,7 +818,7 @@
           const val = row[m] || '?';
           const isActive = m === currentMode;
           const isPaused = val === 'paused';
-          const colCls = isActive ? `col-active mode-${m}` : '';
+          const colCls = isActive ? `col-active mode-${m}${isWorking ? ' agent-working' : ''}` : '';
           const pausedCls = isPaused ? ' paused' : '';
           const dot = (isActive && isWorking) ? '<span class="active-dot"></span>' : '';
           return `<td class="${colCls}${pausedCls}">${dot}${isPaused ? '—' : val}</td>`;
@@ -832,8 +858,8 @@
       const wSpark = sparkSvg(getHistorySeries('beadsWorkers'), '#39d2c0');
       const sSpark = sparkSvg(getHistorySeries('beadsSupervisor'), '#d29922');
       el.innerHTML = `
-        <div class="bead-stat"><div class="spark-row"><span class="num">${beads.workers >= 0 ? beads.workers : '?'}</span>${wSpark}</div><div class="label">workers</div></div>
-        <div class="bead-stat"><div class="spark-row"><span class="num">${beads.supervisor >= 0 ? beads.supervisor : '?'}</span>${sSpark}</div><div class="label">supervisor</div></div>`;
+        <div class="bead-stat"><div class="spark-row"><span class="num">${beads.workers >= 0 ? beads.workers : 0}</span>${wSpark}</div><div class="label">workers</div></div>
+        <div class="bead-stat"><div class="spark-row"><span class="num">${beads.supervisor >= 0 ? beads.supervisor : 0}</span>${sSpark}</div><div class="label">supervisor</div></div>`;
     }
 
     function fmtTokens(n) {
@@ -1016,6 +1042,8 @@
         return;
       }
 
+      const sessionsOpen = el.querySelector('.token-sessions')?.open || false;
+
       const t = tokens.totals;
       const totalTokens = t.input + t.output + t.cacheRead;
       const models = Object.entries(tokens.byModel || {}).sort((a, b) =>
@@ -1035,8 +1063,11 @@
 
       const sessionRows = sessions.map(s => {
         const age = s.lastActive ? new Date(s.lastActive).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}) : '';
+        const agentName = s.agent && s.agent !== 'unknown' ? s.agent : '';
+        const agentCls = agentName ? `a-${agentName}` : 'a-unknown';
         return `<div class="token-session-row">
           <span class="sid">${esc(s.id)}</span>
+          <span class="sagent ${agentCls}">${agentName || '—'}</span>
           <span class="smodel">${esc(s.model)}</span>
           <span class="stokens">${fmtTokens(s.total)}</span>
           <span class="smsgs">${s.messages} msgs</span>
@@ -1070,7 +1101,7 @@
         ${agentSparkRows ? `<div class="token-grid" style="margin-top:4px">${agentSparkRows}</div>` : ''}
         ${advisorHtml}
         <div class="token-models">${modelChips}</div>
-        ${sessions.length > 0 ? `<details class="token-sessions"><summary>Active Sessions (${sessions.length})</summary>${sessionRows}</details>` : ''}
+        ${sessions.length > 0 ? `<details class="token-sessions"${sessionsOpen ? ' open' : ''}><summary>Active Sessions (${sessions.length})</summary>${sessionRows}</details>` : ''}
       </div>`;
     }
 
@@ -1158,6 +1189,22 @@
       if (!data.ok) alert('Model switch failed: ' + (data.error || 'unknown'));
     }
 
+    // Git version indicator
+    const GIT_VERSION_POLL_MS = 300000;
+    async function fetchGitVersion() {
+      try {
+        const res = await fetch('/api/version');
+        const v = await res.json();
+        const el = document.getElementById('git-version');
+        let html = `<a href="https://github.com/kubestellar/hive/commit/${v.hash}" target="_blank" style="color:inherit;text-decoration:none" title="${v.hash}">${v.short}</a>`;
+        if (v.dirty) html += ' <span class="git-dirty">*</span>';
+        if (v.behind > 0) html += ` <span class="git-behind">${v.behind} behind</span>`;
+        el.innerHTML = html;
+      } catch (_) {}
+    }
+    fetchGitVersion();
+    setInterval(fetchGitVersion, GIT_VERSION_POLL_MS);
+
     // SSE connection
     function connect() {
       const source = new EventSource('/api/events');
@@ -1176,8 +1223,8 @@
             govPrs: data.governor?.prs || 0,
             govTotal: (data.governor?.issues || 0) + (data.governor?.prs || 0),
             govActive: data.governor?.active ? 1 : 0,
-            beadsWorkers: data.beads?.workers || 0,
-            beadsSupervisor: data.beads?.supervisor || 0,
+            beadsWorkers: Math.max(data.beads?.workers ?? 0, 0),
+            beadsSupervisor: Math.max(data.beads?.supervisor ?? 0, 0),
             repos: {},
             agents: {},
           };

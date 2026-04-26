@@ -271,10 +271,13 @@ def summarize_entries(entries):
         lines.append(tools[0])
     if last_text and last_text not in lines:
         lines.append(last_text)
-    if len(tools) > 1 and len(lines) < 3:
-        lines.append(tools[1])
+    for t in tools[1:]:
+        if len(lines) >= 5:
+            break
+        if t not in lines:
+            lines.append(t)
 
-    return "\n".join(lines[:3])
+    return "\n".join(lines[:5])
 
 
 def scrape_tmux(session):

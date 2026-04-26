@@ -282,7 +282,7 @@
     .token-title { font-size: 1rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
     .token-title .lookback { font-size: 0.7rem; color: var(--muted); font-weight: 400; }
     .token-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
-    .token-stat { text-align: center; }
+    .token-stat { text-align: left; }
     .token-stat .tval { font-size: 1.3rem; font-weight: 700; }
     .token-stat .tlabel { font-size: 0.65rem; color: var(--muted); }
     .token-models { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -1036,9 +1036,7 @@
       const agentSparkRows = agentNames.map(name => {
         const ba = tokens.byAgent || {};
         const aData = ba[name];
-        if (!aData) return '';
-        const aTotal = (aData.input || 0) + (aData.output || 0) + (aData.cacheRead || 0);
-        if (aTotal === 0) return '';
+        const aTotal = aData ? (aData.input || 0) + (aData.output || 0) + (aData.cacheRead || 0) : 0;
         const aSpark = sparkSvg(historyData.map(s => s.tokens?.[name] ?? 0), agentColors[name] || '#8b949e');
         return `<div class="token-stat"><div class="spark-row"><span class="tval" style="color:${agentColors[name]}">${fmtTokens(aTotal)}</span>${aSpark}</div><div class="tlabel">${name}</div></div>`;
       }).join('');

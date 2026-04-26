@@ -58,12 +58,12 @@ declare -A AGENT_FALLBACK_BACKEND=(
 )
 # Model to use per backend — Copilot uses dots, Claude uses hyphens
 declare -A BACKEND_MODEL=(
-  [copilot]=claude-opus-4.6
+  [copilot]=claude-opus-4-6
   [claude]=claude-sonnet-4-5
 )
 # Scanner runs Opus on both backends
 declare -A AGENT_MODEL_OVERRIDE=(
-  [scanner-copilot]=claude-opus-4.6
+  [scanner-copilot]=claude-opus-4-6
   [scanner-claude]=claude-opus-4-6
 )
 declare -A MODEL_SWITCHED=()

@@ -4,11 +4,11 @@
 # Supported backends: claude, copilot (add more in the case block below)
 #
 # Usage (in .env files):
-#   AGENT_LAUNCH_CMD="agent-launch.sh --backend copilot --model claude-opus-4.6"
+#   AGENT_LAUNCH_CMD="agent-launch.sh --backend copilot --model claude-opus-4-6"
 #   AGENT_LAUNCH_CMD="agent-launch.sh --backend claude --model claude-opus-4-6"
 #
 # Or override with env vars:
-#   AGENT_BACKEND=copilot AGENT_MODEL=claude-opus-4.6 agent-launch.sh
+#   AGENT_BACKEND=copilot AGENT_MODEL=claude-opus-4-6 agent-launch.sh
 #
 # Adding a new backend:
 #   1. Add a case block below with CMD, PERM_FLAG, MODEL_FLAG

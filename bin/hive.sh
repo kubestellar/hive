@@ -407,7 +407,7 @@ kick_agents() {
   AGENT_BEADS_DIR["outreach"]="${BEADS_OUTREACH_DIR:-/home/${AGENT_USER:-dev}/outreach-beads}"
 
   # Expected model substring — must be visible in pane before kick is safe to send.
-  # Copilot shows "claude-opus-4.6" in bottom-right; Claude Code shows "Opus 4.6".
+  # Copilot shows "claude-opus-4-6" in bottom-right; Claude Code shows "Opus 4.6".
   local expected_model="4.6"
 
   for session in issue-scanner reviewer feature outreach; do
@@ -447,7 +447,7 @@ start_supervisor() {
 
   local launch_cmd
   case "$cli" in
-    copilot) launch_cmd="/usr/bin/copilot --allow-all --model claude-opus-4.6" ;;
+    copilot) launch_cmd="/usr/bin/copilot --allow-all --model claude-opus-4-6" ;;
     claude)  launch_cmd="/usr/bin/claude --dangerously-skip-permissions --model opus-4-6" ;;
     *)       die "Unknown CLI: $cli. Use --copilot or --claude" ;;
   esac
@@ -906,7 +906,7 @@ cmd_switch() {
   # Resolve launch command for backend
   local launch_cmd
   case "$backend" in
-    copilot) launch_cmd="/usr/bin/copilot --allow-all --model claude-opus-4.6" ;;
+    copilot) launch_cmd="/usr/bin/copilot --allow-all --model claude-opus-4-6" ;;
     claude)  launch_cmd="/usr/bin/claude --dangerously-skip-permissions --model opus-4-6" ;;
     gemini)  launch_cmd="/usr/bin/gemini --yolo" ;;
     goose)   launch_cmd="/usr/bin/goose --no-confirm" ;;
@@ -937,7 +937,7 @@ cmd_switch() {
 
 cmd_model() {
   local agent="${1:-}" model="${2:-}"
-  [[ -z "$agent" || -z "$model" ]] && die "Usage: hive model <agent> <model>  (e.g., claude-opus-4.6)"
+  [[ -z "$agent" || -z "$model" ]] && die "Usage: hive model <agent> <model>  (e.g., claude-opus-4-6)"
 
   # Map agent name → session, env file, and systemd service
   local session envfile service

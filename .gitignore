@@ -3,3 +3,4 @@
 .DS_Store
 /agent.env
 /config/agent.env
+examples/kubestellar/agents/agent.env

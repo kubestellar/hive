@@ -242,8 +242,11 @@
     .gov-matrix td.col-active.mode-busy  { background: rgba(210,153,34,0.08); color: #d29922; }
     .gov-matrix td.col-active.mode-surge { background: rgba(248,81,73,0.08); color: #f85149; }
     .gov-matrix td.paused { color: #484f58; font-style: italic; }
-    @keyframes cadence-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-    .gov-matrix td.col-active.agent-working { animation: cadence-pulse 2.5s ease-in-out infinite; }
+    .gov-matrix .agent-dot {
+      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); margin-right: 4px; vertical-align: middle;
+      animation: green-pulse 6s ease-in-out infinite;
+    }
 
     /* Timeline strip */
     .gov-timeline { margin-top: 10px; }
@@ -818,13 +821,14 @@
           const val = row[m] || '?';
           const isActive = m === currentMode;
           const isPaused = val === 'paused';
-          const colCls = isActive ? `col-active mode-${m}${isWorking ? ' agent-working' : ''}` : '';
+          const colCls = isActive ? `col-active mode-${m}` : '';
           const pausedCls = isPaused ? ' paused' : '';
           const dot = (isActive && isWorking) ? '<span class="active-dot"></span>' : '';
           return `<td class="${colCls}${pausedCls}">${dot}${isPaused ? '—' : val}</td>`;
         }).join('');
+        const nameDot = isWorking ? '<span class="agent-dot"></span>' : '';
         const mChip = agentData && agentData.govBackend ? modelChip(agentData.govBackend, agentData.govModel, agentData.govReason) : '';
-        return `<tr><td>${aname}</td>${cells}<td>${mChip}</td></tr>`;
+        return `<tr><td>${nameDot}${aname}</td>${cells}<td>${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
         const isActive = m === currentMode;

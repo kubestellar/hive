@@ -43,6 +43,31 @@ trend_marker() {
 die()   { fail "$*"; exit 1; }
 hdr()   { echo -e "\n${BLD}$*${RST}"; }
 
+# Detect CLI binary from tmux pane process tree via /proc
+detect_cli_from_proc() {
+  local session="$1" pane_pid child_cmd
+  pane_pid=$(tmux list-panes -t "$session" -F '#{pane_pid}' 2>/dev/null | head -1)
+  [[ -z "$pane_pid" ]] && echo "?" && return
+  local shell_cmd
+  shell_cmd=$(cat "/proc/$pane_pid/cmdline" 2>/dev/null | tr '\0' ' ')
+  if [[ "$shell_cmd" == */claude\ * || "$shell_cmd" == */claude ]]; then
+    echo "claude" && return
+  fi
+  for cpid in $(ps -o pid= --ppid "$pane_pid" 2>/dev/null); do
+    child_cmd=$(cat "/proc/$cpid/cmdline" 2>/dev/null | tr '\0' ' ' | head -c 500)
+    if echo "$child_cmd" | grep -q "copilot"; then
+      echo "copilot" && return
+    elif echo "$child_cmd" | grep -q "/claude "; then
+      echo "claude" && return
+    elif echo "$child_cmd" | grep -q "goose"; then
+      echo "goose" && return
+    elif echo "$child_cmd" | grep -q "gemini"; then
+      echo "gemini" && return
+    fi
+  done
+  echo "?"
+}
+
 # ── load config ────────────────────────────────────────────────────
 
 load_conf() {
@@ -538,12 +563,9 @@ cmd_status() {
       local pane pane_tail
       pane=$(tmux capture-pane -t "$s" -p 2>/dev/null || echo "")
       pane_tail=$(echo "$pane" | tail -5)
-      # Detect CLI
-      if echo "$pane_tail" | grep -q "bypass permissions\|claude doctor\|Claude Code v\|Claude Opus\|Claude Sonnet\|Claude Haiku"; then
-        cli="claude"
-      elif echo "$pane_tail" | grep -q "ctrl+q enqueue\|/ commands.*help"; then
-        cli="copilot"
-      else
+      # Detect CLI from process tree
+      cli=$(detect_cli_from_proc "$s")
+      if [[ "$cli" == "?" ]]; then
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
       fi
       # Detect login required — only check footer (last 5 lines) to avoid
@@ -680,11 +702,8 @@ cmd_status_json() {
       local pane pane_tail
       pane=$(tmux capture-pane -t "$s" -p 2>/dev/null || echo "")
       pane_tail=$(echo "$pane" | tail -5)
-      if echo "$pane_tail" | grep -q "bypass permissions\|claude doctor\|Claude Code v\|Claude Opus\|Claude Sonnet\|Claude Haiku"; then
-        cli="claude"
-      elif echo "$pane_tail" | grep -q "ctrl+q enqueue\|/ commands.*help"; then
-        cli="copilot"
-      else
+      cli=$(detect_cli_from_proc "$s")
+      if [[ "$cli" == "?" ]]; then
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
       fi
       local recent_lines

@@ -363,6 +363,7 @@
     /* Model chip on agent cards */
     .model-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; }
     .model-chip.free { background: rgba(63,185,80,0.12); color: var(--green); }
+    .model-chip.paid { background: rgba(210,153,34,0.12); color: var(--yellow); }
     .model-chip.haiku { background: rgba(88,166,255,0.12); color: var(--blue); }
     .model-chip.sonnet { background: rgba(210,153,34,0.12); color: var(--yellow); }
     .model-chip.opus { background: rgba(248,81,73,0.12); color: var(--red); }
@@ -697,8 +698,8 @@
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a></div>
-          <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
-          <div class="agent-field"><span class="label">model</span><span class="value">${a.model || ''} ${a.govBackend ? modelChip(a.govBackend, a.govModel, a.govReason) : ''}</span></div>
+          <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}${a.govBackend ? backendChip(a.govBackend) : ''}</span></div>
+          <div class="agent-field"><span class="label">model</span><span class="value">${a.govModel ? modelChip(a.govModel, a.govReason) : (a.model || '?')}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${isPaused ? 'paused' : a.cadence}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${isPaused ? 'paused' : (a.nextKick || '—')}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
@@ -849,7 +850,7 @@
         }).join('');
         const nameDot = isWorking ? '<span class="agent-dot"></span>' : '';
         const pauseBadge = agentPaused ? '<span class="pause-badge">paused</span>' : '';
-        const mChip = agentData && agentData.govBackend ? modelChip(agentData.govBackend, agentData.govModel, agentData.govReason) : '';
+        const mChip = agentData && agentData.govModel ? modelChip(agentData.govModel, agentData.govReason) : '';
         return `<tr><td>${nameDot}${aname}${pauseBadge}</td>${cells}<td>${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
@@ -933,19 +934,23 @@
       </div>`;
     }
 
-    function modelChip(backend, model, reason) {
+    function backendChip(backend) {
       if (!backend || backend === 'unknown') return '';
       const isFree = backend === 'copilot' || backend === 'goose';
+      const tier = isFree ? 'free' : 'paid';
+      return ` <span class="model-chip ${tier}" title="billing: ${backend}">${backend}</span>`;
+    }
+
+    function modelChip(model, reason) {
+      if (!model || model === '?' || model === 'unknown') return '';
+      const shortModel = model.replace(/^claude-/, '').replace(/-\d+-\d+$/, m => m.replace(/-/g, '.').slice(0, 4));
       let tier = 'sonnet';
-      if (isFree) tier = 'free';
-      else if (model && model.includes('haiku')) tier = 'haiku';
-      else if (model && model.includes('opus')) tier = 'opus';
-      const shortModel = model ? model.replace(/^claude-/, '').replace(/-\d+-\d+$/, m => m.replace(/-/g, '.').slice(0, 4)) : '?';
-      const label = isFree ? `${backend}` : shortModel;
+      if (model.includes('haiku')) tier = 'haiku';
+      else if (model.includes('opus')) tier = 'opus';
       const isBudgetOverride = reason && (reason.includes('budget_downgrade') || reason.includes('budget_critical'));
       const overrideIcon = isBudgetOverride ? ' ⬇' : '';
       const overrideTitle = isBudgetOverride ? ` (${reason})` : '';
-      return `<span class="model-chip ${tier}" title="${backend}:${model}${overrideTitle}">${label}${overrideIcon}</span>`;
+      return `<span class="model-chip ${tier}" title="${model}${overrideTitle}">${shortModel}${overrideIcon}</span>`;
     }
 
     function buildCadenceAdvisor(byAgent) {

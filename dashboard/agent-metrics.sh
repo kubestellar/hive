@@ -2,6 +2,7 @@
 
 set +e
 unset GITHUB_TOKEN
+[ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"
 
 # Get live agent status (includes doing field with live spinner updates)
 agent_status=$(hive status --json 2>/dev/null)
@@ -77,7 +78,7 @@ outreach_tmp=$(mktemp -d)
 (gh api repos/kubestellar/console --jq '.forks_count' > "$outreach_tmp/forks" 2>/dev/null || echo 0 > "$outreach_tmp/forks") &
 (c=$(gh api repos/kubestellar/console/contributors?per_page=1 -i 2>/dev/null | grep -oP 'page=\K\d+(?=>; rel="last")' || echo 0); [ "$c" = "0" ] && c=$(gh api repos/kubestellar/console/contributors --jq 'length' 2>/dev/null || echo 0); echo "$c" > "$outreach_tmp/contribs") &
 (a=$(gh api repos/kubestellar/console/contents/ADOPTERS.MD --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0); a=$(( a > 2 ? a - 2 : 0 )); echo "$a" > "$outreach_tmp/adopters") &
-(unset GITHUB_TOKEN && gh api repos/kubestellar/docs/contents/src/app/%5Blocale%5D/acmm-leaderboard/page.tsx --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | sed -n '/BADGE_PARTICIPANTS = new Set/,/\]);/p' | grep -cP '^\s+"[a-zA-Z]' > "$outreach_tmp/acmm" 2>/dev/null || echo 0 > "$outreach_tmp/acmm") &
+(unset GITHUB_TOKEN; [ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"; gh api repos/kubestellar/docs/contents/src/app/%5Blocale%5D/acmm-leaderboard/page.tsx --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | sed -n '/BADGE_PARTICIPANTS = new Set/,/\]);/p' | grep -cP '^\s+"[a-zA-Z]' > "$outreach_tmp/acmm" 2>/dev/null || echo 0 > "$outreach_tmp/acmm") &
 wait
 stars=$(cat "$outreach_tmp/stars" 2>/dev/null || echo 0)
 forks=$(cat "$outreach_tmp/forks" 2>/dev/null || echo 0)

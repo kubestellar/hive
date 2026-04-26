@@ -2,6 +2,7 @@
 # Health checks for hive dashboard — outputs JSON
 set +e
 unset GITHUB_TOKEN
+[ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"
 
 # CI pass rate (last 10 completed runs)
 ci=$(gh run list --repo kubestellar/console --limit 10 --json conclusion,status \

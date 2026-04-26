@@ -193,6 +193,7 @@ count_actionable() {
   local cache_dir="$STATE_DIR/repo_cache"
   mkdir -p "$cache_dir" 2>/dev/null || true
   unset GITHUB_TOKEN
+  [ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"
   local issues prs
 
   # REST API: list open issues (excludes PRs), filter out exempt labels client-side

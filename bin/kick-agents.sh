@@ -324,6 +324,7 @@ kick() {
 
   log "KICK $session"
   $TMUX_BIN send-keys -t "$session" "$message"
+  sleep 1  # let tmux flush long message text before sending Enter
   $TMUX_BIN send-keys -t "$session" Enter
   ntfy "$agent started" "Kicked at $ET_NOW. Next: $(next_run "$agent")"
 

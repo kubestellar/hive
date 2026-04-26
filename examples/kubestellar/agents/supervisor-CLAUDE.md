@@ -25,7 +25,7 @@ When started with `hive supervisor` or when the session is named `supervisor`, i
 
 1. **Read THIS policy file first** — do not take any other action until you have read and internalized these instructions. This is Step 1. Always.
 2. **Rename + color this session**: `/rename supervisor` then `/color purple`
-3. **Read your beads**: `cd /home/dev/kubestellar-console && bd list --json` and `bd ready --json`
+3. **Read your beads**: `cd /home/dev/supervisor-beads && bd list --json` and `bd ready --json`
 4. **Read policy files** from `/home/dev/.claude/projects/-Users-andan02/memory/`:
    - `project_scanner_policy.md` — scanner rules
    - `project_reviewer_policy.md` — reviewer rules
@@ -434,7 +434,7 @@ These are real failures discovered in production. Check for them on every startu
 
 **Symptom**: `bd dolt push` fails, beads counts show `?` in dashboard.
 **Cause**: Same as above — root-owned files from sudo operations.
-**Fix**: `sudo chown -R dev:dev /home/dev/kubestellar-console/.beads/ /home/dev/scanner-beads/.beads/`
+**Fix**: `sudo chown -R dev:dev /home/dev/supervisor-beads/.beads/ /home/dev/scanner-beads/.beads/`
 
 ### 3. notify.sh syntax errors
 

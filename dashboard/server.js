@@ -172,9 +172,9 @@ setTimeout(persistSnapshot, 10000);
 function fetchStatus() {
   return new Promise((resolve) => {
     const hiveEnv = { ...process.env, HIVE_TZ: process.env.HIVE_TZ || 'America/New_York' };
-    execFile('hive', ['status', '--json'], { timeout: 30000, env: hiveEnv }, (err, stdout) => {
+    execFile('/usr/local/bin/hive', ['status', '--json'], { timeout: 30000, env: hiveEnv }, (err, stdout, stderr) => {
       if (err) {
-        console.error('hive status --json failed:', err.message);
+        console.error('hive status --json failed:', err.message, stderr ? 'stderr: ' + stderr.slice(0, 200) : '');
         resolve(statusCache); // return stale data
         return;
       }
@@ -274,7 +274,7 @@ function fetchStatus() {
           snap.repos[r.name] = { issues: r.issues || 0, prs: r.prs || 0 };
         }
         for (const a of (statusCache.agents || [])) {
-          snap.agents[a.name] = { busy: a.busy === 'working' ? 1 : 0 };
+          snap.agents[a.name] = { busy: a.busy === 'working' ? 1 : 0, restarts: a.restarts || 0 };
         }
         history.push(snap);
         if (history.length > MAX_HISTORY) history.shift();
@@ -291,9 +291,24 @@ function fetchStatus() {
   });
 }
 
-// Background refresh loop
+// Background refresh loop — fast (agents only, no GH API calls)
 setInterval(fetchStatus, REFRESH_MS);
 fetchStatus();
+
+// Slow refresh for repo data (GH API) — every 60s to avoid rate limiting
+const REPO_REFRESH_MS = 60000;
+function fetchRepoStatus() {
+  const hiveEnv = { ...process.env, HIVE_TZ: process.env.HIVE_TZ || 'America/New_York' };
+  execFile('/usr/local/bin/hive', ['status', '--json', '--repos'], { timeout: 30000, env: hiveEnv }, (err, stdout) => {
+    if (err) { console.error('hive status --json --repos failed:', err.message); return; }
+    try {
+      const data = JSON.parse(stdout);
+      if (statusCache && data.repos) statusCache.repos = data.repos;
+    } catch (_) {}
+  });
+}
+setInterval(fetchRepoStatus, REPO_REFRESH_MS);
+fetchRepoStatus();
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -391,7 +406,7 @@ app.get('/api/widget', (_req, res) => {
 const TMUX_SESSION = {
   scanner: 'issue-scanner',
   reviewer: 'reviewer',
-  architect: 'architect',
+  architect: 'feature',
   outreach: 'outreach',
   supervisor: 'supervisor',
 };
@@ -417,7 +432,7 @@ app.post('/api/kick/:agent', (req, res) => {
       });
     });
   } else {
-    execFile('hive', ['kick', agent], { timeout: 30000 }, (err, stdout) => {
+    execFile('/usr/local/bin/hive', ['kick', agent], { timeout: 30000 }, (err, stdout) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ ok: true, output: stdout.trim() });
     });
@@ -434,7 +449,7 @@ app.post('/api/switch/:agent/:backend', (req, res) => {
   if (!allowedBackends.includes(backend)) {
     return res.status(400).json({ error: `invalid backend: ${backend}` });
   }
-  execFile('hive', ['switch', agent, backend], { timeout: 30000 }, (err, stdout) => {
+  execFile('/usr/local/bin/hive', ['switch', agent, backend], { timeout: 30000 }, (err, stdout) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true, output: stdout.trim() });
   });
@@ -446,7 +461,7 @@ app.post('/api/model/:agent/:model', (req, res) => {
   if (!allowedAgents.includes(agent)) {
     return res.status(400).json({ error: `invalid agent: ${agent}` });
   }
-  execFile('hive', ['model', agent, decodeURIComponent(model)], { timeout: 30000 }, (err, stdout) => {
+  execFile('/usr/local/bin/hive', ['model', agent, decodeURIComponent(model)], { timeout: 30000 }, (err, stdout) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true, output: stdout.trim() });
   });

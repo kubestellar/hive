@@ -136,10 +136,12 @@ switch_backend() {
   $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
   sleep 2
   $TMUX_BIN send-keys -t "$session" "/exit" 2>/dev/null || true
+  sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
   sleep 3
 
   $TMUX_BIN send-keys -t "$session" "agent-launch.sh --backend $fallback_backend --model $model" 2>/dev/null || true
+  sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
 
   set_current_backend "$agent" "$fallback_backend"
@@ -468,10 +470,12 @@ apply_model_if_changed() {
   capture_handoff_state "$session" "$agent"
 
   $TMUX_BIN send-keys -t "$session" "/exit" 2>/dev/null || true
+  sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
   sleep 3
 
   $TMUX_BIN send-keys -t "$session" "agent-launch.sh --backend $gov_backend --model $gov_model" 2>/dev/null || true
+  sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
 
   set_current_backend "$agent" "$gov_backend"

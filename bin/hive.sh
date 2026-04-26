@@ -425,7 +425,7 @@ kick_agents() {
     local bdir="${AGENT_BEADS_DIR[$session]}"
     local msg="STARTUP: read your beads (cd ${bdir} && bd list --json). Resume any in_progress item. For new work: bd ready --json. Read your policy file from memory. Report status."
     tmux send-keys -t "$session" "$msg" 2>/dev/null || true
-    sleep 0.3
+    sleep 1
     tmux send-keys -t "$session" Enter 2>/dev/null || true
     ok "$session kicked (model $expected_model confirmed, beads: $bdir)"
   done
@@ -468,7 +468,7 @@ start_supervisor() {
 
   info "Launching $cli..."
   tmux send-keys -t supervisor "$launch_cmd"
-  sleep 0.3
+  sleep 1
   tmux send-keys -t supervisor Enter
 
   info "Waiting for ready..."
@@ -481,7 +481,7 @@ start_supervisor() {
 
   sleep 1
   tmux send-keys -t supervisor "$loop_prompt"
-  sleep 0.3
+  sleep 1
   tmux send-keys -t supervisor Enter
 
   ok "Supervisor running"

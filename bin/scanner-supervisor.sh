@@ -21,7 +21,7 @@ CLAUDE_CMD="/usr/bin/claude --dangerously-skip-permissions --model claude-opus-4
 COPILOT_CMD="/usr/bin/copilot --allow-all"
 ACTIVE_CLI="${AGENT_CLI:-claude}"
 
-RATE_LIMIT_REGEX="usage limit|out of extra usage|Claude usage|rate limit reached|quota exhausted|monthly limit|Copilot usage limit|API rate limit|too many requests"
+RATE_LIMIT_REGEX="usage limit|out of extra usage|Claude usage|rate limit reached|quota exhausted|monthly limit|Copilot usage limit"
 
 get_launch_cmd() {
   case "$ACTIVE_CLI" in

@@ -74,7 +74,7 @@ send_kick() {
   log "Sending kick to $SESSION"
   # RULE: text and Enter are always two separate calls — never combined
   tmux send-keys -t "$SESSION" "$MESSAGE"
-  sleep 0.5
+  sleep 1
   tmux send-keys -t "$SESSION" Enter
 }
 

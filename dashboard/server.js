@@ -220,6 +220,10 @@ function fetchStatus() {
               a.govReason = m.REASON || '';
             }
           } catch (_) {}
+          try {
+            const pf = path.join(GOVERNOR_STATE_DIR, `paused_${a.name}`);
+            if (fs.existsSync(pf)) { a.paused = true; a.cadence = 'paused'; }
+          } catch (_) {}
         }
         // GitHub API rate limit alerts
         statusCache.ghRateLimits = ghRateLimitsCache;

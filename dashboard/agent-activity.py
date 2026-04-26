@@ -290,9 +290,6 @@ def scrape_tmux(session):
     except (subprocess.SubprocessError, OSError):
         return None
 
-    raw_stripped = [l for l in raw.splitlines() if l.strip()]
-    at_prompt = any(l.strip().startswith('❯') for l in raw_stripped[-3:]) if raw_stripped else False
-
     lines = []
     is_working = False
     for line in raw.splitlines():
@@ -309,7 +306,12 @@ def scrape_tmux(session):
         elif line.strip() and len(line.strip()) > 5:
             lines.append(line.strip())
 
-    if at_prompt:
+    raw_stripped = [l for l in raw.splitlines() if l.strip()]
+    tail_text = "\n".join(raw_stripped[-8:]) if raw_stripped else ""
+    has_prompt = any(l.strip().startswith('❯') for l in raw_stripped[-3:]) if raw_stripped else False
+    ACTIVE_RE = re.compile(r'local agent|background.*/tasks|agent still running|Esc to cancel|Spinning|tokens\)')
+    has_activity = bool(ACTIVE_RE.search(tail_text)) or any(SPINNER_RE.search(l) for l in raw_stripped[-8:])
+    if has_prompt and not has_activity:
         is_working = False
 
     unique = []

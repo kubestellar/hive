@@ -969,35 +969,35 @@ cmd_stop() {
 cmd_unpin() {
   local agent="${1:-}"
   [[ -z "$agent" ]] && die "Usage: hive unpin <agent>"
-  local envfile
+  local envfile supervised_envfile
   case "$agent" in
-    scanner)            envfile="issue-scanner" ;;
-    reviewer)           envfile="reviewer" ;;
-    architect|feature)  envfile="architect" ;;
-    outreach)           envfile="outreach" ;;
+    scanner)            envfile="issue-scanner"; supervised_envfile="scanner" ;;
+    reviewer)           envfile="reviewer";      supervised_envfile="reviewer" ;;
+    architect|feature)  envfile="architect";    supervised_envfile="architect" ;;
+    outreach)           envfile="outreach";      supervised_envfile="outreach" ;;
     *) die "Unknown agent: $agent" ;;
   esac
-  local ef="$ENV_DIR/${envfile}.env"
-  if [[ -f "$ef" ]]; then
-    sudo sed -i "/^AGENT_CLI_PINNED=/d" "$ef"
-    ok "Unpinned $agent â governor will manage CLI on next kick"
-  else
-    die "Env file not found: $ef"
-  fi
+  for envpath in "$ENV_DIR/${envfile}.env" "/etc/supervised-agent/${supervised_envfile}.env"; do
+    if [[ -f "$envpath" ]]; then
+      sudo sed -i "/^AGENT_CLI_PINNED=/d" "$envpath"
+    fi
+  done
+  ok "Unpinned $agent -- governor will manage CLI on next kick"
 }
 
 cmd_switch() {
   local agent="${1:-}" backend="${2:-}"
   [[ -z "$agent" || -z "$backend" ]] && die "Usage: hive switch <agent> <backend>  (backends: copilot claude gemini goose)"
 
-  # Map agent name → session, env file, and systemd service
-  local session envfile service
+  # Map agent name → session, env files, and systemd service.
+  # Two env dirs: /etc/hive (kick-agents) and /etc/supervised-agent (systemd supervisor.sh).
+  local session envfile supervised_envfile service
   case "$agent" in
-    scanner)            session="issue-scanner"; envfile="issue-scanner"; service="claude-scanner" ;;
-    reviewer)           session="reviewer";      envfile="reviewer";      service="hive@reviewer" ;;
-    architect|feature)  session="architect";    envfile="architect";    service="hive@architect" ;;
-    outreach)           session="outreach";      envfile="outreach";      service="hive@outreach" ;;
-    supervisor)         session="supervisor";    envfile="supervisor";    service="hive@supervisor" ;;
+    scanner)            session="issue-scanner"; envfile="issue-scanner"; supervised_envfile="scanner"; service="supervised-agent@scanner" ;;
+    reviewer)           session="reviewer";      envfile="reviewer";      supervised_envfile="reviewer"; service="supervised-agent@reviewer" ;;
+    architect|feature)  session="architect";    envfile="architect";    supervised_envfile="architect"; service="supervised-agent@architect" ;;
+    outreach)           session="outreach";      envfile="outreach";      supervised_envfile="outreach"; service="supervised-agent@outreach" ;;
+    supervisor)         session="supervisor";    envfile="supervisor";    supervised_envfile="supervisor"; service="supervised-agent@supervisor" ;;
     *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;
   esac
 
@@ -1013,70 +1013,48 @@ cmd_switch() {
 
   info "Switching $agent → $backend"
 
-  # Update env file
+  # Update both env files: /etc/hive (kick-agents) and /etc/supervised-agent (supervisor.sh)
   local ef="$ENV_DIR/${envfile}.env"
-  if [[ -f "$ef" ]]; then
-    sudo sed -i "s|^AGENT_LAUNCH_CMD=.*|AGENT_LAUNCH_CMD=\"${launch_cmd}\"|" "$ef"
-    sudo sed -i "s|^AGENT_CLI=.*|AGENT_CLI=${backend}|" "$ef"
-    # Pin the CLI so governor doesn't override on next kick
-    if grep -q "^AGENT_CLI_PINNED=" "$ef" 2>/dev/null; then
-      sudo sed -i "s|^AGENT_CLI_PINNED=.*|AGENT_CLI_PINNED=true|" "$ef"
-    else
-      echo "AGENT_CLI_PINNED=true" | sudo tee -a "$ef" >/dev/null
-    fi
-    ok "Updated $ef (pinned)"
-  else
-    die "Env file not found: $ef"
-  fi
+  local sef="/etc/supervised-agent/${supervised_envfile}.env"
 
-  # Kill the running CLI in the tmux session and relaunch with new backend.
-  # This works for all agents regardless of whether a systemd service exists.
+  for envpath in "$ef" "$sef"; do
+    if [[ -f "$envpath" ]]; then
+      sudo sed -i "s|^AGENT_LAUNCH_CMD=.*|AGENT_LAUNCH_CMD=\"${launch_cmd}\"|" "$envpath"
+      sudo sed -i "s|^AGENT_CLI=.*|AGENT_CLI=${backend}|" "$envpath"
+      if grep -q "^AGENT_CLI_PINNED=" "$envpath" 2>/dev/null; then
+        sudo sed -i "s|^AGENT_CLI_PINNED=.*|AGENT_CLI_PINNED=true|" "$envpath"
+      else
+        echo "AGENT_CLI_PINNED=true" | sudo tee -a "$envpath" >/dev/null
+      fi
+      ok "Updated $envpath (pinned)"
+    else
+      warn "Env file not found: $envpath (skipping)"
+    fi
+  done
+
+  # Restart the systemd supervisor service — it handles session creation,
+  # prompt delivery, and polling. This ensures supervisor.sh re-reads the
+  # updated env file and launches the correct CLI.
   local SWITCH_STARTUP_WAIT=90
   local SWITCH_POLL=3
 
-  if tmux has-session -t "$session" 2>/dev/null; then
-    # Kill the CLI process tree inside the pane.
-    # agent-launch.sh uses exec, so pane_pid IS the CLI (not a parent shell).
-    # Kill children first, then the process itself.
-    local pane_pid
-    pane_pid=$(tmux display-message -t "$session" -p '#{pane_pid}' 2>/dev/null || true)
-    if [[ -n "$pane_pid" ]]; then
-      pkill -TERM -P "$pane_pid" 2>/dev/null || true
-      kill -TERM "$pane_pid" 2>/dev/null || true
-      sleep 2
-      pkill -KILL -P "$pane_pid" 2>/dev/null || true
-      kill -KILL "$pane_pid" 2>/dev/null || true
-      sleep 1
-    fi
+  info "Restarting $service..."
+  sudo systemctl restart "$service"
 
-    # Respawn the pane shell (the kill above destroyed the original shell)
-    tmux respawn-pane -k -t "$session" 2>/dev/null || true
-    sleep 1
-
-    # Launch the new CLI in the fresh shell
-    tmux send-keys -t "$session" "$launch_cmd" Enter
-
-    # Wait for the new CLI to be ready (idle prompt ❯)
-    local waited=0
-    info "Waiting up to ${SWITCH_STARTUP_WAIT}s for $backend CLI to start in $session..."
-    while (( waited < SWITCH_STARTUP_WAIT )); do
+  local waited=0
+  info "Waiting up to ${SWITCH_STARTUP_WAIT}s for $backend CLI to start in $session..."
+  while (( waited < SWITCH_STARTUP_WAIT )); do
+    if tmux has-session -t "$session" 2>/dev/null; then
       if tmux capture-pane -t "$session" -p | grep -q "❯"; then
         ok "Switched $agent → $backend (ready after ${waited}s)"
         break
       fi
-      sleep "$SWITCH_POLL"
-      (( waited += SWITCH_POLL ))
-    done
-    if (( waited >= SWITCH_STARTUP_WAIT )); then
-      warn "$backend CLI did not start within ${SWITCH_STARTUP_WAIT}s — check tmux session $session"
     fi
-  else
-    # No tmux session — create one and launch
-    local workdir="/home/dev/kubestellar-console"
-    tmux new-session -d -s "$session" -c "$workdir"
-    sleep 1
-    tmux send-keys -t "$session" "$launch_cmd" Enter
-    ok "Created tmux session $session with $backend"
+    sleep "$SWITCH_POLL"
+    (( waited += SWITCH_POLL ))
+  done
+  if (( waited >= SWITCH_STARTUP_WAIT )); then
+    warn "$backend CLI did not start within ${SWITCH_STARTUP_WAIT}s — check: systemctl status $service"
   fi
 
   sleep 2
@@ -1088,73 +1066,54 @@ cmd_model() {
   local agent="${1:-}" model="${2:-}"
   [[ -z "$agent" || -z "$model" ]] && die "Usage: hive model <agent> <model>  (e.g., claude-opus-4.6)"
 
-  # Map agent name → session, env file, and systemd service
-  local session envfile service
+  # Map agent name → session, env files, and systemd service.
+  # Two env dirs: /etc/hive (kick-agents) and /etc/supervised-agent (systemd supervisor.sh).
+  local session envfile supervised_envfile service
   case "$agent" in
-    scanner)            session="issue-scanner"; envfile="issue-scanner"; service="claude-scanner" ;;
-    reviewer)           session="reviewer";      envfile="reviewer";      service="hive@reviewer" ;;
-    architect|feature)  session="architect";    envfile="architect";    service="hive@architect" ;;
-    outreach)           session="outreach";      envfile="outreach";      service="hive@outreach" ;;
-    supervisor)         session="supervisor";    envfile="supervisor";    service="hive@supervisor" ;;
+    scanner)            session="issue-scanner"; envfile="issue-scanner"; supervised_envfile="scanner"; service="supervised-agent@scanner" ;;
+    reviewer)           session="reviewer";      envfile="reviewer";      supervised_envfile="reviewer"; service="supervised-agent@reviewer" ;;
+    architect|feature)  session="architect";    envfile="architect";    supervised_envfile="architect"; service="supervised-agent@architect" ;;
+    outreach)           session="outreach";      envfile="outreach";      supervised_envfile="outreach"; service="supervised-agent@outreach" ;;
+    supervisor)         session="supervisor";    envfile="supervisor";    supervised_envfile="supervisor"; service="supervised-agent@supervisor" ;;
     *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;
   esac
 
   info "Restarting $agent with model $model"
 
-  # Update env file with new model
+  # Update both env files: /etc/hive (kick-agents) and /etc/supervised-agent (supervisor.sh)
   local ef="$ENV_DIR/${envfile}.env"
-  if [[ -f "$ef" ]]; then
-    # Update AGENT_LAUNCH_CMD to include --model flag
-    sudo sed -i "s|--model [^ ]*|--model $model|g" "$ef"
-    ok "Updated $ef with model=$model"
-  else
-    warn "Env file not found: $ef (proceeding anyway)"
-  fi
+  local sef="/etc/supervised-agent/${supervised_envfile}.env"
 
-  # Read current launch command from env to get the full CLI invocation
-  local launch_cmd
-  launch_cmd=$(grep '^AGENT_LAUNCH_CMD=' "$ef" 2>/dev/null | cut -d= -f2- | tr -d '"')
-  [[ -z "$launch_cmd" ]] && launch_cmd="agent-launch.sh --backend copilot --model $model"
+  for envpath in "$ef" "$sef"; do
+    if [[ -f "$envpath" ]]; then
+      sudo sed -i "s|--model [^ ]*|--model $model|g" "$envpath"
+      ok "Updated $envpath with model=$model"
+    else
+      warn "Env file not found: $envpath (skipping)"
+    fi
+  done
 
+  # Restart the systemd supervisor service to pick up the new model
   local SWITCH_STARTUP_WAIT=90
   local SWITCH_POLL=3
 
-  if tmux has-session -t "$session" 2>/dev/null; then
-    local pane_pid
-    pane_pid=$(tmux display-message -t "$session" -p '#{pane_pid}' 2>/dev/null || true)
-    if [[ -n "$pane_pid" ]]; then
-      pkill -TERM -P "$pane_pid" 2>/dev/null || true
-      kill -TERM "$pane_pid" 2>/dev/null || true
-      sleep 2
-      pkill -KILL -P "$pane_pid" 2>/dev/null || true
-      kill -KILL "$pane_pid" 2>/dev/null || true
-      sleep 1
-    fi
+  info "Restarting $service..."
+  sudo systemctl restart "$service"
 
-    tmux respawn-pane -k -t "$session" 2>/dev/null || true
-    sleep 1
-
-    tmux send-keys -t "$session" "$launch_cmd" Enter
-
-    local waited=0
-    info "Waiting up to ${SWITCH_STARTUP_WAIT}s for CLI to start with model=$model..."
-    while (( waited < SWITCH_STARTUP_WAIT )); do
+  local waited=0
+  info "Waiting up to ${SWITCH_STARTUP_WAIT}s for CLI to start with model=$model..."
+  while (( waited < SWITCH_STARTUP_WAIT )); do
+    if tmux has-session -t "$session" 2>/dev/null; then
       if tmux capture-pane -t "$session" -p | grep -q "❯"; then
         ok "Restarted $agent with model=$model (ready after ${waited}s)"
         break
       fi
-      sleep "$SWITCH_POLL"
-      (( waited += SWITCH_POLL ))
-    done
-    if (( waited >= SWITCH_STARTUP_WAIT )); then
-      warn "CLI did not start within ${SWITCH_STARTUP_WAIT}s — check tmux session $session"
     fi
-  else
-    local workdir="/home/dev/kubestellar-console"
-    tmux new-session -d -s "$session" -c "$workdir"
-    sleep 1
-    tmux send-keys -t "$session" "$launch_cmd" Enter
-    ok "Created tmux session $session with model=$model"
+    sleep "$SWITCH_POLL"
+    (( waited += SWITCH_POLL ))
+  done
+  if (( waited >= SWITCH_STARTUP_WAIT )); then
+    warn "CLI did not start within ${SWITCH_STARTUP_WAIT}s — check: systemctl status $service"
   fi
 
   sleep 2

@@ -327,70 +327,30 @@ check_rate_limit() {
 }
 
 send_chunked() {
-  # Split a long message into chunks at sentence boundaries and send each
-  # chunk + Enter separately.  This prevents CLI input buffer overflow that
-  # causes Enter to not be delivered on messages >~1KB.
+  # Send a long message in small text chunks to avoid CLI input buffer overflow.
+  # Each chunk is sent as text only (no Enter) with a sleep between to let the
+  # tmux paste buffer flush.  One final Enter submits the complete message.
   local session="$1"
   local message="$2"
   local MAX_CHUNK=400
+  local CHUNK_DELAY=1
 
   if [ ${#message} -le "$MAX_CHUNK" ]; then
     $TMUX_BIN send-keys -t "$session" -l "$message"
-    sleep 1
+    sleep "$CHUNK_DELAY"
     $TMUX_BIN send-keys -t "$session" Enter
-    sleep 2
     return
   fi
 
-  local remaining="$message"
-  local chunk_num=0
-  while [ -n "$remaining" ]; do
-    (( chunk_num++ ))
-    if [ ${#remaining} -le "$MAX_CHUNK" ]; then
-      $TMUX_BIN send-keys -t "$session" -l "$remaining"
-      sleep 1
-      $TMUX_BIN send-keys -t "$session" Enter
-      sleep 2
-      remaining=""
-    else
-      # Find last sentence boundary (". ") within MAX_CHUNK
-      local window="${remaining:0:$MAX_CHUNK}"
-      local cut_at=-1
-      local search_pos=0
-      while true; do
-        local rest="${window:$search_pos}"
-        case "$rest" in
-          *". "*)
-            local before="${rest%%". "*}"
-            local pos=$(( search_pos + ${#before} + 2 ))
-            cut_at=$pos
-            search_pos=$pos
-            ;;
-          *) break ;;
-        esac
-      done
-      if [ "$cut_at" -lt 20 ]; then
-        # No good sentence boundary — split at last space
-        local rev
-        rev=$(echo "$window" | rev)
-        local tail_rev="${rev%%[[:space:]]*}"
-        local tail_len=${#tail_rev}
-        if [ "$tail_len" -lt "$MAX_CHUNK" ] && [ "$tail_len" -gt 0 ]; then
-          cut_at=$(( MAX_CHUNK - tail_len ))
-        else
-          cut_at=$MAX_CHUNK
-        fi
-      fi
-      local chunk="${remaining:0:$cut_at}"
-      remaining="${remaining:$cut_at}"
-      # Strip leading whitespace from remainder
-      remaining="${remaining#"${remaining%%[![:space:]]*}"}"
-      $TMUX_BIN send-keys -t "$session" -l "$chunk"
-      sleep 1
-      $TMUX_BIN send-keys -t "$session" Enter
-      sleep 2
-    fi
+  local offset=0
+  local total=${#message}
+  while [ "$offset" -lt "$total" ]; do
+    local chunk="${message:$offset:$MAX_CHUNK}"
+    $TMUX_BIN send-keys -t "$session" -l "$chunk"
+    (( offset += MAX_CHUNK ))
+    sleep "$CHUNK_DELAY"
   done
+  $TMUX_BIN send-keys -t "$session" Enter
 }
 
 kick() {

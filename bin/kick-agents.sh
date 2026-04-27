@@ -170,8 +170,9 @@ session_exists() {
 session_idle() {
   local pane_text
   pane_text=$($TMUX_BIN capture-pane -t "$1" -p 2>/dev/null || true)
-  # Not idle if CLI is mid-cancellation — prompt is visible but not accepting input
-  if echo "$pane_text" | grep -qE "Cancelling|◎ Cancelling|○ Cancelling"; then
+  # Not idle if CLI is CURRENTLY mid-cancellation (check last 5 lines only —
+  # full pane buffer has historical "Cancelling" text from prior cycles)
+  if echo "$pane_text" | tail -5 | grep -qE "Cancelling|◎ Cancelling|○ Cancelling"; then
     return 1
   fi
   echo "$pane_text" | grep -q "❯"

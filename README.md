@@ -2,6 +2,8 @@
 
 **One command starts everything. Your phone, Slack, or Discord buzzes if anything needs you.**
 
+![hive dashboard](docs/dashboard-screenshot.png)
+
 ---
 
 ![hive architecture](docs/hive-arch.svg)
@@ -114,11 +116,9 @@ Set `HIVE_BACKENDS` in `hive.conf`. `HIVE_AUTO_INSTALL=true` installs missing ba
 | `claude` | CLI | Anthropic's CLI — runs Claude models directly |
 | `gemini` | CLI | Google's CLI — runs Gemini models directly |
 | `copilot` | Aggregate | GitHub Copilot — routes to Claude, GPT, Gemini, and other vendor models |
-| `goose` | Aggregate | Block's Goose — routes to any model via config (cloud or local) |
-| `qwen` | Aggregate | Alibaba's Qwen CLI — routes to Qwen models via DashScope API |
-| `deepseek` | Aggregate | DeepSeek CLI — routes to DeepSeek-V3/R1 models |
+| `goose` | Aggregate | Block's Goose — routes to any model via config: qwen, deepseek, llama, and more (cloud or local) |
 
-**Native backends** (`claude`, `gemini`) are single-vendor tools that run their own models directly. **Aggregate backends** (`copilot`, `goose`, `qwen`, `deepseek`) are multi-vendor routers or alternative model providers — they can call models from different providers through a single interface.
+**Native backends** (`claude`, `gemini`) are single-vendor tools that run their own models directly. **Aggregate backends** (`copilot`, `goose`) are multi-vendor routers — they can call models from different providers through a single interface.
 
 ### Local models (optional)
 

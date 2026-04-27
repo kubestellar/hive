@@ -1035,19 +1035,25 @@ cmd_switch() {
   local SWITCH_POLL=3
 
   if tmux has-session -t "$session" 2>/dev/null; then
-    # Kill the CLI process inside the pane (fast, no waiting for /exit)
+    # Kill the CLI process tree inside the pane.
+    # agent-launch.sh uses exec, so pane_pid IS the CLI (not a parent shell).
+    # Kill children first, then the process itself.
     local pane_pid
     pane_pid=$(tmux display-message -t "$session" -p '#{pane_pid}' 2>/dev/null || true)
     if [[ -n "$pane_pid" ]]; then
-      # Kill all child processes of the pane shell (the CLI and its children)
       pkill -TERM -P "$pane_pid" 2>/dev/null || true
+      kill -TERM "$pane_pid" 2>/dev/null || true
       sleep 2
-      # Force kill any survivors
       pkill -KILL -P "$pane_pid" 2>/dev/null || true
+      kill -KILL "$pane_pid" 2>/dev/null || true
       sleep 1
     fi
 
-    # Launch the new CLI in the now-idle shell
+    # Respawn the pane shell (the kill above destroyed the original shell)
+    tmux respawn-pane -k -t "$session" 2>/dev/null || true
+    sleep 1
+
+    # Launch the new CLI in the fresh shell
     tmux send-keys -t "$session" "$launch_cmd" Enter
 
     # Wait for the new CLI to be ready (idle prompt ❯)
@@ -1118,10 +1124,15 @@ cmd_model() {
     pane_pid=$(tmux display-message -t "$session" -p '#{pane_pid}' 2>/dev/null || true)
     if [[ -n "$pane_pid" ]]; then
       pkill -TERM -P "$pane_pid" 2>/dev/null || true
+      kill -TERM "$pane_pid" 2>/dev/null || true
       sleep 2
       pkill -KILL -P "$pane_pid" 2>/dev/null || true
+      kill -KILL "$pane_pid" 2>/dev/null || true
       sleep 1
     fi
+
+    tmux respawn-pane -k -t "$session" 2>/dev/null || true
+    sleep 1
 
     tmux send-keys -t "$session" "$launch_cmd" Enter
 

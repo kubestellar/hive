@@ -9,6 +9,6 @@ User=dev
 Group=dev
 # Killing the session is a no-op if it's already gone; the supervisor will
 # respawn it within ~10s and send a fresh /loop prompt.
-ExecStart=/usr/bin/tmux kill-session -t issue-scanner
+ExecStart=/usr/bin/tmux kill-session -t scanner
 # Succeed even if the session is already dead.
 SuccessExitStatus=0 1

@@ -446,7 +446,7 @@ app.get('/api/widget', (_req, res) => {
 
 // Map dashboard agent names to tmux session names
 const TMUX_SESSION = {
-  scanner: 'issue-scanner',
+  scanner: 'scanner',
   reviewer: 'reviewer',
   architect: 'feature',
   outreach: 'outreach',

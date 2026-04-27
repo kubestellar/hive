@@ -138,10 +138,10 @@ EOF
 
 ## ntfy Notifications
 
-Send a push notification for every significant action. Topic: `ntfy.sh/issue-scanner`
+Send a push notification for every significant action. Topic: `ntfy.sh/hive`
 
 ```bash
-curl -s -H "Title: Architect: <action>" -d "<details>" ntfy.sh/issue-scanner > /dev/null 2>&1
+curl -s -H "Title: Architect: <action>" -d "<details>" ntfy.sh/hive > /dev/null 2>&1
 ```
 
 **When to send:**

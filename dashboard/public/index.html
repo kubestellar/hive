@@ -502,7 +502,7 @@
       const m = currentAgentMetrics[name];
       if (!m) return '';
 
-      if (name === 'issue-scanner' || name === 'scanner') {
+      if (name === 'scanner') {
         const pairs = m.pairs || [];
         if (pairs.length === 0) return '<div class="agent-indicators"><span class="ind-empty">no active fixes</span></div>';
         const openPairs = pairs.filter(p => p.state !== 'merged');
@@ -654,7 +654,7 @@
 
     const AGENT_TMUX_SESSION = {
       supervisor: 'supervisor',
-      scanner: 'issue-scanner',
+      scanner: 'scanner',
       reviewer: 'reviewer',
       architect: 'architect',
       outreach: 'outreach',

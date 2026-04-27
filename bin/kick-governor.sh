@@ -38,13 +38,13 @@
 set -euo pipefail
 
 # ── Repos to scan ───────────────────────────────────────────────────────────
-REPOS=(
-  kubestellar/console
-  kubestellar/console-kb
-  kubestellar/docs
-  kubestellar/console-marketplace
-  kubestellar/kubestellar-mcp
-)
+# Read from governor.env (written by hive.sh from HIVE_REPOS in hive.conf).
+# Falls back to HIVE_REPOS env var if governor.env doesn't set it.
+if [[ -f /etc/hive/governor.env ]]; then
+  # shellcheck disable=SC1091
+  . /etc/hive/governor.env
+fi
+IFS=' ' read -ra REPOS <<< "${HIVE_REPOS:-kubestellar/console kubestellar/console-kb kubestellar/docs kubestellar/console-marketplace kubestellar/kubestellar-mcp}"
 
 # ── Exempt-label filter ─────────────────────────────────────────────────────
 # Issues matching any of these labels are NOT counted toward the actionable queue.

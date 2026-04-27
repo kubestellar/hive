@@ -155,7 +155,7 @@ unset GITHUB_TOKEN && gh release list --repo kubestellar/console --limit 5 \
   --json tagName,publishedAt,isDraft --jq '[.[] | select(.isDraft==false)] | .[0]'
 ```
 
-If formula version ≠ latest release tag → file a P2 bead + ntfy (topic: `ntfy.sh/issue-scanner`, priority: default).
+If formula version ≠ latest release tag → file a P2 bead + ntfy (topic: `ntfy.sh/hive`, priority: default).
 
 ## Health Check Monitoring — every pass — FIX MANDATORY
 
@@ -261,14 +261,14 @@ RESULTS=✓ GA4 clean (0 new errors), ✗ Coverage 88% (below 91% target)
 
 ## ntfy Notifications
 
-Send a push notification for every significant action. Topic: `ntfy.sh/issue-scanner`
+Send a push notification for every significant action. Topic: `ntfy.sh/hive`
 
 ```bash
 # Simple notification
-curl -s -H "Title: Reviewer: <action>" -d "<details>" ntfy.sh/issue-scanner > /dev/null 2>&1
+curl -s -H "Title: Reviewer: <action>" -d "<details>" ntfy.sh/hive > /dev/null 2>&1
 
 # High priority (failed builds, coverage drops, GA4 anomalies)
-curl -s -H "Title: Reviewer: <action>" -H "Priority: high" -d "<details>" ntfy.sh/issue-scanner > /dev/null 2>&1
+curl -s -H "Title: Reviewer: <action>" -H "Priority: high" -d "<details>" ntfy.sh/hive > /dev/null 2>&1
 ```
 
 **When to send:**

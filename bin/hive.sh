@@ -102,7 +102,7 @@ load_conf() {
   BEADS_SUPERVISOR_DIR="${BEADS_SUPERVISOR_DIR:-/home/dev/supervisor-beads}"
   BEADS_SCANNER_DIR="${BEADS_SCANNER_DIR:-/home/dev/scanner-beads}"
   BEADS_REVIEWER_DIR="${BEADS_REVIEWER_DIR:-/home/dev/reviewer-beads}"
-  BEADS_FEATURE_DIR="${BEADS_FEATURE_DIR:-/home/dev/feature-beads}"
+  BEADS_ARCHITECT_DIR="${BEADS_ARCHITECT_DIR:-${BEADS_FEATURE_DIR:-/home/dev/architect-beads}}"
   BEADS_OUTREACH_DIR="${BEADS_OUTREACH_DIR:-/home/dev/outreach-beads}"
   BEADS_WORKER_DIR="${BEADS_WORKER_DIR:-/home/dev/scanner-beads}"
   AGENT_USER="${AGENT_USER:-dev}"
@@ -111,6 +111,19 @@ load_conf() {
   HIVE_TZ="${HIVE_TZ:-UTC}"                           # local timezone for status display
   HIVE_AUTO_INSTALL="${HIVE_AUTO_INSTALL:-true}"      # auto-install missing backends/services
 }
+
+# ── Canonical agent names ─────────────────────────────────────────────────────
+# Each agent has ONE canonical name used everywhere: config files, tmux sessions,
+# systemd services, governor state, beads dirs, and CLI commands.
+#
+#   AGENT       SESSION    SYSTEMD SERVICE              ENV FILE (both dirs)
+#   scanner     scanner    supervised-agent@scanner      scanner.env
+#   reviewer    reviewer   supervised-agent@reviewer     reviewer.env
+#   architect   architect  supervised-agent@architect    architect.env
+#   outreach    outreach   supervised-agent@outreach     outreach.env
+#   supervisor  supervisor supervised-agent@supervisor   supervisor.env
+#
+# Legacy aliases accepted by CLI: issue-scanner → scanner, feature → architect
 
 
 usage() {
@@ -444,16 +457,16 @@ kick_agents() {
 
   # Per-agent beads dirs — each agent reads and writes only its own ledger.
   declare -A AGENT_BEADS_DIR
-  AGENT_BEADS_DIR["issue-scanner"]="${BEADS_SCANNER_DIR:-/home/${AGENT_USER:-dev}/scanner-beads}"
+  AGENT_BEADS_DIR["scanner"]="${BEADS_SCANNER_DIR:-/home/${AGENT_USER:-dev}/scanner-beads}"
   AGENT_BEADS_DIR["reviewer"]="${BEADS_REVIEWER_DIR:-/home/${AGENT_USER:-dev}/reviewer-beads}"
-  AGENT_BEADS_DIR["architect"]="${BEADS_FEATURE_DIR:-/home/${AGENT_USER:-dev}/feature-beads}"
+  AGENT_BEADS_DIR["architect"]="${BEADS_ARCHITECT_DIR:-/home/${AGENT_USER:-dev}/architect-beads}"
   AGENT_BEADS_DIR["outreach"]="${BEADS_OUTREACH_DIR:-/home/${AGENT_USER:-dev}/outreach-beads}"
 
   # Expected model substring — must be visible in pane before kick is safe to send.
   # Copilot shows "claude-opus-4.6" in bottom-right; Claude Code shows "Opus 4.6".
   local expected_model="4.6"
 
-  for session in issue-scanner reviewer architect outreach; do
+  for session in scanner reviewer architect outreach; do
     if ! tmux has-session -t "$session" 2>/dev/null; then
       warn "$session session not ready yet — governor will kick on next cycle"
       continue
@@ -549,9 +562,9 @@ cmd_status() {
   echo -e "\n${BLD}🐝 hive status — $(TZ="${HIVE_TZ:-UTC}" date '+%-I:%M %p %Z')${RST}\n"
 
   # Sessions
-  local SESSIONS=(supervisor issue-scanner reviewer architect outreach)
+  local SESSIONS=(supervisor scanner reviewer architect outreach)
   local LABELS=("supervisor" "scanner" "reviewer" "architect" "outreach")
-  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "architect" "outreach")
+  local ENV_FILES=("supervisor" "scanner" "reviewer" "architect" "outreach")
   local GOV_STATE="/var/run/kick-governor"
   printf "  %-12s  %-8s  %-8s  %-8s  %-8s  %s\n" "AGENT" "STATE" "CLI" "CADENCE" "KICK" "BUSY"
   printf "  %-12s  %-8s  %-8s  %-8s  %-8s  %s\n" "-----" "-----" "---" "-------" "----" "----"
@@ -697,9 +710,9 @@ cmd_status() {
 # ── status JSON ──────────────────────────────────────────────────────────────
 
 cmd_status_json() {
-  local SESSIONS=(supervisor issue-scanner reviewer architect outreach)
+  local SESSIONS=(supervisor scanner reviewer architect outreach)
   local LABELS=("supervisor" "scanner" "reviewer" "architect" "outreach")
-  local ENV_FILES=("supervisor" "issue-scanner" "reviewer" "architect" "outreach")
+  local ENV_FILES=("supervisor" "scanner" "reviewer" "architect" "outreach")
   local GOV_STATE="/var/run/kick-governor"
   local STATUS_CACHE="/var/run/kick-governor/repo_cache"
   mkdir -p "$STATUS_CACHE" 2>/dev/null || true
@@ -909,7 +922,7 @@ cmd_attach() {
   local name="${1:-supervisor}"
   # map friendly names to session names
   case "$name" in
-    scanner|issue-scanner) name="issue-scanner" ;;
+    scanner|issue-scanner) name="scanner" ;;
     architect|feature)     name="architect" ;;
     supervisor|reviewer|outreach) ;;
     *) die "Unknown agent: $name. Use: supervisor scanner reviewer architect outreach" ;;
@@ -970,15 +983,15 @@ cmd_stop() {
 cmd_pin() {
   local agent="${1:-}"
   [[ -z "$agent" ]] && die "Usage: hive pin <agent>"
-  local envfile supervised_envfile
+  local envfile
   case "$agent" in
-    scanner)            envfile="issue-scanner"; supervised_envfile="scanner" ;;
-    reviewer)           envfile="reviewer";      supervised_envfile="reviewer" ;;
-    architect|feature)  envfile="architect";    supervised_envfile="architect" ;;
-    outreach)           envfile="outreach";      supervised_envfile="outreach" ;;
+    scanner)            envfile="scanner" ;;
+    reviewer)           envfile="reviewer" ;;
+    architect|feature)  envfile="architect" ;;
+    outreach)           envfile="outreach" ;;
     *) die "Unknown agent: $agent" ;;
   esac
-  for envpath in "$ENV_DIR/${envfile}.env" "/etc/supervised-agent/${supervised_envfile}.env"; do
+  for envpath in "$ENV_DIR/${envfile}.env" "/etc/supervised-agent/${envfile}.env"; do
     if [[ -f "$envpath" ]]; then
       if grep -q "^AGENT_CLI_PINNED=" "$envpath" 2>/dev/null; then
         sudo sed -i "s|^AGENT_CLI_PINNED=.*|AGENT_CLI_PINNED=true|" "$envpath"
@@ -993,15 +1006,15 @@ cmd_pin() {
 cmd_unpin() {
   local agent="${1:-}"
   [[ -z "$agent" ]] && die "Usage: hive unpin <agent>"
-  local envfile supervised_envfile
+  local envfile
   case "$agent" in
-    scanner)            envfile="issue-scanner"; supervised_envfile="scanner" ;;
-    reviewer)           envfile="reviewer";      supervised_envfile="reviewer" ;;
-    architect|feature)  envfile="architect";    supervised_envfile="architect" ;;
-    outreach)           envfile="outreach";      supervised_envfile="outreach" ;;
+    scanner)            envfile="scanner" ;;
+    reviewer)           envfile="reviewer" ;;
+    architect|feature)  envfile="architect" ;;
+    outreach)           envfile="outreach" ;;
     *) die "Unknown agent: $agent" ;;
   esac
-  for envpath in "$ENV_DIR/${envfile}.env" "/etc/supervised-agent/${supervised_envfile}.env"; do
+  for envpath in "$ENV_DIR/${envfile}.env" "/etc/supervised-agent/${envfile}.env"; do
     if [[ -f "$envpath" ]]; then
       sudo sed -i "/^AGENT_CLI_PINNED=/d" "$envpath"
     fi
@@ -1015,13 +1028,13 @@ cmd_switch() {
 
   # Map agent name → session, env files, and systemd service.
   # Two env dirs: /etc/hive (kick-agents) and /etc/supervised-agent (systemd supervisor.sh).
-  local session envfile supervised_envfile service
+  local session service
   case "$agent" in
-    scanner)            session="issue-scanner"; envfile="issue-scanner"; supervised_envfile="scanner"; service="supervised-agent@scanner" ;;
-    reviewer)           session="reviewer";      envfile="reviewer";      supervised_envfile="reviewer"; service="supervised-agent@reviewer" ;;
-    architect|feature)  session="architect";    envfile="architect";    supervised_envfile="architect"; service="supervised-agent@architect" ;;
-    outreach)           session="outreach";      envfile="outreach";      supervised_envfile="outreach"; service="supervised-agent@outreach" ;;
-    supervisor)         session="supervisor";    envfile="supervisor";    supervised_envfile="supervisor"; service="supervised-agent@supervisor" ;;
+    scanner)            session="scanner";    service="supervised-agent@scanner" ;;
+    reviewer)           session="reviewer";   service="supervised-agent@reviewer" ;;
+    architect|feature)  session="architect";  service="supervised-agent@architect" ;;
+    outreach)           session="outreach";   service="supervised-agent@outreach" ;;
+    supervisor)         session="supervisor"; service="supervised-agent@supervisor" ;;
     *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;
   esac
 
@@ -1038,8 +1051,8 @@ cmd_switch() {
   info "Switching $agent → $backend"
 
   # Update both env files: /etc/hive (kick-agents) and /etc/supervised-agent (supervisor.sh)
-  local ef="$ENV_DIR/${envfile}.env"
-  local sef="/etc/supervised-agent/${supervised_envfile}.env"
+  local ef="$ENV_DIR/${session}.env"
+  local sef="/etc/supervised-agent/${session}.env"
 
   for envpath in "$ef" "$sef"; do
     if [[ -f "$envpath" ]]; then
@@ -1092,21 +1105,21 @@ cmd_model() {
 
   # Map agent name → session, env files, and systemd service.
   # Two env dirs: /etc/hive (kick-agents) and /etc/supervised-agent (systemd supervisor.sh).
-  local session envfile supervised_envfile service
+  local session service
   case "$agent" in
-    scanner)            session="issue-scanner"; envfile="issue-scanner"; supervised_envfile="scanner"; service="supervised-agent@scanner" ;;
-    reviewer)           session="reviewer";      envfile="reviewer";      supervised_envfile="reviewer"; service="supervised-agent@reviewer" ;;
-    architect|feature)  session="architect";    envfile="architect";    supervised_envfile="architect"; service="supervised-agent@architect" ;;
-    outreach)           session="outreach";      envfile="outreach";      supervised_envfile="outreach"; service="supervised-agent@outreach" ;;
-    supervisor)         session="supervisor";    envfile="supervisor";    supervised_envfile="supervisor"; service="supervised-agent@supervisor" ;;
+    scanner)            session="scanner";    service="supervised-agent@scanner" ;;
+    reviewer)           session="reviewer";   service="supervised-agent@reviewer" ;;
+    architect|feature)  session="architect";  service="supervised-agent@architect" ;;
+    outreach)           session="outreach";   service="supervised-agent@outreach" ;;
+    supervisor)         session="supervisor"; service="supervised-agent@supervisor" ;;
     *) die "Unknown agent: $agent (valid: scanner reviewer architect outreach supervisor)" ;;
   esac
 
   info "Restarting $agent with model $model"
 
   # Update both env files: /etc/hive (kick-agents) and /etc/supervised-agent (supervisor.sh)
-  local ef="$ENV_DIR/${envfile}.env"
-  local sef="/etc/supervised-agent/${supervised_envfile}.env"
+  local ef="$ENV_DIR/${session}.env"
+  local sef="/etc/supervised-agent/${session}.env"
 
   for envpath in "$ef" "$sef"; do
     if [[ -f "$envpath" ]]; then

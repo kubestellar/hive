@@ -698,7 +698,7 @@
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a></div>
-          <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}${a.govBackend ? backendChip(a.govBackend) : ''}</span></div>
+          <div class="agent-field"><span class="label">cli</span><span class="value ${a.cli}">${a.cli}</span></div>
           <div class="agent-field"><span class="label">model</span><span class="value">${a.govModel ? modelChip(a.govModel, a.govReason) : (a.model || '?')}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${isPaused ? 'paused' : a.cadence}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${isPaused ? 'paused' : (a.nextKick || '—')}</span></div>

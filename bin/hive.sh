@@ -615,8 +615,10 @@ cmd_status() {
       queued_tasks=$(echo "$pane" | grep -oP '\d+(?= background /tasks)' | tail -1 || true)
 
       local at_idle_prompt=false
-      if echo "$pane" | tail -5 | LC_ALL=C.UTF-8 grep -qE '^❯'; then
-        if ! echo "$pane" | tail -8 | LC_ALL=C.UTF-8 grep -qE 'local agent|background.*/tasks|agent still running|Esc to cancel|Spinning|tokens\)|^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ '; then
+      if echo "$pane" | tail -3 | LC_ALL=C.UTF-8 grep -qE '^❯'; then
+        # Prompt visible in last 3 lines — only override if CURRENT work markers
+        # exist below the prompt (background tasks, active agent)
+        if ! echo "$pane" | tail -3 | LC_ALL=C.UTF-8 grep -qE 'background.*/tasks|agent still running|Esc to cancel'; then
           at_idle_prompt=true
         fi
       fi
@@ -756,8 +758,8 @@ cmd_status_json() {
       # Strip prompt, separator lines, and status bar to detect actual work output
       # LC_ALL=C.UTF-8 required — server runs LANG=C which breaks multi-byte UTF-8 grep
       local at_idle_prompt_json=false
-      if echo "$pane" | tail -5 | LC_ALL=C.UTF-8 grep -qE '^❯'; then
-        if ! echo "$pane" | tail -8 | LC_ALL=C.UTF-8 grep -qE 'local agent|background.*/tasks|agent still running|Esc to cancel|Spinning|tokens\)|^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*] |^⏺ '; then
+      if echo "$pane" | tail -3 | LC_ALL=C.UTF-8 grep -qE '^❯'; then
+        if ! echo "$pane" | tail -3 | LC_ALL=C.UTF-8 grep -qE 'background.*/tasks|agent still running|Esc to cancel'; then
           at_idle_prompt_json=true
         fi
       fi

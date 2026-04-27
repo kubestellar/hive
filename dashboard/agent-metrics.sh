@@ -89,30 +89,19 @@ coverage_value=$(curl -sf "$COVERAGE_BADGE_URL" 2>/dev/null | jq -r '.message //
 coverage_value=${coverage_value:-0}
 reviewer_json=$(echo "$reviewer_json" | jq --argjson cv "$coverage_value" --argjson ct "$coverage_target" '. + {coverage: $cv, coverageTarget: $ct}')
 
-# ── Outreach: growth, adoption, reach metrics (parallel) ──
-outreach_tmp=$(mktemp -d)
-(gh api repos/${REPO} --jq '.stargazers_count' > "$outreach_tmp/stars" 2>/dev/null || echo 0 > "$outreach_tmp/stars") &
-(gh api repos/${REPO} --jq '.forks_count' > "$outreach_tmp/forks" 2>/dev/null || echo 0 > "$outreach_tmp/forks") &
-(c=$(gh api repos/${REPO}/contributors?per_page=1 -i 2>/dev/null | grep -oP 'page=\K\d+(?=>; rel="last")' || echo 0); [ "$c" = "0" ] && c=$(gh api repos/${REPO}/contributors --jq 'length' 2>/dev/null || echo 0); echo "$c" > "$outreach_tmp/contribs") &
-(a=$(gh api repos/${REPO}/contents/ADOPTERS.MD --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0); a=$(( a > 2 ? a - 2 : 0 )); echo "$a" > "$outreach_tmp/adopters") &
-# ACMM badge count — kubestellar-specific, skipped for other projects
-if [ "${OUTREACH_ENABLED:-false}" = "true" ] && [ "${PROJECT_ORG:-}" = "kubestellar" ]; then
-  (unset GITHUB_TOKEN; [ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"; gh api repos/kubestellar/docs/contents/src/app/%5Blocale%5D/acmm-leaderboard/page.tsx --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | sed -n '/BADGE_PARTICIPANTS = new Set/,/\]);/p' | grep -cP '^\s+"[a-zA-Z]' > "$outreach_tmp/acmm" 2>/dev/null || echo 0 > "$outreach_tmp/acmm") &
+# ── Outreach: read from centralized api-collector cache (no extra API calls) ──
+GITHUB_CACHE="${HIVE_METRICS_DIR:-/var/run/hive-metrics}/github-cache.json"
+if [ -f "$GITHUB_CACHE" ]; then
+  stars=$(jq -r '.primary.stars // 0' "$GITHUB_CACHE" 2>/dev/null || echo 0)
+  forks=$(jq -r '.primary.forks // 0' "$GITHUB_CACHE" 2>/dev/null || echo 0)
+  contributors=$(jq -r '.primary.contributors // 0' "$GITHUB_CACHE" 2>/dev/null || echo 0)
+  adopters_total=$(jq -r '.primary.adopters // 0' "$GITHUB_CACHE" 2>/dev/null || echo 0)
+  acmm_count=$(jq -r '.primary.acmm // 0' "$GITHUB_CACHE" 2>/dev/null || echo 0)
+  outreach_open=$(jq -r '.outreach.open // 0' "$GITHUB_CACHE" 2>/dev/null || echo 0)
+  outreach_merged=$(jq -r '.outreach.merged // 0' "$GITHUB_CACHE" 2>/dev/null || echo 0)
 else
-  echo 0 > "$outreach_tmp/acmm" &
+  stars=0; forks=0; contributors=0; adopters_total=0; acmm_count=0; outreach_open=0; outreach_merged=0
 fi
-(gh api "search/issues?q=author:${AI_AUTHOR}+type:pr+is:open+${PROJECT}+in:title+-org:${PROJECT_ORG:-kubestellar}" --jq '.total_count' > "$outreach_tmp/outreach_open" 2>/dev/null || echo 0 > "$outreach_tmp/outreach_open") &
-(gh api "search/issues?q=author:${AI_AUTHOR}+type:pr+is:merged+${PROJECT}+in:title+-org:${PROJECT_ORG:-kubestellar}" --jq '.total_count' > "$outreach_tmp/outreach_merged" 2>/dev/null || echo 0 > "$outreach_tmp/outreach_merged") &
-wait
-stars=$(cat "$outreach_tmp/stars" 2>/dev/null || echo 0)
-forks=$(cat "$outreach_tmp/forks" 2>/dev/null || echo 0)
-contributors=$(cat "$outreach_tmp/contribs" 2>/dev/null || echo 0)
-adopters_total=$(cat "$outreach_tmp/adopters" 2>/dev/null || echo 0)
-acmm_count=$(cat "$outreach_tmp/acmm" 2>/dev/null || echo 0)
-acmm_count=${acmm_count:-0}
-outreach_open=$(cat "$outreach_tmp/outreach_open" 2>/dev/null || echo 0)
-outreach_merged=$(cat "$outreach_tmp/outreach_merged" 2>/dev/null || echo 0)
-rm -rf "$outreach_tmp"
 
 # ── Architect: PR counts from tmux (live doing is summary) ──
 architect_lines=$(tmux capture-pane -t architect -p -S -500 2>/dev/null)

@@ -726,7 +726,7 @@ cmd_status_json() {
     local s="${SESSIONS[$i]}" label="${LABELS[$i]}"
     local cli cadence state busy doing model needs_login
     cadence=$(cat "${GOV_STATE}/cadence_${label}" 2>/dev/null || echo "?")
-    state="stopped"; cli="?"; busy="idle"; doing=""; model="?"; needs_login="false"
+    state="stopped"; cli="?"; busy="idle"; doing=""; model="?"; needs_login="false"; local pinned="false"
 
     if tmux has-session -t "$s" 2>/dev/null; then
       state="running"
@@ -737,7 +737,6 @@ cmd_status_json() {
       if [[ "$cli" == "?" ]]; then
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
       fi
-      local pinned="false"
       if grep -q "^AGENT_CLI_PINNED=true" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null; then
         pinned="true"
       fi

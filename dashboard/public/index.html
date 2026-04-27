@@ -1078,6 +1078,112 @@
       </div>`;
     }
 
+// Intensity gauge: compares recent vs trailing token rate
+// Returns SVG string for a half-circle speedometer
+function intensityGauge() {
+  const MIN_POINTS = 6;
+  if (historyData.length < MIN_POINTS) return '';
+
+  const len = historyData.length;
+  const RECENT_FRACTION = 0.25;
+  const recentStart = Math.floor(len * (1 - RECENT_FRACTION));
+
+  // Compute rate (delta per second) for a slice of historyData
+  function sliceRate(start, end, key) {
+    const first = historyData[start];
+    const last = historyData[end - 1];
+    const dt = (last.t - first.t) / 1000;
+    if (dt <= 0) return 0;
+    return ((last[key] || 0) - (first[key] || 0)) / dt;
+  }
+
+  // Metrics with weights: total tokens & output weighted 2x
+  const metrics = [
+    { key: 'tokenTotal',      w: 3 },
+    { key: 'tokenOutput',     w: 2 },
+    { key: 'tokenInput',      w: 1 },
+    { key: 'tokenCacheRead',  w: 0.5 },
+    { key: 'tokenCacheCreate',w: 0.5 },
+    { key: 'tokenMessages',   w: 1 },
+  ];
+
+  let weightedRecent = 0, weightedTrail = 0, totalWeight = 0;
+  for (const m of metrics) {
+    const recent = sliceRate(recentStart, len, m.key);
+    const trail  = sliceRate(0, len, m.key);
+    if (trail > 0) {
+      weightedRecent += (recent / trail) * m.w;
+      totalWeight += m.w;
+    }
+  }
+
+  if (totalWeight === 0) return '';
+  const ratio = weightedRecent / totalWeight;
+
+  // Clamp ratio to [0.2, 2.0] for display
+  const GAUGE_MIN = 0.2;
+  const GAUGE_MAX = 2.0;
+  const clamped = Math.max(GAUGE_MIN, Math.min(GAUGE_MAX, ratio));
+
+  // Map to angle: 0.2 = -90deg (left), 1.0 = 0deg (center), 2.0 = +90deg (right)
+  const HALF_PI = Math.PI;
+  const normalized = (clamped - GAUGE_MIN) / (GAUGE_MAX - GAUGE_MIN);
+  const angle = -HALF_PI / 2 + normalized * HALF_PI;
+
+  // Color: blue (decel) -> green (steady) -> orange -> red (accel)
+  let color;
+  if (ratio < 0.7) color = '#58a6ff';
+  else if (ratio < 0.9) color = '#3fb950';
+  else if (ratio < 1.1) color = '#3fb950';
+  else if (ratio < 1.4) color = '#d29922';
+  else color = '#f85149';
+
+  // Label
+  let label;
+  if (ratio < 0.7) label = 'cooling';
+  else if (ratio < 0.9) label = 'easing';
+  else if (ratio < 1.1) label = 'steady';
+  else if (ratio < 1.4) label = 'ramping';
+  else label = 'surging';
+
+  const ratioText = ratio.toFixed(1) + 'x';
+
+  // SVG half-circle gauge
+  const W = 120, H = 75;
+  const cx = W / 2, cy = H - 8;
+  const r = 42;
+  const needleLen = 36;
+  const nx = cx + needleLen * Math.cos(angle - Math.PI / 2);
+  const ny = cy + needleLen * Math.sin(angle - Math.PI / 2);
+
+  // Arc segments for background
+  const arcPath = (startAngle, endAngle, radius) => {
+    const x1 = cx + radius * Math.cos(startAngle);
+    const y1 = cy + radius * Math.sin(startAngle);
+    const x2 = cx + radius * Math.cos(endAngle);
+    const y2 = cy + radius * Math.sin(endAngle);
+    const large = endAngle - startAngle > Math.PI ? 1 : 0;
+    return `M${x1},${y1} A${radius},${radius} 0 ${large} 1 ${x2},${y2}`;
+  };
+
+  return `<div class="intensity-gauge" style="text-align:center;margin:0 8px">
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      <!-- background arc -->
+      <path d="${arcPath(-Math.PI, -Math.PI * 0.67, r)}" fill="none" stroke="#58a6ff" stroke-width="6" opacity="0.3"/>
+      <path d="${arcPath(-Math.PI * 0.67, -Math.PI * 0.33, r)}" fill="none" stroke="#3fb950" stroke-width="6" opacity="0.3"/>
+      <path d="${arcPath(-Math.PI * 0.33, -Math.PI * 0.05, r)}" fill="none" stroke="#d29922" stroke-width="6" opacity="0.3"/>
+      <path d="${arcPath(-Math.PI * 0.05, 0, r)}" fill="none" stroke="#f85149" stroke-width="6" opacity="0.3"/>
+      <!-- needle -->
+      <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="4" fill="${color}"/>
+      <!-- ratio text -->
+      <text x="${cx}" y="${cy - 14}" text-anchor="middle" fill="${color}" font-size="14" font-weight="bold" font-family="monospace">${ratioText}</text>
+    </svg>
+    <div style="color:${color};font-size:11px;margin-top:-4px;font-family:monospace">${label}</div>
+  </div>`;
+}
+
+
     function renderTokens(tokens) {
       const el = document.getElementById('token-panel');
 
@@ -1134,7 +1240,7 @@
 
       el.innerHTML = `<div class="token-panel">
         <div class="token-title">Token Usage <span class="lookback">${tokens.lookbackHours || 24}h window · ${t.sessions} sessions</span></div>
-        <div class="token-grid">
+        <div class="token-grid" style="align-items:center">${intensityGauge()}
           <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--cyan)">${fmtTokens(totalTokens)}</span>${totalSpark}</div><div class="tlabel">total tokens</div></div>
           <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--blue)">${fmtTokens(t.input)}</span>${sparkSvg(getHistorySeries('tokenInput'), '#58a6ff')}</div><div class="tlabel">input</div></div>
           <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--purple)">${fmtTokens(t.output)}</span>${sparkSvg(getHistorySeries('tokenOutput'), '#bc8cff')}</div><div class="tlabel">output</div></div>

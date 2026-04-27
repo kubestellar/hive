@@ -120,6 +120,16 @@ function fetchAgentMetrics() {
 fetchAgentMetrics();
 setInterval(fetchAgentMetrics, 300000);  // every 5 min (REST API)
 
+// Centralized GitHub API collector — runs once, writes cache read by governor + dashboard
+function fetchGitHubCache() {
+  execFile(path.join(__dirname, 'api-collector.sh'), [], { timeout: 120000 }, (err) => {
+    if (err) console.error('api-collector.sh failed:', err.message);
+  });
+}
+fetchGitHubCache();
+const API_COLLECTOR_INTERVAL_MS = 300000;
+setInterval(fetchGitHubCache, API_COLLECTOR_INTERVAL_MS);
+
 // Fetch agent summaries from ~/.hive/<agent>_status.txt on every status refresh cycle
 function fetchSummaries() {
   execFile(path.join(__dirname, 'agent-summaries.sh'), [], { timeout: 10000 }, (err, stdout) => {
@@ -334,17 +344,15 @@ function fetchStatus() {
 setInterval(fetchStatus, REFRESH_MS);
 fetchStatus();
 
-// Slow refresh for repo data (GH API) — every 5min to reduce GH token spend
-const REPO_REFRESH_MS = 300000;
+// Repo data — read from centralized api-collector cache (no additional GH API calls)
+const REPO_REFRESH_MS = 60000;
+const GITHUB_CACHE_PATH = path.join(process.env.HIVE_METRICS_DIR || '/var/run/hive-metrics', 'github-cache.json');
 function fetchRepoStatus() {
-  const hiveEnv = { ...process.env, HIVE_TZ: process.env.HIVE_TZ || 'America/New_York' };
-  execFile('/usr/local/bin/hive', ['status', '--json', '--repos'], { timeout: 30000, env: hiveEnv }, (err, stdout) => {
-    if (err) { console.error('hive status --json --repos failed:', err.message); return; }
-    try {
-      const data = JSON.parse(stdout);
-      if (statusCache && data.repos) statusCache.repos = data.repos;
-    } catch (_) {}
-  });
+  try {
+    const raw = fs.readFileSync(GITHUB_CACHE_PATH, 'utf8');
+    const data = JSON.parse(raw);
+    if (statusCache && data.repos) statusCache.repos = data.repos;
+  } catch (_) {}
 }
 setInterval(fetchRepoStatus, REPO_REFRESH_MS);
 fetchRepoStatus();

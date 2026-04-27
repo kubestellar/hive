@@ -223,7 +223,8 @@ measure_queue() {
   echo "$total_i"      > "$STATE_DIR/queue_issues"
   echo "$total_p"      > "$STATE_DIR/queue_prs"
   log "QUEUE total=${total} (${total_i}i/${total_p}p) |${breakdown# }"
-  echo "$total"
+  # Return issue count only — PRs don't drive mode thresholds (CI+merge is cheap)
+  echo "$total_i"
 }
 
 get_queue_depth() {

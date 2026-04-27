@@ -41,7 +41,7 @@
 
 <!-- Backend CLI labels under agents -->
 <text x="505" y="378" text-anchor="middle" font-size="9" fill="#7c3aed" font-family="ui-sans-serif,system-ui,sans-serif">Native: claude · gemini</text>
-<text x="505" y="392" text-anchor="middle" font-size="9" fill="#7c3aed" font-family="ui-sans-serif,system-ui,sans-serif">Aggregate: copilot · goose · qwen · deepseek</text>
+<text x="505" y="392" text-anchor="middle" font-size="9" fill="#7c3aed" font-family="ui-sans-serif,system-ui,sans-serif">Aggregate: copilot · goose</text>
 
 <!-- Local model stack (bottom) -->
 <rect x="230" y="430" width="130" height="34" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.5"/>
@@ -98,4 +98,17 @@
 <!-- litellm → goose agent (optional, dashed) -->
 <path d="M540,447 C560,447 560,364 570,364" fill="none" stroke="#a3e635" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#ah)"/>
 <text x="562" y="416" font-size="8" fill="#65a30d" font-family="ui-sans-serif,system-ui,sans-serif" transform="rotate(-90,562,416)">local</text>
+
+<!-- Cloud models via goose -->
+<text x="720" y="420" text-anchor="middle" font-size="9" fill="#6b7280" font-family="ui-sans-serif,system-ui,sans-serif">cloud models via goose</text>
+
+<rect x="620" y="430" width="100" height="34" rx="6" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.5"/>
+<text x="670" y="452" text-anchor="middle" font-size="12" font-weight="600" fill="#1e293b" font-family="ui-sans-serif,system-ui,sans-serif">qwen</text>
+
+<rect x="740" y="430" width="100" height="34" rx="6" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.5"/>
+<text x="790" y="452" text-anchor="middle" font-size="12" font-weight="600" fill="#1e293b" font-family="ui-sans-serif,system-ui,sans-serif">deepseek</text>
+
+<!-- Cloud models → agent bus (dashed, via goose backend) -->
+<path d="M670,430 C670,405 592,405 592,390" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#ah)"/>
+<path d="M790,430 C790,400 620,400 592,390" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#ah)"/>
 </svg>

@@ -57,7 +57,7 @@ ssh root@100.x.x.x hostname
 ssh root@100.x.x.x  # or 192.168.4.28 if not on VPN
 
 # Agent home
-mkdir -p ~/.kubestellar-agents/{supervisor,fixer,architect,reviewer,outreacher}
+mkdir -p ~/.kubestellar-agents/{supervisor,fixer,architect,reviewer,outreach}
 
 # Clone repos for each mutating agent
 for agent in fixer architect; do
@@ -68,8 +68,8 @@ for agent in fixer architect; do
   git clone https://github.com/kubestellar/docs.git
 done
 
-# Reviewer and outreacher get read-only clones
-for agent in reviewer outreacher; do
+# Reviewer and outreach get read-only clones
+for agent in reviewer outreach; do
   cd ~/.kubestellar-agents/$agent
   git clone https://github.com/kubestellar/console.git
 done
@@ -115,12 +115,12 @@ chmod +x ~/.kubestellar-fix-loop/worker.sh
 cp fixer-CLAUDE.md ~/.kubestellar-agents/fixer/console/CLAUDE.md
 cp architect-CLAUDE.md ~/.kubestellar-agents/architect/console/CLAUDE.md
 cp reviewer-CLAUDE.md ~/.kubestellar-agents/reviewer/console/CLAUDE.md
-cp outreacher-CLAUDE.md ~/.kubestellar-agents/outreacher/console/CLAUDE.md
+cp outreach-CLAUDE.md ~/.kubestellar-agents/outreach/console/CLAUDE.md
 
 # Copy env files (adjust paths for Linux — /root/ instead of /Users/andan02/)
 # If using systemd:
 sudo mkdir -p /etc/hive
-for agent in supervisor fixer architect reviewer outreacher; do
+for agent in supervisor fixer architect reviewer outreach; do
   sudo cp ${agent}.env /etc/hive/ks-${agent}.env
 done
 ```
@@ -130,7 +130,7 @@ done
 ```bash
 cd /path/to/hive
 
-for agent in supervisor fixer architect reviewer outreacher; do
+for agent in supervisor fixer architect reviewer outreach; do
   sudo ./install.sh --instance ks-${agent}
 done
 ```
@@ -148,7 +148,7 @@ for f in /etc/hive/ks-*.env; do
 done
 
 # Restart all
-for agent in supervisor fixer architect reviewer outreacher; do
+for agent in supervisor fixer architect reviewer outreach; do
   sudo systemctl restart hive@ks-${agent}
 done
 ```
@@ -157,7 +157,7 @@ done
 
 ```bash
 # Check all agents
-for s in ks-supervisor ks-fixer ks-architect ks-reviewer ks-outreacher; do
+for s in ks-supervisor ks-fixer ks-architect ks-reviewer ks-outreach; do
   echo "=== $s ==="
   tmux has-session -t "$s" 2>/dev/null && echo "✅ running" || echo "❌ not running"
 done
@@ -174,7 +174,7 @@ tmux new-session -d -s overview \; \
   send-keys -t 0 'tmux attach -t ks-supervisor' Enter \; \
   send-keys -t 1 'tmux attach -t ks-fixer' Enter \; \
   send-keys -t 2 'tmux attach -t ks-reviewer' Enter \; \
-  send-keys -t 3 'tmux attach -t ks-outreacher' Enter
+  send-keys -t 3 'tmux attach -t ks-outreach' Enter
 tmux attach -t overview
 ```
 
@@ -207,7 +207,7 @@ tmux attach -t overview
 │  │  ├──► ks-reviewer (Sonnet, EXECUTOR)  │                      │
 │  │  │    post-merge, CI health           │                      │
 │  │  │                                    │                      │
-│  │  └──► ks-outreacher (Sonnet, EXECUTOR)│                      │
+│  │  └──► ks-outreach (Sonnet, EXECUTOR)│                      │
 │  │       CNCF ecosystem, ADOPTERS        │                      │
 │  │                                       │                      │
 │  │  ~/agent-ledger/ (beads coordination) │                      │

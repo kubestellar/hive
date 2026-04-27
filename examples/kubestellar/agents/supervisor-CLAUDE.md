@@ -27,7 +27,7 @@ When started with `hive supervisor` or when the session is named `supervisor`, i
 2. **Rename + color this session**: `/rename supervisor` then `/color purple`
 3. **Read your beads**: `cd /home/dev/supervisor-beads && bd list --json` and `bd ready --json`
 4. **Read policy files** from `/home/dev/.claude/projects/-Users-andan02/memory/`:
-   - `project_scanner_policy.md` — scanner rules
+   - Read `/tmp/hive/examples/kubestellar/agents/scanner-CLAUDE.md` — scanner rules
    - `project_reviewer_policy.md` — reviewer rules
    - `MEMORY.md` — full memory index
 5. **Read kick-agents.sh** — `/tmp/hive/bin/kick-agents.sh` — memorize the full startup messages (PULL_INSTRUCTIONS, BEADS_RESTORE, BEADS_SYNC, and each agent's MSG). You MUST include these in every work order.

@@ -71,7 +71,7 @@ Agent memory is ephemeral. These layers survive restarts:
 | **GA4 referral data** | `/.netlify/functions/analytics-dashboard` | ✅ Always | High (confirms placement live) |
 | **beads (`bd`)** | `bd list --json` | ✅ Yes (remote) | High |
 | **docs/outreach-log.md** | committed to this repo | ✅ Yes (git) | Medium |
-| **outreacher-CLAUDE.md Current Progress** | committed to this repo | ✅ Yes (git) | Medium |
+| **outreach-CLAUDE.md Current Progress** | committed to this repo | ✅ Yes (git) | Medium |
 | `/tmp` files | filesystem | ❌ Lost on reboot | Never rely on |
 | Session SQL | in-process SQLite | ❌ Lost on session end | Never rely on |
 | Agent in-memory variables | process memory | ❌ Lost on restart | Never rely on |
@@ -82,7 +82,7 @@ Agent memory is ephemeral. These layers survive restarts:
 
 After each successful outreach action:
 1. Append to `docs/outreach-log.md` (committed)
-2. Update `outreacher-CLAUDE.md` Current Progress section
+2. Update `outreach-CLAUDE.md` Current Progress section
 3. Commit both: `git commit -s -m '📖 Outreach: log [target]'`
 4. `bd create` a record if the action has follow-up needed (awaiting PR merge, waiting for maintainer reply)
 

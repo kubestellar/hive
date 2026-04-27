@@ -406,7 +406,7 @@ Use your agent name: ${agent_name}. This line appears on the hive dashboard."
 SCANNER_BEADS="/home/dev/scanner-beads"
 SCANNER_MSG="[AGENT:scanner] $PULL_INSTRUCTIONS \
 $(beads_restore "$SCANNER_BEADS") \
-Then: Run a full scan pass per your policy (project_scanner_policy.md). \
+Then: Run a full scan pass per /tmp/hive/examples/kubestellar/agents/scanner-CLAUDE.md. \
 Oldest-first. Check all 5 repos: kubestellar/console, console-kb, docs, \
 console-marketplace, kubestellar-mcp. \
 For EVERY open issue that does not already have an active PR, dispatch a background fix agent using the Agent tool with worktrees. \
@@ -452,7 +452,7 @@ Send ntfy for all plans and PRs. Print your plan to this pane. $(beads_sync "$AR
 OUTREACH_BEADS="/home/dev/outreach-beads"
 OUTREACH_MSG="[AGENT:outreach] $PULL_INSTRUCTIONS \
 $(beads_restore "$OUTREACH_BEADS") \
-Then: Run an outreach pass per /tmp/hive/examples/kubestellar/agents/outreacher-CLAUDE.md. \
+Then: Run an outreach pass per /tmp/hive/examples/kubestellar/agents/outreach-CLAUDE.md. \
 LANE — outreach owns: awesome lists, directories, comparison sites, aggregators, \
 community forums, package registries, CNCF landscape entries, and any public index where \
 KubeStellar Console should be listed. Target 200+ awesome-list placements. \

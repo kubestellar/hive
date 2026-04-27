@@ -199,8 +199,13 @@ count_actionable() {
   local name="${repo##*/}"
   local cache_dir="$STATE_DIR/repo_cache"
   mkdir -p "$cache_dir" 2>/dev/null || true
-  unset GITHUB_TOKEN
-  [ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+  # Use HIVE_GITHUB_TOKEN if set; otherwise let gh use its stored credentials.
+  # Never unset GITHUB_TOKEN without a replacement — that causes unauthenticated
+  # API calls that hit the 60 req/hr rate limit and return empty results.
+  if [ -n "$HIVE_GITHUB_TOKEN" ]; then
+    unset GITHUB_TOKEN
+    export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+  fi
   local issues prs
 
   # REST API: list open issues (excludes PRs), filter out exempt labels client-side

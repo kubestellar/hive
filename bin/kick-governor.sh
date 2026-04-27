@@ -685,11 +685,6 @@ done)"
 for _fa in scanner reviewer supervisor; do
   [[ -f "$STATE_DIR/paused_${_fa}" ]] && continue
   _pane_text=$(tmux capture-pane -t "$_fa" -p 2>/dev/null || true)
-  # Skip if agent is CURRENTLY mid-cancellation (check last 5 lines only —
-  # full pane buffer has historical "Cancelling" text from prior cycles)
-  if echo "$_pane_text" | tail -5 | grep -qE "Cancelling"; then
-    continue
-  fi
   _prompt_line=$(echo "$_pane_text" | grep "❯" | tail -1)
   _after=$(echo "$_prompt_line" | sed 's/.*❯[[:space:]]*//')
   if [ -n "$_after" ] && [ ${#_after} -gt 2 ]; then

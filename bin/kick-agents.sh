@@ -408,43 +408,16 @@ do NOT stop working. Strategies: (1) wait 60s and retry, (2) use 'gh api' with '
 for read operations, (3) switch from GraphQL to REST or vice versa, (4) continue with \
 non-GitHub work while waiting. NEVER treat a GitHub rate limit as a reason to stop your pass."
 
-PULL_INSTRUCTIONS="First: cd /tmp/hive && git pull --rebase origin main. Re-read your CLAUDE.md for any updated instructions. \
-HARD RULE — enforced before any other action: never touch any issue or PR that carries a label containing the word 'hold' (case-insensitive). \
-Do not comment on it, do not merge it, do not reference it in other PRs, do not create sub-issues from it. Treat it as if it does not exist. \
-$GH_RATE_LIMIT_INSTRUCTIONS"
+# ── Compact kick messages ──────────────────────────────────────────
+# Standing instructions (beads, PR sweep, hold rules, rate limits, ntfy,
+# exec summary) live in each agent's CLAUDE.md — NOT repeated here.
+# Kick messages are short actionable directives only.
 
-# Beads startup restore + end-of-pass sync.
-# Each agent has its own beads directory.
-beads_restore() {
-  local dir="$1"
-  echo "Then read your beads from $dir: run 'cd $dir && bd list --json' to see all open/in-progress items. \
-Resume any item with status in_progress first (bd show <id>). \
-For new work, run 'cd $dir && bd ready --json' to find unblocked items. \
-Claim each item before starting it: cd $dir && bd update <id> --claim. \
-ALL bd commands must be run from $dir — never from a different directory."
-}
-
-beads_sync() {
-  local dir="$1"
-  local agent_name="$2"
-  echo "At the END of this pass: update beads for everything you worked on \
-(cd $dir && bd close <id> --reason '...' for completed, bd update <id> --status blocked --description '...' for blockers). \
-Then run: cd $dir && bd dolt push. \
-EXEC SUMMARY — write a ONE-LINE status (max 140 chars) summarizing what you did this pass to /var/run/hive-metrics/${agent_name}_summary.txt. \
-Example: echo 'Fixed 3 issues, opened 2 PRs, merged 1. Nightly tests still red.' > /var/run/hive-metrics/${agent_name}_summary.txt \
-Use your agent name: ${agent_name}. This line appears on the hive dashboard."
-}
+PULL_AND_READ="cd /tmp/hive && git pull --rebase origin main. Re-read your CLAUDE.md for updated instructions."
 
 SCANNER_BEADS="/home/dev/scanner-beads"
-SCANNER_MSG="[AGENT:scanner] $PULL_INSTRUCTIONS \
-$(beads_restore "$SCANNER_BEADS") \
-Then: Run a full scan pass per /tmp/hive/examples/kubestellar/agents/scanner-CLAUDE.md. \
-Oldest-first. Check all 5 repos: kubestellar/console, console-kb, docs, \
-console-marketplace, kubestellar-mcp. \
-For EVERY open issue that does not already have an active PR, dispatch a background fix agent using the Agent tool with worktrees. \
-Do NOT just count issues and stop — your job is to FIX them, not report them. \
-Merge AI-authored PRs with green CI. Send ntfy (curl -s -H 'Title: Scanner: <action>' -d '<details>' ntfy.sh/hive) for every merge and external PR review. \
-Log to cron_scan_log.md. $(beads_sync "$SCANNER_BEADS" "scanner")"
+SCANNER_MSG="[AGENT:scanner] ${PULL_AND_READ} Beads: cd ${SCANNER_BEADS} && bd list --json. \
+Scan all 5 repos oldest-first. Fix every open issue (Agent tool + worktrees). Merge green AI PRs. Full playbook: /tmp/hive/examples/kubestellar/agents/scanner-CLAUDE.md"
 
 REVIEWER_BEADS="/home/dev/reviewer-beads"
 # Build live health preamble — tells reviewer exactly what's red RIGHT NOW
@@ -463,71 +436,20 @@ done
 _rh_cvg=$(curl -sf "${BADGE_URL:-https://gist.githubusercontent.com/clubanderson/b9a9ae8469f1897a22d5a40629bc1e82/raw/coverage-badge.json}" 2>/dev/null | jq -r '.message // "0"' | tr -d '%' || echo 0)
 [ "${_rh_cvg:-0}" -lt 91 ] && _rh_reds="${_rh_reds} coverage=${_rh_cvg}%<91%"
 if [ -n "$_rh_reds" ]; then
-  _HEALTH_PREAMBLE="URGENT — DASHBOARD HAS RED INDICATORS:${_rh_reds}. Your ONLY job this pass is to FIX these. Do NOT acknowledge and stand by. Do NOT skip health checks. Run /tmp/hive/dashboard/health-check.sh, diagnose each failure, and open fix PRs. "
+  _HEALTH_PREAMBLE="URGENT RED:${_rh_reds}. FIX these — open PRs, not reports. "
 else
   _HEALTH_PREAMBLE=""
 fi
-REVIEWER_MSG="[AGENT:reviewer] ${_HEALTH_PREAMBLE}$PULL_INSTRUCTIONS \
-$(beads_restore "$REVIEWER_BEADS") \
-Then: Run a full reviewer pass per /tmp/hive/examples/kubestellar/agents/reviewer-CLAUDE.md. \
-MANDATORY FIX ITEMS — do NOT just report these, you MUST open PRs to fix them: \
-(A) Coverage: run npm run test:coverage. If below 91%, write new tests targeting the lowest-coverage files and open a PR. \
-Do NOT move on until you have opened a coverage PR or confirmed coverage ≥91%. \
-(B.5) CI workflow health: run /tmp/hive/dashboard/health-check.sh. For EVERY red check \
-(nightly, hourly, CI, weekly, deploys), pull the failed workflow logs, diagnose root cause, and open a fix PR. \
-Do NOT just log failures — fix them with PRs. \
-(C) Deploy health — FIX MANDATORY: check vLLM-d and PokProd deploy status. If either shows red \
-(failed deploy workflow, failing health checks, pods not ready), diagnose the root cause from \
-the Build and Deploy KC workflow logs and open a fix PR. Deploy failures are production-impacting \
-and MUST be fixed, not just reported. \
-(D) Nightly test failures — FIX MANDATORY: if Nightly Test Suite, Nightly Compliance, Playwright \
-Nightly, or any nightly workflow is red, pull the logs, find the failing test(s), and open a fix PR. \
-Nightly failures that persist across passes indicate real regressions — treat them as P1. \
-YOUR JOB IS TO MAKE RED INDICATORS GREEN. Every red dot on the dashboard is a task for you. \
-Do not finish your pass with any red indicator that you have not either fixed via PR or \
-filed a blocker bead explaining why you cannot fix it (e.g., infrastructure access needed). \
-ALSO CHECK (not fix-mandatory): (B) OAuth code presence, \
-(E) release freshness + brew formula + Helm chart appVersion, \
-(F) GA4 error watch + adoption digest, (G) post-merge diff scan. \
-PR SWEEP (end of every pass) — after completing fix work above, sweep ALL open PRs on kubestellar/console: \
-(1) AI-authored PRs (author=clubanderson) with ALL CI green: merge immediately with 'unset GITHUB_TOKEN && gh pr merge <N> --admin --squash'. \
-(2) PRs with merge conflicts: rebase onto main and force-push the branch to clear the conflict. \
-(3) Community PRs (author != clubanderson): leave a thorough code review (approve if good, request changes if not). \
-Do NOT finish your pass with mergeable green PRs sitting unmerged or conflicting PRs sitting unrebased. \
-Print all GA4 tables to this pane. Send ntfy for all findings. Write all results to reviewer_log.md. $(beads_sync "$REVIEWER_BEADS" "reviewer")"
+REVIEWER_MSG="[AGENT:reviewer] ${_HEALTH_PREAMBLE}${PULL_AND_READ} Beads: cd ${REVIEWER_BEADS} && bd list --json. \
+Run health-check.sh, diagnose every red, open fix PRs. Merge green AI PRs. Full playbook: /tmp/hive/examples/kubestellar/agents/reviewer-CLAUDE.md"
 
 ARCHITECT_BEADS="/home/dev/architect-beads"
-ARCHITECT_MSG="[AGENT:architect] $PULL_INSTRUCTIONS \
-$(beads_restore "$ARCHITECT_BEADS") \
-Then: Run an architect pass per /tmp/hive/examples/kubestellar/agents/architect-CLAUDE.md. \
-Pull main, scan the codebase for refactor or perf improvement opportunities. \
-You may work autonomously on refactors and perf as long as you do not break \
-the build, touch OAuth, or touch the update system. For new feature ideas, \
-open an issue with label architect-idea and wait for operator approval. \
-Send ntfy for all plans and PRs. Print your plan to this pane. $(beads_sync "$ARCHITECT_BEADS" "architect")"
+ARCHITECT_MSG="[AGENT:architect] ${PULL_AND_READ} Beads: cd ${ARCHITECT_BEADS} && bd list --json. \
+Scan for refactor/perf opportunities. No breaking changes, no OAuth, no update system. Full playbook: /tmp/hive/examples/kubestellar/agents/architect-CLAUDE.md"
 
 OUTREACH_BEADS="/home/dev/outreach-beads"
-OUTREACH_MSG="[AGENT:outreach] $PULL_INSTRUCTIONS \
-$(beads_restore "$OUTREACH_BEADS") \
-Then: Run an outreach pass per /tmp/hive/examples/kubestellar/agents/outreach-CLAUDE.md. \
-LANE — outreach owns: awesome lists, directories, comparison sites, aggregators, \
-community forums, package registries, CNCF landscape entries, and any public index where \
-KubeStellar Console should be listed. Target 200+ awesome-list placements. \
-OPERATOR-DIRECTED WORK — when the operator sends a custom kick prompt referencing a specific \
-issue, PR, or task, you may work on it regardless of lane boundaries. Follow the operator's \
-instructions exactly. This override applies ONLY to the specific work the operator requested. \
-GA4 STRATEGY — read GA4 data for console.kubestellar.io to inform outreach decisions: \
-which pages get the most traffic, which search terms bring visitors, which features have \
-highest engagement. Use this to (a) prioritise which Console capabilities to pitch on each \
-platform, (b) identify traffic gaps where new listings would have the most impact, and \
-(c) track whether previous outreach placements are driving referral traffic. \
-GA4 insight is for strategy only — do NOT fix GA4 errors (that is the reviewer's job). \
-LANE BOUNDARIES (default, unless overridden by operator directive) — outreach must NEVER: \
-fix bugs, fix CI/nightly/Playwright/coverage failures, review code, implement features, \
-or do anything the scanner/reviewer/architect agents do. CI and test fixes are the reviewer's job. \
-If you find a bug or improvement idea, file a beads issue for the scanner — do not act on it yourself. \
-Fork under clubanderson account for all external PRs to third-party repos. \
-Send ntfy for every new listing secured. One outreach per project — never spam. $(beads_sync "$OUTREACH_BEADS" "outreach")"
+OUTREACH_MSG="[AGENT:outreach] ${PULL_AND_READ} Beads: cd ${OUTREACH_BEADS} && bd list --json. \
+Run outreach pass — awesome lists, directories, CNCF landscape. Full playbook: /tmp/hive/examples/kubestellar/agents/outreach-CLAUDE.md"
 
 # ── Governor model integration ──────────────────────────────────────
 # Reads /var/run/kick-governor/model_<agent> written by the governor's
@@ -601,25 +523,10 @@ apply_model_if_changed() {
 }
 
 _now_et=$(TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z')
-SUPERVISOR_MSG="[AGENT:supervisor] MONITORING PASS — Pass started: ${_now_et}
-
-HARD RULE — 12-HOUR CLOCK ONLY: Every timestamp you output MUST use 12-hour format with AM/PM. \
-Use: TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z' \
-CORRECT: 1:17 PM EDT, 10:32 AM EDT. WRONG: 13:17, 22:32. \
-If you see yourself writing a number >12 for the hour, STOP and fix it. No exceptions.
-
-Do all of the following right now:
-1. Record pass start time at the TOP of your monitoring summary: \"Pass started: ${_now_et}\"
-2. Check every agent session for questions, stalls, or errors: \
-   tmux capture-pane -t scanner -p | tail -20 \
-   tmux capture-pane -t reviewer -p | tail -20 \
-   tmux capture-pane -t architect -p | tail -20 \
-   tmux capture-pane -t outreach -p | tail -20 \
-   If any agent has an unresolved question or idle prompt, respond immediately via tmux send-keys. \
-3. Check for AI-authored PRs with CI green across all kubestellar repos — merge any that are ready. \
-4. Check for rate-limited agents — switch their backend if needed (hive switch <agent> <backend>). \
-5. Run: bd dolt push
-6. After printing the monitoring summary table, compute the next run time and add: \"Pass finished: \$(TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z') | Next run: ~\$(TZ=America/New_York date -d '+15 minutes' '+%I:%M %p %Z' 2>/dev/null || TZ=America/New_York date -v+15M '+%I:%M %p %Z' 2>/dev/null || echo '~15min')\""
+SUPERVISOR_MSG="[AGENT:supervisor] MONITORING PASS — ${_now_et}. \
+Check all agent panes for stalls/questions (tmux capture-pane -t <session> -p | tail -20). \
+Merge green AI PRs. Unstick idle agents. 12h clock only. bd dolt push when done. \
+Full playbook: /tmp/hive/examples/kubestellar/agents/supervisor-CLAUDE.md"
 
 case "$TARGET" in
   scanner)

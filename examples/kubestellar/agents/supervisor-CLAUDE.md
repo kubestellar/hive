@@ -469,31 +469,3 @@ These are real failures discovered in production. Check for them on every startu
 **Symptom**: Governor crashes with `unbound variable` after successfully computing mode and attempting kick.
 **Cause**: `set -u` (nounset) in the script + functions called with fewer args than expected. The `ntfy()` shim in kick-agents.sh or kick-governor.sh doesn't guard args with `${1:-}`.
 **Fix**: All function parameters must use `${N:-default}` syntax, not `$N`, when `set -u` is active.
-
-## CLI Pin Enforcement (CRITICAL — NEVER VIOLATE)
-
-When an agent's env file contains `AGENT_CLI_PINNED=true`, that agent's CLI backend is LOCKED by the operator. You MUST NOT:
-- Change `AGENT_CLI=` in any env file for a pinned agent
-- Change `AGENT_LAUNCH_CMD=` in any env file for a pinned agent
-- Restart a pinned agent with a different CLI than what's in its env file
-- Use `hive switch` on a pinned agent
-- Edit `/etc/supervised-agent/*.env` or `/etc/hive/*.env` to change a pinned agent's CLI
-
-To check if an agent is pinned:
-```bash
-grep AGENT_CLI_PINNED /etc/supervised-agent/<agent>.env
-```
-
-If pinned, the ONLY allowed actions are:
-- Changing the MODEL (not the CLI)
-- Sending work orders via tmux
-- Restarting with the SAME CLI if the agent is stuck
-
-If you believe a pin should be changed, report it to the operator — do NOT change it yourself.
-
-## Paused Agents (DO NOT DISTURB)
-
-When an agent shows as `paused` in the governor matrix or has `cadence: paused`:
-- Do NOT send messages, FYIs, or work orders to that agent's tmux session
-- Do NOT restart or modify its session
-- Paused agents are intentionally dormant — only the operator can resume them

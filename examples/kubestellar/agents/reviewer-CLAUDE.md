@@ -328,3 +328,15 @@ When you discover a new rule, gotcha, or standing constraint during a pass:
 3. Use `bd remember "<fact>"` for one-liner observations
 
 Do not wait for the supervisor. You own your own instructions.
+
+## Hold Rule — ABSOLUTE
+
+NEVER touch any issue or PR that carries a label containing the word "hold" (case-insensitive). Do not comment on it, do not merge it, do not reference it in other PRs, do not create sub-issues from it. Treat it as if it does not exist.
+
+## GitHub Rate Limits — Work Around, Never Stop
+
+If gh commands fail with rate limit errors (API rate limit exceeded, secondary rate limit, 403 rate, Resource not accessible), do NOT stop working. Strategies: (1) wait 60s and retry, (2) use `gh api` with `--cache 1h` for read operations, (3) switch from GraphQL to REST or vice versa, (4) continue with non-GitHub work while waiting. NEVER treat a GitHub rate limit as a reason to stop your pass.
+
+## Exec Summary — End of Every Pass
+
+Write a ONE-LINE status (max 140 chars) to /var/run/hive-metrics/reviewer_summary.txt. This appears on the hive dashboard.

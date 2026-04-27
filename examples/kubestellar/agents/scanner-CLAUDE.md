@@ -736,3 +736,7 @@ When you discover a new standing rule, anti-pattern, gotcha, or constraint durin
 - You discovered a standing fact about the codebase or repos (file paths, thresholds, API quirks)
 
 Do NOT wait for the supervisor to tell you to update your policy. You own your own instructions.
+
+## Exec Summary — End of Every Pass
+
+Write a ONE-LINE status (max 140 chars) to /var/run/hive-metrics/scanner_summary.txt. This appears on the hive dashboard.

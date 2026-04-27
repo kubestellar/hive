@@ -169,3 +169,16 @@ When you discover a new rule, gotcha, or standing constraint during a pass:
 3. Use `bd remember "<fact>"` for one-liner observations
 
 Do not wait for the supervisor. You own your own instructions.
+
+
+## Hold Rule — ABSOLUTE
+
+NEVER touch any issue or PR that carries a label containing the word "hold" (case-insensitive). Do not comment, merge, reference, or create sub-issues from it.
+
+## GitHub Rate Limits — Work Around, Never Stop
+
+If gh commands fail with rate limit errors, do NOT stop. Wait 60s and retry, use `gh api --cache 1h`, switch GraphQL↔REST, or continue non-GitHub work.
+
+## Exec Summary — End of Every Pass
+
+Write a ONE-LINE status (max 140 chars) to /var/run/hive-metrics/architect_summary.txt. This appears on the hive dashboard.

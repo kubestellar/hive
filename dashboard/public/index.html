@@ -699,7 +699,7 @@
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a></div>
           <div class="agent-field"><span class="label">cli</span><span class="value">${cliChip(a.cli)}</span></div>
-          <div class="agent-field"><span class="label">model</span><span class="value">${a.govModel ? modelChip(a.govModel, a.govReason) : (a.model || '?')}</span></div>
+          <div class="agent-field"><span class="label">model</span><span class="value">${modelChip(a.model, a.govReason)}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${isPaused ? 'paused' : a.cadence}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${isPaused ? 'paused' : (a.nextKick || '—')}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
@@ -850,7 +850,7 @@
         }).join('');
         const nameDot = isWorking ? '<span class="agent-dot"></span>' : '';
         const pauseBadge = agentPaused ? '<span class="pause-badge">paused</span>' : '';
-        const mChip = agentData && agentData.govModel ? modelChip(agentData.govModel, agentData.govReason) : '';
+        const mChip = agentData && agentData.model ? modelChip(agentData.model, agentData.govReason) : '';
         return `<tr><td>${nameDot}${aname}${pauseBadge}</td>${cells}<td>${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
@@ -949,11 +949,14 @@
     }
 
     function modelChip(model, reason) {
-      if (!model || model === '?' || model === 'unknown') return '';
-      const shortModel = model.replace(/^claude-/, '').replace(/-\d+-\d+$/, m => m.replace(/-/g, '.').slice(0, 4));
+      if (!model || model === '?' || model === 'unknown') return '?';
+      // Normalize: "Claude Opus 4.6" → "claude-opus-4-6", "Opus 4.6" → "opus-4.6"
+      const normalized = model.toLowerCase().replace(/\s+/g, '-');
+      // Short label: strip "claude-" prefix, convert dashes to dots in version
+      const shortModel = normalized.replace(/^claude-/, '').replace(/-(\d[\d-]*\d)$/, (_, v) => '-' + v.replace(/-/g, '.'));
       let tier = 'sonnet';
-      if (model.includes('haiku')) tier = 'haiku';
-      else if (model.includes('opus')) tier = 'opus';
+      if (normalized.includes('haiku')) tier = 'haiku';
+      else if (normalized.includes('opus')) tier = 'opus';
       const isBudgetOverride = reason && (reason.includes('budget_downgrade') || reason.includes('budget_critical'));
       const overrideIcon = isBudgetOverride ? ' ⬇' : '';
       const overrideTitle = isBudgetOverride ? ` (${reason})` : '';

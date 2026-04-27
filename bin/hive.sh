@@ -68,6 +68,22 @@ detect_cli_from_proc() {
   echo "?"
 }
 
+# Extract --model flag from tmux pane process cmdline
+detect_model_from_proc() {
+  local session="$1" pane_pid model_flag
+  pane_pid=$(tmux list-panes -t "$session" -F '#{pane_pid}' 2>/dev/null | head -1)
+  [[ -z "$pane_pid" ]] && echo "?" && return
+  # Check pane shell cmdline (claude runs directly as pane process)
+  model_flag=$(cat "/proc/$pane_pid/cmdline" 2>/dev/null | tr '\0' ' ' | grep -oP '(?<=--model )\S+')
+  if [[ -n "$model_flag" ]]; then echo "$model_flag" && return; fi
+  # Check child processes (copilot spawns as child)
+  for cpid in $(ps -o pid= --ppid "$pane_pid" 2>/dev/null); do
+    model_flag=$(cat "/proc/$cpid/cmdline" 2>/dev/null | tr '\0' ' ' | grep -oP '(?<=--model )\S+')
+    if [[ -n "$model_flag" ]]; then echo "$model_flag" && return; fi
+  done
+  echo "?"
+}
+
 # ── load config ────────────────────────────────────────────────────
 
 load_conf() {
@@ -707,10 +723,13 @@ cmd_status_json() {
         cli=$(grep "^AGENT_CLI=" "$ENV_DIR/${ENV_FILES[$i]}.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "?")
       fi
       local recent_lines
-      # Extract model from anywhere in pane
-      # Claude Code footer may show "Claude Opus 4.6" or just "Opus 4.6"
-      model=$(echo "$pane" | grep -oE 'Claude [A-Za-z]+ [0-9.]+|Opus [0-9.]+|Sonnet [0-9.]+|Haiku [0-9.]+|GPT-[0-9.]+|Gemini [^ ]+' | tail -1 || echo "")
-      model=${model:-"?"}
+      # Extract model from process cmdline --model flag (most reliable)
+      model=$(detect_model_from_proc "$s")
+      if [[ "$model" == "?" ]]; then
+        # Fallback: scrape from pane footer
+        model=$(echo "$pane" | grep -oE 'Claude [A-Za-z]+ [0-9.]+|Opus [0-9.]+|Sonnet [0-9.]+|Haiku [0-9.]+|GPT-[0-9.]+|Gemini [^ ]+' | tail -1 || echo "")
+        model=${model:-"?"}
+      fi
       # Detect login required — only check footer (last 5 lines) to avoid
       # false positives from pane content mentioning "not logged in"
       if echo "$pane_tail" | grep -qE "Not logged in|Run /login|Please run /login"; then

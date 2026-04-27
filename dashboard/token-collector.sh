@@ -58,13 +58,20 @@ weekly_by_agent = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, 
 weekly_totals = {"input": 0, "output": 0, "cacheRead": 0, "sessions": 0}
 hourly_by_agent = defaultdict(lambda: {"input": 0, "output": 0, "cacheRead": 0, "sessions": 0})
 
-AGENT_KEYWORDS = {
-    "scanner": ["scanner", "scanner-beads"],
-    "reviewer": ["reviewer", "reviewer-beads"],
-    "architect": ["architect", "architect-beads"],
-    "outreach": ["outreach", "outreach-beads"],
-    "supervisor": ["supervisor"],
-}
+AGENT_PATTERNS = [
+    ("supervisor", ["[agent:supervisor]", "supervisor-beads", "supervisor agent", "monitoring pass"]),
+    ("architect",  ["[agent:architect]", "architect-beads"]),
+    ("reviewer",   ["[agent:reviewer]", "reviewer-beads"]),
+    ("outreach",   ["[agent:outreach]", "outreach-beads"]),
+    ("scanner",    ["[agent:scanner]", "scanner-beads"]),
+]
+
+def detect_agent_from_text(text):
+    tl = text.lower()
+    for aname, patterns in AGENT_PATTERNS:
+        if any(p in tl for p in patterns):
+            return aname
+    return "unknown"
 
 for proj_name in os.listdir(projects_dir):
     proj_dir = os.path.join(projects_dir, proj_name)
@@ -90,6 +97,8 @@ for proj_name in os.listdir(projects_dir):
         first_ts = ""
         last_ts = ""
         agent_detected = False
+        agent_scan_count = 0
+        MAX_AGENT_SCAN = 5
 
         try:
             with open(fpath) as f:
@@ -107,12 +116,13 @@ for proj_name in os.listdir(projects_dir):
                         if isinstance(raw, dict):
                             raw = raw.get("content", "")
                         if isinstance(raw, str):
-                            rl = raw.lower()
-                            for aname, kws in AGENT_KEYWORDS.items():
-                                if any(kw in rl for kw in kws):
-                                    agent = aname
-                                    break
-                        agent_detected = True
+                            detected = detect_agent_from_text(raw)
+                            if detected != "unknown":
+                                agent = detected
+                                agent_detected = True
+                        agent_scan_count += 1
+                        if agent_scan_count >= MAX_AGENT_SCAN:
+                            agent_detected = True
 
                     if d.get("type") == "assistant" and "message" in d:
                         msg = d["message"]

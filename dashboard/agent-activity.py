@@ -45,13 +45,13 @@ SPINNER_RE = re.compile(r"^[◐◑◒◓◉●◎○✻✶✸✹✢✽·*⏺] |E
                         r"Scampering|Evaporating|Perambulating|Puttering|"
                         r"Sautéed|Razzle-dazzling|Pondering|Cogitating")
 
-AGENT_KEYWORDS = {
-    "scanner": ["scanner", "scanner-beads"],
-    "reviewer": ["reviewer", "reviewer-beads"],
-    "architect": ["architect", "architect-beads"],
-    "outreach": ["outreach", "outreach-beads"],
-    "supervisor": ["supervisor"],
-}
+AGENT_PATTERNS = [
+    ("supervisor", ["[agent:supervisor]", "supervisor-beads", "supervisor agent", "monitoring pass"]),
+    ("architect",  ["[agent:architect]", "architect-beads"]),
+    ("reviewer",   ["[agent:reviewer]", "reviewer-beads"]),
+    ("outreach",   ["[agent:outreach]", "outreach-beads"]),
+    ("scanner",    ["[agent:scanner]", "scanner-beads"]),
+]
 
 BASH_PATTERNS = [
     (re.compile(r"gh pr create"), "Creating pull request"),
@@ -115,10 +115,14 @@ AGENT_NAME_MAP = {
 KICK_PREFIX = "you are the kubestellar"
 
 
+MAX_AGENT_SCAN = 5
+
+
 def detect_agent(filepath, agent_map):
     if filepath in agent_map:
         return agent_map[filepath]
     try:
+        scan_count = 0
         with open(filepath) as f:
             for line in f:
                 try:
@@ -141,15 +145,15 @@ def detect_agent(filepath, agent_map):
                         )
                     if isinstance(raw, str):
                         rl = raw.lower()
-                        if not rl.startswith(KICK_PREFIX) and "executor mode" not in rl:
-                            agent_map[filepath] = ""
-                            return ""
-                        for aname, kws in AGENT_KEYWORDS.items():
-                            if any(kw in rl for kw in kws):
+                        for aname, patterns in AGENT_PATTERNS:
+                            if any(p in rl for p in patterns):
                                 agent_map[filepath] = aname
                                 return aname
-                    agent_map[filepath] = ""
-                    return ""
+                    scan_count += 1
+                    if scan_count >= MAX_AGENT_SCAN:
+                        break
+        agent_map[filepath] = ""
+        return ""
     except OSError:
         pass
     return ""

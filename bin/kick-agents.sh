@@ -378,7 +378,7 @@ kick() {
     return
   fi
 
-  flush_pending_input "$session"
+  flush_pending_input "$session" || true
 
   log "KICK $session"
   $TMUX_BIN send-keys -t "$session" -l "$message"

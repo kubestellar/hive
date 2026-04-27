@@ -198,10 +198,22 @@ flush_pending_input() {
   return 1
 }
 
+record_restart() {
+  local session="$1"
+  local restart_file="${GOVERNOR_FLAG_DIR}/restarts_${session}"
+  echo "$(date +%s)" >> "$restart_file"
+  # Prune entries older than 24h
+  local cutoff=$(( $(date +%s) - 86400 ))
+  if [ -f "$restart_file" ]; then
+    awk -v c="$cutoff" '$1 >= c' "$restart_file" > "${restart_file}.tmp" && mv "${restart_file}.tmp" "$restart_file"
+  fi
+}
+
 restart_stuck_agent() {
   # Kill the stuck CLI process and relaunch it in the same tmux pane.
   # Used when the input buffer is completely full and won't accept any keys.
   local session="$1" agent="$2"
+  record_restart "$session"
   local pane_pid
   pane_pid=$($TMUX_BIN display-message -t "$session" -p '#{pane_pid}' 2>/dev/null || true)
   if [ -n "$pane_pid" ]; then
@@ -530,7 +542,7 @@ kick() {
 # lane boundaries) are in each agent's CLAUDE.md. Kicks only carry the trigger
 # + any live dynamic data (e.g. current RED indicators).
 
-SCANNER_MSG="[KICK] git pull /tmp/hive. Read your CLAUDE.md. Full scan pass — fix issues, merge green PRs. Beads: ~/scanner-beads"
+SCANNER_MSG="[agent:scanner] [KICK] git pull /tmp/hive. Read your CLAUDE.md. Full scan pass — fix issues, merge green PRs. Beads: ~/scanner-beads"
 
 # Build live health preamble for reviewer — tells it exactly what's red RIGHT NOW
 _rh_json=$(/tmp/hive/dashboard/health-check.sh 2>/dev/null || echo '{}')
@@ -552,11 +564,11 @@ if [ -n "$_rh_reds" ]; then
 else
   _HEALTH_PREAMBLE=""
 fi
-REVIEWER_MSG="[KICK] ${_HEALTH_PREAMBLE}git pull /tmp/hive. Read your CLAUDE.md. Full reviewer pass — fix REDs, merge green PRs. Beads: ~/reviewer-beads"
+REVIEWER_MSG="[agent:reviewer] [KICK] ${_HEALTH_PREAMBLE}git pull /tmp/hive. Read your CLAUDE.md. Full reviewer pass — fix REDs, merge green PRs. Beads: ~/reviewer-beads"
 
-ARCHITECT_MSG="[KICK] git pull /tmp/hive. Read your CLAUDE.md. Full architect pass — refactor/perf scan. Beads: ~/architect-beads"
+ARCHITECT_MSG="[agent:architect] [KICK] git pull /tmp/hive. Read your CLAUDE.md. Full architect pass — refactor/perf scan. Beads: ~/architect-beads"
 
-OUTREACH_MSG="[KICK] git pull /tmp/hive. Read your CLAUDE.md. Full outreach pass. Beads: ~/outreach-beads"
+OUTREACH_MSG="[agent:outreach] [KICK] git pull /tmp/hive. Read your CLAUDE.md. Full outreach pass. Beads: ~/outreach-beads"
 
 # ── Governor model integration ──────────────────────────────────────
 # Reads /var/run/kick-governor/model_<agent> written by the governor's
@@ -608,6 +620,7 @@ apply_model_if_changed() {
   fi
 
   log "MODEL SWITCH $agent: ${cur_backend}:${cur_model} → ${gov_backend}:${gov_model} (agent idle, restarting)"
+  record_restart "$session"
 
   capture_handoff_state "$session" "$agent"
 
@@ -630,7 +643,7 @@ apply_model_if_changed() {
 }
 
 _now_et=$(TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z')
-SUPERVISOR_MSG="[KICK] MONITORING PASS ${_now_et}. Read your CLAUDE.md. Check all agent panes, merge green PRs, unstick idle agents. Beads: ~/supervisor-beads"
+SUPERVISOR_MSG="[agent:supervisor] [KICK] MONITORING PASS ${_now_et}. Read your CLAUDE.md. Check all agent panes, merge green PRs, unstick idle agents. Beads: ~/supervisor-beads"
 
 case "$TARGET" in
   scanner)

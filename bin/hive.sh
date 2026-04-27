@@ -810,8 +810,11 @@ cmd_status_json() {
     gov_reason=$(grep '^REASON=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "")
     # Restart count from state file (maintained by supervisor, keyed by session name)
     local restarts_24h=0
-    restarts_24h=$(head -1 "/var/run/kick-governor/restarts_${s}" 2>/dev/null | tr -dc '0-9' || echo "0")
-    [[ -z "$restarts_24h" ]] && restarts_24h=0
+    local _restart_file="/var/run/kick-governor/restarts_${s}"
+    if [[ -f "$_restart_file" ]]; then
+      local _cutoff=$(( $(date +%s) - 86400 ))
+      restarts_24h=$(awk -v c="$_cutoff" '$1 >= c' "$_restart_file" 2>/dev/null | wc -l)
+    fi
     [[ $i -gt 0 ]] && agents_json+=","
     agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"pinned\":$pinned,\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"lastKick\":\"$lk_fmt\",\"needsLogin\":$needs_login,\"restarts\":$restarts_24h,\"govBackend\":\"$gov_backend\",\"govModel\":\"$gov_model\",\"govCostWeight\":$gov_cost,\"govReason\":\"$gov_reason\"}"
   done

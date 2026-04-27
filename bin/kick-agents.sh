@@ -168,10 +168,13 @@ session_exists() {
 }
 
 session_idle() {
-  # Returns 0 (idle) if the pane contains the Claude Code idle prompt (❯)
-  # The prompt is ❯ (U+276F) followed by a non-breaking space (U+00A0)
-  # Check full pane to account for status bar lines below the prompt
-  $TMUX_BIN capture-pane -t "$1" -p | grep -q "❯"
+  local pane_text
+  pane_text=$($TMUX_BIN capture-pane -t "$1" -p 2>/dev/null || true)
+  # Not idle if CLI is mid-cancellation — prompt is visible but not accepting input
+  if echo "$pane_text" | grep -qE "Cancelling|◎ Cancelling|○ Cancelling"; then
+    return 1
+  fi
+  echo "$pane_text" | grep -q "❯"
 }
 
 flush_pending_input() {
@@ -378,7 +381,16 @@ kick() {
     return
   fi
 
-  flush_pending_input "$session"
+  # Clear any stale input before sending new kick
+  local _stale_text
+  _stale_text=$($TMUX_BIN capture-pane -t "$session" -p 2>/dev/null | grep "❯" | tail -1 | sed 's/.*❯[[:space:]]*//')
+  if [ -n "$_stale_text" ] && [ ${#_stale_text} -gt 2 ]; then
+    log "CLEAR $session — removing ${#_stale_text} chars of stale input"
+    $TMUX_BIN send-keys -t "$session" C-c 2>/dev/null || true
+    sleep 1
+    $TMUX_BIN send-keys -t "$session" C-u 2>/dev/null || true
+    sleep 1
+  fi
 
   log "KICK $session"
   $TMUX_BIN send-keys -t "$session" -l "$message"

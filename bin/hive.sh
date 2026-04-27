@@ -825,28 +825,20 @@ cmd_status_json() {
        | awk 'NR==2{print $1,$2,$3,$4}' \
        | xargs -I{} bash -c "TZ=\"$HIVE_TZ\" date -d \"{}\" \"+%-I:%M %p %Z\"" 2>/dev/null || echo "")
 
-  # Repos — only fetch from GH API when --repos flag is passed; otherwise use cache
-  local STATUS_CACHE="/var/run/kick-governor/repo_cache"
-  mkdir -p "$STATUS_CACHE" 2>/dev/null || true
+  # Repos — read from centralized api-collector cache
+  local GITHUB_CACHE="${HIVE_METRICS_DIR:-/var/run/hive-metrics}/github-cache.json"
   local repos_json="["
   local first_repo=true
-  local fetch_repos=false
-  [[ " $* " == *" --repos "* ]] && fetch_repos=true
   for repo in ${HIVE_REPOS:-}; do
     local rname issues prs
     rname="${repo##*/}"
-    if [[ "$fetch_repos" == "true" ]]; then
-      issues=$(gh issue list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
-      prs=$(   gh pr    list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
-      [[ "$issues" != "-1" ]] && echo "$issues" > "$STATUS_CACHE/${rname}_issues"
-      [[ "$prs"    != "-1" ]] && echo "$prs"    > "$STATUS_CACHE/${rname}_prs"
+    if [[ -f "$GITHUB_CACHE" ]]; then
+      issues=$(jq -r ".repos[] | select(.name == \"$rname\") | .issues // 0" "$GITHUB_CACHE" 2>/dev/null || echo "0")
+      prs=$(jq -r ".repos[] | select(.name == \"$rname\") | .prs // 0" "$GITHUB_CACHE" 2>/dev/null || echo "0")
     else
-      issues="-1"
-      prs="-1"
+      issues=0
+      prs=0
     fi
-    # Fall back to cached values
-    [[ "$issues" == "-1" ]] && issues=$(cat "$STATUS_CACHE/${rname}_issues" 2>/dev/null || echo "0")
-    [[ "$prs"    == "-1" ]] && prs=$(   cat "$STATUS_CACHE/${rname}_prs"    2>/dev/null || echo "0")
     [[ "$first_repo" == "false" ]] && repos_json+=","
     first_repo=false
     repos_json+="{\"name\":\"$rname\",\"full\":\"$repo\",\"issues\":$issues,\"prs\":$prs}"

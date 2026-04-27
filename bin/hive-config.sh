@@ -1,0 +1,137 @@
+#!/bin/bash
+# hive-config.sh — Shared config reader for all hive scripts.
+# Sources project-specific values from hive-project.yaml.
+#
+# Usage: source /usr/local/bin/hive-config.sh
+#        (or source this file from the repo at bin/hive-config.sh)
+#
+# After sourcing, these variables are available:
+#   PROJECT_NAME, PROJECT_ORG, PROJECT_PRIMARY_REPO, PROJECT_REPOS (space-sep),
+#   PROJECT_AI_AUTHOR, PROJECT_WEBSITE, AGENTS_ENABLED (space-sep), BEADS_BASE,
+#   AGENTS_WORKDIR, DASHBOARD_TITLE, DASHBOARD_PORT, HEALTH_CHECK_WORKFLOWS (JSON),
+#   HEALTH_CI_WORKFLOW, HEALTH_DEPLOY_JOBS (JSON), HEALTH_PERF_WORKFLOWS (JSON),
+#   HEALTH_BREW_TAP_REPO, HEALTH_BREW_FORMULA, HEALTH_HELM_CHART_PATH,
+#   HEALTH_RELEASE_WORKFLOW, OUTREACH_ENABLED, OUTREACH_DESCRIPTION,
+#   OUTREACH_TARGET_PLACEMENTS, OUTREACH_COVERAGE_BADGE_URL,
+#   OUTREACH_GA4_PROPERTY_ID, OUTREACH_GA4_KEY_PATH
+
+_HIVE_CONFIG="${HIVE_PROJECT_CONFIG:-/etc/hive/hive-project.yaml}"
+
+_hive_yq() {
+  if command -v yq &>/dev/null; then
+    yq -r "$1" "$_HIVE_CONFIG" 2>/dev/null
+  elif command -v python3 &>/dev/null; then
+    python3 -c "
+import yaml, sys, json
+with open('$_HIVE_CONFIG') as f:
+    d = yaml.safe_load(f)
+# Navigate dotted path
+path = '''$1'''.lstrip('.')
+parts = []
+current = ''
+for ch in path:
+    if ch == '.' and not current.endswith('\\\\'):
+        parts.append(current)
+        current = ''
+    elif ch == '[':
+        if current:
+            parts.append(current)
+        current = ch
+    elif ch == ']':
+        current += ch
+        parts.append(current)
+        current = ''
+    else:
+        current += ch
+if current:
+    parts.append(current)
+val = d
+for p in parts:
+    if p.startswith('[') and p.endswith(']'):
+        val = val[int(p[1:-1])]
+    elif isinstance(val, dict):
+        val = val.get(p)
+    else:
+        val = None
+    if val is None:
+        break
+if isinstance(val, (list, dict)):
+    print(json.dumps(val))
+elif val is None:
+    print('null')
+else:
+    print(val)
+" 2>/dev/null
+  else
+    echo ""
+  fi
+}
+
+_hive_read() {
+  local val
+  val=$(_hive_yq "$1")
+  if [[ "$val" == "null" || -z "$val" ]]; then
+    echo "${2:-}"
+  else
+    echo "$val"
+  fi
+}
+
+_hive_read_array() {
+  local val
+  val=$(_hive_yq "$1")
+  if [[ "$val" == "null" || -z "$val" || "$val" == "[]" ]]; then
+    echo "${2:-}"
+  else
+    if command -v python3 &>/dev/null; then
+      python3 -c "import json; print(' '.join(json.loads('''$val''')))" 2>/dev/null || echo "${2:-}"
+    else
+      echo "$val" | tr -d '[]",' | xargs
+    fi
+  fi
+}
+
+if [[ -f "$_HIVE_CONFIG" ]]; then
+  # Project
+  PROJECT_NAME=$(_hive_read "project.name" "")
+  PROJECT_ORG=$(_hive_read "project.org" "")
+  PROJECT_PRIMARY_REPO=$(_hive_read "project.primary_repo" "")
+  PROJECT_REPOS=$(_hive_read_array "project.repos" "")
+  PROJECT_AI_AUTHOR=$(_hive_read "project.ai_author" "")
+  PROJECT_WEBSITE=$(_hive_read "project.website" "")
+
+  # Agents
+  AGENTS_ENABLED=$(_hive_read_array "agents.enabled" "supervisor scanner reviewer")
+  BEADS_BASE=$(_hive_read "agents.beads_base" "/home/dev")
+  AGENTS_WORKDIR=$(_hive_read "agents.workdir" "")
+
+  # Dashboard
+  DASHBOARD_TITLE=$(_hive_read "dashboard.title" "")
+  [[ -z "$DASHBOARD_TITLE" && -n "$PROJECT_NAME" ]] && DASHBOARD_TITLE="${PROJECT_NAME} Hive"
+  DASHBOARD_PORT=$(_hive_read "dashboard.port" "3001")
+
+  # Health checks — keep as JSON for scripts that iterate
+  HEALTH_CHECK_WORKFLOWS=$(_hive_yq "health_checks.workflows")
+  [[ "$HEALTH_CHECK_WORKFLOWS" == "null" ]] && HEALTH_CHECK_WORKFLOWS="[]"
+  HEALTH_CI_WORKFLOW=$(_hive_read "health_checks.ci_workflow" "")
+  HEALTH_DEPLOY_JOBS=$(_hive_yq "health_checks.deploy_jobs")
+  [[ "$HEALTH_DEPLOY_JOBS" == "null" ]] && HEALTH_DEPLOY_JOBS="[]"
+  HEALTH_PERF_WORKFLOWS=$(_hive_yq "health_checks.perf_workflows")
+  [[ "$HEALTH_PERF_WORKFLOWS" == "null" ]] && HEALTH_PERF_WORKFLOWS="[]"
+  HEALTH_BREW_TAP_REPO=$(_hive_read "health_checks.brew.tap_repo" "")
+  HEALTH_BREW_FORMULA=$(_hive_read "health_checks.brew.formula" "")
+  HEALTH_HELM_CHART_PATH=$(_hive_read "health_checks.helm.chart_path" "")
+  HEALTH_RELEASE_WORKFLOW=$(_hive_read "health_checks.release_workflow" "")
+
+  # Outreach
+  OUTREACH_ENABLED=$(_hive_read "outreach.enabled" "false")
+  OUTREACH_DESCRIPTION=$(_hive_read "outreach.description" "")
+  OUTREACH_TARGET_PLACEMENTS=$(_hive_read "outreach.target_placements" "0")
+  OUTREACH_COVERAGE_BADGE_URL=$(_hive_read "outreach.coverage_badge_url" "")
+  OUTREACH_GA4_PROPERTY_ID=$(_hive_read "outreach.ga4.property_id" "")
+  OUTREACH_GA4_KEY_PATH=$(_hive_read "outreach.ga4.service_account_key" "")
+
+  HIVE_CONFIG_LOADED=true
+else
+  HIVE_CONFIG_LOADED=false
+fi

@@ -38,11 +38,18 @@
 set -euo pipefail
 
 # ── Repos to scan ───────────────────────────────────────────────────────────
-# Read from governor.env (written by hive.sh from HIVE_REPOS in hive.conf).
-# Falls back to HIVE_REPOS env var if governor.env doesn't set it.
+# Priority: HIVE_REPOS env var > governor.env > hive-project.yaml > hardcoded default
 if [[ -f /etc/hive/governor.env ]]; then
   # shellcheck disable=SC1091
   . /etc/hive/governor.env
+fi
+# Load from project config if available and HIVE_REPOS not already set
+if [[ -z "${HIVE_REPOS:-}" ]]; then
+  if [[ -f /usr/local/bin/hive-config.sh ]]; then
+    # shellcheck disable=SC1091
+    source /usr/local/bin/hive-config.sh
+    [[ -n "${PROJECT_REPOS:-}" ]] && HIVE_REPOS="$PROJECT_REPOS"
+  fi
 fi
 IFS=' ' read -ra REPOS <<< "${HIVE_REPOS:-kubestellar/console kubestellar/console-kb kubestellar/docs kubestellar/console-marketplace kubestellar/kubestellar-mcp}"
 

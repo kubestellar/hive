@@ -1,8 +1,22 @@
 #!/bin/bash
+# Agent metrics for hive dashboard — reads project config for repo/author.
 
 set +e
 unset GITHUB_TOKEN
 [ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+
+# Load project config
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -f /usr/local/bin/hive-config.sh ]; then
+  source /usr/local/bin/hive-config.sh
+elif [ -f "$SCRIPT_DIR/bin/hive-config.sh" ]; then
+  source "$SCRIPT_DIR/bin/hive-config.sh"
+fi
+
+REPO="${PROJECT_PRIMARY_REPO:-kubestellar/console}"
+AI_AUTHOR="${PROJECT_AI_AUTHOR:-${AI_AUTHOR}}"
+PROJECT="${PROJECT_NAME:-KubeStellar}"
+BADGE_URL="${OUTREACH_COVERAGE_BADGE_URL:-https://gist.githubusercontent.com/${AI_AUTHOR}/b9a9ae8469f1897a22d5a40629bc1e82/raw/coverage-badge.json}"
 
 # Get live agent status (includes doing field with live spinner updates)
 agent_status=$(hive status --json 2>/dev/null)
@@ -22,14 +36,14 @@ RECENT_MERGED_HOURS=24
 scanner_pairs_json="[]"
 if command -v gh &>/dev/null; then
   # Open PRs
-  open_prs=$(gh api 'repos/kubestellar/console/pulls?state=open&per_page=50' \
-    --jq '[.[] | select(.user.login == "clubanderson") | {pr: .number, title: .title, body: (.body // ""), created: .created_at, state: "open"}]' 2>/dev/null || echo "[]")
+  open_prs=$(gh api 'repos/${REPO}/pulls?state=open&per_page=50' \
+    --jq '[.[] | select(.user.login == "${AI_AUTHOR}") | {pr: .number, title: .title, body: (.body // ""), created: .created_at, state: "open"}]' 2>/dev/null || echo "[]")
   # Recently merged PRs (last 24h)
   since=$(date -u -d "-${RECENT_MERGED_HOURS} hours" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v-${RECENT_MERGED_HOURS}H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "")
   merged_prs="[]"
   if [ -n "$since" ]; then
-    merged_prs=$(gh api "repos/kubestellar/console/pulls?state=closed&per_page=30&sort=updated&direction=desc" \
-      --jq "[.[] | select(.user.login == \"clubanderson\" and .merged_at != null and .merged_at >= \"$since\") | {pr: .number, title: .title, body: (.body // \"\"), merged: .merged_at, state: \"merged\"}]" 2>/dev/null || echo "[]")
+    merged_prs=$(gh api "repos/${REPO}/pulls?state=closed&per_page=30&sort=updated&direction=desc" \
+      --jq "[.[] | select(.user.login == \"${AI_AUTHOR}\" and .merged_at != null and .merged_at >= \"$since\") | {pr: .number, title: .title, body: (.body // \"\"), merged: .merged_at, state: \"merged\"}]" 2>/dev/null || echo "[]")
   fi
   all_prs=$(echo "$open_prs" "$merged_prs" | jq -s 'add' 2>/dev/null || echo "[]")
   scanner_pairs_json=$(echo "$all_prs" | jq '[
@@ -44,7 +58,7 @@ if command -v gh &>/dev/null; then
     # Fetch all unique issue titles in parallel
     unique_issues=$(echo "$scanner_pairs_json" | jq -r '.[].issue' | sort -un | grep -v '^0$')
     for inum in $unique_issues; do
-      (gh api "repos/kubestellar/console/issues/${inum}" --jq '{title: .title, state: .state}' > "$issue_tmp/$inum" 2>/dev/null || echo '{"title":"","state":"open"}' > "$issue_tmp/$inum") &
+      (gh api "repos/${REPO}/issues/${inum}" --jq '{title: .title, state: .state}' > "$issue_tmp/$inum" 2>/dev/null || echo '{"title":"","state":"open"}' > "$issue_tmp/$inum") &
     done
     wait
     # Build title and state lookup maps
@@ -69,7 +83,7 @@ architect_json=$(jq -n --arg doing "$architect_doing" --arg model "$architect_mo
 outreach_json=$(jq -n --arg doing "$outreach_doing" --arg model "$outreach_model" '{doing: $doing, model: $model}')
 
 # ── Reviewer: coverage from README badge gist (authoritative source) ──
-COVERAGE_BADGE_URL="https://gist.githubusercontent.com/clubanderson/b9a9ae8469f1897a22d5a40629bc1e82/raw/coverage-badge.json"
+COVERAGE_BADGE_URL="$BADGE_URL"
 coverage_target=91
 coverage_value=$(curl -sf "$COVERAGE_BADGE_URL" 2>/dev/null | jq -r '.message // "0"' | tr -d '%' || echo 0)
 coverage_value=${coverage_value:-0}
@@ -77,13 +91,18 @@ reviewer_json=$(echo "$reviewer_json" | jq --argjson cv "$coverage_value" --argj
 
 # ── Outreach: growth, adoption, reach metrics (parallel) ──
 outreach_tmp=$(mktemp -d)
-(gh api repos/kubestellar/console --jq '.stargazers_count' > "$outreach_tmp/stars" 2>/dev/null || echo 0 > "$outreach_tmp/stars") &
-(gh api repos/kubestellar/console --jq '.forks_count' > "$outreach_tmp/forks" 2>/dev/null || echo 0 > "$outreach_tmp/forks") &
-(c=$(gh api repos/kubestellar/console/contributors?per_page=1 -i 2>/dev/null | grep -oP 'page=\K\d+(?=>; rel="last")' || echo 0); [ "$c" = "0" ] && c=$(gh api repos/kubestellar/console/contributors --jq 'length' 2>/dev/null || echo 0); echo "$c" > "$outreach_tmp/contribs") &
-(a=$(gh api repos/kubestellar/console/contents/ADOPTERS.MD --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0); a=$(( a > 2 ? a - 2 : 0 )); echo "$a" > "$outreach_tmp/adopters") &
-(unset GITHUB_TOKEN; [ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"; gh api repos/kubestellar/docs/contents/src/app/%5Blocale%5D/acmm-leaderboard/page.tsx --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | sed -n '/BADGE_PARTICIPANTS = new Set/,/\]);/p' | grep -cP '^\s+"[a-zA-Z]' > "$outreach_tmp/acmm" 2>/dev/null || echo 0 > "$outreach_tmp/acmm") &
-(gh api 'search/issues?q=author:clubanderson+type:pr+is:open+KubeStellar+in:title+-org:kubestellar' --jq '.total_count' > "$outreach_tmp/outreach_open" 2>/dev/null || echo 0 > "$outreach_tmp/outreach_open") &
-(gh api 'search/issues?q=author:clubanderson+type:pr+is:merged+KubeStellar+in:title+-org:kubestellar' --jq '.total_count' > "$outreach_tmp/outreach_merged" 2>/dev/null || echo 0 > "$outreach_tmp/outreach_merged") &
+(gh api repos/${REPO} --jq '.stargazers_count' > "$outreach_tmp/stars" 2>/dev/null || echo 0 > "$outreach_tmp/stars") &
+(gh api repos/${REPO} --jq '.forks_count' > "$outreach_tmp/forks" 2>/dev/null || echo 0 > "$outreach_tmp/forks") &
+(c=$(gh api repos/${REPO}/contributors?per_page=1 -i 2>/dev/null | grep -oP 'page=\K\d+(?=>; rel="last")' || echo 0); [ "$c" = "0" ] && c=$(gh api repos/${REPO}/contributors --jq 'length' 2>/dev/null || echo 0); echo "$c" > "$outreach_tmp/contribs") &
+(a=$(gh api repos/${REPO}/contents/ADOPTERS.MD --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0); a=$(( a > 2 ? a - 2 : 0 )); echo "$a" > "$outreach_tmp/adopters") &
+# ACMM badge count — kubestellar-specific, skipped for other projects
+if [ "${OUTREACH_ENABLED:-false}" = "true" ] && [ "${PROJECT_ORG:-}" = "kubestellar" ]; then
+  (unset GITHUB_TOKEN; [ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"; gh api repos/kubestellar/docs/contents/src/app/%5Blocale%5D/acmm-leaderboard/page.tsx --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | sed -n '/BADGE_PARTICIPANTS = new Set/,/\]);/p' | grep -cP '^\s+"[a-zA-Z]' > "$outreach_tmp/acmm" 2>/dev/null || echo 0 > "$outreach_tmp/acmm") &
+else
+  echo 0 > "$outreach_tmp/acmm" &
+fi
+(gh api "search/issues?q=author:${AI_AUTHOR}+type:pr+is:open+${PROJECT}+in:title+-org:${PROJECT_ORG:-kubestellar}" --jq '.total_count' > "$outreach_tmp/outreach_open" 2>/dev/null || echo 0 > "$outreach_tmp/outreach_open") &
+(gh api "search/issues?q=author:${AI_AUTHOR}+type:pr+is:merged+${PROJECT}+in:title+-org:${PROJECT_ORG:-kubestellar}" --jq '.total_count' > "$outreach_tmp/outreach_merged" 2>/dev/null || echo 0 > "$outreach_tmp/outreach_merged") &
 wait
 stars=$(cat "$outreach_tmp/stars" 2>/dev/null || echo 0)
 forks=$(cat "$outreach_tmp/forks" 2>/dev/null || echo 0)

@@ -437,6 +437,11 @@ filed a blocker bead explaining why you cannot fix it (e.g., infrastructure acce
 ALSO CHECK (not fix-mandatory): (B) OAuth code presence, \
 (E) release freshness + brew formula + Helm chart appVersion, \
 (F) GA4 error watch + adoption digest, (G) post-merge diff scan. \
+PR SWEEP (end of every pass) — after completing fix work above, sweep ALL open PRs on kubestellar/console: \
+(1) AI-authored PRs (author=clubanderson) with ALL CI green: merge immediately with 'unset GITHUB_TOKEN && gh pr merge <N> --admin --squash'. \
+(2) PRs with merge conflicts: rebase onto main and force-push the branch to clear the conflict. \
+(3) Community PRs (author != clubanderson): leave a thorough code review (approve if good, request changes if not). \
+Do NOT finish your pass with mergeable green PRs sitting unmerged or conflicting PRs sitting unrebased. \
 Print all GA4 tables to this pane. Send ntfy for all findings. Write all results to reviewer_log.md. $(beads_sync "$REVIEWER_BEADS" "reviewer")"
 
 ARCHITECT_BEADS="/home/dev/architect-beads"

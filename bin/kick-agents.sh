@@ -469,32 +469,13 @@ else
 fi
 REVIEWER_MSG="[AGENT:reviewer] ${_HEALTH_PREAMBLE}$PULL_INSTRUCTIONS \
 $(beads_restore "$REVIEWER_BEADS") \
-Then: Run a full reviewer pass per /tmp/hive/examples/kubestellar/agents/reviewer-CLAUDE.md. \
-MANDATORY FIX ITEMS — do NOT just report these, you MUST open PRs to fix them: \
-(A) Coverage: run npm run test:coverage. If below 91%, write new tests targeting the lowest-coverage files and open a PR. \
-Do NOT move on until you have opened a coverage PR or confirmed coverage ≥91%. \
-(B.5) CI workflow health: run /tmp/hive/dashboard/health-check.sh. For EVERY red check \
-(nightly, hourly, CI, weekly, deploys), pull the failed workflow logs, diagnose root cause, and open a fix PR. \
-Do NOT just log failures — fix them with PRs. \
-(C) Deploy health — FIX MANDATORY: check vLLM-d and PokProd deploy status. If either shows red \
-(failed deploy workflow, failing health checks, pods not ready), diagnose the root cause from \
-the Build and Deploy KC workflow logs and open a fix PR. Deploy failures are production-impacting \
-and MUST be fixed, not just reported. \
-(D) Nightly test failures — FIX MANDATORY: if Nightly Test Suite, Nightly Compliance, Playwright \
-Nightly, or any nightly workflow is red, pull the logs, find the failing test(s), and open a fix PR. \
-Nightly failures that persist across passes indicate real regressions — treat them as P1. \
-YOUR JOB IS TO MAKE RED INDICATORS GREEN. Every red dot on the dashboard is a task for you. \
-Do not finish your pass with any red indicator that you have not either fixed via PR or \
-filed a blocker bead explaining why you cannot fix it (e.g., infrastructure access needed). \
-ALSO CHECK (not fix-mandatory): (B) OAuth code presence, \
-(E) release freshness + brew formula + Helm chart appVersion, \
-(F) GA4 error watch + adoption digest, (G) post-merge diff scan. \
-PR SWEEP (end of every pass) — after completing fix work above, sweep ALL open PRs on kubestellar/console: \
-(1) AI-authored PRs (author=clubanderson) with ALL CI green: merge immediately with 'unset GITHUB_TOKEN && gh pr merge <N> --admin --squash'. \
-(2) PRs with merge conflicts: rebase onto main and force-push the branch to clear the conflict. \
-(3) Community PRs (author != clubanderson): leave a thorough code review (approve if good, request changes if not). \
-Do NOT finish your pass with mergeable green PRs sitting unmerged or conflicting PRs sitting unrebased. \
-Print all GA4 tables to this pane. Send ntfy for all findings. Write all results to reviewer_log.md. $(beads_sync "$REVIEWER_BEADS" "reviewer")"
+SPEED RULES: 5min diagnosis cap per RED. NO local build/test/lint — push and let CI validate. \
+Use Agent tool to dispatch parallel fix agents for each RED. Ship fast, iterate on CI failures. \
+Run health-check.sh. For each RED: (1) pull failed logs, (2) create worktree+branch, (3) fix, (4) commit -s, (5) push, (6) gh pr create. \
+Coverage: dispatch background agent — never run npm test in this session. \
+After fixes: merge green AI PRs, rebase conflicting PRs, review community PRs. \
+Full playbook: /tmp/hive/examples/kubestellar/agents/reviewer-CLAUDE.md \
+$(beads_sync "$REVIEWER_BEADS" "reviewer")"
 
 ARCHITECT_BEADS="/home/dev/architect-beads"
 ARCHITECT_MSG="[AGENT:architect] $PULL_INSTRUCTIONS \

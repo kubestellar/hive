@@ -776,6 +776,11 @@ cmd_status_json() {
       fi
     elif [[ "$cadence" == "paused" ]]; then nk="paused"
     fi
+    # Format last kick time
+    local lk_fmt=""
+    if [[ -n "$_lk" && "$_lk" -gt 0 ]] 2>/dev/null; then
+      lk_fmt="$(TZ=America/New_York date -d @$_lk '+%-I:%M %p')"
+    fi
     # Governor-assigned model
     local gov_backend gov_model gov_cost gov_reason
     gov_backend=$(grep '^BACKEND=' "$GOV_STATE/model_${label}" 2>/dev/null | cut -d= -f2 || echo "")
@@ -787,7 +792,7 @@ cmd_status_json() {
     restarts_24h=$(head -1 "/var/run/kick-governor/restarts_${s}" 2>/dev/null | tr -dc '0-9' || echo "0")
     [[ -z "$restarts_24h" ]] && restarts_24h=0
     [[ $i -gt 0 ]] && agents_json+=","
-    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"needsLogin\":$needs_login,\"restarts\":$restarts_24h,\"govBackend\":\"$gov_backend\",\"govModel\":\"$gov_model\",\"govCostWeight\":$gov_cost,\"govReason\":\"$gov_reason\"}"
+    agents_json+="{\"name\":\"$label\",\"session\":\"$s\",\"state\":\"$state\",\"cli\":\"$cli\",\"model\":\"$model\",\"cadence\":\"$cadence\",\"busy\":\"$busy\",\"doing\":\"$doing\",\"nextKick\":\"$nk\",\"lastKick\":\"$lk_fmt\",\"needsLogin\":$needs_login,\"restarts\":$restarts_24h,\"govBackend\":\"$gov_backend\",\"govModel\":\"$gov_model\",\"govCostWeight\":$gov_cost,\"govReason\":\"$gov_reason\"}"
   done
   agents_json+="]"
 

@@ -675,8 +675,9 @@
       });
       const cards = agents.map(a => {
         const needsLogin = a.needsLogin === true;
-        const isPaused = a.paused === true || a.state === 'stopped' || a.cadence === 'paused';
-        const cls = needsLogin ? 'needs-login' : isPaused ? 'paused' : (a.state === 'stopped' ? 'stopped' : a.busy);
+        const isPaused = a.paused === true;
+        const isStopped = a.state === 'stopped' && !isPaused;
+        const cls = needsLogin ? 'needs-login' : isPaused ? 'paused' : isStopped ? 'stopped' : a.busy;
         const dotCls = a.state === 'stopped' ? 'stopped' : 'running';
         const canToggle = a.name !== 'supervisor';
         const toggleBtn = canToggle ? `<button class="btn-toggle ${isPaused ? 'paused' : 'running'}" onclick="toggleAgent('${a.name}', ${isPaused})">${isPaused ? '▶ resume' : '⏸ pause'}</button>` : '';
@@ -838,7 +839,7 @@
         if (!row) return '';
         const agentData = agents.find(a => a.name === aname);
         const isWorking = agentData && agentData.busy === 'working';
-        const agentPaused = agentData && (agentData.paused === true || agentData.state === 'stopped' || agentData.cadence === 'paused');
+        const agentPaused = agentData && agentData.paused === true;
         const cells = modes.map(m => {
           const val = row[m] || '?';
           const isActive = m === currentMode;

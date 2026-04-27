@@ -364,9 +364,6 @@ kick() {
 
   if ! session_idle "$session"; then
     # Check if session is stuck on a Claude/Copilot CLI rate limit (NOT GitHub API rate limit).
-    # These patterns match AI backend exhaustion only. GitHub API rate limits
-    # ("API rate limit exceeded", "secondary rate limit") are detected by gh-rate-check.sh
-    # and should NOT trigger a backend switch — the agent should wait/retry instead.
     local pane_text
     pane_text=$($TMUX_BIN capture-pane -t "$session" -p 2>/dev/null || true)
     if echo "$pane_text" | grep -qiE "you('re| are) out of|out of extra usage|extra usage.*resets"; then
@@ -376,9 +373,47 @@ kick() {
       /usr/local/bin/kick-agents.sh "$agent"
       return
     fi
-    log "SKIP $session — already working"
-    ntfy "$agent — busy" "Still working, skipped kick at $ET_NOW. Next: $(next_run "$agent")"
-    return
+
+    # Force-clear prolonged cancellation: if agent has been in Cancelling state
+    # with stale queued input for >5 min, send Escape + C-c + C-u to break out
+    if echo "$pane_text" | grep -qE "Cancelling"; then
+      local _queued_text
+      _queued_text=$(echo "$pane_text" | grep "❯" | tail -1 | sed 's/.*❯[[:space:]]*//')
+      if [ -n "$_queued_text" ] && [ ${#_queued_text} -gt 10 ]; then
+        local CANCEL_STUCK_THRESHOLD=300
+        local _last_kick_file="$STATE_DIR/last_kick_${agent}"
+        if [ -f "$_last_kick_file" ]; then
+          local _last_kick_epoch _now_epoch _elapsed
+          _last_kick_epoch=$(cat "$_last_kick_file")
+          _now_epoch=$(date +%s)
+          _elapsed=$(( _now_epoch - _last_kick_epoch ))
+          if [ "$_elapsed" -ge "$CANCEL_STUCK_THRESHOLD" ]; then
+            log "FORCE-CLEAR $session — stuck in Cancelling for ${_elapsed}s with ${#_queued_text} chars queued"
+            $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
+            sleep 2
+            $TMUX_BIN send-keys -t "$session" C-c 2>/dev/null || true
+            sleep 2
+            $TMUX_BIN send-keys -t "$session" C-u 2>/dev/null || true
+            sleep 2
+            # Now the agent should be idle — proceed to kick below
+            log "FORCE-CLEAR $session — input cleared, proceeding to kick"
+          else
+            log "SKIP $session — cancelling (${_elapsed}s < ${CANCEL_STUCK_THRESHOLD}s threshold)"
+            return
+          fi
+        else
+          log "SKIP $session — cancelling (no last_kick timestamp)"
+          return
+        fi
+      else
+        log "SKIP $session — cancelling (no stale input)"
+        return
+      fi
+    else
+      log "SKIP $session — already working"
+      ntfy "$agent — busy" "Still working, skipped kick at $ET_NOW. Next: $(next_run "$agent")"
+      return
+    fi
   fi
 
   # Clear any stale input before sending new kick

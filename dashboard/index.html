@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🐝 KubeStellar Hive Dashboard</title>
+  <title>🐝 Hive Dashboard</title>
   <style>
     :root {
       --bg: #0d1117; --surface: #161b22; --border: #30363d;
@@ -391,7 +391,7 @@
     <span class="dot-live">●</span> live
   </div>
 
-  <h1><span class="bee">🐝</span> KubeStellar Hive Dashboard <span class="timestamp" id="ts"></span>
+  <h1><span class="bee">🐝</span> <span id="project-name">Hive</span> Dashboard <span class="timestamp" id="ts"></span>
     <span class="git-version" id="git-version"></span>
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
@@ -492,9 +492,9 @@
           const prCls = p.state === 'merged' ? 'ind-pr ind-merged' : 'ind-pr';
           const prTip = p.prTitle ? esc(p.prTitle) : '';
           return `<div class="ind-pair">
-          <a class="ind-tag ind-issue" href="https://github.com/kubestellar/console/issues/${p.issue}" target="_blank" title="${issueTip}">${issueLabel}</a>
+          <a class="ind-tag ind-issue" href="https://github.com/${window._primaryRepo || 'kubestellar/console'}/issues/${p.issue}" target="_blank" title="${issueTip}">${issueLabel}</a>
           <span class="ind-arrow">→</span>
-          <a class="ind-tag ${prCls}" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank" title="${prTip}">${prIcon} #${p.pr}</a>
+          <a class="ind-tag ${prCls}" href="https://github.com/${window._primaryRepo || 'kubestellar/console'}/pull/${p.pr}" target="_blank" title="${prTip}">${prIcon} #${p.pr}</a>
         </div>`;
         };
         let html = '';
@@ -1195,7 +1195,7 @@
         const res = await fetch('/api/version');
         const v = await res.json();
         const el = document.getElementById('git-version');
-        let html = `<a href="https://github.com/kubestellar/hive/commit/${v.hash}" target="_blank" style="color:inherit;text-decoration:none" title="${v.hash}">${v.short}</a>`;
+        let html = `<a href="https://github.com/${window._hiveRepo || 'kubestellar/hive'}/commit/${v.hash}" target="_blank" style="color:inherit;text-decoration:none" title="${v.hash}">${v.short}</a>`;
         if (v.dirty) html += ' <span class="git-dirty">*</span>';
         if (v.behind > 0) html += ` <span class="git-behind">${v.behind} behind</span>`;
         el.innerHTML = html;
@@ -1264,6 +1264,16 @@
         setTimeout(connect, 3000);
       };
     }
+
+    // Set project name and repo from API
+    fetch('/api/config').then(r => r.json()).then(cfg => {
+      const el = document.getElementById('project-name');
+      if (el && cfg.projectName) {
+        el.textContent = cfg.projectName + ' Hive';
+        document.title = '🐝 ' + cfg.projectName + ' Hive Dashboard';
+      }
+      if (cfg.primaryRepo) window._primaryRepo = cfg.primaryRepo;
+    }).catch(() => {});
 
     // Initial fetch then SSE
     fetch('/api/status').then(r => r.json()).then(render).catch(console.error);

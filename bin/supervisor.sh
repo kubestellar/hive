@@ -221,6 +221,21 @@ check_rate_limit_and_failover() {
   pane=$(tmux capture-pane -t "$SESSION" -p 2>/dev/null) || return 0
 
   if echo "$pane" | grep -qiE "$RATE_LIMIT_REGEX"; then
+    # Pinned agents must not be switched — alert but stay on the pinned CLI
+    local envfile="/etc/supervised-agent/${SESSION}.env"
+    if grep -q "^AGENT_CLI_PINNED=true" "$envfile" 2>/dev/null; then
+      if [ -z "$RATE_LIMIT_ALERTED" ]; then
+        log "rate limit on $CLI but $SESSION is PINNED — NOT switching"
+        [ -n "$topic" ] && curl -sS -m 10 \
+          -H "Priority: high" \
+          -H "Title: $SESSION: rate-limited but pinned (staying on $CLI)" \
+          -H "Tags: pushpin,warning" \
+          -d "$SESSION hit rate limit on $CLI but is pinned — not switching." \
+          "https://ntfy.sh/$topic" >/dev/null || true
+        RATE_LIMIT_ALERTED="pinned"
+      fi
+      return 0
+    fi
     if [ -z "$RATE_LIMIT_ALERTED" ]; then
       now=$(date +%s)
       elapsed=$((now - LAST_SWITCH_EPOCH))

@@ -983,12 +983,12 @@ cmd_stop() {
 cmd_pin() {
   local agent="${1:-}"
   [[ -z "$agent" ]] && die "Usage: hive pin <agent>"
-  local envfile
+  local envfile service
   case "$agent" in
-    scanner)            envfile="scanner" ;;
-    reviewer)           envfile="reviewer" ;;
-    architect|feature)  envfile="architect" ;;
-    outreach)           envfile="outreach" ;;
+    scanner)            envfile="scanner";   service="supervised-agent@scanner" ;;
+    reviewer)           envfile="reviewer";  service="supervised-agent@reviewer" ;;
+    architect|feature)  envfile="architect"; service="supervised-agent@architect" ;;
+    outreach)           envfile="outreach";  service="supervised-agent@outreach" ;;
     *) die "Unknown agent: $agent" ;;
   esac
   for envpath in "$ENV_DIR/${envfile}.env" "/etc/supervised-agent/${envfile}.env"; do
@@ -1000,7 +1000,17 @@ cmd_pin() {
       fi
     fi
   done
-  ok "Pinned $agent to current CLI -- governor will not change it"
+
+  # Block governor from overriding this agent's backend
+  local GOV_STATE_DIR="/var/run/kick-governor"
+  sudo mkdir -p "$GOV_STATE_DIR"
+  sudo touch "$GOV_STATE_DIR/model_lock_${envfile}"
+
+  # Restart the service so the running session picks up the pinned CLI
+  info "Restarting $service to enforce pin..."
+  sudo systemctl restart "$service"
+
+  ok "Pinned $agent — governor locked, session restarted"
 }
 
 cmd_unpin() {
@@ -1019,7 +1029,12 @@ cmd_unpin() {
       sudo sed -i "/^AGENT_CLI_PINNED=/d" "$envpath"
     fi
   done
-  ok "Unpinned $agent -- governor will manage CLI on next kick"
+
+  # Remove governor lock so it can manage this agent again
+  local GOV_STATE_DIR="/var/run/kick-governor"
+  sudo rm -f "$GOV_STATE_DIR/model_lock_${envfile}"
+
+  ok "Unpinned $agent — governor will manage CLI on next kick"
 }
 
 cmd_switch() {

@@ -1,0 +1,76 @@
+# hive-project.yaml — KubeStellar Console (reference implementation)
+#
+# This is the production config for the kubestellar/console hive deployment.
+# Copy to /etc/hive/hive-project.yaml on the hive server.
+
+project:
+  name: "KubeStellar Console"
+  org: "kubestellar"
+  primary_repo: "kubestellar/console"
+  repos:
+    - kubestellar/console
+    - kubestellar/console-kb
+    - kubestellar/docs
+    - kubestellar/console-marketplace
+    - kubestellar/kubestellar-mcp
+  ai_author: "clubanderson"
+  website: "console.kubestellar.io"
+
+agents:
+  enabled:
+    - supervisor
+    - scanner
+    - reviewer
+    - architect
+    - outreach
+  beads_base: "/home/dev"
+  workdir: "/home/dev/kubestellar-console"
+
+health_checks:
+  workflows:
+    - name: "Nightly Test Suite"
+      key: nightly
+      type: nightly
+    - name: "Nightly Compliance & Perf"
+      key: nightlyCompliance
+      type: nightly
+    - name: "Nightly Dashboard Health"
+      key: nightlyDashboard
+      type: nightly
+    - name: "Nightly gh-aw Version Check"
+      key: nightlyGhaw
+      type: nightly
+    - name: "Playwright Cross-Browser (Nightly)"
+      key: nightlyPlaywright
+      type: nightly
+  ci_workflow: "Build and Deploy KC"
+  deploy_jobs:
+    - name: "deploy-vllm-d"
+    - name: "deploy-pok-prod"
+  perf_workflows:
+    - "Perf — React commits per navigation"
+    - "Performance TTFI Gate"
+  brew:
+    tap_repo: "kubestellar/homebrew-tap"
+    formula: "kubestellar-console.rb"
+  helm:
+    chart_path: "deploy/helm/kubestellar-console/Chart.yaml"
+  release_workflow: "Release"
+
+outreach:
+  enabled: true
+  description: "KubeStellar Console — Multi-cluster Kubernetes dashboard with AI-powered operations"
+  differentiators:
+    - "CNCF Sandbox project"
+    - "20+ CNCF project integrations"
+    - "AI-powered cluster management"
+    - "SBOM and SLSA supply chain security"
+  target_placements: 200
+  coverage_badge_url: "https://gist.githubusercontent.com/clubanderson/b9a9ae8469f1897a22d5a40629bc1e82/raw/coverage-badge.json"
+  ga4:
+    property_id: "525401563"
+    service_account_key: "/home/dev/.config/gcloud-keys/ga4-reader-key.json"
+
+dashboard:
+  title: "KubeStellar Console Hive"
+  port: 3001

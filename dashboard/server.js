@@ -3,9 +3,31 @@ const { execFile, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+const yaml = (() => { try { return require('js-yaml'); } catch (_) { return null; } })();
+
 const app = express();
 app.use(express.json());
-const PORT = process.env.HIVE_DASHBOARD_PORT || 3001;
+
+// Load project config from hive-project.yaml
+const CONFIG_PATH = process.env.HIVE_PROJECT_CONFIG || '/etc/hive/hive-project.yaml';
+let projectConfig = {};
+try {
+  const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+  if (yaml) {
+    projectConfig = yaml.load(raw) || {};
+  } else {
+    const { execSync } = require('child_process');
+    const json = execSync(`python3 -c "import yaml,json,sys; print(json.dumps(yaml.safe_load(sys.stdin)))" < "${CONFIG_PATH}"`, { encoding: 'utf8' });
+    projectConfig = JSON.parse(json);
+  }
+} catch (_) { /* no config file — use defaults */ }
+
+const PROJECT_NAME = (projectConfig.project || {}).name || '';
+const PROJECT_PRIMARY_REPO = (projectConfig.project || {}).primary_repo || '';
+const PROJECT_ORG = (projectConfig.project || {}).org || '';
+const DASHBOARD_TITLE = ((projectConfig.dashboard || {}).title) || (PROJECT_NAME ? PROJECT_NAME + ' Hive' : 'Hive');
+
+const PORT = process.env.HIVE_DASHBOARD_PORT || ((projectConfig.dashboard || {}).port) || 3001;
 const REFRESH_MS = 5000;
 const METRICS_DIR = '/var/run/hive-metrics';
 const HISTORY_DIR = path.join(METRICS_DIR, 'history');
@@ -354,6 +376,13 @@ refreshGitVersion();
 setInterval(refreshGitVersion, GIT_VERSION_REFRESH_MS);
 
 app.get('/api/version', (_req, res) => res.json(gitVersionCache));
+
+app.get('/api/config', (_req, res) => res.json({
+  projectName: PROJECT_NAME,
+  primaryRepo: PROJECT_PRIMARY_REPO,
+  org: PROJECT_ORG,
+  dashboardTitle: DASHBOARD_TITLE,
+}));
 
 // JSON API
 app.get('/api/status', async (_req, res) => {

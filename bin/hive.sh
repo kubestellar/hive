@@ -744,12 +744,10 @@ cmd_status_json() {
         pinned="true"
       fi
       local recent_lines
-      # Extract model from process cmdline --model flag (most reliable)
-      model=$(detect_model_from_proc "$s")
-      if [[ "$model" == "?" ]]; then
-        # Fallback: scrape from pane footer
-        model=$(echo "$pane" | grep -oE 'Claude [A-Za-z]+ [0-9.]+|Opus [0-9.]+|Sonnet [0-9.]+|Haiku [0-9.]+|GPT-[0-9.]+|Gemini [^ ]+' | tail -1 || echo "")
-        model=${model:-"?"}
+      # Extract model from pane footer (shows actual model in use, not cmdline flag)
+      model=$(echo "$pane" | grep -oE 'Claude [A-Za-z]+ [0-9.]+|Opus [0-9.]+|Sonnet [0-9.]+|Haiku [0-9.]+|GPT-[0-9.]+|Gemini [^ ]+' | tail -1 || echo "")
+      if [[ -z "$model" ]]; then
+        model=$(detect_model_from_proc "$s")
       fi
       # Detect login required — only check footer (last 5 lines) to avoid
       # false positives from pane content mentioning "not logged in"

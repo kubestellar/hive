@@ -131,6 +131,7 @@ ${BLD}COMMANDS${RST}
   logs    [governor|scanner|reviewer|architect|outreach|supervisor]
   stop    [all|agent]
   switch  <agent> <backend>            Switch agent to a different CLI backend (pins CLI)
+  pin     <agent>                      Pin current CLI -- governor will not change it
   unpin   <agent>                      Unpin CLI â let governor manage backend again
 
 ${BLD}BACKENDS${RST}  (set HIVE_BACKENDS in hive.conf)
@@ -966,6 +967,29 @@ cmd_stop() {
 
 # ── switch ───────────────────────────────────────────────────────────────────
 
+cmd_pin() {
+  local agent="${1:-}"
+  [[ -z "$agent" ]] && die "Usage: hive pin <agent>"
+  local envfile supervised_envfile
+  case "$agent" in
+    scanner)            envfile="issue-scanner"; supervised_envfile="scanner" ;;
+    reviewer)           envfile="reviewer";      supervised_envfile="reviewer" ;;
+    architect|feature)  envfile="architect";    supervised_envfile="architect" ;;
+    outreach)           envfile="outreach";      supervised_envfile="outreach" ;;
+    *) die "Unknown agent: $agent" ;;
+  esac
+  for envpath in "$ENV_DIR/${envfile}.env" "/etc/supervised-agent/${supervised_envfile}.env"; do
+    if [[ -f "$envpath" ]]; then
+      if grep -q "^AGENT_CLI_PINNED=" "$envpath" 2>/dev/null; then
+        sudo sed -i "s|^AGENT_CLI_PINNED=.*|AGENT_CLI_PINNED=true|" "$envpath"
+      else
+        echo "AGENT_CLI_PINNED=true" | sudo tee -a "$envpath" >/dev/null
+      fi
+    fi
+  done
+  ok "Pinned $agent to current CLI -- governor will not change it"
+}
+
 cmd_unpin() {
   local agent="${1:-}"
   [[ -z "$agent" ]] && die "Usage: hive unpin <agent>"
@@ -1194,6 +1218,7 @@ main() {
     kick)     shift; cmd_kick    "${1:-all}" ;;
     logs)     shift; cmd_logs    "${1:-governor}" ;;
     stop)     shift; cmd_stop    "${1:-all}" ;;
+    pin)      shift; cmd_pin     "$@" ;;
     unpin)    shift; cmd_unpin   "$@" ;;
     switch)   shift; cmd_switch  "$@" ;;
     model)    shift; cmd_model   "$@" ;;

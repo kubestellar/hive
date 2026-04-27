@@ -549,6 +549,31 @@ app.post('/api/resume/:agent', (req, res) => {
   });
 });
 
+// Pin / Unpin agent CLI — prevents governor from changing the CLI backend
+app.post('/api/pin/:agent', (req, res) => {
+  const agent = req.params.agent;
+  const allowed = ['scanner', 'reviewer', 'architect', 'outreach'];
+  if (!allowed.includes(agent)) {
+    return res.status(400).json({ error: `cannot pin ${agent}` });
+  }
+  execFile('/usr/local/bin/hive', ['pin', agent], { timeout: 10000 }, (err, stdout) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ ok: true, output: stdout.trim() });
+  });
+});
+
+app.post('/api/unpin/:agent', (req, res) => {
+  const agent = req.params.agent;
+  const allowed = ['scanner', 'reviewer', 'architect', 'outreach'];
+  if (!allowed.includes(agent)) {
+    return res.status(400).json({ error: `cannot unpin ${agent}` });
+  }
+  execFile('/usr/local/bin/hive', ['unpin', agent], { timeout: 10000 }, (err, stdout) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ ok: true, output: stdout.trim() });
+  });
+});
+
 // Token usage
 app.get('/api/tokens', (_req, res) => {
   res.json(tokenCache || { error: 'no data yet' });

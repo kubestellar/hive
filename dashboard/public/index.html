@@ -361,6 +361,8 @@
     .budget-bar-fill.danger { background: var(--red); }
 
     /* Model chip on agent cards */
+    .pin-toggle { cursor: pointer; background: none; border: none; font-size: 0.7rem; padding: 0 2px; opacity: 0.6; transition: opacity 0.2s; }
+    .pin-toggle:hover { opacity: 1; }
     .model-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; }
     .model-chip.free { background: rgba(63,185,80,0.12); color: var(--green); }
     .model-chip.paid { background: rgba(210,153,34,0.12); color: var(--yellow); }
@@ -699,7 +701,7 @@
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a></div>
-          <div class="agent-field"><span class="label">cli</span><span class="value">${cliChip(a.cli, a.pinned)}</span></div>
+          <div class="agent-field"><span class="label">cli</span><span class="value">${cliChip(a.cli, a.pinned)} ${a.name !== 'supervisor' ? `<button class="pin-toggle" onclick="togglePin('${a.name}', ${!!a.pinned})" title="${a.pinned ? 'Unpin — let governor manage CLI' : 'Pin — lock current CLI'}">${a.pinned ? '🔓' : '📌'}</button>` : ''}</span></div>
           <div class="agent-field"><span class="label">model</span><span class="value">${modelChip(a.model, a.govReason)}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${isPaused ? 'paused' : a.cadence}</span></div>
           <div class="agent-field"><span class="label">last run</span><span class="value">${a.lastKick || '—'}</span></div>
@@ -1346,6 +1348,13 @@ function intensityGauge() {
       const res = await fetch(`/api/model/${agent}/${encodeURIComponent(model)}`, { method: 'POST' });
       const data = await res.json();
       if (!data.ok) alert('Model switch failed: ' + (data.error || 'unknown'));
+    }
+
+    async function togglePin(agent, currentlyPinned) {
+      const action = currentlyPinned ? 'unpin' : 'pin';
+      const res = await fetch(`/api/${action}/${agent}`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) alert(`${action} failed: ` + (data.error || 'unknown'));
     }
 
     // Git version indicator

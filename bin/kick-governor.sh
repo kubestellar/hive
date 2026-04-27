@@ -528,6 +528,14 @@ optimize_model_assignment() {
       continue
     fi
 
+    # Double-check: respect AGENT_CLI_PINNED in env files even without lock file
+    local env_dir="/etc/hive"
+    if grep -q "^AGENT_CLI_PINNED=true" "$env_dir/${agent}.env" 2>/dev/null; then
+      log "  PINNED: $agent (env flag — skipping, creating missing lock)"
+      sudo touch "$lock_file"
+      continue
+    fi
+
     local cost_weight
     cost_weight=$(get_cost_weight "$backend" "$model")
     local prev_backend prev_model

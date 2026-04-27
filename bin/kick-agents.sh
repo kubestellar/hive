@@ -135,12 +135,12 @@ switch_backend() {
 
   $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
   sleep 2
-  $TMUX_BIN send-keys -t "$session" "/exit" 2>/dev/null || true
+  $TMUX_BIN send-keys -t "$session" -l "/exit" 2>/dev/null || true
   sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
   sleep 3
 
-  $TMUX_BIN send-keys -t "$session" "agent-launch.sh --backend $fallback_backend --model $model" 2>/dev/null || true
+  $TMUX_BIN send-keys -t "$session" -l "agent-launch.sh --backend $fallback_backend --model $model" 2>/dev/null || true
   sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
 
@@ -172,6 +172,27 @@ session_idle() {
   # The prompt is ❯ (U+276F) followed by a non-breaking space (U+00A0)
   # Check full pane to account for status bar lines below the prompt
   $TMUX_BIN capture-pane -t "$1" -p | grep -q "❯"
+}
+
+flush_pending_input() {
+  # Detect text stuck in the input line (sent without -l or missing Enter).
+  # If the last ❯ line has trailing text, the agent has unsent input — send Enter.
+  local session="$1"
+  local pane_text
+  pane_text=$($TMUX_BIN capture-pane -t "$session" -p 2>/dev/null || true)
+  local prompt_line
+  prompt_line=$(echo "$pane_text" | grep "❯" | tail -1)
+  if [ -n "$prompt_line" ]; then
+    local after_prompt
+    after_prompt=$(echo "$prompt_line" | sed 's/.*❯[[:space:]]*//')
+    if [ -n "$after_prompt" ] && [ ${#after_prompt} -gt 2 ]; then
+      log "FLUSH $session — found unsent input (${#after_prompt} chars), sending Enter"
+      $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
+      sleep 2
+      return 0
+    fi
+  fi
+  return 1
 }
 
 session_cli_ready() {
@@ -357,10 +378,21 @@ kick() {
     return
   fi
 
+  flush_pending_input "$session"
+
   log "KICK $session"
-  $TMUX_BIN send-keys -t "$session" "$message"
-  sleep 1  # let tmux flush long message text before sending Enter
+  $TMUX_BIN send-keys -t "$session" -l "$message"
+  sleep 2  # let tmux flush long message text before sending Enter
   $TMUX_BIN send-keys -t "$session" Enter
+  # Verify Enter was delivered — retry if text still in prompt after 3s
+  sleep 3
+  local _vline _vtext
+  _vline=$($TMUX_BIN capture-pane -t "$session" -p 2>/dev/null | grep "❯" | tail -1)
+  _vtext=$(echo "$_vline" | sed 's/.*❯[[:space:]]*//')
+  if [ -n "$_vtext" ] && [ ${#_vtext} -gt 2 ]; then
+    log "RETRY $session — Enter not delivered, resending"
+    $TMUX_BIN send-keys -t "$session" Enter
+  fi
   ntfy "$agent started" "Kicked at $ET_NOW. Next: $(next_run "$agent")"
 
   # Background check for rate limit after kick settles
@@ -415,7 +447,27 @@ Merge AI-authored PRs with green CI. Send ntfy (curl -s -H 'Title: Scanner: <act
 Log to cron_scan_log.md. $(beads_sync "$SCANNER_BEADS" "scanner")"
 
 REVIEWER_BEADS="/home/dev/reviewer-beads"
-REVIEWER_MSG="[AGENT:reviewer] $PULL_INSTRUCTIONS \
+# Build live health preamble — tells reviewer exactly what's red RIGHT NOW
+_rh_json=$(/tmp/hive/dashboard/health-check.sh 2>/dev/null || echo '{}')
+_rh_reds=""
+_rh_ci=$(echo "$_rh_json" | jq -r '.ci // 0' 2>/dev/null || echo 0)
+[ "$_rh_ci" -lt 100 ] && _rh_reds="${_rh_reds} CI=${_rh_ci}%"
+for _rk in nightly nightlyCompliance nightlyDashboard nightlyPlaywright hourly weekly nightlyRel weeklyRel; do
+  _rv=$(echo "$_rh_json" | jq -r ".${_rk} // -1" 2>/dev/null || echo -1)
+  [ "$_rv" = "0" ] && _rh_reds="${_rh_reds} ${_rk}=RED"
+done
+for _dk in vllm pokprod; do
+  _dv=$(echo "$_rh_json" | jq -r ".${_dk} // -1" 2>/dev/null || echo -1)
+  [ "$_dv" = "0" ] && _rh_reds="${_rh_reds} deploy:${_dk}=RED"
+done
+_rh_cvg=$(curl -sf "${BADGE_URL:-https://gist.githubusercontent.com/clubanderson/b9a9ae8469f1897a22d5a40629bc1e82/raw/coverage-badge.json}" 2>/dev/null | jq -r '.message // "0"' | tr -d '%' || echo 0)
+[ "${_rh_cvg:-0}" -lt 91 ] && _rh_reds="${_rh_reds} coverage=${_rh_cvg}%<91%"
+if [ -n "$_rh_reds" ]; then
+  _HEALTH_PREAMBLE="URGENT — DASHBOARD HAS RED INDICATORS:${_rh_reds}. Your ONLY job this pass is to FIX these. Do NOT acknowledge and stand by. Do NOT skip health checks. Run /tmp/hive/dashboard/health-check.sh, diagnose each failure, and open fix PRs. "
+else
+  _HEALTH_PREAMBLE=""
+fi
+REVIEWER_MSG="[AGENT:reviewer] ${_HEALTH_PREAMBLE}$PULL_INSTRUCTIONS \
 $(beads_restore "$REVIEWER_BEADS") \
 Then: Run a full reviewer pass per /tmp/hive/examples/kubestellar/agents/reviewer-CLAUDE.md. \
 MANDATORY FIX ITEMS — do NOT just report these, you MUST open PRs to fix them: \
@@ -530,12 +582,12 @@ apply_model_if_changed() {
 
   capture_handoff_state "$session" "$agent"
 
-  $TMUX_BIN send-keys -t "$session" "/exit" 2>/dev/null || true
+  $TMUX_BIN send-keys -t "$session" -l "/exit" 2>/dev/null || true
   sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
   sleep 3
 
-  $TMUX_BIN send-keys -t "$session" "agent-launch.sh --backend $gov_backend --model $gov_model" 2>/dev/null || true
+  $TMUX_BIN send-keys -t "$session" -l "agent-launch.sh --backend $gov_backend --model $gov_model" 2>/dev/null || true
   sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
 

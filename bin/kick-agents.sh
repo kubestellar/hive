@@ -404,7 +404,7 @@ Use your agent name: ${agent_name}. This line appears on the hive dashboard."
 }
 
 SCANNER_BEADS="/home/dev/scanner-beads"
-SCANNER_MSG="$PULL_INSTRUCTIONS \
+SCANNER_MSG="[AGENT:scanner] $PULL_INSTRUCTIONS \
 $(beads_restore "$SCANNER_BEADS") \
 Then: Run a full scan pass per your policy (project_scanner_policy.md). \
 Oldest-first. Check all 5 repos: kubestellar/console, console-kb, docs, \
@@ -415,7 +415,7 @@ Merge AI-authored PRs with green CI. Send ntfy (curl -s -H 'Title: Scanner: <act
 Log to cron_scan_log.md. $(beads_sync "$SCANNER_BEADS" "scanner")"
 
 REVIEWER_BEADS="/home/dev/reviewer-beads"
-REVIEWER_MSG="$PULL_INSTRUCTIONS \
+REVIEWER_MSG="[AGENT:reviewer] $PULL_INSTRUCTIONS \
 $(beads_restore "$REVIEWER_BEADS") \
 Then: Run a full reviewer pass per /tmp/hive/examples/kubestellar/agents/reviewer-CLAUDE.md. \
 MANDATORY FIX ITEMS — do NOT just report these, you MUST open PRs to fix them: \
@@ -440,7 +440,7 @@ ALSO CHECK (not fix-mandatory): (B) OAuth code presence, \
 Print all GA4 tables to this pane. Send ntfy for all findings. Write all results to reviewer_log.md. $(beads_sync "$REVIEWER_BEADS" "reviewer")"
 
 ARCHITECT_BEADS="/home/dev/architect-beads"
-ARCHITECT_MSG="$PULL_INSTRUCTIONS \
+ARCHITECT_MSG="[AGENT:architect] $PULL_INSTRUCTIONS \
 $(beads_restore "$ARCHITECT_BEADS") \
 Then: Run an architect pass per /tmp/hive/examples/kubestellar/agents/architect-CLAUDE.md. \
 Pull main, scan the codebase for refactor or perf improvement opportunities. \
@@ -450,7 +450,7 @@ open an issue with label architect-idea and wait for operator approval. \
 Send ntfy for all plans and PRs. Print your plan to this pane. $(beads_sync "$ARCHITECT_BEADS" "architect")"
 
 OUTREACH_BEADS="/home/dev/outreach-beads"
-OUTREACH_MSG="$PULL_INSTRUCTIONS \
+OUTREACH_MSG="[AGENT:outreach] $PULL_INSTRUCTIONS \
 $(beads_restore "$OUTREACH_BEADS") \
 Then: Run an outreach pass per /tmp/hive/examples/kubestellar/agents/outreacher-CLAUDE.md. \
 LANE — outreach owns: awesome lists, directories, comparison sites, aggregators, \
@@ -465,18 +465,9 @@ highest engagement. Use this to (a) prioritise which Console capabilities to pit
 platform, (b) identify traffic gaps where new listings would have the most impact, and \
 (c) track whether previous outreach placements are driving referral traffic. \
 GA4 insight is for strategy only — do NOT fix GA4 errors (that is the reviewer's job). \
-CI HEALTH — after completing outreach work each pass, run /tmp/hive/dashboard/health-check.sh. \
-For EVERY red check (nightly, hourly, CI, Playwright nightly, weekly, deploys, code coverage), \
-pull the failed workflow logs, diagnose root cause, and open a fix PR. \
-Use git worktree add /tmp/kubestellar-console-outreach-cifix -b fix/outreach-ci-<workflow>. \
-Coverage: run npm run test:coverage in the worktree. If below 91%, write new tests targeting \
-the lowest-coverage files and open a PR. \
-Playwright: check nightly Playwright workflow — fix webkit/chromium/firefox failures via PR. \
-Build and lint before opening any fix PR. This is a secondary responsibility — do outreach \
-first, then fix CI if time permits before the next kick. \
 LANE BOUNDARIES (default, unless overridden by operator directive) — outreach must NEVER: \
-fix bugs (except CI/nightly/Playwright/coverage failures), review code, implement features, \
-or do anything the scanner/reviewer/architect agents do. \
+fix bugs, fix CI/nightly/Playwright/coverage failures, review code, implement features, \
+or do anything the scanner/reviewer/architect agents do. CI and test fixes are the reviewer's job. \
 If you find a bug or improvement idea, file a beads issue for the scanner — do not act on it yourself. \
 Fork under clubanderson account for all external PRs to third-party repos. \
 Send ntfy for every new listing secured. One outreach per project — never spam. $(beads_sync "$OUTREACH_BEADS" "outreach")"
@@ -553,7 +544,7 @@ apply_model_if_changed() {
 }
 
 _now_et=$(TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z')
-SUPERVISOR_MSG="MONITORING PASS — Pass started: ${_now_et}
+SUPERVISOR_MSG="[AGENT:supervisor] MONITORING PASS — Pass started: ${_now_et}
 
 HARD RULE — 12-HOUR CLOCK ONLY: Every timestamp you output MUST use 12-hour format with AM/PM. \
 Use: TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z' \

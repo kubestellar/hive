@@ -854,7 +854,7 @@
         const pauseBadge = agentPaused ? '<span class="pause-badge">paused</span>' : '';
         const cChip = agentData && agentData.cli ? cliChip(agentData.cli) : '?';
         const mChip = agentData && agentData.model ? modelChip(agentData.model, agentData.govReason) : '';
-        return `<tr><td>${nameDot}${aname}${pauseBadge}</td><td>${cChip}</td>${cells}<td>${mChip}</td></tr>`;
+        return `<tr><td>${nameDot}${aname}${pauseBadge}</td>${cells}<td>${cChip}</td><td>${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
         const isActive = m === currentMode;
@@ -862,7 +862,7 @@
         return `<th class="${cls}">${m}${isActive ? ' ◀' : ''}</th>`;
       }).join('');
       return `<table class="gov-matrix">
-        <thead><tr><th></th><th>cli</th>${headers}<th>model</th></tr></thead>
+        <thead><tr><th></th>${headers}<th>cli</th><th>model</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     }

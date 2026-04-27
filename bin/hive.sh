@@ -1029,12 +1029,51 @@ cmd_switch() {
     die "Env file not found: $ef"
   fi
 
-  # Restart service to pick up new env (stop+start races with Restart=always)
-  sudo systemctl restart "$service" 2>/dev/null && ok "Restarted $agent with $backend" \
-    || warn "systemctl restart failed — trying kick fallback"
-  /usr/local/bin/kick-agents.sh "$agent" 2>/dev/null || true
+  # Kill the running CLI in the tmux session and relaunch with new backend.
+  # This works for all agents regardless of whether a systemd service exists.
+  local SWITCH_STARTUP_WAIT=90
+  local SWITCH_POLL=3
 
-  sleep 4
+  if tmux has-session -t "$session" 2>/dev/null; then
+    # Kill the CLI process inside the pane (fast, no waiting for /exit)
+    local pane_pid
+    pane_pid=$(tmux display-message -t "$session" -p '#{pane_pid}' 2>/dev/null || true)
+    if [[ -n "$pane_pid" ]]; then
+      # Kill all child processes of the pane shell (the CLI and its children)
+      pkill -TERM -P "$pane_pid" 2>/dev/null || true
+      sleep 2
+      # Force kill any survivors
+      pkill -KILL -P "$pane_pid" 2>/dev/null || true
+      sleep 1
+    fi
+
+    # Launch the new CLI in the now-idle shell
+    tmux send-keys -t "$session" "$launch_cmd" Enter
+
+    # Wait for the new CLI to be ready (idle prompt ❯)
+    local waited=0
+    info "Waiting up to ${SWITCH_STARTUP_WAIT}s for $backend CLI to start in $session..."
+    while (( waited < SWITCH_STARTUP_WAIT )); do
+      if tmux capture-pane -t "$session" -p | grep -q "❯"; then
+        ok "Switched $agent → $backend (ready after ${waited}s)"
+        break
+      fi
+      sleep "$SWITCH_POLL"
+      (( waited += SWITCH_POLL ))
+    done
+    if (( waited >= SWITCH_STARTUP_WAIT )); then
+      warn "$backend CLI did not start within ${SWITCH_STARTUP_WAIT}s — check tmux session $session"
+    fi
+  else
+    # No tmux session — create one and launch
+    local workdir="/home/dev/kubestellar-console"
+    tmux new-session -d -s "$session" -c "$workdir"
+    sleep 1
+    tmux send-keys -t "$session" "$launch_cmd" Enter
+    ok "Created tmux session $session with $backend"
+  fi
+
+  sleep 2
   cmd_status
 }
 
@@ -1066,16 +1105,48 @@ cmd_model() {
     warn "Env file not found: $ef (proceeding anyway)"
   fi
 
-  # Kill the tmux session
-  tmux kill-session -t "$session" 2>/dev/null || true
-  sleep 1
+  # Read current launch command from env to get the full CLI invocation
+  local launch_cmd
+  launch_cmd=$(grep '^AGENT_LAUNCH_CMD=' "$ef" 2>/dev/null | cut -d= -f2- | tr -d '"')
+  [[ -z "$launch_cmd" ]] && launch_cmd="agent-launch.sh --backend copilot --model $model"
 
-  # Restart service to pick up new model
-  sudo systemctl restart "$service" 2>/dev/null && ok "Restarted $agent with model=$model" \
-    || warn "systemctl restart failed — trying kick fallback"
-  /usr/local/bin/kick-agents.sh "$agent" 2>/dev/null || true
+  local SWITCH_STARTUP_WAIT=90
+  local SWITCH_POLL=3
 
-  sleep 4
+  if tmux has-session -t "$session" 2>/dev/null; then
+    local pane_pid
+    pane_pid=$(tmux display-message -t "$session" -p '#{pane_pid}' 2>/dev/null || true)
+    if [[ -n "$pane_pid" ]]; then
+      pkill -TERM -P "$pane_pid" 2>/dev/null || true
+      sleep 2
+      pkill -KILL -P "$pane_pid" 2>/dev/null || true
+      sleep 1
+    fi
+
+    tmux send-keys -t "$session" "$launch_cmd" Enter
+
+    local waited=0
+    info "Waiting up to ${SWITCH_STARTUP_WAIT}s for CLI to start with model=$model..."
+    while (( waited < SWITCH_STARTUP_WAIT )); do
+      if tmux capture-pane -t "$session" -p | grep -q "❯"; then
+        ok "Restarted $agent with model=$model (ready after ${waited}s)"
+        break
+      fi
+      sleep "$SWITCH_POLL"
+      (( waited += SWITCH_POLL ))
+    done
+    if (( waited >= SWITCH_STARTUP_WAIT )); then
+      warn "CLI did not start within ${SWITCH_STARTUP_WAIT}s — check tmux session $session"
+    fi
+  else
+    local workdir="/home/dev/kubestellar-console"
+    tmux new-session -d -s "$session" -c "$workdir"
+    sleep 1
+    tmux send-keys -t "$session" "$launch_cmd" Enter
+    ok "Created tmux session $session with model=$model"
+  fi
+
+  sleep 2
   cmd_status
 }
 # ── main ─────────────────────────────────────────────────────────────────────

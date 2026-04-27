@@ -1,4 +1,4 @@
-# Example: GitHub issue-scanner policy
+# Example: GitHub scanner policy
 
 This is the kind of markdown file the agent reads on every `/loop` firing when `AGENT_LOOP_PROMPT` is something like:
 

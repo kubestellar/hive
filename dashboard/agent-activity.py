@@ -19,7 +19,7 @@ STALE_SECONDS = 300
 
 AGENT_TMUX_SESSION = {
     "supervisor": "supervisor",
-    "scanner": "issue-scanner",
+    "scanner": "scanner",
     "reviewer": "reviewer",
     "architect": "architect",
     "outreach": "outreach",

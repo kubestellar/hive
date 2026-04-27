@@ -10,13 +10,13 @@
 set -euo pipefail
 
 METRICS_FILE="/var/run/hive-metrics/gh_rate_limits.json"
-NTFY_TOPIC="${NTFY_TOPIC:-ntfy.sh/issue-scanner}"
+NTFY_TOPIC="${NTFY_TOPIC:-ntfy.sh/hive}"
 TMUX_BIN="${TMUX_BIN:-tmux}"
 TTL_SECONDS=3600  # 1 hour — alerts older than this are pruned
 
 # Agent name -> tmux session name
 declare -A AGENT_SESSIONS=(
-  [scanner]=issue-scanner
+  [scanner]=scanner
   [reviewer]=reviewer
   [architect]=architect
   [outreach]=outreach

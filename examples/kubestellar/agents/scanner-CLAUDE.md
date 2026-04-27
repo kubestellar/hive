@@ -1,5 +1,5 @@
 ---
-The scanner runs on claude-dev (192.168.4.56) in the `issue-scanner` tmux session. The supervisor (dispatcher on the Mac) sends work orders directly. No cron, no self-scheduling. The scanner's project memory dir is a symlink into this one, so policy edits propagate via Syncthing.
+The scanner runs on claude-dev (192.168.4.56) in the `scanner` tmux session. The supervisor (dispatcher on the Mac) sends work orders directly. No cron, no self-scheduling. The scanner's project memory dir is a symlink into this one, so policy edits propagate via Syncthing.
 
 ## EXECUTOR MODE (DEFAULT — 2026-04-19, supervisor-driven)
 

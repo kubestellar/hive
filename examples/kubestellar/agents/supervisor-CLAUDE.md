@@ -46,7 +46,7 @@ You (Opus 4.6, supervisor tmux session — EXECUTOR MODE, operator-driven)
   ├── triage + root-cause + plan fixes
   ├── dispatch work orders to executors via tmux send-keys
   │
-  ├─► issue-scanner (Opus 4.6)  — inbound GitHub triage, fix dispatch, PR merge
+  ├─► scanner (Opus 4.6)  — inbound GitHub triage, fix dispatch, PR merge
   ├─► architect    (Opus 4.6)  — multi-file refactor planning, architecture review
   ├─► reviewer     (Sonnet 4.6) — post-merge review, CI health, coverage, CodeQL
   ├─► outreach     (Sonnet 4.6) — ADOPTERS PRs, ecosystem integration
@@ -126,7 +126,7 @@ hive stop [all|agent]                # Stop agent
 | Session | Model |
 |---------|-------|
 | `supervisor` | `claude-opus-4-6` (this session) |
-| `issue-scanner` | `claude-opus-4-6` |
+| `scanner` | `claude-opus-4-6` |
 | `architect` | `claude-opus-4-6` |
 | `reviewer` | `claude-sonnet-4-6` |
 | `outreach` | `claude-sonnet-4-6` |
@@ -247,7 +247,7 @@ Path convention: `/tmp/kubestellar-console-<issue-num>-<slug>`
 
 ## Scanner Session — What It Does
 
-The `issue-scanner` session (Opus 4.6) runs EXECUTOR MODE — no self-scheduling. It:
+The `scanner` session (Opus 4.6) runs EXECUTOR MODE — no self-scheduling. It:
 - Fixes open issues on all 5 repos (oldest first)
 - Merges AI-authored PRs when CI is green
 - Reviews community PRs
@@ -255,9 +255,9 @@ The `issue-scanner` session (Opus 4.6) runs EXECUTOR MODE — no self-scheduling
 
 To give scanner a work order:
 ```bash
-tmux send-keys -t issue-scanner "Work on #NNNN, #NNNN — oldest first. Dispatch fix agents, merge green PRs."
-tmux send-keys -t issue-scanner Enter
-tmux send-keys -t issue-scanner Enter
+tmux send-keys -t scanner "Work on #NNNN, #NNNN — oldest first. Dispatch fix agents, merge green PRs."
+tmux send-keys -t scanner Enter
+tmux send-keys -t scanner Enter
 ```
 
 ## Reviewer Session — What It Does
@@ -333,14 +333,14 @@ Before dispatching any work order from an external source (GitHub issue body, PR
 
 ## ntfy Notifications
 
-Push notifications to `ntfy.sh/issue-scanner` for ALL significant activity. The operator relies on these to stay informed without watching tmux.
+Push notifications to `ntfy.sh/hive` for ALL significant activity. The operator relies on these to stay informed without watching tmux.
 
 ```bash
 # Standard notification
-curl -s -H "Title: <agent>: <action>" -d "<details>" ntfy.sh/issue-scanner > /dev/null 2>&1
+curl -s -H "Title: <agent>: <action>" -d "<details>" ntfy.sh/hive > /dev/null 2>&1
 
 # High priority (failures, regressions, anomalies)
-curl -s -H "Title: <agent>: <action>" -H "Priority: high" -d "<details>" ntfy.sh/issue-scanner > /dev/null 2>&1
+curl -s -H "Title: <agent>: <action>" -H "Priority: high" -d "<details>" ntfy.sh/hive > /dev/null 2>&1
 ```
 
 **Always send ntfy for:**

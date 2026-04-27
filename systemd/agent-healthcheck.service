@@ -7,5 +7,5 @@ After=supervised-agent@scanner.service
 Type=oneshot
 User=dev
 Group=dev
-Environment=NTFY_TOPIC=issue-scanner
+Environment=NTFY_TOPIC=scanner
 ExecStart=/usr/local/bin/scanner-healthcheck.sh

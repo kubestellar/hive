@@ -20,7 +20,7 @@ TMUX_BIN="${TMUX_BIN:-tmux}"
 LOG="/var/log/kick-agents.log"
 TIMESTAMP="$(TZ=America/New_York date '+%Y-%m-%d %I:%M:%S %p %Z')"
 ET_NOW="$(TZ=America/New_York date '+%I:%M %p ET')"
-NTFY_TOPIC="${NTFY_TOPIC:-ntfy.sh/issue-scanner}"
+NTFY_TOPIC="${NTFY_TOPIC:-ntfy.sh/hive}"
 NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
 SLACK_WEBHOOK="${SLACK_WEBHOOK:-}"
 DISCORD_WEBHOOK="${DISCORD_WEBHOOK:-}"
@@ -411,7 +411,7 @@ Oldest-first. Check all 5 repos: kubestellar/console, console-kb, docs, \
 console-marketplace, kubestellar-mcp. \
 For EVERY open issue that does not already have an active PR, dispatch a background fix agent using the Agent tool with worktrees. \
 Do NOT just count issues and stop — your job is to FIX them, not report them. \
-Merge AI-authored PRs with green CI. Send ntfy (curl -s -H 'Title: Scanner: <action>' -d '<details>' ntfy.sh/issue-scanner) for every merge and external PR review. \
+Merge AI-authored PRs with green CI. Send ntfy (curl -s -H 'Title: Scanner: <action>' -d '<details>' ntfy.sh/hive) for every merge and external PR review. \
 Log to cron_scan_log.md. $(beads_sync "$SCANNER_BEADS" "scanner")"
 
 REVIEWER_BEADS="/home/dev/reviewer-beads"
@@ -490,7 +490,7 @@ apply_model_if_changed() {
   # Respect manual CLI pin -- operator used hive switch or dashboard dropdown
   local pin_file
   case "$agent" in
-    scanner) pin_file="/etc/hive/issue-scanner.env" ;;
+    scanner) pin_file="/etc/hive/scanner.env" ;;
     *) pin_file="/etc/hive/${agent}.env" ;;
   esac
   if grep -q "^AGENT_CLI_PINNED=true" "$pin_file" 2>/dev/null; then
@@ -559,7 +559,7 @@ If you see yourself writing a number >12 for the hour, STOP and fix it. No excep
 Do all of the following right now:
 1. Record pass start time at the TOP of your monitoring summary: \"Pass started: ${_now_et}\"
 2. Check every agent session for questions, stalls, or errors: \
-   tmux capture-pane -t issue-scanner -p | tail -20 \
+   tmux capture-pane -t scanner -p | tail -20 \
    tmux capture-pane -t reviewer -p | tail -20 \
    tmux capture-pane -t architect -p | tail -20 \
    tmux capture-pane -t outreach -p | tail -20 \
@@ -571,7 +571,7 @@ Do all of the following right now:
 
 case "$TARGET" in
   scanner)
-    apply_model_if_changed "scanner" "issue-scanner" && kick "issue-scanner" "$SCANNER_MSG" "scanner"
+    apply_model_if_changed "scanner" "scanner" && kick "scanner" "$SCANNER_MSG" "scanner"
     ;;
   reviewer)
     apply_model_if_changed "reviewer" "reviewer" && kick "reviewer" "$REVIEWER_MSG" "reviewer"
@@ -586,7 +586,7 @@ case "$TARGET" in
     apply_model_if_changed "supervisor" "supervisor" && kick "supervisor" "$SUPERVISOR_MSG" "supervisor"
     ;;
   all)
-    apply_model_if_changed "scanner" "issue-scanner" && kick "issue-scanner" "$SCANNER_MSG" "scanner"
+    apply_model_if_changed "scanner" "scanner" && kick "scanner" "$SCANNER_MSG" "scanner"
     apply_model_if_changed "reviewer" "reviewer" && kick "reviewer" "$REVIEWER_MSG" "reviewer"
     apply_model_if_changed "architect" "architect" && kick "architect" "$ARCHITECT_MSG" "architect"
     apply_model_if_changed "outreach" "outreach" && kick "outreach" "$OUTREACH_MSG" "outreach"

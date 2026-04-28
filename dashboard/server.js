@@ -839,6 +839,21 @@ app.get('/api/tokens', (_req, res) => {
   res.json(tokenCache || { error: 'no data yet' });
 });
 
+// Per-issue token cost data — produced by bin/token-collector.sh
+app.get('/api/issue-costs', (_req, res) => {
+  const costsFile = path.join(METRICS_DIR, 'issue-costs.json');
+  try {
+    if (fs.existsSync(costsFile)) {
+      const raw = fs.readFileSync(costsFile, 'utf8');
+      const data = JSON.parse(raw);
+      return res.json(data);
+    }
+    res.json([]);
+  } catch (_) {
+    res.json([]);
+  }
+});
+
 // Model advisor — reads governor state files
 const GOVERNOR_STATE_DIR = '/var/run/kick-governor';
 app.get('/api/model-advisor', (_req, res) => {

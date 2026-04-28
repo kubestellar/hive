@@ -42,6 +42,12 @@ NOTIFY_LIB="${NOTIFY_LIB:-/usr/local/bin/notify.sh}"
 BACKEND_STATE_DIR="/var/run/agent-backends"
 mkdir -p "$BACKEND_STATE_DIR" 2>/dev/null || true
 
+# Policy hash directory — stores md5 hashes of each agent's CLAUDE.md (and skill files)
+# to skip redundant re-reads when policy is unchanged between kicks.
+POLICY_HASH_DIR="/var/run/hive-metrics"
+mkdir -p "$POLICY_HASH_DIR" 2>/dev/null || true
+AGENTS_DIR="${SCRIPT_DIR}/../examples/kubestellar/agents"
+
 GOVERNOR_FLAG_DIR="/var/run/kick-governor"
 
 # Agent handoff state — captures last N lines of work context when switching backends
@@ -396,6 +402,37 @@ check_rate_limit() {
   ) &
 }
 
+policy_changed() {
+  # Returns 0 (true) if the agent's policy (CLAUDE.md + skill files) has changed
+  # since the last kick, 1 (false) if unchanged. Hash is stored in
+  # $POLICY_HASH_DIR/policy_hash_<agent> so it persists across kicks.
+  local agent="$1"
+  local policy_file="${AGENTS_DIR}/${agent}-CLAUDE.md"
+  local hash_file="${POLICY_HASH_DIR}/policy_hash_${agent}"
+
+  if [[ ! -f "$policy_file" ]]; then
+    return 0  # No policy file — treat as changed to force read
+  fi
+
+  # Hash CLAUDE.md plus any skill files in <agent>-skills/ directory
+  local skills_dir="${AGENTS_DIR}/${agent}-skills"
+  local current_hash
+  if [[ -d "$skills_dir" ]]; then
+    # Sort skill files for deterministic ordering before hashing
+    current_hash=$(cat "$policy_file" $(find "$skills_dir" -type f | sort) 2>/dev/null | md5sum | cut -d' ' -f1)
+  else
+    current_hash=$(md5sum "$policy_file" 2>/dev/null | cut -d' ' -f1)
+  fi
+
+  if [[ -f "$hash_file" ]] && [[ "$(cat "$hash_file" 2>/dev/null)" == "$current_hash" ]]; then
+    return 1  # Unchanged
+  fi
+
+  # Store the new hash for next comparison
+  echo "$current_hash" > "$hash_file"
+  return 0  # Changed (or first run)
+}
+
 send_chunked() {
   # Send a long message in small text chunks to avoid CLI input buffer overflow.
   # Each chunk is sent as text only (no Enter) with a sleep between to let the
@@ -564,8 +601,16 @@ kick() {
 # All standing instructions (pull, beads, rate limits, hold rules, speed rules,
 # lane boundaries) are in each agent's CLAUDE.md. Kicks only carry the trigger
 # + any live dynamic data (e.g. current RED indicators).
+#
+# Policy hash compression: if CLAUDE.md (and skill files) are unchanged since
+# the last kick, we tell the agent to skip re-reading to save tokens.
 
-SCANNER_MSG="[agent:scanner] [KICK] git pull /tmp/hive. Read your CLAUDE.md. AUTONOMOUS SCAN: query open issues (oldest-first), dispatch fix agents for 4-6 oldest, merge green PRs. Do NOT stand by — if issues exist, work them. Beads: ~/scanner-beads"
+if policy_changed "scanner"; then
+  _SCANNER_POLICY_INSTR="Read your CLAUDE.md."
+else
+  _SCANNER_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
+fi
+SCANNER_MSG="[agent:scanner] [KICK] git pull /tmp/hive. ${_SCANNER_POLICY_INSTR} AUTONOMOUS SCAN: query open issues (oldest-first), dispatch fix agents for 4-6 oldest, merge green PRs. Do NOT stand by — if issues exist, work them. Beads: ~/scanner-beads"
 
 # Build live health preamble for reviewer — tells it exactly what's red RIGHT NOW
 _rh_json=$(/tmp/hive/dashboard/health-check.sh 2>/dev/null || echo '{}')
@@ -587,11 +632,26 @@ if [ -n "$_rh_reds" ]; then
 else
   _HEALTH_PREAMBLE=""
 fi
-REVIEWER_MSG="[agent:reviewer] [KICK] ${_HEALTH_PREAMBLE}git pull /tmp/hive. Read your CLAUDE.md. Full reviewer pass — fix REDs, merge green PRs. Beads: ~/reviewer-beads"
+if policy_changed "reviewer"; then
+  _REVIEWER_POLICY_INSTR="Read your CLAUDE.md."
+else
+  _REVIEWER_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
+fi
+REVIEWER_MSG="[agent:reviewer] [KICK] ${_HEALTH_PREAMBLE}git pull /tmp/hive. ${_REVIEWER_POLICY_INSTR} Full reviewer pass — fix REDs, merge green PRs. Beads: ~/reviewer-beads"
 
-ARCHITECT_MSG="[agent:architect] [KICK] git pull /tmp/hive. Read your CLAUDE.md. Full architect pass — refactor/perf scan. Beads: ~/architect-beads"
+if policy_changed "architect"; then
+  _ARCHITECT_POLICY_INSTR="Read your CLAUDE.md."
+else
+  _ARCHITECT_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
+fi
+ARCHITECT_MSG="[agent:architect] [KICK] git pull /tmp/hive. ${_ARCHITECT_POLICY_INSTR} Full architect pass — refactor/perf scan. Beads: ~/architect-beads"
 
-OUTREACH_MSG="[agent:outreach] [KICK] git pull /tmp/hive. Read your CLAUDE.md. Full outreach pass. Beads: ~/outreach-beads"
+if policy_changed "outreach"; then
+  _OUTREACH_POLICY_INSTR="Read your CLAUDE.md."
+else
+  _OUTREACH_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
+fi
+OUTREACH_MSG="[agent:outreach] [KICK] git pull /tmp/hive. ${_OUTREACH_POLICY_INSTR} Full outreach pass. Beads: ~/outreach-beads"
 
 # ── Governor model integration ──────────────────────────────────────
 # Reads /var/run/kick-governor/model_<agent> written by the governor's
@@ -764,7 +824,12 @@ apply_model_if_changed() {
 }
 
 _now_et=$(TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z')
-SUPERVISOR_MSG="[agent:supervisor] [KICK] MONITORING PASS ${_now_et}. Read your CLAUDE.md. Check all agent panes, merge green PRs, unstick idle agents. Beads: ~/supervisor-beads"
+if policy_changed "supervisor"; then
+  _SUPERVISOR_POLICY_INSTR="Read your CLAUDE.md."
+else
+  _SUPERVISOR_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
+fi
+SUPERVISOR_MSG="[agent:supervisor] [KICK] MONITORING PASS ${_now_et}. ${_SUPERVISOR_POLICY_INSTR} Check all agent panes, merge green PRs, unstick idle agents. Beads: ~/supervisor-beads"
 
 case "$TARGET" in
   scanner)

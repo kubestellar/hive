@@ -20,7 +20,15 @@ Abbreviate freely: DB, auth, config, req, res, fn, impl, PR, CI, ns. Use arrows 
 
 **Scanner self-scans the issue queue every kick.** On each kick, pull main, scan for open issues, dispatch fix agents, merge green PRs. No waiting for specific issue numbers from the supervisor — the kick IS your trigger to scan autonomously.
 
-**NO LOCAL BUILD, NO LOCAL LINT.** NEVER run `npm run build`, `npm run lint`, `tsc`, or `tsc --noEmit` locally — not in your session, and not in dispatched fix agents. Push the fix, open the PR, let CI validate. This rule is non-negotiable.
+## ⛔ NO LOCAL BUILD — HARD GATE (applies to YOU and ALL dispatched fix agents)
+
+NEVER run `npm run build`, `npm run lint`, `tsc`, `tsc --noEmit`, `vitest`, `npm test`, or `npm run test:coverage` locally. Not in your session, not in dispatched fix agents, not "just to check". Push the fix, open the PR, let CI validate.
+
+**If you see a build/lint/test process running in a dispatched agent, that agent has violated this rule.** Kill it, fix the dispatch prompt, and redispatch.
+
+This is the single most common agent failure mode. Fix agents that run `npm run build` burn 3-5 minutes, hit rate limits, and block on node_modules issues that don't exist in CI. Every dispatch prompt you write MUST include this prohibition verbatim:
+
+> ⛔ HARD GATE: Do NOT run npm run build, npm run lint, tsc, vitest, or any local validation. Push and let CI validate. Violating this wastes tokens and time.
 
 **What happens every time you get a [KICK] message:**
 
@@ -128,7 +136,8 @@ This ensures every dispatched agent has a trackable bead. If scanner crashes mid
 ```
 Fix kubestellar/console#NNNN. Worktree /tmp/kubestellar-console-NNNN-slug.
 Read the issue body, produce a focused fix, commit -s, push, open PR with
-Fixes #NNNN. Return PR number. Do NOT run npm run build or tsc locally — CI handles lint and build.
+Fixes #NNNN. Return PR number.
+⛔ HARD GATE: Do NOT run npm run build, npm run lint, tsc, vitest, or any local validation. Push and let CI validate. Violating this wastes tokens and time.
 ```
 
 ## LEAN MODE (default scan behavior)
@@ -170,7 +179,7 @@ Agent(subagent_type="general-purpose",
       description="Fix #NNNN <short title>",
       prompt="Fix kubestellar/console#NNNN. Worktree /tmp/kubestellar-console-NNNN-slug. 
               Find the bug, fix it, commit -s, push, open PR with Fixes #NNNN. Return PR number.
-              Do NOT run npm run build or tsc locally — CI handles lint and build.",
+              ⛔ HARD GATE: Do NOT run npm run build, npm run lint, tsc, vitest, or any local validation. Push and let CI validate. Violating this wastes tokens and time.",
       run_in_background=true)
 ```
 
@@ -542,7 +551,7 @@ The SLA is an OBLIGATION, not an aspiration. Missing it is worse than shipping a
 2. Each dispatched agent:
    - Creates its own worktree: `/tmp/kubestellar-console-<bug-num>-<slug>`
    - Reads the issue body, produces a focused fix
-   - Does NOT run npm run build or tsc locally — CI handles that
+   - ⛔ Does NOT run npm run build, npm run lint, tsc, vitest, or any local validation — CI handles that
    - Commits with `-s` (DCO sign-off, per CLAUDE.md)
    - Opens PR with `Fixes #NNN` in body
    - Returns PR number to scanner

@@ -76,7 +76,7 @@ unset GITHUB_TOKEN && gh api "repos/kubestellar/console/pulls/<NUMBER>/comments"
 ## SPEED RULES — Non-Negotiable
 
 1. **5-MINUTE DIAGNOSIS CAP.** You have 5 minutes from identifying a RED indicator to opening a fix PR. If you cannot diagnose root cause in 5 minutes, open a best-effort fix PR anyway.
-2. **NO LOCAL BUILD, NO LOCAL TEST, NO LOCAL LINT.** NEVER run `npm run build`, `npm run lint`, `npm test`, `npm run test:coverage`, or `vitest` locally. Push your fix, let CI validate.
+2. **⛔ NO LOCAL BUILD, NO LOCAL TEST, NO LOCAL LINT — HARD GATE.** NEVER run `npm run build`, `npm run lint`, `npm test`, `npm run test:coverage`, `tsc`, `tsc --noEmit`, or `vitest` locally — not in your session, not in dispatched fix agents. Push your fix, let CI validate. Every dispatch prompt you write MUST include this prohibition.
 3. **ONE WORKTREE PER FIX.** For each RED indicator, create a separate worktree: `git worktree add /tmp/console-fix-<name> -b fix/<name>`. Never reuse another agent's branch.
 4. **PARALLEL FIXES.** Use the Agent tool to dispatch background fix agents for each RED indicator simultaneously.
 5. **SHIP, THEN ITERATE.** Your first PR does not need to be perfect. Push the fix, open the PR, let CI run.

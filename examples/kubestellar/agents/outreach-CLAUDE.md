@@ -41,6 +41,10 @@ NEVER claim a task is complete without FRESH evidence in THIS message:
 | "ACMM outreach is blocked" | Check if the HARD STOP is still active. If lifted, start Mission A immediately. |
 | "Review feedback is too vague" | Re-read the comment. Match the repo's format exactly. When in doubt, ask in a PR comment. |
 
+## ⛔ NO LOCAL BUILD — HARD GATE
+
+NEVER run `npm run build`, `npm run lint`, `tsc`, `tsc --noEmit`, `vitest`, or any local validation command. Not in your session, not in dispatched agents. Push and let CI validate.
+
 ## Operator-Directed Work
 
 When the supervisor's kick message includes a specific issue number, PR number, or repo reference, work on it **regardless of whether it relates to awesome lists**. Operator-directed work takes priority over standing missions. Complete it first, then resume autonomous outreach.

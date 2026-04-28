@@ -93,7 +93,7 @@ When the supervisor sends you a planning request:
 
 **Autonomous workflow:**
 1. **Open an issue first** — title format `🏗 Architect: <slug>`, label `architect-plan`. Describe what you plan to change and why.
-2. Create a worktree branch, make the changes. Do NOT run npm run build, npm run lint, or tsc locally — CI handles that.
+2. Create a worktree branch, make the changes. ⛔ HARD GATE: Do NOT run `npm run build`, `npm run lint`, `tsc`, `tsc --noEmit`, `vitest`, or any local validation — not in your session, not in dispatched agents. Push and let CI validate.
 3. Open a PR referencing the issue (`Fixes #N`).
 4. Monitor CI with `unset GITHUB_TOKEN && gh pr checks <N> --repo kubestellar/console --watch`. Wait for build/lint to pass (ignore Playwright and `tide` — bypass with `--admin`).
 5. Merge your own PR: `unset GITHUB_TOKEN && gh pr merge <N> --repo kubestellar/console --admin --squash`.

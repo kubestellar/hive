@@ -571,20 +571,30 @@ app.post('/api/model/:agent/:model', (req, res) => {
     return res.status(400).json({ error: `invalid agent: ${agent}` });
   }
   // Detect running backend from status cache (process-based), not model file
-  // Model file can be stale if governor overwrote it after a CLI switch
   let currentBackend = 'claude';
   const agentData = (statusCache.agents || []).find(a => a.name === agent);
   if (agentData && agentData.cli && agentData.cli !== '?') {
     currentBackend = agentData.cli;
   } else {
     try {
-      const modelFile = path.join(GOVERNOR_STATE_DIR, `model_${agent}`);
-      const content = fs.readFileSync(modelFile, 'utf8');
+      const mf2 = path.join(GOVERNOR_STATE_DIR, `model_${agent}`);
+      const content = fs.readFileSync(mf2, 'utf8');
       const match = content.match(/^BACKEND=(.+)$/m);
       if (match) currentBackend = match[1];
     } catch (_) { /* use default */ }
   }
   const decodedModel = decodeURIComponent(model);
+  // Model→backend compatibility: auto-switch CLI if model isn't supported
+  // claude CLI: claude-* models only
+  // copilot CLI: claude-* and gpt-* models
+  const normalized = decodedModel.toLowerCase();
+  const isGpt = normalized.startsWith('gpt');
+  const isGemini = normalized.startsWith('gemini');
+  if (isGpt && currentBackend === 'claude') {
+    currentBackend = 'copilot';
+  } else if (isGemini && currentBackend !== 'gemini') {
+    currentBackend = 'gemini';
+  }
   const newContent = `BACKEND=${currentBackend}\nMODEL=${decodedModel}\n`;
   const modelFile = path.join(GOVERNOR_STATE_DIR, `model_${agent}`);
   try {

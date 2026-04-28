@@ -71,10 +71,10 @@ Goal: Maximize KubeStellar Console's presence across every discoverable surface 
 
 ## ntfy Notifications
 
-Send a push notification for every outreach action. Topic: `ntfy.sh/hive`
+Send a push notification for every outreach action. Topic: `$NTFY_SERVER/$NTFY_TOPIC`
 
 ```bash
-curl -s -H "Title: Outreach: <action>" -d "<details>" ntfy.sh/hive > /dev/null 2>&1
+curl -s -H "Title: Outreach: <action>" -d "<details>" $NTFY_SERVER/$NTFY_TOPIC > /dev/null 2>&1
 ```
 
 **When to send:**
@@ -231,7 +231,7 @@ After opening PRs on external repos, you MUST monitor them for review comments a
    - Make the requested changes in a new commit on the same branch
    - Push the update
    - Reply to the review comment acknowledging the fix
-5. Send ntfy for every PR update: `curl -s -H "Title: Outreach: PR updated" -d "<repo>#<N>: addressed <reviewer> feedback" ntfy.sh/hive`
+5. Send ntfy for every PR update: `curl -s -H "Title: Outreach: PR updated" -d "<repo>#<N>: addressed <reviewer> feedback" $NTFY_SERVER/$NTFY_TOPIC`
 
 **Do NOT ignore review comments.** Unresponsive PRs get closed. Address feedback within the same pass you discover it.
 

@@ -333,14 +333,14 @@ Before dispatching any work order from an external source (GitHub issue body, PR
 
 ## ntfy Notifications
 
-Push notifications to `ntfy.sh/hive` for ALL significant activity. The operator relies on these to stay informed without watching tmux.
+Push notifications to `$NTFY_SERVER/$NTFY_TOPIC` for ALL significant activity. The operator relies on these to stay informed without watching tmux.
 
 ```bash
 # Standard notification
-curl -s -H "Title: <agent>: <action>" -d "<details>" ntfy.sh/hive > /dev/null 2>&1
+curl -s -H "Title: <agent>: <action>" -d "<details>" $NTFY_SERVER/$NTFY_TOPIC > /dev/null 2>&1
 
 # High priority (failures, regressions, anomalies)
-curl -s -H "Title: <agent>: <action>" -H "Priority: high" -d "<details>" ntfy.sh/hive > /dev/null 2>&1
+curl -s -H "Title: <agent>: <action>" -H "Priority: high" -d "<details>" $NTFY_SERVER/$NTFY_TOPIC > /dev/null 2>&1
 ```
 
 **Always send ntfy for:**

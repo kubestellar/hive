@@ -10,7 +10,8 @@
 set -euo pipefail
 
 METRICS_FILE="/var/run/hive-metrics/gh_rate_limits.json"
-NTFY_TOPIC="${NTFY_TOPIC:-ntfy.sh/hive}"
+NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
+NTFY_TOPIC="${NTFY_TOPIC:-hive}"
 TMUX_BIN="${TMUX_BIN:-tmux}"
 TTL_SECONDS=3600  # 1 hour — alerts older than this are pruned
 
@@ -107,7 +108,7 @@ print(json.dumps(alerts))
     -H "Priority: high" \
     -H "Tags: warning" \
     -d "$match_msg" \
-    "https://$NTFY_TOPIC" >/dev/null 2>&1 || true
+    "$NTFY_SERVER/$NTFY_TOPIC" >/dev/null 2>&1 || true
 
   echo "[$(date -Is)] GH-RATE-LIMIT $agent — $match_msg" >> /var/log/kick-agents.log
 done

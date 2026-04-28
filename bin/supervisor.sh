@@ -17,6 +17,8 @@ elif [[ -f /usr/local/etc/hive/backends.conf ]]; then
   source /usr/local/etc/hive/backends.conf
 fi
 
+NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
+
 : "${AGENT_SESSION_NAME:?AGENT_SESSION_NAME is required}"
 : "${AGENT_WORKDIR:?AGENT_WORKDIR is required}"
 : "${AGENT_LOOP_PROMPT:?AGENT_LOOP_PROMPT is required}"
@@ -221,7 +223,7 @@ notify_if_phrase_present() {
         -H "Title: $NOTIFY_ON_PHRASE_TITLE" \
         -H "Tags: warning,key" \
         -d "$NOTIFY_ON_PHRASE_BODY" \
-        "https://ntfy.sh/$topic" >/dev/null || true
+        "$NTFY_SERVER/$topic" >/dev/null || true
       NOTIFY_PHRASE_ALERTED="yes"
     fi
   else
@@ -232,7 +234,7 @@ notify_if_phrase_present() {
         -H "Title: $NOTIFY_ON_PHRASE_TITLE — cleared" \
         -H "Tags: white_check_mark" \
         -d "Phrase no longer visible in pane." \
-        "https://ntfy.sh/$topic" >/dev/null || true
+        "$NTFY_SERVER/$topic" >/dev/null || true
       NOTIFY_PHRASE_ALERTED=""
     fi
   fi
@@ -259,7 +261,7 @@ check_rate_limit_and_failover() {
           -H "Title: $SESSION: rate-limited but pinned (staying on $CLI)" \
           -H "Tags: pushpin,warning" \
           -d "$SESSION hit rate limit on $CLI but is pinned — not switching." \
-          "https://ntfy.sh/$topic" >/dev/null || true
+          "$NTFY_SERVER/$topic" >/dev/null || true
         RATE_LIMIT_ALERTED="pinned"
       fi
       return 0
@@ -288,7 +290,7 @@ check_rate_limit_and_failover() {
         -H "Title: $SESSION: rate limit on $old_cli → $CLI" \
         -H "Tags: rotating_light,key" \
         -d "$SESSION at $(hostname) hit CLI usage limit on $old_cli. Switching to $CLI." \
-        "https://ntfy.sh/$topic" >/dev/null || true
+        "$NTFY_SERVER/$topic" >/dev/null || true
 
       RATE_LIMIT_ALERTED="yes"
       LAST_SWITCH_EPOCH=$(date +%s)
@@ -302,7 +304,7 @@ check_rate_limit_and_failover() {
         -H "Title: $SESSION: resumed on $CLI" \
         -H "Tags: white_check_mark" \
         -d "$SESSION resumed on $CLI." \
-        "https://ntfy.sh/$topic" >/dev/null || true
+        "$NTFY_SERVER/$topic" >/dev/null || true
       RATE_LIMIT_ALERTED=""
     fi
   fi

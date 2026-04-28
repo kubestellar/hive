@@ -630,7 +630,21 @@ maybe_kick() {
 
   # Dashboard pause flag — survives governor ticks
   if [[ -f "$STATE_DIR/paused_${agent}" ]]; then
+    # Track that this agent is paused so we can detect unpause next tick
+    touch "$STATE_DIR/was_paused_${agent}"
     log "SKIP ${agent} (mode=${mode} — DASHBOARD PAUSED)"
+    return
+  fi
+
+  # Detect unpause — if agent was paused last tick but isn't now, kick immediately
+  if [[ -f "$STATE_DIR/was_paused_${agent}" ]]; then
+    rm -f "$STATE_DIR/was_paused_${agent}"
+    log "UNPAUSE ${agent} — kicking immediately"
+    ntfy "default" "Unpause: ${agent}" "Agent unpaused — sending immediate kick" "arrow_forward"
+    if "$KICK_SCRIPT" "$agent" 2>&1 \
+        | while IFS= read -r line; do log "  [${agent}] ${line}"; done; then
+      record_kick "$agent"
+    fi
     return
   fi
 

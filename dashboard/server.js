@@ -538,6 +538,15 @@ app.post('/api/switch/:agent/:backend', (req, res) => {
   if (!allowedBackends.includes(backend)) {
     return res.status(400).json({ error: `invalid backend: ${backend}` });
   }
+  // Check if CLI is pinned — reject switch if so
+  const switchEnvFile = `${ENV_DIR}/${agent}.env`;
+  try {
+    const envContent = fs.readFileSync(switchEnvFile, 'utf8');
+    const pinned = /^AGENT_CLI_PINNED=true$/m.test(envContent) || /^AGENT_PIN_CLI=true$/m.test(envContent);
+    if (pinned) {
+      return res.status(400).json({ error: `${agent} CLI is pinned — unpin first` });
+    }
+  } catch (_) { /* no env file */ }
   // Detect running model from status cache (process-based), not model file
   let currentModel = 'claude-opus-4-6';
   const switchAgentData = (statusCache.agents || []).find(a => a.name === agent);
@@ -584,16 +593,33 @@ app.post('/api/model/:agent/:model', (req, res) => {
     } catch (_) { /* use default */ }
   }
   const decodedModel = decodeURIComponent(model);
-  // Model→backend compatibility: auto-switch CLI if model isn't supported
+  // Check if CLI is pinned — if so, keep current backend unless incompatible
+  const envFile = `${ENV_DIR}/${agent}.env`;
+  let cliPinned = false;
+  try {
+    const envContent = fs.readFileSync(envFile, 'utf8');
+    cliPinned = /^AGENT_CLI_PINNED=true$/m.test(envContent) || /^AGENT_PIN_CLI=true$/m.test(envContent);
+  } catch (_) { /* no env file */ }
+  // Model→backend compatibility: auto-switch CLI only if model is incompatible
   // claude CLI: claude-* models only
   // copilot CLI: claude-* and gpt-* models
   const normalized = decodedModel.toLowerCase();
   const isGpt = normalized.startsWith('gpt');
   const isGemini = normalized.startsWith('gemini');
-  if (isGpt && currentBackend === 'claude') {
-    currentBackend = 'copilot';
-  } else if (isGemini && currentBackend !== 'gemini') {
-    currentBackend = 'gemini';
+  if (cliPinned) {
+    // Only override pin if the model is truly incompatible with the pinned CLI
+    if (isGpt && currentBackend === 'claude') {
+      return res.status(400).json({ error: `cannot run GPT model on pinned claude CLI — unpin CLI first or switch CLI to copilot` });
+    }
+    if (isGemini && currentBackend !== 'gemini') {
+      return res.status(400).json({ error: `cannot run Gemini model on pinned ${currentBackend} CLI — unpin CLI first or switch CLI to gemini` });
+    }
+  } else {
+    if (isGpt && currentBackend === 'claude') {
+      currentBackend = 'copilot';
+    } else if (isGemini && currentBackend !== 'gemini') {
+      currentBackend = 'gemini';
+    }
   }
   const newContent = `BACKEND=${currentBackend}\nMODEL=${decodedModel}\n`;
   const modelFile = path.join(GOVERNOR_STATE_DIR, `model_${agent}`);

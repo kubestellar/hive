@@ -1323,6 +1323,7 @@ function intensityGauge() {
       window._lastBudget = data.budget || {};
       renderGhRateLimits(data.ghRateLimits || {});
       if (!_dropdownOpen) {
+        applyPinOverrides(data.agents || []);
         renderAgents(data.agents || []);
         renderGovernor(data.governor || {}, data.cadenceMatrix || [], data);
       }
@@ -1387,20 +1388,32 @@ function intensityGauge() {
       showToast(`${agent} model → ${model}`, 'success');
     }
 
+    const PIN_OVERRIDE_TTL_MS = 8000;
+    const _pinOverrides = {};
     async function togglePin(agent, dimension, currentlyPinned) {
       const action = currentlyPinned ? 'unpin' : 'pin';
       const res = await fetch(`/api/${action}/${agent}/${dimension}`, { method: 'POST' });
       const data = await res.json();
       if (!data.ok) { showToast(`${action} failed: ` + (data.error || 'unknown'), 'error'); return; }
       showToast(`${agent} ${dimension} ${action}ned`, 'success');
+      const nowPinned = !currentlyPinned;
+      const key = `${agent}:${dimension}`;
+      _pinOverrides[key] = { value: nowPinned, expires: Date.now() + PIN_OVERRIDE_TTL_MS };
       const agents = window._lastAgents || [];
-      const a = agents.find(x => x.name === agent);
-      if (a) {
-        const nowPinned = !currentlyPinned;
-        if (dimension === 'cli') a.pinnedCli = nowPinned;
-        else if (dimension === 'model') a.pinnedModel = nowPinned;
-        else { a.pinnedBoth = nowPinned; a.pinnedCli = nowPinned; a.pinnedModel = nowPinned; }
-        renderAgents(agents);
+      applyPinOverrides(agents);
+      renderAgents(agents);
+    }
+    function applyPinOverrides(agents) {
+      const now = Date.now();
+      for (const key of Object.keys(_pinOverrides)) {
+        if (_pinOverrides[key].expires < now) { delete _pinOverrides[key]; continue; }
+        const [agent, dimension] = key.split(':');
+        const a = (agents || []).find(x => x.name === agent);
+        if (!a) continue;
+        const v = _pinOverrides[key].value;
+        if (dimension === 'cli') a.pinnedCli = v;
+        else if (dimension === 'model') a.pinnedModel = v;
+        else { a.pinnedBoth = v; a.pinnedCli = v; a.pinnedModel = v; }
       }
     }
 

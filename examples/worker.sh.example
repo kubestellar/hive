@@ -31,7 +31,7 @@ ntfy() {
   local title="$1" body="$2" prio="${3:-default}" tags="${4:-robot}"
   curl -sf -o /dev/null -m 10 \
     -H "Title: $title" -H "Priority: $prio" -H "Tags: $tags" \
-    -d "$body" "https://ntfy.sh/$NTFY_TOPIC" 2>/dev/null || log "WARN: ntfy send failed"
+    -d "$body" "${NTFY_SERVER:-https://ntfy.sh}/$NTFY_TOPIC" 2>/dev/null || log "WARN: ntfy send failed"
 }
 
 # ── Lock (prevent overlapping cycles) ────────────────────────────────────────

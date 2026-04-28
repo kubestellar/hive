@@ -667,12 +667,8 @@ apply_model_if_changed() {
     fi
   fi
 
-  # Normalize model names for comparison (dots vs hyphens)
-  local norm_gov norm_cur
-  norm_gov=$(echo "$gov_model" | sed -E 's/([0-9])\.([0-9])/\1-\2/g')
-  norm_cur=$(echo "$cur_model" | sed -E 's/([0-9])\.([0-9])/\1-\2/g')
-
-  if [[ "$cur_backend" == "$gov_backend" && "$norm_cur" == "$norm_gov" ]]; then
+  # Compare exact model strings — format matters (copilot needs dots, claude needs hyphens)
+  if [[ "$cur_backend" == "$gov_backend" && "$cur_model" == "$gov_model" ]]; then
     return 0
   fi
 

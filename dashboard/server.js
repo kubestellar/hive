@@ -629,7 +629,14 @@ app.post('/api/model/:agent/:model', (req, res) => {
       currentBackend = 'gemini';
     }
   }
-  const newContent = `BACKEND=${currentBackend}\nMODEL=${decodedModel}\n`;
+  // Normalize model version format for the target backend
+  let normalizedModel = decodedModel;
+  if (currentBackend === 'copilot') {
+    normalizedModel = decodedModel.replace(/(\d+)-(\d+)$/, '$1.$2');
+  } else if (currentBackend === 'claude') {
+    normalizedModel = decodedModel.replace(/(\d+)\.(\d+)$/, '$1-$2');
+  }
+  const newContent = `BACKEND=${currentBackend}\nMODEL=${normalizedModel}\n`;
   const modelFile = path.join(GOVERNOR_STATE_DIR, `model_${agent}`);
   try {
     fs.writeFileSync(modelFile, newContent);

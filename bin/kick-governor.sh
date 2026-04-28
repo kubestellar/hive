@@ -160,6 +160,23 @@ log() {
   echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
 }
 
+detect_running_backend() {
+  local session="$1"
+  local pane_pid
+  pane_pid=$(tmux display-message -t "$session" -p '#{pane_pid}' 2>/dev/null) || return 1
+  local cmdline
+  cmdline=$(ps -o args= --ppid "$pane_pid" 2>/dev/null | head -1) || return 1
+  if echo "$cmdline" | grep -q '/copilot\b\|^copilot\b'; then
+    echo "copilot"
+  elif echo "$cmdline" | grep -q '/gemini\b\|^gemini\b'; then
+    echo "gemini"
+  elif echo "$cmdline" | grep -q '/claude\b\|^claude\b'; then
+    echo "claude"
+  else
+    return 1
+  fi
+}
+
 ntfy() {
   # Legacy wrapper — maps old 4-arg ntfy() calls to notify()
   # ntfy <priority> <title> <body> <tags>
@@ -531,9 +548,12 @@ optimize_model_assignment() {
 
     if [[ "$gov_pin_cli" == "1" ]]; then
       local pinned_backend
-      pinned_backend=$(grep '^BACKEND=' "$STATE_DIR/model_${agent}" 2>/dev/null | cut -d= -f2 || true)
+      pinned_backend=$(detect_running_backend "$agent" 2>/dev/null || true)
+      if [[ -z "$pinned_backend" ]]; then
+        pinned_backend=$(grep '^BACKEND=' "$STATE_DIR/model_${agent}" 2>/dev/null | cut -d= -f2 || true)
+      fi
       if [[ -n "$pinned_backend" && "$pinned_backend" != "$backend" ]]; then
-        log "  PIN_CLI: $agent backend pinned to $pinned_backend, overriding $backend"
+        log "  PIN_CLI: $agent backend pinned to $pinned_backend (from process), overriding $backend"
         backend="$pinned_backend"
       fi
     fi

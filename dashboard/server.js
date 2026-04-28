@@ -567,6 +567,8 @@ app.post('/api/switch/:agent/:backend', (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: `failed to write model file: ${e.message}` });
   }
+  // Keep backend state file in sync for kick-agents.sh
+  try { fs.writeFileSync(`/var/run/agent-backends/${agent}`, backend); } catch (_) {}
   execFile('/tmp/hive/bin/kick-agents.sh', [agent], { timeout: 60000 }, (err, stdout) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true, output: `switched ${agent} backend to ${backend}` });
@@ -628,6 +630,9 @@ app.post('/api/model/:agent/:model', (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: `failed to write model file: ${e.message}` });
   }
+  // Keep backend state file in sync for kick-agents.sh
+  const BACKEND_STATE_DIR = '/var/run/agent-backends';
+  try { fs.writeFileSync(`${BACKEND_STATE_DIR}/${agent}`, currentBackend); } catch (_) {}
   execFile('/tmp/hive/bin/kick-agents.sh', [agent], { timeout: 60000 }, (err, stdout) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true, output: `switched ${agent} model to ${decodedModel} (backend: ${currentBackend})` });

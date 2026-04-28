@@ -658,6 +658,18 @@
       return m[2] === 'h' ? parseInt(m[1]) * MINUTES_PER_HOUR : parseInt(m[1]);
     }
 
+    function getAgentIssueCount(name) {
+      const m = currentAgentMetrics[name];
+      if (!m) return 0;
+      if (name === 'scanner') {
+        const pairs = m.pairs || [];
+        return pairs.filter(p => p.state === 'merged').length;
+      }
+      if (name === 'outreach') return m.outreachMerged || 0;
+      if (name === 'architect') return m.prs || m.closed || 0;
+      return 0;
+    }
+
     function agentTokenRow(name, cadence) {
       const byAgent = window._tokensByAgent || {};
       const t = byAgent[name];
@@ -669,6 +681,11 @@
       const avg = t.avgPerSession || (t.sessions > 0 ? Math.floor(total / t.sessions) : 0);
       let rows = `<div class="agent-field"><span class="label">tokens (24h)</span><span class="value" style="color:var(--cyan)">${fmtTokens(total)} <span style="color:var(--muted);font-size:0.65rem">(${t.sessions} sess)</span></span></div>`;
       rows += `<div class="agent-field"><span class="label">avg/pass</span><span class="value">${fmtTokens(avg)}</span></div>`;
+      const issueCount = getAgentIssueCount(name);
+      if (issueCount > 0) {
+        const tokensPerIssue = Math.floor(total / issueCount);
+        rows += `<div class="agent-field"><span class="label">avg/issue</span><span class="value" style="color:var(--green)">${fmtTokens(tokensPerIssue)} <span style="color:var(--muted);font-size:0.65rem">(${issueCount} today)</span></span></div>`;
+      }
       const intervalMin = parseCadenceMinutes(cadence);
       if (intervalMin > 0 && avg > 0) {
         const MINUTES_PER_HOUR = 60;

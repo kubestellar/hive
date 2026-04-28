@@ -701,17 +701,29 @@ apply_model_if_changed() {
 
   # Same backend, different model — use in-place /model command (no restart needed)
   if [[ "$cur_backend" == "$gov_backend" ]]; then
-    log "MODEL IN-PLACE $agent: ${cur_model} → ${gov_model} (same backend, using /model command)"
+    local cli_model
+    cli_model=$(normalize_model_for_backend "$gov_backend" "$gov_model")
+    log "MODEL IN-PLACE $agent: ${cur_model} → ${cli_model} (same backend, using /model command)"
+    $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
+    sleep 0.3
+    $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
+    sleep 0.3
+    $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
+    sleep 0.3
     $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
     sleep 0.5
-    $TMUX_BIN send-keys -t "$session" -l "/model ${gov_model}" 2>/dev/null || true
+    $TMUX_BIN send-keys -t "$session" -l "/model ${cli_model}" 2>/dev/null || true
+    sleep 0.3
+    $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
+    sleep 0.3
+    $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
     sleep 0.3
     $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
     sleep 2
 
     BACKEND_MODEL[$gov_backend]="$gov_model"
     AGENT_MODEL_OVERRIDE["${agent}-${gov_backend}"]="$gov_model"
-    log "MODEL IN-PLACE $agent — sent /model ${gov_model}, no restart needed"
+    log "MODEL IN-PLACE $agent — sent /model ${cli_model}, no restart needed"
     return 0
   fi
 

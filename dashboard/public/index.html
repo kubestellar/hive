@@ -129,6 +129,13 @@
       text-decoration: none; transition: all 0.2s; display: inline-block;
     }
     .terminal-link:hover { background: var(--cyan); color: var(--bg); }
+    .restart-btn {
+      font-size: 0.7rem; padding: 3px 8px; border-radius: 4px;
+      border: 1px solid var(--yellow); background: transparent;
+      color: var(--yellow); cursor: pointer; font-family: inherit;
+      transition: all 0.2s; display: inline-block;
+    }
+    .restart-btn:hover { background: var(--yellow); color: var(--bg); }
     .backend-select {
       appearance: none; -webkit-appearance: none;
       background: var(--surface); color: var(--muted);
@@ -795,7 +802,7 @@
         }
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
-          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a></div>
+          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a> <button class="restart-btn" onclick="restartAgent('${a.name}')" title="Kill tmux session — supervisor will respawn with fresh context">↻ restart</button></div>
           <div class="agent-field"><span class="label">cli</span><span class="value">${cliChip(a.cli, a.pinnedBoth || a.pinnedCli, a.name)}${(a.pinnedBoth || a.pinnedCli) ? '' : ` <button class="pin-toggle" onclick="togglePin('${a.name}', 'cli', false)" title="Pin CLI — lock current backend">📌</button>`}</span></div>
           <div class="agent-field"><span class="label">model</span><span class="value">${modelChip(a.model, a.govReason, a.pinnedBoth || a.pinnedModel, a.name)}${(a.pinnedBoth || a.pinnedModel) ? '' : ` <button class="pin-toggle" onclick="togglePin('${a.name}', 'model', false)" title="Pin model — lock current model">📌</button>`}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${isPaused ? 'paused' : a.cadence}</span></div>
@@ -1471,6 +1478,15 @@ function intensityGauge() {
       const data = await res.json();
       if (!data.ok) { showToast(`${action} failed: ` + (data.error || 'unknown'), 'error'); return; }
       showToast(`${agent} ${action}d`, 'success');
+    }
+
+    async function restartAgent(agent) {
+      if (!confirm(`Restart ${agent}? This will kill the current session and start fresh.`)) return;
+      showToast(`Restarting ${agent}...`, 'info');
+      const res = await fetch(`/api/restart/${agent}`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) { showToast('Restart failed: ' + (data.error || 'unknown'), 'error'); return; }
+      showToast(`${agent} restarted — supervisor will respawn`, 'success');
     }
 
     async function resetRestarts(agent) {

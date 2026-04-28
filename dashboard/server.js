@@ -815,6 +815,23 @@ app.post('/api/unpin/:agent{/:dimension}', (req, res) => {
   }
 });
 
+// Restart agent — kill tmux session so supervised-agent@.service respawns it
+app.post('/api/restart/:agent', (req, res) => {
+  const agent = req.params.agent;
+  const allowed = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+  if (!allowed.includes(agent)) {
+    return res.status(400).json({ error: `invalid agent: ${agent}` });
+  }
+  const session = TMUX_SESSION[agent];
+  if (!session) {
+    return res.status(400).json({ error: `no tmux session mapped for ${agent}` });
+  }
+  execFile('tmux', ['kill-session', '-t', session], { timeout: 10000 }, (err) => {
+    if (err) return res.status(500).json({ error: `tmux kill-session failed: ${err.message}` });
+    res.json({ ok: true, output: `${agent} session killed — supervisor will respawn` });
+  });
+});
+
 // Reset restart counter for an agent
 app.post('/api/reset-restarts/:agent', (req, res) => {
   const agent = req.params.agent;

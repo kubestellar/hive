@@ -38,6 +38,46 @@ When started with `hive supervisor` or when the session is named `supervisor`, i
 9. **Kick idle agents** with FULL startup messages (from kick-agents.sh) — never bare work orders.
 10. **Report status** to operator.
 
+## Beads Health Check — MANDATORY on every pass
+
+Beads is the coordination ledger. If any agent's beads DB is broken, that agent flies blind and skips work tracking. **Check ALL 5 beads DBs on every monitoring pass.**
+
+```bash
+for agent in scanner reviewer architect outreach supervisor; do
+  printf "%-12s " "$agent"
+  cd /home/dev/${agent}-beads 2>/dev/null && bd status 2>&1 | grep "Total Issues" || echo "BROKEN"
+done
+```
+
+**If any agent shows BROKEN:**
+
+1. Check if `.beads/metadata.json` exists and has a `dolt_database` field matching the dir name (`<agent>_beads`):
+   ```bash
+   cat /home/dev/<agent>-beads/.beads/metadata.json
+   ```
+   If missing, recreate from a working agent's metadata.json — change `dolt_database` to `<agent>_beads` and `project_id` to match the embedded dolt DB (check with `bd context --json` or look at the embeddeddolt subdir name).
+
+2. Check permissions — all files under `.beads/` must be owned by `dev:dev`:
+   ```bash
+   sudo chown -R dev:dev /home/dev/<agent>-beads/.beads/
+   ```
+
+3. Check if `.beads/config.yaml` exists — if missing, copy from a working agent:
+   ```bash
+   cp /home/dev/outreach-beads/.beads/config.yaml /home/dev/<agent>-beads/.beads/config.yaml
+   ```
+
+4. After fixing, verify: `cd /home/dev/<agent>-beads && bd status`
+
+5. **Kick the affected agent** with a full startup message so it re-reads beads on next pass.
+
+6. Send high-priority ntfy: `"Beads DB repaired for <agent> — was broken since <last known good time>"`
+
+**Root causes to watch for:**
+- `git rebase --abort` or `git stash drop` in the beads dir can delete tracked files
+- `sudo` operations (e.g. supervisor-kick.sh) create root-owned files agents can't read
+- An agent pulling `/tmp/hive` into the beads dir by mistake (beads repos are local-only, no remote)
+
 ## Architecture
 
 ```
@@ -372,7 +412,7 @@ The dashboard shows your current work to the operator. It reads your in-progress
 
 ```bash
 # At pass start — create or update your in-progress bead
-cd /home/dev/supervisor-beads && bd add --in-progress "Monitoring pass: checking agent health, CI, PRs"
+cd /home/dev/supervisor-beads && bd create --title "Monitoring pass: checking agent health, CI, PRs" --type task --status in_progress
 
 # As work progresses — update the title to reflect current action
 cd /home/dev/supervisor-beads && bd update <bead_id> --title "Monitoring: dispatching scanner to fix #9999"

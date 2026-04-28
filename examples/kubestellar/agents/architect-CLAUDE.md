@@ -89,7 +89,7 @@ The dashboard shows your current work to the operator. It reads your in-progress
 
 ```bash
 # At pass start
-cd /home/dev/architect-beads && bd add --in-progress "Architect: implementing container-query rollout for #8695"
+cd /home/dev/architect-beads && bd create --title "Architect: implementing container-query rollout for #8695" --type task --status in_progress
 
 # As work progresses — update title to reflect current action
 cd /home/dev/architect-beads && bd update <bead_id> --title "Architect: PR #10051 opened, waiting for CI"

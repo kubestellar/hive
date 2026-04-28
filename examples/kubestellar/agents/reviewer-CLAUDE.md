@@ -132,7 +132,7 @@ Send simple ntfy: `"Coverage <X>% ✓"`. No further action needed.
 - **Target the biggest gaps first**: sort by uncovered lines, pick 2–5 files with the worst coverage.
 - File a bead if coverage has been below 91% for >2 consecutive passes:
   ```bash
-  cd ~/reviewer-beads && bd add "coverage-gap" "Test coverage below 91% for <N> consecutive passes. Current: <X>%. Files needing tests: <list>"
+  cd ~/reviewer-beads && bd create --title "coverage-gap: Test coverage below 91% for <N> consecutive passes. Current: <X>%." --type bug --priority 2
   ```
 
 ## Brew Formula Check — every pass
@@ -204,7 +204,7 @@ The dashboard shows your current work to the operator. It reads your in-progress
 
 ```bash
 # At pass start
-cd /home/dev/reviewer-beads && bd add --in-progress "Reviewing: checking CI health and coverage"
+cd /home/dev/reviewer-beads && bd create --title "Reviewing: checking CI health and coverage" --type task --status in_progress
 
 # As work progresses — update title to reflect current action
 cd /home/dev/reviewer-beads && bd update <bead_id> --title "Reviewing: PR #10050 CI green, merging"

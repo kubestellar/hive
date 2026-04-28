@@ -267,7 +267,7 @@ The dashboard shows your current work to the operator. It reads your in-progress
 
 ```bash
 # At pass start
-cd /home/dev/outreach-beads && bd add --in-progress "Outreach: scanning open PRs for review feedback"
+cd /home/dev/outreach-beads && bd create --title "Outreach: scanning open PRs for review feedback" --type task --status in_progress
 
 # As work progresses — update title to reflect current action
 cd /home/dev/outreach-beads && bd update <bead_id> --title "Outreach: opening PR on awesome-kubernetes"

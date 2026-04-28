@@ -709,8 +709,8 @@
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a></div>
-          <div class="agent-field"><span class="label">cli</span><span class="value">${cliChip(a.cli, a.pinnedBoth || a.pinnedCli)} <button class="pin-toggle" onclick="togglePin('${a.name}', 'cli', ${!!(a.pinnedBoth || a.pinnedCli)})" title="${(a.pinnedBoth || a.pinnedCli) ? 'Unpin CLI — let governor change backend' : 'Pin CLI — lock current backend'}">${(a.pinnedBoth || a.pinnedCli) ? '🔓' : '📌'}</button></span></div>
-          <div class="agent-field"><span class="label">model</span><span class="value">${modelChip(a.model, a.govReason, a.pinnedBoth || a.pinnedModel)} <button class="pin-toggle" onclick="togglePin('${a.name}', 'model', ${!!(a.pinnedBoth || a.pinnedModel)})" title="${(a.pinnedBoth || a.pinnedModel) ? 'Unpin model — let governor change model' : 'Pin model — lock current model'}">${(a.pinnedBoth || a.pinnedModel) ? '🔓' : '📌'}</button></span></div>
+          <div class="agent-field"><span class="label">cli</span><span class="value">${cliChip(a.cli, a.pinnedBoth || a.pinnedCli, a.name)}${(a.pinnedBoth || a.pinnedCli) ? '' : ` <button class="pin-toggle" onclick="togglePin('${a.name}', 'cli', false)" title="Pin CLI — lock current backend">📌</button>`}</span></div>
+          <div class="agent-field"><span class="label">model</span><span class="value">${modelChip(a.model, a.govReason, a.pinnedBoth || a.pinnedModel, a.name)}${(a.pinnedBoth || a.pinnedModel) ? '' : ` <button class="pin-toggle" onclick="togglePin('${a.name}', 'model', false)" title="Pin model — lock current model">📌</button>`}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${isPaused ? 'paused' : a.cadence}</span></div>
           <div class="agent-field"><span class="label">last run</span><span class="value">${a.lastKick || '—'}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${isPaused ? 'paused' : (a.nextKick || '—')}</span></div>
@@ -864,8 +864,8 @@
         const pauseBadge = agentPaused ? '<span class="pause-badge">paused</span>' : '';
         const cliPinned = agentData && (agentData.pinnedBoth || agentData.pinnedCli);
         const modelPinned = agentData && (agentData.pinnedBoth || agentData.pinnedModel);
-        const cChip = agentData && agentData.cli ? cliChip(agentData.cli, cliPinned) : '?';
-        const mChip = agentData && agentData.model ? modelChip(agentData.model, agentData.govReason, modelPinned) : '';
+        const cChip = agentData && agentData.cli ? cliChip(agentData.cli, cliPinned, aname) : '?';
+        const mChip = agentData && agentData.model ? modelChip(agentData.model, agentData.govReason, modelPinned, aname) : '';
         return `<tr><td>${nameDot}${aname}${pauseBadge}</td>${cells}<td>${cChip}</td><td>${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
@@ -949,13 +949,14 @@
       </div>`;
     }
 
-    function cliChip(cli, pinned) {
+    function cliChip(cli, pinned, agent) {
       if (!cli || cli === '?') return '?';
       const tiers = { copilot: 'free', claude: 'opus', goose: 'free', gemini: 'sonnet' };
       const tier = tiers[cli] || 'sonnet';
       const pin = pinned ? ' \u{1F4CC}' : '';
-      const pinTitle = pinned ? ' (pinned)' : '';
-      return `<span class="model-chip ${tier}" title="cli: ${cli}${pinTitle}">${cli}${pin}</span>`;
+      const pinTitle = pinned ? ' (pinned — click to unpin)' : '';
+      const click = pinned && agent ? ` onclick="togglePin('${agent}', 'cli', true)" style="cursor:pointer"` : '';
+      return `<span class="model-chip ${tier}" title="cli: ${cli}${pinTitle}"${click}>${cli}${pin}</span>`;
     }
 
     function backendChip(backend) {
@@ -965,7 +966,7 @@
       return ` <span class="model-chip ${tier}" title="billing: ${backend}">${backend}</span>`;
     }
 
-    function modelChip(model, reason, pinned) {
+    function modelChip(model, reason, pinned, agent) {
       if (!model || model === '?' || model === 'unknown') return '?';
       // Normalize: "Claude Opus 4.6" → "claude-opus-4-6", "Opus 4.6" → "opus-4.6"
       const normalized = model.toLowerCase().replace(/\s+/g, '-');
@@ -978,8 +979,9 @@
       const overrideIcon = isBudgetOverride ? ' ⬇' : '';
       const overrideTitle = isBudgetOverride ? ` (${reason})` : '';
       const pin = pinned ? ' \u{1F4CC}' : '';
-      const pinTitle = pinned ? ' (pinned)' : '';
-      return `<span class="model-chip ${tier}" title="${model}${overrideTitle}${pinTitle}">${shortModel}${overrideIcon}${pin}</span>`;
+      const pinTitle = pinned ? ' (pinned — click to unpin)' : '';
+      const click = pinned && agent ? ` onclick="togglePin('${agent}', 'model', true)" style="cursor:pointer"` : '';
+      return `<span class="model-chip ${tier}" title="${model}${overrideTitle}${pinTitle}"${click}>${shortModel}${overrideIcon}${pin}</span>`;
     }
 
     function buildCadenceAdvisor(byAgent) {

@@ -701,8 +701,8 @@
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
           <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a></div>
-          <div class="agent-field"><span class="label">cli</span><span class="value">${cliChip(a.cli, a.pinned)} ${a.name !== 'supervisor' ? `<button class="pin-toggle" onclick="togglePin('${a.name}', ${!!a.pinned})" title="${a.pinned ? 'Unpin — let governor manage CLI' : 'Pin — lock current CLI'}">${a.pinned ? '🔓' : '📌'}</button>` : ''}</span></div>
-          <div class="agent-field"><span class="label">model</span><span class="value">${modelChip(a.model, a.govReason)}</span></div>
+          <div class="agent-field"><span class="label">cli</span><span class="value">${cliChip(a.cli, a.pinnedBoth || a.pinnedCli)} <button class="pin-toggle" onclick="togglePin('${a.name}', 'cli', ${!!(a.pinnedBoth || a.pinnedCli)})" title="${(a.pinnedBoth || a.pinnedCli) ? 'Unpin CLI — let governor change backend' : 'Pin CLI — lock current backend'}">${(a.pinnedBoth || a.pinnedCli) ? '🔓' : '📌'}</button></span></div>
+          <div class="agent-field"><span class="label">model</span><span class="value">${modelChip(a.model, a.govReason)}${(a.pinnedBoth || a.pinnedModel) ? ' 📌' : ''} <button class="pin-toggle" onclick="togglePin('${a.name}', 'model', ${!!(a.pinnedBoth || a.pinnedModel)})" title="${(a.pinnedBoth || a.pinnedModel) ? 'Unpin model — let governor change model' : 'Pin model — lock current model'}">${(a.pinnedBoth || a.pinnedModel) ? '🔓' : '📌'}</button></span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${isPaused ? 'paused' : a.cadence}</span></div>
           <div class="agent-field"><span class="label">last run</span><span class="value">${a.lastKick || '—'}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${isPaused ? 'paused' : (a.nextKick || '—')}</span></div>
@@ -854,9 +854,12 @@
         }).join('');
         const nameDot = isWorking ? '<span class="agent-dot"></span>' : '';
         const pauseBadge = agentPaused ? '<span class="pause-badge">paused</span>' : '';
-        const cChip = agentData && agentData.cli ? cliChip(agentData.cli, agentData.pinned) : '?';
+        const cliPinned = agentData && (agentData.pinnedBoth || agentData.pinnedCli);
+        const modelPinned = agentData && (agentData.pinnedBoth || agentData.pinnedModel);
+        const cChip = agentData && agentData.cli ? cliChip(agentData.cli, cliPinned) : '?';
         const mChip = agentData && agentData.model ? modelChip(agentData.model, agentData.govReason) : '';
-        return `<tr><td>${nameDot}${aname}${pauseBadge}</td>${cells}<td>${cChip}</td><td>${mChip}</td></tr>`;
+        const mPin = modelPinned ? ' 📌' : '';
+        return `<tr><td>${nameDot}${aname}${pauseBadge}</td>${cells}<td>${cChip}</td><td>${mChip}${mPin}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
         const isActive = m === currentMode;
@@ -1350,9 +1353,9 @@ function intensityGauge() {
       if (!data.ok) alert('Model switch failed: ' + (data.error || 'unknown'));
     }
 
-    async function togglePin(agent, currentlyPinned) {
+    async function togglePin(agent, dimension, currentlyPinned) {
       const action = currentlyPinned ? 'unpin' : 'pin';
-      const res = await fetch(`/api/${action}/${agent}`, { method: 'POST' });
+      const res = await fetch(`/api/${action}/${agent}/${dimension}`, { method: 'POST' });
       const data = await res.json();
       if (!data.ok) alert(`${action} failed: ` + (data.error || 'unknown'));
     }

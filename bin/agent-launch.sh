@@ -17,6 +17,19 @@
 
 set -euo pipefail
 
+# Source the centralized backend/model config
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKENDS_CONF="${SCRIPT_DIR}/../config/backends.conf"
+if [[ -f "$BACKENDS_CONF" ]]; then
+  # shellcheck source=../config/backends.conf
+  source "$BACKENDS_CONF"
+elif [[ -f /usr/local/etc/hive/backends.conf ]]; then
+  source /usr/local/etc/hive/backends.conf
+else
+  echo "FATAL: backends.conf not found" >&2
+  exit 1
+fi
+
 BACKEND="${AGENT_BACKEND:-claude}"
 MODEL="${AGENT_MODEL:-}"
 EXTRA_ARGS=()
@@ -29,74 +42,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# ── Backend definitions ──────────────────────────────────────────────
-# To add a new backend:
-#   CMD          = binary name or path
-#   PERM_FLAG    = flag to bypass all permission prompts
-#   MODEL_FLAG   = flag to select model (empty if backend doesn't support it)
-#   RENAME_CMD   = slash command to rename session (empty if unsupported)
-#   IDLE_PROMPT  = regex for idle detection (used by kick-agents.sh)
+CMD=$(backend_binary "$BACKEND")
+PERM_FLAG=$(backend_perm_flag "$BACKEND")
+MODEL_FLAG="--model"
 
+# amazonq and goose don't support --model
 case "$BACKEND" in
-  claude)
-    CMD="claude"
-    PERM_FLAG="--dangerously-skip-permissions"
-    MODEL_FLAG="--model"
-    ;;
-  copilot)
-    CMD="copilot"
-    PERM_FLAG="--allow-all"
-    MODEL_FLAG="--model"
-    ;;
-  gemini)
-    CMD="gemini"
-    PERM_FLAG="--yolo"
-    MODEL_FLAG="--model"
-    ;;
-  codex)
-    CMD="codex"
-    PERM_FLAG="--full-auto"
-    MODEL_FLAG="--model"
-    ;;
-  amazonq)
-    CMD="q"
-    PERM_FLAG="--trust-all-tools"
-    MODEL_FLAG=""
-    ;;
-  goose)
-    # Goose: open source, any backend via config (~/.config/goose/config.yaml)
-    # Point it at ollama or litellm for local models, or cloud APIs.
-    CMD="goose"
-    PERM_FLAG="--no-confirm"
-    MODEL_FLAG=""  # model set in ~/.config/goose/config.yaml
-    ;;
-  aider)
-    # Aider: best local coding agent. Use with ollama or litellm proxy.
-    # Set AIDER_BASE_URL=http://localhost:4000 to route through litellm.
-    CMD="aider"
-    PERM_FLAG="--yes"
-    MODEL_FLAG="--model"
-    ;;
-  *)
-    echo "Unknown backend: $BACKEND" >&2
-    echo "Supported: claude, copilot, gemini, codex, amazonq, goose, aider" >&2
-    exit 1
-    ;;
+  amazonq|goose) MODEL_FLAG="" ;;
 esac
 
+if [[ -z "$CMD" || -z "$PERM_FLAG" ]]; then
+  echo "Unknown backend: $BACKEND" >&2
+  echo "Supported: $KNOWN_BACKENDS" >&2
+  exit 1
+fi
+
 FULL_CMD=("$CMD" "$PERM_FLAG")
-if [[ -n "$MODEL" ]]; then
-  # Normalize model version format: claude uses hyphens (4-5), copilot uses dots (4.5)
-  case "$BACKEND" in
-    copilot)
-      # claude-haiku-4-5 → claude-haiku-4.5 (last hyphen before final digit becomes dot)
-      MODEL=$(echo "$MODEL" | sed -E 's/([0-9]+)-([0-9]+)$/\1.\2/')
-      ;;
-    claude)
-      # claude-haiku-4.5 → claude-haiku-4-5 (dot in version becomes hyphen)
-      MODEL=$(echo "$MODEL" | sed -E 's/([0-9]+)\.([0-9]+)$/\1-\2/')
-      ;;
-  esac
+if [[ -n "$MODEL" && -n "$MODEL_FLAG" ]]; then
+  MODEL=$(normalize_model_for_backend "$BACKEND" "$MODEL")
   FULL_CMD+=("$MODEL_FLAG" "$MODEL")
 fi
 if [[ ${#EXTRA_ARGS[@]} -gt 0 ]]; then

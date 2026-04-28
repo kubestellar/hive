@@ -11,6 +11,16 @@
 
 set -euo pipefail
 
+# Source centralized backend/model config
+_HIVE_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+_HIVE_BACKENDS_CONF="${_HIVE_SCRIPT_DIR}/../config/backends.conf"
+if [[ -f "$_HIVE_BACKENDS_CONF" ]]; then
+  # shellcheck source=../config/backends.conf
+  source "$_HIVE_BACKENDS_CONF"
+elif [[ -f /usr/local/etc/hive/backends.conf ]]; then
+  source /usr/local/etc/hive/backends.conf
+fi
+
 HIVE_VERSION="0.2.0"
 CONF="/etc/hive/hive.conf"
 ENV_DIR="/etc/hive"
@@ -508,12 +518,14 @@ start_supervisor() {
     return 0
   fi
 
-  local launch_cmd
-  case "$cli" in
-    copilot) launch_cmd="/usr/bin/copilot --allow-all --model claude-opus-4.6" ;;
-    claude)  launch_cmd="/usr/bin/claude --dangerously-skip-permissions --model opus-4-6" ;;
-    *)       die "Unknown CLI: $cli. Use --copilot or --claude" ;;
-  esac
+  local launch_cmd bin perm model_name
+  bin=$(backend_binary "$cli")
+  perm=$(backend_perm_flag "$cli")
+  model_name=$(normalize_model_for_backend "$cli" "claude-opus-4-6")
+  if [[ -z "$bin" || -z "$perm" ]]; then
+    die "Unknown CLI: $cli. Supported: $KNOWN_BACKENDS"
+  fi
+  launch_cmd="/usr/bin/$bin $perm --model $model_name"
 
   local ready_marker
   case "$cli" in
@@ -1060,14 +1072,15 @@ cmd_switch() {
   esac
 
   # Resolve launch command for backend
-  local launch_cmd
-  case "$backend" in
-    copilot) launch_cmd="/usr/bin/copilot --allow-all --model claude-opus-4.6" ;;
-    claude)  launch_cmd="/usr/bin/claude --dangerously-skip-permissions --model opus-4-6" ;;
-    gemini)  launch_cmd="/usr/bin/gemini --yolo" ;;
-    goose)   launch_cmd="/usr/bin/goose --no-confirm" ;;
-    *) die "Unknown backend: $backend (valid: copilot claude gemini goose)" ;;
-  esac
+  local launch_cmd bin perm
+  bin=$(backend_binary "$backend")
+  perm=$(backend_perm_flag "$backend")
+  if [[ -z "$bin" || -z "$perm" ]]; then
+    die "Unknown backend: $backend. Supported: $KNOWN_BACKENDS"
+  fi
+  local switch_model
+  switch_model=$(normalize_model_for_backend "$backend" "claude-opus-4-6")
+  launch_cmd="/usr/bin/$bin $perm --model $switch_model"
 
   info "Switching $agent → $backend"
 

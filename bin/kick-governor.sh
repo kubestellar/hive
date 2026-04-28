@@ -37,6 +37,16 @@
 
 set -euo pipefail
 
+# Source centralized backend/model config
+_GOV_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+_GOV_BACKENDS_CONF="${_GOV_SCRIPT_DIR}/../config/backends.conf"
+if [[ -f "$_GOV_BACKENDS_CONF" ]]; then
+  # shellcheck source=../config/backends.conf
+  source "$_GOV_BACKENDS_CONF"
+elif [[ -f /usr/local/etc/hive/backends.conf ]]; then
+  source /usr/local/etc/hive/backends.conf
+fi
+
 # ── Repos to scan ───────────────────────────────────────────────────────────
 # Priority: HIVE_REPOS env var > governor.env > hive-project.yaml > hardcoded default
 if [[ -f /etc/hive/governor.env ]]; then
@@ -114,21 +124,21 @@ MODEL_SURGE_SUPERVISOR="${MODEL_SURGE_SUPERVISOR:-claude:claude-haiku-4-5}"
 
 MODEL_BUSY_SCANNER="${MODEL_BUSY_SCANNER:-claude:claude-sonnet-4-6}"
 MODEL_BUSY_REVIEWER="${MODEL_BUSY_REVIEWER:-claude:claude-sonnet-4-6}"
-MODEL_BUSY_ARCHITECT="${MODEL_BUSY_ARCHITECT:-copilot:claude-sonnet-4.6}"
-MODEL_BUSY_OUTREACH="${MODEL_BUSY_OUTREACH:-copilot:claude-sonnet-4.6}"
+MODEL_BUSY_ARCHITECT="${MODEL_BUSY_ARCHITECT:-copilot:claude-sonnet-4-6}"
+MODEL_BUSY_OUTREACH="${MODEL_BUSY_OUTREACH:-copilot:claude-sonnet-4-6}"
 MODEL_BUSY_SUPERVISOR="${MODEL_BUSY_SUPERVISOR:-claude:claude-haiku-4-5}"
 
 MODEL_QUIET_SCANNER="${MODEL_QUIET_SCANNER:-claude:claude-haiku-4-5}"
-MODEL_QUIET_REVIEWER="${MODEL_QUIET_REVIEWER:-copilot:claude-sonnet-4.6}"
+MODEL_QUIET_REVIEWER="${MODEL_QUIET_REVIEWER:-copilot:claude-sonnet-4-6}"
 MODEL_QUIET_ARCHITECT="${MODEL_QUIET_ARCHITECT:-copilot:claude-opus-4-6}"
-MODEL_QUIET_OUTREACH="${MODEL_QUIET_OUTREACH:-copilot:claude-sonnet-4.6}"
+MODEL_QUIET_OUTREACH="${MODEL_QUIET_OUTREACH:-copilot:claude-sonnet-4-6}"
 MODEL_QUIET_SUPERVISOR="${MODEL_QUIET_SUPERVISOR:-claude:claude-haiku-4-5}"
 
-MODEL_IDLE_SCANNER="${MODEL_IDLE_SCANNER:-copilot:claude-sonnet-4.6}"
-MODEL_IDLE_REVIEWER="${MODEL_IDLE_REVIEWER:-copilot:claude-sonnet-4.6}"
+MODEL_IDLE_SCANNER="${MODEL_IDLE_SCANNER:-copilot:claude-sonnet-4-6}"
+MODEL_IDLE_REVIEWER="${MODEL_IDLE_REVIEWER:-copilot:claude-sonnet-4-6}"
 MODEL_IDLE_ARCHITECT="${MODEL_IDLE_ARCHITECT:-copilot:claude-opus-4-6}"
-MODEL_IDLE_OUTREACH="${MODEL_IDLE_OUTREACH:-copilot:claude-sonnet-4.6}"
-MODEL_IDLE_SUPERVISOR="${MODEL_IDLE_SUPERVISOR:-copilot:claude-sonnet-4.6}"
+MODEL_IDLE_OUTREACH="${MODEL_IDLE_OUTREACH:-copilot:claude-sonnet-4-6}"
+MODEL_IDLE_SUPERVISOR="${MODEL_IDLE_SUPERVISOR:-copilot:claude-sonnet-4-6}"
 
 RATE_LIMIT_FALLBACK_BACKEND="${RATE_LIMIT_FALLBACK_BACKEND:-copilot}"
 RATE_LIMIT_COOLDOWN="${RATE_LIMIT_COOLDOWN:-1800}"  # 30 min
@@ -318,11 +328,7 @@ get_cadence() {
 # ── Model selection ──────────────────────────────────────────────────────────
 
 convert_model_notation() {
-  local model="$1" target_backend="$2"
-  case "$target_backend" in
-    copilot) echo "$model" | sed -E 's/([0-9])-([0-9])/\1.\2/g' ;;
-    *)       echo "$model" | sed -E 's/([0-9])\.([0-9])/\1-\2/g' ;;
-  esac
+  normalize_model_for_backend "$2" "$1"
 }
 
 get_model_selection() {
@@ -333,7 +339,7 @@ get_model_selection() {
   local var_name="MODEL_${upper_mode}_${upper_agent}"
   local selection="${!var_name}"
   if [[ -z "$selection" ]]; then
-    selection="copilot:claude-sonnet-4.6"
+    selection="copilot:claude-sonnet-4-6"
   fi
   echo "$selection"
 }
@@ -343,11 +349,12 @@ get_cost_weight() {
   case "$backend" in
     copilot|goose) echo 0; return ;;
   esac
-  case "$model" in
-    *opus*)   echo "${COST_WEIGHT_OPUS}" ;;
-    *sonnet*) echo "${COST_WEIGHT_SONNET}" ;;
-    *haiku*)  echo "${COST_WEIGHT_HAIKU}" ;;
-    *)        echo "${COST_WEIGHT_SONNET}" ;;
+  case "$(model_tier "$model")" in
+    opus)    echo "${COST_WEIGHT_OPUS}" ;;
+    sonnet)  echo "${COST_WEIGHT_SONNET}" ;;
+    haiku)   echo "${COST_WEIGHT_HAIKU}" ;;
+    gpt)     echo 0 ;;
+    *)       echo "${COST_WEIGHT_SONNET}" ;;
   esac
 }
 

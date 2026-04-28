@@ -27,6 +27,32 @@ const PROJECT_PRIMARY_REPO = (projectConfig.project || {}).primary_repo || '';
 const PROJECT_ORG = (projectConfig.project || {}).org || '';
 const DASHBOARD_TITLE = ((projectConfig.dashboard || {}).title) || (PROJECT_NAME ? PROJECT_NAME + ' Hive' : 'Hive');
 
+// ── Centralized backend/model config (JS equivalent of backends.conf) ──────
+const KNOWN_BACKENDS = ['claude', 'copilot', 'gemini', 'codex', 'amazonq', 'goose', 'aider'];
+const FREE_BACKENDS = ['copilot', 'goose'];
+
+function normalizeModelForBackend(backend, model) {
+  if (backend === 'copilot') return model.replace(/(\d+)-(\d+)$/, '$1.$2');
+  if (backend === 'claude') return model.replace(/(\d+)\.(\d+)$/, '$1-$2');
+  return model;
+}
+
+function modelsEqual(a, b) {
+  const na = (a || '').replace(/(\d+)\.(\d+)$/, '$1-$2');
+  const nb = (b || '').replace(/(\d+)\.(\d+)$/, '$1-$2');
+  return na === nb;
+}
+
+function modelTier(model) {
+  const m = (model || '').toLowerCase();
+  if (m.includes('haiku')) return 'haiku';
+  if (m.includes('opus')) return 'opus';
+  if (m.includes('sonnet')) return 'sonnet';
+  if (m.startsWith('gpt-')) return 'gpt';
+  if (m.startsWith('gemini-')) return 'gemini';
+  return 'unknown';
+}
+
 const PORT = process.env.HIVE_DASHBOARD_PORT || ((projectConfig.dashboard || {}).port) || 3001;
 const REFRESH_MS = 5000;
 const METRICS_DIR = '/var/run/hive-metrics';
@@ -629,13 +655,7 @@ app.post('/api/model/:agent/:model', (req, res) => {
       currentBackend = 'gemini';
     }
   }
-  // Normalize model version format for the target backend
-  let normalizedModel = decodedModel;
-  if (currentBackend === 'copilot') {
-    normalizedModel = decodedModel.replace(/(\d+)-(\d+)$/, '$1.$2');
-  } else if (currentBackend === 'claude') {
-    normalizedModel = decodedModel.replace(/(\d+)\.(\d+)$/, '$1-$2');
-  }
+  const normalizedModel = normalizeModelForBackend(currentBackend, decodedModel);
   const newContent = `BACKEND=${currentBackend}\nMODEL=${normalizedModel}\n`;
   const modelFile = path.join(GOVERNOR_STATE_DIR, `model_${agent}`);
   try {

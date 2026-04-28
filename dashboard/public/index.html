@@ -724,19 +724,11 @@
             <button class="btn" onclick="kick('${a.name}')">kick</button>
             <select class="btn backend-select" onchange="switchCli('${a.name}', this.value); this.selectedIndex=0">
               <option value="" disabled selected>cli ▾</option>
-              <option value="copilot" ${a.cli === 'copilot' ? 'disabled' : ''}>copilot</option>
-              <option value="claude" ${a.cli === 'claude' ? 'disabled' : ''}>claude</option>
-              <option value="gemini" ${a.cli === 'gemini' ? 'disabled' : ''}>gemini</option>
-              <option value="goose" ${a.cli === 'goose' ? 'disabled' : ''}>goose</option>
+              ${KNOWN_BACKENDS.map(b => `<option value="${b}" ${a.cli === b ? 'disabled' : ''}>${b}</option>`).join('')}
             </select>
             <select class="btn backend-select" onchange="switchModel('${a.name}', this.value); this.selectedIndex=0">
               <option value="" disabled selected>model ▾</option>
-              <option value="claude-opus-4-6">Opus 4.6</option>
-              <option value="claude-sonnet-4-6">Sonnet 4.6</option>
-              <option value="claude-sonnet-4-5">Sonnet 4.5</option>
-              <option value="claude-haiku-4-5">Haiku 4.5</option>
-              <option value="gpt-5.4">GPT-5.4</option>
-              <option value="gpt-5.2">GPT-5.2</option>
+              ${KNOWN_MODELS.map(m => `<option value="${m.value}">${m.label}</option>`).join('')}
             </select>
           </div>
         </div>`;
@@ -949,10 +941,31 @@
       </div>`;
     }
 
+    // ── Centralized backend/model config (mirrors backends.conf) ──────────
+    const KNOWN_BACKENDS = ['claude', 'copilot', 'gemini', 'codex', 'amazonq', 'goose', 'aider'];
+    const FREE_BACKENDS = ['copilot', 'goose'];
+    const KNOWN_MODELS = [
+      { value: 'claude-opus-4-6', label: 'Opus 4.6' },
+      { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
+      { value: 'claude-sonnet-4-5', label: 'Sonnet 4.5' },
+      { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
+      { value: 'gpt-5.4', label: 'GPT-5.4' },
+      { value: 'gpt-5.2', label: 'GPT-5.2' },
+    ];
+
+    function _modelTier(model) {
+      const m = (model || '').toLowerCase();
+      if (m.includes('haiku')) return 'haiku';
+      if (m.includes('opus')) return 'opus';
+      if (m.includes('sonnet')) return 'sonnet';
+      if (m.startsWith('gpt-')) return 'gpt';
+      if (m.startsWith('gemini-')) return 'gemini';
+      return 'unknown';
+    }
+
     function cliChip(cli, pinned, agent) {
       if (!cli || cli === '?') return '?';
-      const tiers = { copilot: 'free', claude: 'opus', goose: 'free', gemini: 'sonnet' };
-      const tier = tiers[cli] || 'sonnet';
+      const tier = FREE_BACKENDS.includes(cli) ? 'free' : 'paid';
       const pin = pinned ? ' \u{1F4CC}' : '';
       const pinTitle = pinned ? ' (pinned — click to unpin)' : '';
       const click = pinned && agent ? ` onclick="togglePin('${agent}', 'cli', true)" style="cursor:pointer"` : '';
@@ -961,27 +974,23 @@
 
     function backendChip(backend) {
       if (!backend || backend === 'unknown') return '';
-      const isFree = backend === 'copilot' || backend === 'goose';
-      const tier = isFree ? 'free' : 'paid';
+      const tier = FREE_BACKENDS.includes(backend) ? 'free' : 'paid';
       return ` <span class="model-chip ${tier}" title="billing: ${backend}">${backend}</span>`;
     }
 
     function modelChip(model, reason, pinned, agent) {
       if (!model || model === '?' || model === 'unknown') return '?';
-      // Normalize: "Claude Opus 4.6" → "claude-opus-4-6", "Opus 4.6" → "opus-4.6"
       const normalized = model.toLowerCase().replace(/\s+/g, '-');
-      // Short label: strip "claude-" prefix, convert dashes to dots in version
       const shortModel = normalized.replace(/^claude-/, '').replace(/-(\d[\d-]*\d)$/, (_, v) => '-' + v.replace(/-/g, '.'));
-      let tier = 'sonnet';
-      if (normalized.includes('haiku')) tier = 'haiku';
-      else if (normalized.includes('opus')) tier = 'opus';
+      const tier = _modelTier(normalized);
+      const chipCls = tier === 'unknown' ? 'sonnet' : tier;
       const isBudgetOverride = reason && (reason.includes('budget_downgrade') || reason.includes('budget_critical'));
       const overrideIcon = isBudgetOverride ? ' ⬇' : '';
       const overrideTitle = isBudgetOverride ? ` (${reason})` : '';
       const pin = pinned ? ' \u{1F4CC}' : '';
       const pinTitle = pinned ? ' (pinned — click to unpin)' : '';
       const click = pinned && agent ? ` onclick="togglePin('${agent}', 'model', true)" style="cursor:pointer"` : '';
-      return `<span class="model-chip ${tier}" title="${model}${overrideTitle}${pinTitle}"${click}>${shortModel}${overrideIcon}${pin}</span>`;
+      return `<span class="model-chip ${chipCls}" title="${model}${overrideTitle}${pinTitle}"${click}>${shortModel}${overrideIcon}${pin}</span>`;
     }
 
     function buildCadenceAdvisor(byAgent) {

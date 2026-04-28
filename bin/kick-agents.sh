@@ -15,6 +15,16 @@
 
 set -euo pipefail
 
+# Source centralized backend/model config
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKENDS_CONF="${SCRIPT_DIR}/../config/backends.conf"
+if [[ -f "$BACKENDS_CONF" ]]; then
+  # shellcheck source=../config/backends.conf
+  source "$BACKENDS_CONF"
+elif [[ -f /usr/local/etc/hive/backends.conf ]]; then
+  source /usr/local/etc/hive/backends.conf
+fi
+
 TARGET="${1:-all}"
 TMUX_BIN="${TMUX_BIN:-tmux}"
 LOG="/var/log/kick-agents.log"
@@ -666,17 +676,13 @@ apply_model_if_changed() {
     gov_backend="$cur_backend"
   fi
   if [[ "$pin_model" == "1" ]]; then
-    local norm_gov_check norm_cur_check
-    norm_gov_check=$(echo "$gov_model" | sed -E 's/([0-9])\.([0-9])/\1-\2/g')
-    norm_cur_check=$(echo "$cur_model" | sed -E 's/([0-9])\.([0-9])/\1-\2/g')
-    if [[ "$norm_gov_check" != "$norm_cur_check" ]]; then
+    if ! models_equal "$gov_model" "$cur_model"; then
       log "PIN_MODEL $agent: model pinned to $cur_model, ignoring governor request for $gov_model"
       gov_model="$cur_model"
     fi
   fi
 
-  # Compare exact model strings — format matters (copilot needs dots, claude needs hyphens)
-  if [[ "$cur_backend" == "$gov_backend" && "$cur_model" == "$gov_model" ]]; then
+  if [[ "$cur_backend" == "$gov_backend" ]] && models_equal "$cur_model" "$gov_model"; then
     return 0
   fi
 

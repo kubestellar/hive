@@ -7,6 +7,16 @@
 # AGENT_RATE_LIMIT_FAILOVER=true and AGENT_FAILOVER_CMD in env).
 set -u
 
+# Source centralized backend/model config
+_SUP_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+_SUP_BACKENDS_CONF="${_SUP_SCRIPT_DIR}/../config/backends.conf"
+if [[ -f "$_SUP_BACKENDS_CONF" ]]; then
+  # shellcheck source=../config/backends.conf
+  source "$_SUP_BACKENDS_CONF"
+elif [[ -f /usr/local/etc/hive/backends.conf ]]; then
+  source /usr/local/etc/hive/backends.conf
+fi
+
 : "${AGENT_SESSION_NAME:?AGENT_SESSION_NAME is required}"
 : "${AGENT_WORKDIR:?AGENT_WORKDIR is required}"
 : "${AGENT_LOOP_PROMPT:?AGENT_LOOP_PROMPT is required}"
@@ -299,15 +309,12 @@ sync_launch_cmd_from_governor() {
   gov_model=$(grep '^MODEL=' "$model_file" 2>/dev/null | cut -d= -f2)
   [ -z "$gov_backend" ] || [ -z "$gov_model" ] && return 0
 
+  gov_model=$(normalize_model_for_backend "$gov_backend" "$gov_model")
   local new_cmd="agent-launch.sh --backend $gov_backend --model $gov_model"
   if [ "$ACTIVE_LAUNCH_CMD" != "$new_cmd" ]; then
     log "governor model sync: updating launch cmd to ${gov_backend}:${gov_model}"
     ACTIVE_LAUNCH_CMD="$new_cmd"
-    case "$gov_backend" in
-      claude)  CLI="claude" ;;
-      copilot) CLI="copilot" ;;
-      *)       CLI="$gov_backend" ;;
-    esac
+    CLI=$(backend_binary "$gov_backend")
   fi
 }
 

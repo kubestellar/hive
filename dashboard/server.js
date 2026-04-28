@@ -602,6 +602,13 @@ app.post('/api/model/:agent/:model', (req, res) => {
     const envContent = fs.readFileSync(envFile, 'utf8');
     cliPinned = /^AGENT_CLI_PINNED=true$/m.test(envContent) || /^AGENT_PIN_CLI=true$/m.test(envContent);
   } catch (_) { /* no env file */ }
+  if (cliPinned) {
+    // Read pinned backend from state file (set by switch endpoint), not stale statusCache
+    try {
+      const stateBackend = fs.readFileSync(`/var/run/agent-backends/${agent}`, 'utf8').trim();
+      if (stateBackend) currentBackend = stateBackend;
+    } catch (_) { /* keep statusCache value */ }
+  }
   // Model→backend compatibility: auto-switch CLI only if model is incompatible
   // claude CLI: claude-* models only
   // copilot CLI: claude-* and gpt-* models
@@ -609,7 +616,6 @@ app.post('/api/model/:agent/:model', (req, res) => {
   const isGpt = normalized.startsWith('gpt');
   const isGemini = normalized.startsWith('gemini');
   if (cliPinned) {
-    // Only override pin if the model is truly incompatible with the pinned CLI
     if (isGpt && currentBackend === 'claude') {
       return res.status(400).json({ error: `cannot run GPT model on pinned claude CLI — unpin CLI first or switch CLI to copilot` });
     }
@@ -718,9 +724,19 @@ app.post('/api/pin/:agent{/:dimension}', (req, res) => {
       setEnvFlag(agent, 'AGENT_CLI_PINNED', 'true');
       const lockFile = path.join(GOVERNOR_STATE_DIR, `model_lock_${agent}`);
       try { const { execSync: es } = require('child_process'); es(`sudo touch ${lockFile}`); } catch (_) {}
+      // Snapshot current backend to state file
+      const pinBothData = (statusCache.agents || []).find(a => a.name === agent);
+      if (pinBothData && pinBothData.cli && pinBothData.cli !== '?') {
+        try { fs.writeFileSync(`/var/run/agent-backends/${agent}`, pinBothData.cli); } catch (_) {}
+      }
       res.json({ ok: true, output: `${agent} pinned (both cli+model)` });
     } else if (dimension === 'cli') {
       setEnvFlag(agent, 'AGENT_PIN_CLI', 'true');
+      // Snapshot current backend to state file so model endpoint reads the correct pinned value
+      const pinAgentData = (statusCache.agents || []).find(a => a.name === agent);
+      if (pinAgentData && pinAgentData.cli && pinAgentData.cli !== '?') {
+        try { fs.writeFileSync(`/var/run/agent-backends/${agent}`, pinAgentData.cli); } catch (_) {}
+      }
       res.json({ ok: true, output: `${agent} cli pinned` });
     } else if (dimension === 'model') {
       setEnvFlag(agent, 'AGENT_PIN_MODEL', 'true');

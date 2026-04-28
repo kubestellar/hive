@@ -144,10 +144,11 @@ REASON=rate_limit_switch
 UPDATED=$(date -Iseconds)
 MODELEOF
 
-  # Send /exit — supervisor.sh will detect the agent died and relaunch
-  # with the new backend:model from the governor model file
+  # Send Esc×2 + /exit — double Esc clears autocomplete/menus before /exit
   $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
-  sleep 2
+  sleep 1
+  $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
+  sleep 1
   $TMUX_BIN send-keys -t "$session" -l "/exit" 2>/dev/null || true
   sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true
@@ -676,7 +677,9 @@ apply_model_if_changed() {
   # picks up the new backend:model automatically. Do NOT type agent-launch.sh
   # into the pane — that races with supervisor.sh's keepalive loop.
   $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
-  sleep 2
+  sleep 1
+  $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
+  sleep 1
   $TMUX_BIN send-keys -t "$session" -l "/exit" 2>/dev/null || true
   sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true

@@ -660,29 +660,20 @@ const ENV_DIR = '/etc/hive';
 
 function setEnvFlag(agent, flag, value) {
   const envFile = `${ENV_DIR}/${agent}.env`;
-  try {
-    let content = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : '';
-    const regex = new RegExp(`^${flag}=.*$`, 'm');
-    if (regex.test(content)) {
-      content = content.replace(regex, `${flag}=${value}`);
-    } else {
-      content = content.trimEnd() + `\n${flag}=${value}\n`;
-    }
-    fs.writeFileSync(envFile, content);
-  } catch (e) {
-    throw new Error(`failed to update ${envFile}: ${e.message}`);
+  const { execSync } = require('child_process');
+  const content = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : '';
+  if (new RegExp(`^${flag}=`, 'm').test(content)) {
+    execSync(`sudo sed -i 's/^${flag}=.*/${flag}=${value}/' ${envFile}`);
+  } else {
+    execSync(`echo '${flag}=${value}' | sudo tee -a ${envFile} > /dev/null`);
   }
 }
 
 function removeEnvFlag(agent, flag) {
   const envFile = `${ENV_DIR}/${agent}.env`;
-  try {
-    if (!fs.existsSync(envFile)) return;
-    let content = fs.readFileSync(envFile, 'utf8');
-    content = content.replace(new RegExp(`^${flag}=.*\\n?`, 'm'), '');
-    fs.writeFileSync(envFile, content);
-  } catch (e) {
-    throw new Error(`failed to update ${envFile}: ${e.message}`);
+  const { execSync } = require('child_process');
+  if (fs.existsSync(envFile)) {
+    execSync(`sudo sed -i '/^${flag}=/d' ${envFile}`);
   }
 }
 
@@ -695,7 +686,7 @@ app.post('/api/pin/:agent{/:dimension}', (req, res) => {
     if (!dimension || dimension === 'both') {
       setEnvFlag(agent, 'AGENT_CLI_PINNED', 'true');
       const lockFile = path.join(GOVERNOR_STATE_DIR, `model_lock_${agent}`);
-      fs.writeFileSync(lockFile, new Date().toISOString());
+      try { const { execSync: es } = require('child_process'); es(`sudo touch ${lockFile}`); } catch (_) {}
       res.json({ ok: true, output: `${agent} pinned (both cli+model)` });
     } else if (dimension === 'cli') {
       setEnvFlag(agent, 'AGENT_PIN_CLI', 'true');
@@ -722,7 +713,7 @@ app.post('/api/unpin/:agent{/:dimension}', (req, res) => {
       removeEnvFlag(agent, 'AGENT_PIN_CLI');
       removeEnvFlag(agent, 'AGENT_PIN_MODEL');
       const lockFile = path.join(GOVERNOR_STATE_DIR, `model_lock_${agent}`);
-      try { fs.unlinkSync(lockFile); } catch (_) { /* ok if missing */ }
+      try { const { execSync: es } = require('child_process'); es(`sudo rm -f ${lockFile}`); } catch (_) {}
       res.json({ ok: true, output: `${agent} unpinned (all)` });
     } else if (dimension === 'cli') {
       removeEnvFlag(agent, 'AGENT_PIN_CLI');

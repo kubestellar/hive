@@ -1393,6 +1393,15 @@ function intensityGauge() {
       const data = await res.json();
       if (!data.ok) { showToast(`${action} failed: ` + (data.error || 'unknown'), 'error'); return; }
       showToast(`${agent} ${dimension} ${action}ned`, 'success');
+      const agents = window._lastAgents || [];
+      const a = agents.find(x => x.name === agent);
+      if (a) {
+        const nowPinned = !currentlyPinned;
+        if (dimension === 'cli') a.pinnedCli = nowPinned;
+        else if (dimension === 'model') a.pinnedModel = nowPinned;
+        else { a.pinnedBoth = nowPinned; a.pinnedCli = nowPinned; a.pinnedModel = nowPinned; }
+        renderAgents(agents);
+      }
     }
 
     // Git version indicator

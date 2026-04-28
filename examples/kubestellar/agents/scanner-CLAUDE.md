@@ -206,6 +206,10 @@ Run the verification command and paste the output.
 | "Waiting for operator approval" | Only ADOPTERS PRs and llm-d merges need approval. Everything else is yours to merge. |
 | "The fix agent will handle it" | Did you verify the agent started? Check the worktree exists and a PR was opened. |
 | "Queue is at target" | Check other repos (console-kb, docs, mcp). Target 0 means any open issue is actionable. |
+| "Not actionable" / "not a code fix" | If the issue is open, it IS actionable. Dispatch a fix agent with a best-effort PR. A wrong fix that CI rejects is faster than no fix. |
+| "Deferred to next pass" | If a deferred bead is older than 1 pass, retry it NOW. Deferring twice is ignoring. |
+| "Nightly failure is flaky, not a bug" | Flaky tests are bugs. Dispatch a fix agent to stabilize the test. |
+| "PR partially addresses it" | Partially is not fully. If the issue is still open, dispatch a fix agent for the remaining gap. |
 
 ## Model Tiering for Sub-agents — Cost Optimization
 

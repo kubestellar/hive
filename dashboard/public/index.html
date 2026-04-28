@@ -529,6 +529,25 @@
     }
 
     let currentAgentMetrics = {};
+    // Per-issue token cost data — keyed by issue number (string)
+    let issueCosts = {};
+
+    async function fetchIssueCosts() {
+      try {
+        const r = await fetch('/api/issue-costs');
+        const data = await r.json();
+        issueCosts = {};
+        for (const entry of (data || [])) {
+          if (entry.issue && entry.issue !== 'unknown') {
+            issueCosts[String(entry.issue)] = entry;
+          }
+        }
+      } catch (_) { /* non-fatal — cost display is optional */ }
+    }
+    // Fetch on load, then every 60s (matches token-collector cadence)
+    fetchIssueCosts();
+    const ISSUE_COSTS_REFRESH_MS = 60000;
+    setInterval(fetchIssueCosts, ISSUE_COSTS_REFRESH_MS);
 
     function agentIndicators(name) {
       const m = currentAgentMetrics[name];
@@ -545,10 +564,23 @@
           const prIcon = p.state === 'merged' ? '✓' : '⎇';
           const prCls = p.state === 'merged' ? 'ind-pr ind-merged' : 'ind-pr';
           const prTip = p.prTitle ? esc(p.prTitle) : '';
+          // Show token cost annotation for merged issues when data is available
+          let costHtml = '';
+          if (p.state === 'merged') {
+            const cost = issueCosts[String(p.issue)];
+            if (cost) {
+              const tokVal = cost.tokens_exact != null ? cost.tokens_exact : cost.tokens_estimated;
+              if (tokVal > 0) {
+                const isExact = cost.tokens_exact != null;
+                const costTip = isExact ? 'exact token count (from session metadata)' : 'estimated (total ÷ issues)';
+                costHtml = ` <span class="ind-cost" title="${costTip}" style="color:var(--muted);font-size:0.65rem">${isExact ? '' : '~'}${fmtTokens(tokVal)} tok</span>`;
+              }
+            }
+          }
           return `<div class="ind-pair">
           <a class="ind-tag ind-issue" href="https://github.com/kubestellar/console/issues/${p.issue}" target="_blank" title="${issueTip}">${issueLabel}</a>
           <span class="ind-arrow">→</span>
-          <a class="ind-tag ${prCls}" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank" title="${prTip}">${prIcon} #${p.pr}</a>
+          <a class="ind-tag ${prCls}" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank" title="${prTip}">${prIcon} #${p.pr}</a>${costHtml}
         </div>`;
         };
         const renderWip = (ip) => {

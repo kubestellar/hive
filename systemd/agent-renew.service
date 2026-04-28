@@ -7,8 +7,6 @@ After=supervised-agent@scanner.service
 Type=oneshot
 User=dev
 Group=dev
-# Killing the session is a no-op if it's already gone; the supervisor will
-# respawn it within ~10s and send a fresh /loop prompt.
-ExecStart=/usr/bin/tmux kill-session -t scanner
-# Succeed even if the session is already dead.
+# Skip if agent is paused — no point cycling a paused session.
+ExecStart=/bin/sh -c 'if [ -f /var/run/kick-governor/paused_scanner ]; then echo "scanner is paused — skipping renew"; exit 0; fi; /usr/bin/tmux kill-session -t scanner 2>/dev/null || true'
 SuccessExitStatus=0 1

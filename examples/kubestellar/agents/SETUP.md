@@ -57,10 +57,10 @@ ssh root@100.x.x.x hostname
 ssh root@100.x.x.x  # or 192.168.4.28 if not on VPN
 
 # Agent home
-mkdir -p ~/.kubestellar-agents/{supervisor,fixer,architect,reviewer,outreach}
+mkdir -p ~/.kubestellar-agents/{supervisor,scanner,architect,reviewer,outreach}
 
 # Clone repos for each mutating agent
-for agent in fixer architect; do
+for agent in scanner architect; do
   cd ~/.kubestellar-agents/$agent
   git clone https://github.com/kubestellar/console.git
   git clone https://github.com/kubestellar/console-kb.git
@@ -112,7 +112,7 @@ chmod +x ~/.kubestellar-fix-loop/worker.sh
 
 ```bash
 # Copy CLAUDE.md for each executor into their console dir
-cp fixer-CLAUDE.md ~/.kubestellar-agents/fixer/console/CLAUDE.md
+cp scanner-CLAUDE.md ~/.kubestellar-agents/scanner/console/CLAUDE.md
 cp architect-CLAUDE.md ~/.kubestellar-agents/architect/console/CLAUDE.md
 cp reviewer-CLAUDE.md ~/.kubestellar-agents/reviewer/console/CLAUDE.md
 cp outreach-CLAUDE.md ~/.kubestellar-agents/outreach/console/CLAUDE.md
@@ -120,7 +120,7 @@ cp outreach-CLAUDE.md ~/.kubestellar-agents/outreach/console/CLAUDE.md
 # Copy env files (adjust paths for Linux — /root/ instead of /Users/andan02/)
 # If using systemd:
 sudo mkdir -p /etc/hive
-for agent in supervisor fixer architect reviewer outreach; do
+for agent in supervisor scanner architect reviewer outreach; do
   sudo cp ${agent}.env /etc/hive/ks-${agent}.env
 done
 ```
@@ -130,7 +130,7 @@ done
 ```bash
 cd /path/to/hive
 
-for agent in supervisor fixer architect reviewer outreach; do
+for agent in supervisor scanner architect reviewer outreach; do
   sudo ./install.sh --instance ks-${agent}
 done
 ```
@@ -148,7 +148,7 @@ for f in /etc/hive/ks-*.env; do
 done
 
 # Restart all
-for agent in supervisor fixer architect reviewer outreach; do
+for agent in supervisor scanner architect reviewer outreach; do
   sudo systemctl restart hive@ks-${agent}
 done
 ```
@@ -157,7 +157,7 @@ done
 
 ```bash
 # Check all agents
-for s in ks-supervisor ks-fixer ks-architect ks-reviewer ks-outreach; do
+for s in ks-supervisor ks-scanner ks-architect ks-reviewer ks-outreach; do
   echo "=== $s ==="
   tmux has-session -t "$s" 2>/dev/null && echo "✅ running" || echo "❌ not running"
 done
@@ -172,7 +172,7 @@ tmux new-session -d -s overview \; \
   split-window -v -t 0 \; \
   split-window -v -t 2 \; \
   send-keys -t 0 'tmux attach -t ks-supervisor' Enter \; \
-  send-keys -t 1 'tmux attach -t ks-fixer' Enter \; \
+  send-keys -t 1 'tmux attach -t ks-scanner' Enter \; \
   send-keys -t 2 'tmux attach -t ks-reviewer' Enter \; \
   send-keys -t 3 'tmux attach -t ks-outreach' Enter
 tmux attach -t overview
@@ -198,7 +198,7 @@ tmux attach -t overview
 │  │  ├── writes precise work orders       │                      │
 │  │  ├── sends ntfy digests               │                      │
 │  │  │                                    │                      │
-│  │  ├──► ks-fixer (Sonnet, EXECUTOR)     │                      │
+│  │  ├──► ks-scanner (Sonnet, EXECUTOR)    │                      │
 │  │  │    bugs, PRs, reviews, hygiene     │                      │
 │  │  │                                    │                      │
 │  │  ├──► ks-architect (Sonnet, EXECUTOR) │                      │
@@ -230,7 +230,7 @@ tmux attach -t overview
 | Agent | Model | Usage | Cost |
 |-------|-------|-------|------|
 | Supervisor | Opus | Full reasoning, 1/min loop | High but justified — single brain |
-| Fixer | Sonnet | Mechanical execution | Low — no triage/planning |
+| Scanner | Sonnet | Mechanical execution | Low — no triage/planning |
 | Architect | Sonnet | Mechanical execution | Low — occasional |
 | Reviewer | Sonnet | Mechanical execution | Low — read-only work |
 | Outreach | Sonnet | Mechanical execution | Low — occasional |

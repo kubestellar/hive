@@ -130,7 +130,7 @@ unset GITHUB_TOKEN && gh pr list --repo kubestellar/console --state open \
 
 **Drop / skip entirely in lean mode:**
 - **Step 0 policy re-read** — do it ONCE at session boot, not every iteration. Skip unless you just hit a confusing state.
-- **Step 0.5 bd ready queries + stale-claim sweep** — skip while peers (reviewer/feature/outreach) are paused. Only matters for multi-agent coordination.
+- **Step 0.5 bd ready queries + stale-claim sweep** — skip while peers (reviewer/architect/outreach) are paused. Only matters for multi-agent coordination.
 - **Deep SLA "analysis"** — sorting by `createdAt` IS the SLA logic. No further thinking needed.
 - **Heartbeat writes** before each tool call — one write at end of iteration is enough.
 - **GA4 / other repo scans** — the operator will ask if they want them. Not every iteration.
@@ -190,7 +190,7 @@ If a GitHub issue is open AND has no linked PR (neither in flight nor merged), *
 
 Sequence when scanner encounters an unPR'd issue:
 
-1. **Does it need architecture first?** Criteria: cross-cutting pattern, fundamental decision (storage backend, protocol, algorithm choice), affects >3 files or any public API. If yes → file `--actor feature --set-metadata lane_transfer=scanner-to-feature` and continue (feature will RFC; scanner implements the phase beads later).
+1. **Does it need architecture first?** Criteria: cross-cutting pattern, fundamental decision (storage backend, protocol, algorithm choice), affects >3 files or any public API. If yes → file `--actor architect --set-metadata lane_transfer=scanner-to-architect` and continue (architect will RFC; scanner implements the phase beads later).
 2. **Is an external contributor already engaged?** Check the issue for: assignee set, comments from non-maintainer in last 14d, a fork visible in the repo, a PR (even WIP / draft) referencing the issue. If yes → leave it; file `--set-metadata contributor_engaged=<login> last_activity=<iso>` and nudge in 14 days if it's gone quiet.
 3. **Is it an intentional tracker?** Exempt list (do NOT auto-work these): LFX Mentorship trackers (#4196, #4190, #4189), Nightly Test Suite aggregator (#4086), CNCF Incubation Readiness Tracker (#4072), any issue titled `[Tracker]` or labeled `meta-tracker`. Skip.
 4. **Otherwise → claim it.** Bundle into an iteration's fix-agent dispatch batch (multiple small related issues → one PR). Large single issues → one fix agent, one PR.
@@ -521,7 +521,7 @@ Repeat for the 4 other repos. Collect all open non-draft PRs.
 | AI-authored | green | any | `gh pr merge --admin --squash` (matches CLAUDE.md auto-merge workflow for kubestellar/console) |
 | Community | green | small | Read diff, if clean: `/lgtm` + `/approve` comments (Prow) OR `gh pr merge --admin --squash` if no Prow. Thank the contributor. |
 | Community | green | medium | Read diff, leave 1-2 specific comments if improvements possible; if clean, approve + merge. |
-| Community | green | large | Leave a structured review: what works, what needs changes, link to docs/conventions. If structural (new pattern, API change), lane-transfer to architect via `bd create --actor feature --set-metadata lane_transfer=scanner-to-feature` for RFC review. |
+| Community | green | large | Leave a structured review: what works, what needs changes, link to docs/conventions. If structural (new pattern, API change), lane-transfer to architect via `bd create --actor architect --set-metadata lane_transfer=scanner-to-architect` for RFC review. |
 | Any | red | any | Comment at the specific failing check. Do not merge. |
 | Any | pending | any | Wait 1 iteration. Then comment if still pending. |
 | Any | any | any, >24h old | Nudge author: "Any updates? CI is green/red, happy to review when ready." If >7 days with no author response, close with a polite stale message (keep issue open). |

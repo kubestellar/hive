@@ -95,6 +95,19 @@ Scanner owns ONLY: kubestellar GitHub issues and PRs (triage, bug fixes, CI heal
 3. **Merge sequence:** merge one → wait for next PR's CI to re-trigger and pass → merge next. Never batch-merge.
 4. **If CI fails after merge:** immediately file a bug issue and alert the supervisor.
 
+### Claim Protocol — Bead Per Dispatch (MANDATORY)
+
+**NEVER dispatch a fix agent without first creating a tracking bead.** This prevents orphaned work and duplicate dispatches.
+
+1. Before dispatching: `cd /home/dev/scanner-beads && bd create --title "Fixing #NNNN: <short title>" --type bug --priority 2 --actor scanner --external-ref gh-NNNN`
+2. Claim the bead: `bd update <bead_id> --claim`
+3. Dispatch the Agent tool call
+4. On agent completion (PR opened): `bd update <bead_id> --set-metadata pr_ref=<PR_number>`
+5. On PR merge: `bd close <bead_id>`
+6. If agent fails (no PR after 30 min): `bd update <bead_id> --status open --set-metadata sweep_reason=agent_failed`
+
+This ensures every dispatched agent has a trackable bead. If scanner crashes mid-dispatch, the stale-claim sweep (Step 0.5) will catch and reset orphaned beads.
+
 **Fix-agent prompt template** (each dispatched Agent):
 
 ```
@@ -151,6 +164,62 @@ Agent(subagent_type="general-purpose",
 **When to restore full ceremony**: only when the queue is at target AND peers are active. Default to lean when the queue has non-exempt work.
 
 ---
+
+## Verification — HARD GATE
+
+NEVER claim a task is complete without FRESH evidence in THIS message:
+
+| Claim | Required Evidence |
+|-------|-------------------|
+| PR opened | Include PR URL + `gh pr view` output showing it exists |
+| PR merged | Include `gh pr view` output showing `MERGED` state |
+| Fix applied | Include the actual diff or changed file paths |
+| CI passed | Include `gh pr checks` output showing all green (ignore `tide` and Playwright) |
+| Issue closed | Include `gh issue view` output showing `CLOSED` state |
+| Agent dispatched | Include the Agent tool call ID and issue numbers assigned |
+
+"It should work" is NOT evidence. "I believe it merged" is NOT evidence.
+Run the verification command and paste the output.
+
+## Rationalization Defense — Known Excuses
+
+| Excuse | Rebuttal |
+|--------|----------|
+| "Standing by for work orders" | You are NOT idle if `bd ready --actor scanner` returns items or open issues exist. Dispatch fix agents. |
+| "This issue is too complex" | Open a PR with a partial fix or lane-transfer to architect. Something > nothing. |
+| "CI is still running" | Move to the next issue while waiting. Don't block on one PR. |
+| "I already scanned this iteration" | Check for new issues since your last scan. Queue changes between scans. |
+| "Steady state — no new issues" | Run `bd ready --actor scanner`. If ANY bead is ready, it is NOT steady state. Claim and work. |
+| "Waiting for operator approval" | Only ADOPTERS PRs and llm-d merges need approval. Everything else is yours to merge. |
+| "The fix agent will handle it" | Did you verify the agent started? Check the worktree exists and a PR was opened. |
+| "Queue is at target" | Check other repos (console-kb, docs, mcp). Target 0 means any open issue is actionable. |
+
+## Model Tiering for Sub-agents — Cost Optimization
+
+When dispatching fix agents via the `Agent` tool, select the model based on task complexity:
+
+| Complexity | Criteria | Model | Rationale |
+|------------|----------|-------|-----------|
+| **Simple** | 1-2 files, <50 lines, clear fix (typo, label, const extraction, i18n wrap) | `model: "haiku"` | 15x cheaper than Opus |
+| **Medium** | 3-5 files, multi-component, needs reading issue + cross-referencing | `model: "sonnet"` | 5x cheaper than Opus |
+| **Complex** | >5 files, architecture, new feature, public API change, race condition | (default — no override) | Needs full reasoning |
+
+**How to classify** — check these signals:
+- Issue has `auto-qa` label + mechanical fix title → **Simple**
+- Issue title contains "i18n", "const", "label", "typo", "rename" → **Simple**
+- Issue touches a single card or component → **Medium**
+- Issue involves cross-file refactor, state management, or API → **Complex**
+
+**Dispatch example with model tiering:**
+```
+Agent(subagent_type="general-purpose",
+      model="haiku",
+      description="Fix #NNNN i18n wrap",
+      prompt="Fix kubestellar/console#NNNN. ...",
+      run_in_background=true)
+```
+
+When in doubt, use Sonnet — it handles most tasks well at moderate cost.
 
 ## Step 0 — pre-flight re-read (MANDATORY, before anything else)
 

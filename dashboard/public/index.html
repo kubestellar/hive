@@ -47,6 +47,15 @@
     .agent-state.working { color: var(--green); }
     .agent-state.idle { color: var(--muted); }
     .agent-state.paused { color: #f85149; }
+    .status-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .status-badge.blocked { background: rgba(248,81,73,0.2); color: #f85149; border: 1px solid rgba(248,81,73,0.4); }
+    .status-badge.needs-context { background: rgba(210,153,34,0.2); color: #d2992a; border: 1px solid rgba(210,153,34,0.4); }
+    .status-badge.done-concerns { background: rgba(227,139,44,0.2); color: #e38b2c; border: 1px solid rgba(227,139,44,0.4); }
+    .status-badge.done { background: rgba(63,185,80,0.15); color: #3fb950; border: 1px solid rgba(63,185,80,0.3); }
+    .agent-card.status-blocked { border-color: #f85149 !important; }
+    .agent-card.status-needs-context { border-color: #d2992a !important; }
+    @keyframes pulse-amber { 0%,100% { border-color: rgba(210,153,34,0.3); } 50% { border-color: rgba(210,153,34,0.8); } }
+    .agent-card.status-stale { animation: pulse-amber 2s ease-in-out infinite; }
     .agent-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
     .agent-name .dot {
       display: inline-block; width: 8px; height: 8px;
@@ -699,7 +708,13 @@
         const needsLogin = a.needsLogin === true;
         const isPaused = a.paused === true;
         const isStopped = a.state === 'stopped' && !isPaused;
-        const cls = needsLogin ? 'needs-login' : isPaused ? 'paused' : isStopped ? 'stopped' : a.busy;
+        const STALE_MS = 1200000; // 20 minutes
+        const isStale = a.summaryUpdated && !isPaused && a.busy === 'working' && (Date.now() - new Date(a.summaryUpdated).getTime()) > STALE_MS;
+        let statusCls = '';
+        if (a.structuredStatus === 'BLOCKED') statusCls = 'status-blocked';
+        else if (a.structuredStatus === 'NEEDS_CONTEXT') statusCls = 'status-needs-context';
+        else if (isStale) statusCls = 'status-stale';
+        const cls = needsLogin ? 'needs-login' : isPaused ? 'paused' : isStopped ? 'stopped' : `${a.busy} ${statusCls}`.trim();
         const dotCls = a.state === 'stopped' ? 'stopped' : 'running';
         const canToggle = a.name !== 'supervisor';
         const toggleBtn = canToggle ? `<button class="btn-toggle ${isPaused ? 'paused' : 'running'}" onclick="toggleAgent('${a.name}', ${isPaused})">${isPaused ? '▶ resume' : '⏸ pause'}</button>` : '';
@@ -728,7 +743,14 @@
           <div class="agent-field"><span class="label">next run</span><span class="value">${isPaused ? 'paused' : (a.nextKick || '—')}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
           <div class="agent-field"><span class="label">restarts</span><span class="value${(a.restarts || 0) > 5 ? ' restart-high' : (a.restarts || 0) > 0 ? ' restart-warn' : ''}">${a.restarts || 0}<span class="restart-label">24h</span>${(a.restarts || 0) > 0 ? `<button class="restart-reset" onclick="resetRestarts('${a.name}')" title="Reset restart counter">✕</button>` : ''}<span class="restart-spark">${restartSparkSvg(a.name)}</span></span></div>
-          <div class="agent-state ${isPaused ? 'paused' : a.busy}">${isPaused ? 'paused' : a.busy}</div>
+          <div class="agent-state ${isPaused ? 'paused' : a.busy}">${isPaused ? 'paused' : a.busy}${(() => {
+            if (a.structuredStatus === 'BLOCKED') return '<span class="status-badge blocked" title="' + esc(a.statusEvidence) + '">blocked</span>';
+            if (a.structuredStatus === 'NEEDS_CONTEXT') return '<span class="status-badge needs-context" title="' + esc(a.statusEvidence) + '">needs context</span>';
+            if (a.structuredStatus === 'DONE_WITH_CONCERNS') return '<span class="status-badge done-concerns" title="' + esc(a.statusEvidence) + '">concerns</span>';
+            if (a.structuredStatus === 'DONE') return '<span class="status-badge done">done</span>';
+            if (isStale) return '<span class="status-badge needs-context">stale</span>';
+            return '';
+          })()}</div>
           ${needsLogin ? '<div class="login-warning">⚠ NOT LOGGED IN — run /login</div>' : ''}
           ${summaryEl}${indEl}
           <div class="agent-actions">

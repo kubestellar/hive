@@ -307,6 +307,10 @@ function fetchStatus() {
             a.liveSummary = '';
             a.summaryUpdated = null;
           }
+
+          const sm = summariesCache[a.name] || {};
+          a.structuredStatus = sm.status || '';
+          a.statusEvidence = sm.evidence || '';
         }
         // Record snapshot for sparklines
         const snap = {

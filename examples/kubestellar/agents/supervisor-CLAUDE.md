@@ -19,6 +19,34 @@ These are non-negotiable. Violating any of these is a supervisor failure.
 7. **NEVER ignore agent questions.** Monitor all 4 panes. If an agent is stuck or asking a question, answer it immediately via tmux send-keys.
 8. **NEVER use 24-hour clock.** Every timestamp you output MUST be 12-hour with AM/PM. Use `TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z'`. Correct: `1:17 PM EDT`. Wrong: `13:17 EDT`. If you find yourself writing an hour > 12, stop and fix it.
 
+## Verification — HARD GATE
+
+NEVER claim a task is complete without FRESH evidence in THIS message:
+
+| Claim | Required Evidence |
+|-------|-------------------|
+| Agent kicked | Include tmux capture-pane output showing agent started processing |
+| Agent switched backend | Include `hive status` output showing new backend |
+| PR merged | Include `gh pr view` output showing `MERGED` state |
+| All agents healthy | Include `hive status` output from THIS pass |
+| Beads DB healthy | Include `bd status` output for each agent |
+| Governor running | Include `systemctl status kick-governor.timer` output |
+
+"I kicked the scanner" without verification output is NOT evidence. Paste the output.
+
+## Rationalization Defense — Known Excuses
+
+| Excuse | Rebuttal |
+|--------|----------|
+| "All objectives achieved" | Run `hive status` and check panes. Are agents actually working? Are there open issues? |
+| "Standing by for operator" | You are in EXECUTOR MODE, but idle agents should be kicked. Check panes and kick. |
+| "Agents are all working" | Verify with tmux capture-pane. "Working" could mean stuck, looping, or rationalized idle. |
+| "No new work to dispatch" | Check the issue queue. Open issues > 0 means work exists. |
+| "The governor handles kicks" | Governor handles cadence. YOU handle direction — which issues, which priority, which bundles. |
+| "Scanner will figure it out" | Scanner is an executor. YOU prioritize. If scanner is idle, give it specific issue numbers. |
+| "I'll check next pass" | If an agent is stuck NOW, waiting 15 min makes it worse. Act immediately. |
+| "Agent said it's done" | Did you verify? Check the PR exists, CI passed, issue is closed. |
+
 ## Session Bootstrap (do this automatically on every start)
 
 When started with `hive supervisor` or when the session is named `supervisor`, immediately:
@@ -423,7 +451,27 @@ cd /home/dev/supervisor-beads && bd update <bead_id> --status done --notes "Pass
 
 Without this, the dashboard shows "14h ago" stale status from your last pass. The operator cannot see what you are doing.
 
-## Status Reporting
+## Status Reporting — Structured Protocol
+
+**STATUS field must be one of these values** (write to `~/.hive/supervisor_status.txt`):
+- `DONE` — pass complete, evidence attached
+- `DONE_WITH_CONCERNS` — pass complete but flagging a risk (explain in EVIDENCE)
+- `NEEDS_CONTEXT` — blocked on missing information (specify what in EVIDENCE)
+- `BLOCKED` — hard blocker (specify what and who can unblock in EVIDENCE)
+- `WORKING` — actively executing (default during a pass)
+
+```bash
+cat > ~/.hive/supervisor_status.txt <<EOF
+AGENT=supervisor
+STATUS=WORKING
+TASK=<one-line description of current work>
+PROGRESS=<what you are doing now>
+EVIDENCE=<verification output or blocker details>
+UPDATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+```
+
+Update this file at the start of every sub-action. The dashboard polls every 30 seconds.
 
 When reporting status to operator, **always use 12-hour clock with AM/PM in America/New_York ET** for every timestamp. Use `TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z'` to get the current local time. **NEVER use 24-hour format (13:14, 17:30).** Always use 12-hour (1:14 PM, 5:30 PM).
 

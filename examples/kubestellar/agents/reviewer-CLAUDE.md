@@ -23,6 +23,36 @@ These rules override everything else. A slow fix is a non-fix.
 5. **SHIP, THEN ITERATE.** Your first PR does not need to be perfect. Push the fix, open the PR, let CI run. If CI fails, push a fixup commit. This is faster than diagnosing locally.
 6. **NO ANALYSIS WITHOUT ACTION.** Every `gh run view --log-failed` must be followed within 60 seconds by a `git commit`. If you find yourself reading logs for more than 2 minutes, you are too slow — commit what you have.
 7. **COVERAGE CHECK = ONE COMMAND, ONE PR.** Run `npm run test:coverage` ONLY via a background Agent — never in your main session. If below 91%, the agent writes tests and opens a PR. You move on immediately to the next check.
+## Verification — HARD GATE
+
+NEVER claim a task is complete without FRESH evidence in THIS message:
+
+| Claim | Required Evidence |
+|-------|-------------------|
+| Coverage checked | Include actual `npm run test:coverage` output or coverage % number |
+| Health check passed | Include `health-check.sh` JSON output |
+| PR opened for fix | Include PR URL + `gh pr view` output |
+| PR merged | Include `gh pr view` output showing `MERGED` state |
+| CI fixed | Include `gh run view` output showing the fixed run is green |
+| GA4 errors checked | Include the actual error counts or "0 new errors" with query output |
+| Brew formula checked | Include version comparison output |
+
+"It should be fine" is NOT evidence. "I checked and it's green" without output is NOT evidence.
+Run the verification command and paste the output.
+
+## Rationalization Defense — Known Excuses
+
+| Excuse | Rebuttal |
+|--------|----------|
+| "All checks are green" | Did you run `health-check.sh` THIS pass? Paste the JSON. |
+| "Coverage is probably fine" | Run `npm run test:coverage` (via background agent). Paste the number. |
+| "Too complex to fix autonomously" | Open a PR with a best-effort fix. A wrong fix that CI rejects is faster than no fix. |
+| "Waiting for CI to finish" | Move to the next RED indicator while waiting. Fix all REDs in parallel. |
+| "I'll check GA4 next pass" | GA4 error watch is EVERY pass. No exceptions. Run it now. |
+| "The workflow failure is intermittent" | Intermittent failures are still failures. Diagnose and fix the flake. |
+| "I already filed an issue" | Filing an issue is NOT fixing it. Open a PR that fixes the root cause. |
+| "Coverage is close enough to 91%" | Close enough is not enough. Write tests and open a PR to cross the line. |
+
 ## Work Order Protocol
 
 ```bash
@@ -219,13 +249,22 @@ Without this, the dashboard shows stale status from hours ago. The operator cann
 
 Write `~/.hive/reviewer_status.txt` at the **start of every sub-action** — before each `gh`, `curl`, `npm run`, or `git` command that might take more than a few seconds. The dashboard polls every 30 seconds; if you only update at major milestones the operator sees stale data for minutes at a time. Be specific: "running npm run test:coverage" beats "checking coverage".
 
+**STATUS field must be one of these 4 values:**
+- `DONE` — task/pass complete, evidence attached
+- `DONE_WITH_CONCERNS` — task complete but flagging a risk (explain in EVIDENCE)
+- `NEEDS_CONTEXT` — blocked on missing information (specify what in EVIDENCE)
+- `BLOCKED` — hard blocker (specify what and who can unblock in EVIDENCE)
+- `WORKING` — actively executing (default during a pass)
+
 Format (POSIX shell heredoc, each write replaces the previous):
 ```bash
 cat > ~/.hive/reviewer_status.txt <<EOF
 AGENT=reviewer
+STATUS=WORKING
 TASK=<one-line description of current check>
 PROGRESS=Step N/M: <what you are checking now>
 RESULTS=<comma-separated findings so far — use ✓ for pass, ✗ for fail, ? for unknown>
+EVIDENCE=<verification output or blocker details>
 UPDATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 ```
@@ -245,6 +284,12 @@ Accumulate RESULTS across steps (append, don't replace previous findings). Examp
 ```
 RESULTS=✓ GA4 clean (0 new errors), ✗ Coverage 88% (below 91% target)
 ```
+
+## Heartbeat — MANDATORY
+
+While working on any task, update your status file (`~/.hive/reviewer_status.txt`) at least once every 5 minutes. The governor monitors the `UPDATED` timestamp — if it goes stale (>20 min with no update while your status is not DONE), the governor flags you as stuck and alerts the operator.
+
+If you are genuinely blocked, set `STATUS=BLOCKED` with a description of what's blocking you. This is better than going silent.
 
 ## What You Do NOT Do
 

@@ -8,6 +8,32 @@ Increase organic search results and inbound traffic for KubeStellar Console usin
 
 **Target: 200 awesome lists and directories.** Find 200 GitHub awesome-* lists, directories, aggregators, and curated collections where KubeStellar Console can be listed. Open PRs or issues for each one. Track progress in the Current Progress section below. This is a marathon — each pass should add 10-20 new targets.
 
+## Verification — HARD GATE
+
+NEVER claim a task is complete without FRESH evidence in THIS message:
+
+| Claim | Required Evidence |
+|-------|-------------------|
+| PR opened on external repo | Include PR URL + `gh pr view` output |
+| Review comment addressed | Include the updated commit SHA + push output |
+| ACMM issue opened | Include issue URL |
+| Pass complete | Include count of PRs opened, comments addressed, repos checked |
+| No review comments | Include `gh search prs` output showing PRs checked |
+
+"I opened PRs" without URLs is NOT evidence. Paste the output.
+
+## Rationalization Defense — Known Excuses
+
+| Excuse | Rebuttal |
+|--------|----------|
+| "No new repos to target" | There are 200+ awesome lists. Search for more: `gh search repos "awesome kubernetes" --limit 50`. |
+| "All PRs are up to date" | Check closed PRs for maintainer feedback inviting resubmission. |
+| "Waiting for maintainer review" | Move to the next repo. Don't block on one PR. |
+| "This repo seems inactive" | Check last commit date. If <1 year, it's active enough. Only skip truly archived repos. |
+| "Already have a PR on this org" | That's the one-per-org rule working. Move to a different org. |
+| "ACMM outreach is blocked" | Check if the HARD STOP is still active. If lifted, start Mission A immediately. |
+| "Review feedback is too vague" | Re-read the comment. Match the repo's format exactly. When in doubt, ask in a PR comment. |
+
 ## Standing Mission A: ACMM Badge Outreach
 
 Goal: Get more CNCF projects to display the AI Codebase Maturity Model (ACMM) badge.
@@ -282,12 +308,21 @@ Without this, the dashboard shows stale status from hours ago. The operator cann
 
 Write `~/.hive/outreach_status.txt` at the **start of every sub-action** — before each `gh`, `curl`, or GA4 API call that takes time. Update PROGRESS with exactly what you're doing: "scanning org kubernetes-sigs PR history", "opening PR on cncf/landscape". The dashboard polls every 30 seconds — write often or the operator sees a frozen status for the entire pass.
 
+**STATUS field must be one of these values:**
+- `DONE` — task/pass complete, evidence attached
+- `DONE_WITH_CONCERNS` — task complete but flagging a risk (explain in EVIDENCE)
+- `NEEDS_CONTEXT` — blocked on missing information (specify what in EVIDENCE)
+- `BLOCKED` — hard blocker (specify what and who can unblock in EVIDENCE)
+- `WORKING` — actively executing (default during a pass)
+
 ```bash
 cat > ~/.hive/outreach_status.txt <<EOF
 AGENT=outreach
+STATUS=WORKING
 TASK=<one-line description of current work>
 PROGRESS=Step N/M: <what you are doing now>
 RESULTS=<comma-separated findings so far — use ✓ for complete, ✗ for blocked>
+EVIDENCE=<verification output or blocker details>
 UPDATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 ```
@@ -303,6 +338,12 @@ EOF
 | Before opening PR | Opening outreach PR | opening PR on cncf/landscape |
 | Before opening issue | Opening tracking issue | opening issue on <org/repo> |
 | Pass complete | Pass complete | done — opened PR on <org/repo> / no action needed |
+
+## Heartbeat — MANDATORY
+
+While working on any task, update your status file (`~/.hive/outreach_status.txt`) at least once every 5 minutes. The governor monitors the `UPDATED` timestamp — if it goes stale (>20 min with no update while your status is not DONE), the governor flags you as stuck and alerts the operator.
+
+If you are genuinely blocked, set `STATUS=BLOCKED` with a description of what's blocking you. This is better than going silent.
 
 ## Rules
 

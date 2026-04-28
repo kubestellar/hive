@@ -52,11 +52,15 @@ is_stale() {
       progress=$(grep '^PROGRESS=' "$file" 2>/dev/null | cut -d= -f2- | sed 's/"/'\''/g')
       results=$(grep '^RESULTS=' "$file" 2>/dev/null | cut -d= -f2- | sed 's/"/'\''/g')
       updated=$(grep '^UPDATED=' "$file" 2>/dev/null | cut -d= -f2-)
+      status=$(grep '^STATUS=' "$file" 2>/dev/null | cut -d= -f2- | sed 's/"/'\''/g')
+      evidence=$(grep '^EVIDENCE=' "$file" 2>/dev/null | cut -d= -f2- | sed 's/"/'\''/g')
     else
       task=""
       progress=""
       results=""
       updated=""
+      status=""
+      evidence=""
     fi
 
     # Always check beads — prefer bead over stale status file
@@ -77,7 +81,9 @@ is_stale() {
     echo "      \"task\": \"$task\","
     echo "      \"progress\": \"$progress\","
     echo "      \"results\": \"$results\","
-    echo "      \"updated\": \"$updated\""
+    echo "      \"updated\": \"$updated\","
+    echo "      \"status\": \"$status\","
+    echo "      \"evidence\": \"$evidence\""
     echo -n "    }"
   done
 

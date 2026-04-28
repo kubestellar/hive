@@ -579,6 +579,10 @@ optimize_model_assignment() {
     prev_backend=$(grep '^BACKEND=' "$STATE_DIR/model_${agent}" 2>/dev/null | cut -d= -f2 || true)
     prev_model=$(grep '^MODEL=' "$STATE_DIR/model_${agent}" 2>/dev/null | cut -d= -f2 || true)
 
+    if [[ "$prev_backend" == "$backend" && "$prev_model" == "$model" ]]; then
+      continue
+    fi
+
     cat > "$STATE_DIR/model_${agent}" <<MODELEOF
 BACKEND=$backend
 MODEL=$model
@@ -589,7 +593,7 @@ PREV_MODEL=${prev_model:-}
 UPDATED=$(date -Iseconds)
 MODELEOF
 
-    if [[ -n "$prev_backend" && ("$prev_backend" != "$backend" || "$prev_model" != "$model") ]]; then
+    if [[ -n "$prev_backend" ]]; then
       log "MODEL CHANGE ${agent}: ${prev_backend}:${prev_model} -> ${backend}:${model}"
     fi
   done
@@ -729,6 +733,50 @@ for _fa in scanner reviewer supervisor architect outreach; do
       log "STUCK ${_fa} — buffer frozen (${#_after2} chars), flagging for restart"
       touch "$STATE_DIR/needs_restart_${_fa}"
     fi
+  fi
+done
+
+# ── Stale-status escalation ─────────────────────────────────────────────────
+# Check each agent's status file. If UPDATED is >20 min stale and STATUS is
+# not DONE/DONE_WITH_CONCERNS, flag as stuck.
+STALE_THRESHOLD_SEC=1200  # 20 minutes
+STUCK_COUNT_FILE="$STATE_DIR/stuck_counts"
+touch "$STUCK_COUNT_FILE" 2>/dev/null || true
+
+for _sa in scanner reviewer architect outreach supervisor; do
+  [[ -f "$STATE_DIR/paused_${_sa}" ]] && continue
+  _status_file="$HOME/.hive/${_sa}_status.txt"
+  [[ ! -f "$_status_file" ]] && continue
+
+  _sa_status=$(grep '^STATUS=' "$_status_file" 2>/dev/null | cut -d= -f2 || true)
+  _sa_updated=$(grep '^UPDATED=' "$_status_file" 2>/dev/null | cut -d= -f2 || true)
+
+  [[ -z "$_sa_updated" ]] && continue
+  [[ "$_sa_status" == "DONE" || "$_sa_status" == "DONE_WITH_CONCERNS" ]] && continue
+
+  _sa_epoch=$(date -d "$_sa_updated" +%s 2>/dev/null || echo 0)
+  _now_epoch=$(date +%s)
+  _sa_age=$(( _now_epoch - _sa_epoch ))
+
+  if (( _sa_age > STALE_THRESHOLD_SEC )); then
+    _prev_stuck=$(grep "^${_sa}:" "$STUCK_COUNT_FILE" 2>/dev/null | cut -d: -f2 || echo 0)
+    _new_stuck=$(( _prev_stuck + 1 ))
+    sed -i "/^${_sa}:/d" "$STUCK_COUNT_FILE" 2>/dev/null || true
+    echo "${_sa}:${_new_stuck}" >> "$STUCK_COUNT_FILE"
+
+    log "STALE ${_sa} — status file ${_sa_age}s old (threshold ${STALE_THRESHOLD_SEC}s), stuck count=${_new_stuck}"
+    ntfy "default" "Stale: ${_sa}" "${_sa} status unchanged for ${_sa_age}s (status=${_sa_status}). Stuck count: ${_new_stuck}" "warning"
+
+    if (( _new_stuck >= 3 )); then
+      log "ESCALATE ${_sa} — stuck ${_new_stuck}x consecutively, flagging for restart"
+      touch "$STATE_DIR/needs_restart_${_sa}"
+      ntfy "high" "Stuck: ${_sa}" "${_sa} stuck ${_new_stuck}x consecutively. Flagging for restart." "rotating_light"
+      sed -i "/^${_sa}:/d" "$STUCK_COUNT_FILE" 2>/dev/null || true
+      echo "${_sa}:0" >> "$STUCK_COUNT_FILE"
+    fi
+  else
+    sed -i "/^${_sa}:/d" "$STUCK_COUNT_FILE" 2>/dev/null || true
+    echo "${_sa}:0" >> "$STUCK_COUNT_FILE"
   fi
 done
 

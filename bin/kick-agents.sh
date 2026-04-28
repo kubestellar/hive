@@ -670,10 +670,13 @@ apply_model_if_changed() {
 
   capture_handoff_state "$session" "$agent"
 
-  # Send /exit — supervisor.sh will detect the agent died and relaunch.
+  # Send Esc + /exit — both claude and copilot CLIs need Esc first to
+  # ensure the prompt is clear before accepting /exit.
   # supervisor.sh reads the governor model file before relaunch, so it
   # picks up the new backend:model automatically. Do NOT type agent-launch.sh
   # into the pane — that races with supervisor.sh's keepalive loop.
+  $TMUX_BIN send-keys -t "$session" Escape 2>/dev/null || true
+  sleep 2
   $TMUX_BIN send-keys -t "$session" -l "/exit" 2>/dev/null || true
   sleep 1
   $TMUX_BIN send-keys -t "$session" Enter 2>/dev/null || true

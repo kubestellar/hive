@@ -1411,8 +1411,8 @@ function intensityGauge() {
         const a = (agents || []).find(x => x.name === agent);
         if (!a) continue;
         const v = _pinOverrides[key].value;
-        if (dimension === 'cli') a.pinnedCli = v;
-        else if (dimension === 'model') a.pinnedModel = v;
+        if (dimension === 'cli') { a.pinnedCli = v; if (!v) a.pinnedBoth = false; }
+        else if (dimension === 'model') { a.pinnedModel = v; if (!v) a.pinnedBoth = false; }
         else { a.pinnedBoth = v; a.pinnedCli = v; a.pinnedModel = v; }
       }
     }

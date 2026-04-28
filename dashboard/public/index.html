@@ -144,6 +144,10 @@
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 8px; padding: 16px; margin-bottom: 24px;
     }
+    @media (max-width: 480px) {
+      .governor { padding: 10px; }
+      .pause-badge { font-size: 0.55rem; padding: 0px 3px; margin-left: 2px; }
+    }
     .governor.dead { border-color: var(--red); }
     .governor.active { border-color: var(--green); }
     .gov-title { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
@@ -242,7 +246,7 @@
     .tl-surge { color: #f85149; }
 
     /* Governor cadence matrix table */
-    .gov-matrix { margin-top: 14px; width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    .gov-matrix { margin-top: 14px; width: 100%; border-collapse: collapse; font-size: 0.72rem; table-layout: fixed; }
     .gov-matrix th { color: var(--muted); font-weight: 600; padding: 3px 8px; text-align: center; border-bottom: 1px solid var(--border); }
     .gov-matrix th.mode-active { border-radius: 4px 4px 0 0; padding: 4px 10px; font-weight: 700; }
     .gov-matrix th.mode-idle  { color: #238636; }
@@ -255,6 +259,13 @@
     .gov-matrix th.mode-active.mode-surge { background: rgba(248,81,73,0.15); }
     .gov-matrix td { padding: 3px 8px; text-align: center; color: var(--muted); border-bottom: 1px solid rgba(48,54,61,0.5); }
     .gov-matrix td:first-child { text-align: left; color: var(--text); font-weight: 600; min-width: 72px; }
+    @media (max-width: 480px) {
+      .gov-matrix { font-size: 0.65rem; }
+      .gov-matrix th { padding: 2px 4px; }
+      .gov-matrix th.mode-active { padding: 3px 6px; }
+      .gov-matrix td { padding: 2px 4px; }
+      .gov-matrix td:first-child { min-width: 56px; }
+    }
     .gov-matrix td.col-active { font-weight: 700; color: var(--text); }
     .gov-matrix td.col-active.mode-idle  { background: rgba(35,134,54,0.08); color: #3fb950; }
     .gov-matrix td.col-active.mode-quiet { background: rgba(31,111,235,0.08); color: #58a6ff; }

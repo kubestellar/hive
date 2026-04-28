@@ -86,6 +86,17 @@ esac
 
 FULL_CMD=("$CMD" "$PERM_FLAG")
 if [[ -n "$MODEL" ]]; then
+  # Normalize model version format: claude uses hyphens (4-5), copilot uses dots (4.5)
+  case "$BACKEND" in
+    copilot)
+      # claude-haiku-4-5 → claude-haiku-4.5 (last hyphen before final digit becomes dot)
+      MODEL=$(echo "$MODEL" | sed -E 's/([0-9]+)-([0-9]+)$/\1.\2/')
+      ;;
+    claude)
+      # claude-haiku-4.5 → claude-haiku-4-5 (dot in version becomes hyphen)
+      MODEL=$(echo "$MODEL" | sed -E 's/([0-9]+)\.([0-9]+)$/\1-\2/')
+      ;;
+  esac
   FULL_CMD+=("$MODEL_FLAG" "$MODEL")
 fi
 if [[ ${#EXTRA_ARGS[@]} -gt 0 ]]; then

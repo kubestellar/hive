@@ -62,6 +62,8 @@
     .restart-warn { color: var(--yellow); }
     .restart-high { color: var(--red); }
     .restart-spark { display: inline-block; margin-left: 6px; vertical-align: middle; }
+    .restart-reset { cursor: pointer; font-size: 0.55rem; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; margin-left: 4px; vertical-align: middle; transition: all 0.2s; }
+    .restart-reset:hover { color: var(--text); border-color: var(--text); }
     .value.idle { color: var(--muted); }
     .value.copilot { color: var(--cyan); }
     .value.claude { color: var(--purple); }
@@ -285,6 +287,8 @@
     .ind-pr:hover { background: rgba(138,99,210,0.3); }
     .ind-merged { background: rgba(63,185,80,0.15); color: #3fb950; border-color: rgba(63,185,80,0.3); }
     .ind-merged:hover { background: rgba(63,185,80,0.3); }
+    .ind-wip { background: rgba(210,153,34,0.15); color: #d29922; border-color: rgba(210,153,34,0.3); }
+    .ind-wip:hover { background: rgba(210,153,34,0.3); }
     .ind-arrow { color: var(--muted); font-size: 0.7rem; }
     .ind-dots { display: flex; flex-wrap: wrap; gap: 8px; }
     .ind-dot-item { display: flex; align-items: center; gap: 3px; }
@@ -512,7 +516,7 @@
 
       if (name === 'scanner') {
         const pairs = m.pairs || [];
-        if (pairs.length === 0) return '<div class="agent-indicators"><span class="ind-empty">no active fixes</span></div>';
+        const inProgress = m.inProgress || [];
         const openPairs = pairs.filter(p => p.state !== 'merged');
         const mergedPairs = pairs.filter(p => p.state === 'merged');
         const renderPair = (p) => {
@@ -527,8 +531,16 @@
           <a class="ind-tag ${prCls}" href="https://github.com/kubestellar/console/pull/${p.pr}" target="_blank" title="${prTip}">${prIcon} #${p.pr}</a>
         </div>`;
         };
+        const renderWip = (ip) => {
+          const title = ip.title ? esc(ip.title.length > 48 ? ip.title.slice(0, 48) + '…' : ip.title) : '';
+          const label = title ? `⏳ #${ip.number} — ${title}` : `⏳ #${ip.number}`;
+          return `<div class="ind-pair">
+          <a class="ind-tag ind-wip" href="https://github.com/kubestellar/console/issues/${ip.number}" target="_blank" title="${ip.title ? esc(ip.title) : ''}">${label}</a>
+        </div>`;
+        };
         let html = '';
-        if (openPairs.length > 0) html += `<div class="agent-indicators"><span class="ind-label">In progress (${openPairs.length}):</span>${openPairs.map(renderPair).join('')}</div>`;
+        if (inProgress.length > 0) html += `<div class="agent-indicators"><span class="ind-label">Working on (${inProgress.length}):</span>${inProgress.map(renderWip).join('')}</div>`;
+        if (openPairs.length > 0) html += `<div class="agent-indicators"><span class="ind-label">PR open (${openPairs.length}):</span>${openPairs.map(renderPair).join('')}</div>`;
         if (mergedPairs.length > 0) html += `<div class="agent-indicators"><span class="ind-label">Merged today (${mergedPairs.length}):</span>${mergedPairs.map(renderPair).join('')}</div>`;
         if (!html) html = '<div class="agent-indicators"><span class="ind-empty">no active fixes</span></div>';
         return html;
@@ -715,7 +727,7 @@
           <div class="agent-field"><span class="label">last run</span><span class="value">${a.lastKick || '—'}</span></div>
           <div class="agent-field"><span class="label">next run</span><span class="value">${isPaused ? 'paused' : (a.nextKick || '—')}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
-          <div class="agent-field"><span class="label">restarts</span><span class="value${(a.restarts || 0) > 5 ? ' restart-high' : (a.restarts || 0) > 0 ? ' restart-warn' : ''}">${a.restarts || 0}<span class="restart-label">24h</span><span class="restart-spark">${restartSparkSvg(a.name)}</span></span></div>
+          <div class="agent-field"><span class="label">restarts</span><span class="value${(a.restarts || 0) > 5 ? ' restart-high' : (a.restarts || 0) > 0 ? ' restart-warn' : ''}">${a.restarts || 0}<span class="restart-label">24h</span>${(a.restarts || 0) > 0 ? `<button class="restart-reset" onclick="resetRestarts('${a.name}')" title="Reset restart counter">✕</button>` : ''}<span class="restart-spark">${restartSparkSvg(a.name)}</span></span></div>
           <div class="agent-state ${isPaused ? 'paused' : a.busy}">${isPaused ? 'paused' : a.busy}</div>
           ${needsLogin ? '<div class="login-warning">⚠ NOT LOGGED IN — run /login</div>' : ''}
           ${summaryEl}${indEl}
@@ -1377,6 +1389,13 @@ function intensityGauge() {
       const data = await res.json();
       if (!data.ok) { showToast(`${action} failed: ` + (data.error || 'unknown'), 'error'); return; }
       showToast(`${agent} ${action}d`, 'success');
+    }
+
+    async function resetRestarts(agent) {
+      const res = await fetch(`/api/reset-restarts/${agent}`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) { showToast('Reset failed: ' + (data.error || 'unknown'), 'error'); return; }
+      showToast(`${agent} restart counter reset`, 'success');
     }
 
     async function switchCli(agent, backend) {

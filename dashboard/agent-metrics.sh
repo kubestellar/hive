@@ -52,6 +52,22 @@ if command -v gh &>/dev/null; then
     ($p.body | match("(?i)(fixes|closes|resolves) #([0-9]+)"; "g") // null) as $m |
     if $m then { issue: ($m.captures[1].string | tonumber), pr: $p.pr, prTitle: $p.title, state: $p.state, created: ($p.created // null), merged: ($p.merged // null) } else empty end
   ]' 2>/dev/null || echo "[]")
+  # ── In-progress issues: mentioned in scanner tmux but no PR yet ──
+  scanner_tmux=$(tmux capture-pane -t scanner -p -S -200 2>/dev/null || echo "")
+  dispatched_issues=$(echo "$scanner_tmux" | grep -oP '#\K\d{4,5}' | sort -un)
+  pr_issues=$(echo "$scanner_pairs_json" | jq -r '.[].issue' 2>/dev/null | sort -un)
+  in_progress_issues=$(comm -23 <(echo "$dispatched_issues") <(echo "$pr_issues") 2>/dev/null | head -10)
+  scanner_inprogress_json="[]"
+  if [ -n "$in_progress_issues" ]; then
+    ip_tmp=$(mktemp -d)
+    for inum in $in_progress_issues; do
+      (gh api "repos/${REPO}/issues/${inum}" --jq '{number: .number, title: .title, state: .state}' > "$ip_tmp/$inum" 2>/dev/null || echo "{\"number\":$inum,\"title\":\"\",\"state\":\"open\"}" > "$ip_tmp/$inum") &
+    done
+    wait
+    scanner_inprogress_json=$(for inum in $in_progress_issues; do cat "$ip_tmp/$inum" 2>/dev/null; done | jq -s '[.[] | select(.state == "open")]' 2>/dev/null || echo "[]")
+    rm -rf "$ip_tmp"
+  fi
+
   # Enrich with issue titles (parallel fetch)
   if [ "$scanner_pairs_json" != "[]" ]; then
     issue_tmp=$(mktemp -d)
@@ -77,7 +93,7 @@ if command -v gh &>/dev/null; then
 fi
 
 # Build agent JSON with live summaries and model
-scanner_json=$(jq -n --arg doing "$scanner_doing" --arg model "$scanner_model" --argjson pairs "$scanner_pairs_json" '{doing: $doing, model: $model, pairs: $pairs}')
+scanner_json=$(jq -n --arg doing "$scanner_doing" --arg model "$scanner_model" --argjson pairs "$scanner_pairs_json" --argjson inProgress "$scanner_inprogress_json" '{doing: $doing, model: $model, pairs: $pairs, inProgress: $inProgress}')
 reviewer_json=$(jq -n --arg doing "$reviewer_doing" --arg model "$reviewer_model" '{doing: $doing, model: $model}')
 architect_json=$(jq -n --arg doing "$architect_doing" --arg model "$architect_model" '{doing: $doing, model: $model}')
 outreach_json=$(jq -n --arg doing "$outreach_doing" --arg model "$outreach_model" '{doing: $doing, model: $model}')

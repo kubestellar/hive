@@ -811,6 +811,25 @@ app.post('/api/unpin/:agent{/:dimension}', (req, res) => {
   }
 });
 
+// Reset restart counter for an agent
+app.post('/api/reset-restarts/:agent', (req, res) => {
+  const agent = req.params.agent;
+  const allowed = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+  if (!allowed.includes(agent)) {
+    return res.status(400).json({ error: `invalid agent: ${agent}` });
+  }
+  const restartFile = path.join(GOVERNOR_STATE_DIR, `restarts_${agent}`);
+  try {
+    if (fs.existsSync(restartFile)) {
+      const { execSync } = require('child_process');
+      execSync(`sudo truncate -s 0 ${restartFile}`);
+    }
+    res.json({ ok: true, output: `${agent} restart counter reset` });
+  } catch (e) {
+    res.status(500).json({ error: `failed to reset: ${e.message}` });
+  }
+});
+
 // Token usage
 app.get('/api/tokens', (_req, res) => {
   res.json(tokenCache || { error: 'no data yet' });

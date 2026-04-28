@@ -25,6 +25,13 @@ DISCORD_WEBHOOK="${DISCORD_WEBHOOK:-}"
 NOTIFY_LIB="${NOTIFY_LIB:-/usr/local/bin/notify.sh}"
 [ -f "$NOTIFY_LIB" ] && . "$NOTIFY_LIB"
 
+GOVERNOR_STATE_DIR="${GOVERNOR_STATE_DIR:-/var/run/kick-governor}"
+
+if [[ -f "$GOVERNOR_STATE_DIR/paused_${SESSION}" ]]; then
+  printf '[%s] %s is paused — skipping healthcheck\n' "$(date -Is)" "$SESSION"
+  exit 0
+fi
+
 mkdir -p "$STATE_DIR"
 
 notify() {

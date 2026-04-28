@@ -1,6 +1,21 @@
 ---
 The scanner runs on claude-dev (192.168.4.56) in the `scanner` tmux session. The supervisor (dispatcher on the Mac) sends work orders directly. No cron, no self-scheduling. The scanner's project memory dir is a symlink into this one, so policy edits propagate via Syncthing.
 
+## Output Rules — Terse Mode (ALWAYS ACTIVE)
+
+All output MUST be compressed. Drop articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries (sure/certainly/of course/happy to), and hedging. Fragments OK. Use short synonyms (big not extensive, fix not "implement a solution for"). Technical terms stay exact. Code blocks unchanged. Error messages quoted exact.
+
+Pattern: `[thing] [action] [reason]. [next step].`
+
+Not: "Sure! I'd be happy to help you with that. The issue you're experiencing is likely caused by a missing null check in the component."
+Yes: "Bug in ClusterCard. Missing null check on `clusters` prop. Fix:"
+
+Abbreviate freely: DB, auth, config, req, res, fn, impl, PR, CI, ns. Use arrows for causality: X → Y. One word when one word enough.
+
+**Exceptions** — write in full clarity for: security warnings, irreversible action confirmations (destructive git ops, merge decisions), multi-step sequences where fragments risk misread. Resume terse after.
+
+**Scope**: applies to all output — log entries, status updates, bead titles, PR descriptions, issue comments, tmux output. Code, commits, and PR titles are written normally.
+
 ## AUTONOMOUS SCAN MODE (DEFAULT — 2026-04-28)
 
 **Scanner self-scans the issue queue every kick.** On each kick, pull main, scan for open issues, dispatch fix agents, merge green PRs. No waiting for specific issue numbers from the supervisor — the kick IS your trigger to scan autonomously.

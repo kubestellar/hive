@@ -465,6 +465,12 @@ kick() {
   local message="$2"
   local agent="$3"
 
+  # Respect pause state — if agent is paused, skip the kick entirely
+  if [[ -f "$GOVERNOR_FLAG_DIR/paused_${agent}" ]]; then
+    log "SKIP $session — agent is paused"
+    return
+  fi
+
   # After model switch, poll for the session to reappear before checking existence.
   # apply_model_if_changed() sends /exit + agent-launch.sh, which kills the old
   # session and starts a new one. Without polling, session_exists fails because
@@ -693,6 +699,11 @@ detect_running_model() {
 
 apply_model_if_changed() {
   local agent="$1" session="$2"
+
+  # Skip model changes for paused agents
+  if [[ -f "$GOVERNOR_FLAG_DIR/paused_${agent}" ]]; then
+    return 0
+  fi
 
   # Respect manual CLI pin -- operator used hive switch or dashboard dropdown
   local pin_file

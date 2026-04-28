@@ -663,7 +663,7 @@ function removeEnvFlag(agent, flag) {
   }
 }
 
-app.post('/api/pin/:agent/:dimension?', (req, res) => {
+app.post('/api/pin/:agent{/:dimension}', (req, res) => {
   const { agent, dimension } = req.params;
   if (!PIN_ALLOWED.includes(agent)) {
     return res.status(400).json({ error: `cannot pin ${agent}` });
@@ -688,7 +688,7 @@ app.post('/api/pin/:agent/:dimension?', (req, res) => {
   }
 });
 
-app.post('/api/unpin/:agent/:dimension?', (req, res) => {
+app.post('/api/unpin/:agent{/:dimension}', (req, res) => {
   const { agent, dimension } = req.params;
   if (!PIN_ALLOWED.includes(agent)) {
     return res.status(400).json({ error: `cannot unpin ${agent}` });

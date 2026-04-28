@@ -1303,6 +1303,12 @@ function intensityGauge() {
       el.innerHTML = `<div class="gh-rate-alert-title">GitHub API Rate Limit (${active.length} agent${active.length > 1 ? 's' : ''})</div>${items}`;
     }
 
+    // Guard: skip agent re-render while a dropdown is focused/open
+    let _dropdownOpen = false;
+    document.addEventListener('focusin', (e) => { if (e.target.matches('select.backend-select')) _dropdownOpen = true; });
+    document.addEventListener('focusout', (e) => { if (e.target.matches('select.backend-select')) _dropdownOpen = false; });
+    document.addEventListener('change', (e) => { if (e.target.matches('select.backend-select')) _dropdownOpen = false; });
+
     function render(data) {
       if (!data || data.error) return;
       const scrollY = window.scrollY;
@@ -1313,8 +1319,10 @@ function intensityGauge() {
       window._lastAgents = data.agents || [];
       window._lastBudget = data.budget || {};
       renderGhRateLimits(data.ghRateLimits || {});
-      renderAgents(data.agents || []);
-      renderGovernor(data.governor || {}, data.cadenceMatrix || [], data);
+      if (!_dropdownOpen) {
+        renderAgents(data.agents || []);
+        renderGovernor(data.governor || {}, data.cadenceMatrix || [], data);
+      }
       renderTokens(data.tokens || {});
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});

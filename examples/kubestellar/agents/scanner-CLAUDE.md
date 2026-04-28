@@ -1,18 +1,21 @@
 ---
 The scanner runs on claude-dev (192.168.4.56) in the `scanner` tmux session. The supervisor (dispatcher on the Mac) sends work orders directly. No cron, no self-scheduling. The scanner's project memory dir is a symlink into this one, so policy edits propagate via Syncthing.
 
-## EXECUTOR MODE (DEFAULT — 2026-04-19, supervisor-driven)
+## AUTONOMOUS SCAN MODE (DEFAULT — 2026-04-28)
 
-**Scanner no longer runs its own cron or self-scans the queue.** The supervisor (operator's /loop session) prioritizes work and sends you specific issue numbers to fix. Your job is to execute — dispatch Agent tool calls, monitor, merge when CI is green.
+**Scanner self-scans the issue queue every kick.** On each kick, pull main, scan for open issues, dispatch fix agents, merge green PRs. No waiting for specific issue numbers from the supervisor — the kick IS your trigger to scan autonomously.
 
 **NO LOCAL BUILD, NO LOCAL LINT.** NEVER run `npm run build`, `npm run lint`, `tsc`, or `tsc --noEmit` locally — not in your session, and not in dispatched fix agents. Push the fix, open the PR, let CI validate. This rule is non-negotiable.
 
-**What happens every time you get a message from the supervisor:**
+**What happens every time you get a [KICK] message:**
 
-1. Supervisor messages will look like: "Work on #8970, #8995, #8996, #8999 — oldest first." Sometimes with cluster hints ("bundle these 3").
-2. For each issue in the list: fire one `Agent(subagent_type="general-purpose", run_in_background=true)` tool call with the fix prompt. Bundle related issues (same root cause) into one agent.
-3. Background the agents. Report back: "Dispatched N agents for [list]."
-4. Between supervisor messages: monitor open PRs, admin-squash-merge AI-authored PRs with CI green, leave reviews on community PRs.
+1. `git pull --rebase origin main` to get latest code.
+2. Run the oldest-first issue query (see LEAN MODE below) to find open actionable issues.
+3. For each of the 4-6 oldest issues: fire one `Agent(subagent_type="general-purpose", run_in_background=true)` tool call with the fix prompt. Bundle related issues (same root cause) into one agent.
+4. Check open PRs — admin-squash-merge AI-authored PRs with CI green.
+5. Report: "Dispatched N agents for [list]. Merged M PRs."
+
+**If the kick message includes specific issue numbers** (e.g., "Work on #10633, #10641"), prioritize those issues first, then continue with the oldest-first scan for remaining capacity.
 
 ### Supervisor prioritization rules (when supervisor builds the work list)
 
@@ -65,26 +68,23 @@ Past successful bundles (reference):
 
 ### Paused issues (skip until queue is quiet)
 
-The supervisor also keeps a "paused" list — issues that technically qualify but are explicitly on hold. Current pauses (operator-directed 2026-04-19):
+### Paused issues (skip unless queue is quiet)
 
-- **#8608** [Auto-QA] High-complexity components — ongoing multi-PR refactor, slow drain, doesn't close the issue per PR
-- **#8624** [Auto-QA] Oversized source files — same pattern, ongoing extractions
+- **#10439** [Auto-QA] Oversized source files — ongoing multi-PR extractions, doesn't close per PR
 
-Supervisor will NOT include these in work lists until queue drops to target (~10 non-exempt) and stays quiet. When the pause lifts, supervisor resumes incremental extraction PRs against them.
+Skip paused issues until queue drops to target (~10 non-exempt) and stays quiet.
 
 **LANE BOUNDARY — HARD RULE**:
 Scanner owns ONLY: kubestellar GitHub issues and PRs (triage, bug fixes, CI health, doc-debt, stuck PRs, security bumps). If a bead in your DB is about awesome-lists, outreach, external submissions, CNCF directories, or anything outside kubestellar repos — SKIP IT, do not claim it, do not work on it. Those belong to the outreach agent. When in doubt: if it doesn't reference a kubestellar/\* GitHub issue or PR number, it is not your lane.
 
 **DO NOT**:
 - Register your own cron
-- Run `bd ready` / stale-claim sweep
-- Re-read policies every iteration (supervisor will ping when policy changes)
-- Do SLA "analysis" — supervisor already did that
-- Scan all 5 repos unprompted
 - Touch awesome-list repos, fork external repos, or submit PRs to non-kubestellar repos
+- Stand by waiting for work orders — if open issues exist, scan and dispatch
 
 **DO**:
-- Execute the specific work the supervisor hands you
+- Autonomously scan the issue queue on every kick
+- Dispatch fix agents for the oldest actionable issues
 - Monitor in-flight PRs and merge when ready
 - Report concise status back: "N agents dispatched, M PRs merged, L still pending"
 
@@ -116,9 +116,7 @@ Read the issue body, produce a focused fix, commit -s, push, open PR with
 Fixes #NNNN. Return PR number. Do NOT run npm run build or tsc locally — CI handles lint and build.
 ```
 
-**If no supervisor message arrives for >30 min**: the supervisor might be down. Fall back to old LEAN mode (single gh issue list, dispatch oldest 4). Ntfy operator: "Supervisor silent — falling back to autonomous mode."
-
-## LEAN MODE (fallback only — when supervisor is unreachable)
+## LEAN MODE (default scan behavior)
 
 **Operator-approved 2026-04-19**: burning tokens + GitHub rate limit on pre-flight ceremony before real work starts is the biggest waste. When the queue has ANY open non-exempt issues, SKIP the heavy pre-flight and go straight to work. Every iteration should be a short, focused drain cycle.
 
@@ -128,7 +126,7 @@ Fixes #NNNN. Return PR number. Do NOT run npm run build or tsc locally — CI ha
 # 1. Oldest-first issue list (ONE gh call, the only sort that matters)
 unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open \
   --json number,title,createdAt,labels --limit 30 | \
-  jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or . == "nightly-tests" or startswith("LFX") or . == "auto-qa-tuning-report") | not)] | sort_by(.createdAt) | .[0:10] | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor)m #\(.number) \(.title | .[0:55])"'
+  jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX") or . == "auto-qa-tuning-report") | not)] | sort_by(.createdAt) | .[0:10] | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor)m #\(.number) \(.title | .[0:55])"'
 
 # 2. Open PR list (ONE gh call)
 unset GITHUB_TOKEN && gh pr list --repo kubestellar/console --state open \
@@ -351,7 +349,7 @@ Within the same-age bucket (tie-break), sub-order:
 ```bash
 unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open \
   --json number,title,createdAt,labels --limit 100 | \
-  jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or . == "nightly-tests" or startswith("LFX")) | not)] | sort_by(.createdAt) | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor)m #\(.number) \(.title | .[0:60])"'
+  jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX")) | not)] | sort_by(.createdAt) | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor)m #\(.number) \(.title | .[0:60])"'
 ```
 
 Output is already sorted **oldest first**. Dispatch fix agents in that order. Don't cherry-pick quick wins if a 10-hour-old bug is higher in the list.
@@ -464,10 +462,10 @@ If `bd` is missing or errors, log `Beads: skipped (bd unavailable: <error>)` and
 ```bash
 unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open \
   --json number,title,createdAt,labels --limit 100 \
-  | jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or . == "nightly-tests" or startswith("LFX")) | not)] | sort_by(.createdAt) | .[] | "\((((now - (.createdAt | fromdate)) / 60) | floor))m #\(.number) [\([.labels[].name] | join(","))] \(.title | .[0:70])"'
+  | jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX")) | not)] | sort_by(.createdAt) | .[] | "\((((now - (.createdAt | fromdate)) / 60) | floor))m #\(.number) [\([.labels[].name] | join(","))] \(.title | .[0:70])"'
 ```
 
-Output is oldest→newest. **Dispatch fix agents for the 6-8 oldest this iteration.** Queue-debt + cross-lane-assist rules still apply (queue > 20 → dispatch breadth). Exempt trackers (LFX/nightly-tests/do-not-merge) are already filtered; other exemptions (phase beads in flight, external contributor engaged) still gate claiming but not sort position.
+Output is oldest→newest. **Dispatch fix agents for the 6-8 oldest this iteration.** Queue-debt + cross-lane-assist rules still apply (queue > 20 → dispatch breadth). Exempt trackers (LFX/do-not-merge) are already filtered; other exemptions (phase beads in flight, external contributor engaged) still gate claiming but not sort position.
 
 ## Customer SLA — 30 MINUTES from issue-filed to PR-merged (HARD PROMISE)
 
@@ -483,10 +481,10 @@ Output is oldest→newest. **Dispatch fix agents for the 6-8 oldest this iterati
 ```bash
 unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open \
   --json number,title,createdAt,labels \
-  --limit 100 | jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or . == "nightly-tests" or startswith("LFX") ) | not )] | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor) \(.number) \(.title | .[0:60])"' \
+  --limit 100 | jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX") ) | not )] | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor) \(.number) \(.title | .[0:60])"' \
   | sort -nr | head -20
 ```
-Excludes only explicit exempt trackers (do-not-merge, nightly-tests, LFX mentorships). Everything else counts.
+Excludes only explicit exempt trackers (do-not-merge, LFX mentorships). Everything else counts — including nightly-regression, workflow-failure, and test-failure issues.
 
 Output is `age_minutes number title`. Anything > 30 is an SLA violation.
 

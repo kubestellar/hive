@@ -565,7 +565,7 @@ kick() {
 # lane boundaries) are in each agent's CLAUDE.md. Kicks only carry the trigger
 # + any live dynamic data (e.g. current RED indicators).
 
-SCANNER_MSG="[agent:scanner] [KICK] git pull /tmp/hive. Read your CLAUDE.md. Full scan pass — fix issues, merge green PRs. Beads: ~/scanner-beads"
+SCANNER_MSG="[agent:scanner] [KICK] git pull /tmp/hive. Read your CLAUDE.md. AUTONOMOUS SCAN: query open issues (oldest-first), dispatch fix agents for 4-6 oldest, merge green PRs. Do NOT stand by — if issues exist, work them. Beads: ~/scanner-beads"
 
 # Build live health preamble for reviewer — tells it exactly what's red RIGHT NOW
 _rh_json=$(/tmp/hive/dashboard/health-check.sh 2>/dev/null || echo '{}')

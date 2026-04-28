@@ -50,18 +50,25 @@ detect_cli_from_proc() {
   [[ -z "$pane_pid" ]] && echo "?" && return
   local shell_cmd
   shell_cmd=$(cat "/proc/$pane_pid/cmdline" 2>/dev/null | tr '\0' ' ')
-  if [[ "$shell_cmd" == */claude\ * || "$shell_cmd" == */claude ]]; then
+  # Match both absolute path (/usr/bin/claude) and bare command (claude)
+  if echo "$shell_cmd" | grep -qE '(^|/)claude( |$)'; then
     echo "claude" && return
+  elif echo "$shell_cmd" | grep -qE '(^|/)copilot( |$)'; then
+    echo "copilot" && return
+  elif echo "$shell_cmd" | grep -qE '(^|/)gemini( |$)'; then
+    echo "gemini" && return
+  elif echo "$shell_cmd" | grep -qE '(^|/)goose( |$)'; then
+    echo "goose" && return
   fi
   for cpid in $(ps -o pid= --ppid "$pane_pid" 2>/dev/null); do
     child_cmd=$(cat "/proc/$cpid/cmdline" 2>/dev/null | tr '\0' ' ' | head -c 500)
-    if echo "$child_cmd" | grep -q "copilot"; then
+    if echo "$child_cmd" | grep -qE '(^|/)copilot( |$)'; then
       echo "copilot" && return
-    elif echo "$child_cmd" | grep -q "/claude "; then
+    elif echo "$child_cmd" | grep -qE '(^|/)claude( |$)'; then
       echo "claude" && return
-    elif echo "$child_cmd" | grep -q "goose"; then
+    elif echo "$child_cmd" | grep -qE '(^|/)goose( |$)'; then
       echo "goose" && return
-    elif echo "$child_cmd" | grep -q "gemini"; then
+    elif echo "$child_cmd" | grep -qE '(^|/)gemini( |$)'; then
       echo "gemini" && return
     fi
   done

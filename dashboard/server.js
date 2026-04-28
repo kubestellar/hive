@@ -256,6 +256,16 @@ function fetchStatus() {
             const pf = path.join(GOVERNOR_STATE_DIR, `paused_${a.name}`);
             if (fs.existsSync(pf)) { a.paused = true; a.cadence = 'paused'; }
           } catch (_) {}
+          // Pin state
+          try {
+            const envFile = `${ENV_DIR}/${a.name}.env`;
+            if (fs.existsSync(envFile)) {
+              const envContent = fs.readFileSync(envFile, 'utf8');
+              a.pinnedBoth = /^AGENT_CLI_PINNED=true$/m.test(envContent);
+              a.pinnedCli = /^AGENT_PIN_CLI=true$/m.test(envContent);
+              a.pinnedModel = /^AGENT_PIN_MODEL=true$/m.test(envContent);
+            }
+          } catch (_) {}
         }
         // GitHub API rate limit alerts
         statusCache.ghRateLimits = ghRateLimitsCache;
@@ -520,7 +530,7 @@ app.post('/api/kick/:agent', (req, res) => {
 
 app.post('/api/switch/:agent/:backend', (req, res) => {
   const { agent, backend } = req.params;
-  const allowedAgents = ['scanner', 'reviewer', 'architect', 'outreach'];
+  const allowedAgents = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
   const allowedBackends = ['copilot', 'claude', 'gemini', 'goose'];
   if (!allowedAgents.includes(agent)) {
     return res.status(400).json({ error: `invalid agent: ${agent}` });
@@ -528,21 +538,50 @@ app.post('/api/switch/:agent/:backend', (req, res) => {
   if (!allowedBackends.includes(backend)) {
     return res.status(400).json({ error: `invalid backend: ${backend}` });
   }
-  execFile('/usr/local/bin/hive', ['switch', agent, backend], { timeout: 30000 }, (err, stdout) => {
+  // Write governor model file with new backend, preserving current model
+  const modelFile = path.join(GOVERNOR_STATE_DIR, `model_${agent}`);
+  let currentModel = 'claude-opus-4-6';
+  try {
+    const content = fs.readFileSync(modelFile, 'utf8');
+    const match = content.match(/^MODEL=(.+)$/m);
+    if (match) currentModel = match[1];
+  } catch (_) { /* use default */ }
+  const newContent = `BACKEND=${backend}\nMODEL=${currentModel}\n`;
+  try {
+    fs.writeFileSync(modelFile, newContent);
+  } catch (e) {
+    return res.status(500).json({ error: `failed to write model file: ${e.message}` });
+  }
+  execFile('/tmp/hive/bin/kick-agents.sh', [agent], { timeout: 60000 }, (err, stdout) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true, output: stdout.trim() });
+    res.json({ ok: true, output: `switched ${agent} backend to ${backend}` });
   });
 });
 
 app.post('/api/model/:agent/:model', (req, res) => {
   const { agent, model } = req.params;
-  const allowedAgents = ['scanner', 'reviewer', 'architect', 'outreach'];
+  const allowedAgents = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
   if (!allowedAgents.includes(agent)) {
     return res.status(400).json({ error: `invalid agent: ${agent}` });
   }
-  execFile('/usr/local/bin/hive', ['model', agent, decodeURIComponent(model)], { timeout: 30000 }, (err, stdout) => {
+  // Write governor model file with new model, preserving current backend
+  const modelFile = path.join(GOVERNOR_STATE_DIR, `model_${agent}`);
+  let currentBackend = 'claude';
+  try {
+    const content = fs.readFileSync(modelFile, 'utf8');
+    const match = content.match(/^BACKEND=(.+)$/m);
+    if (match) currentBackend = match[1];
+  } catch (_) { /* use default */ }
+  const decodedModel = decodeURIComponent(model);
+  const newContent = `BACKEND=${currentBackend}\nMODEL=${decodedModel}\n`;
+  try {
+    fs.writeFileSync(modelFile, newContent);
+  } catch (e) {
+    return res.status(500).json({ error: `failed to write model file: ${e.message}` });
+  }
+  execFile('/tmp/hive/bin/kick-agents.sh', [agent], { timeout: 60000 }, (err, stdout) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true, output: stdout.trim() });
+    res.json({ ok: true, output: `switched ${agent} model to ${decodedModel}` });
   });
 });
 
@@ -551,7 +590,7 @@ const GOVERNOR_CADENCE_DIR = '/var/run/kick-governor';
 
 app.post('/api/pause/:agent', (req, res) => {
   const agent = req.params.agent;
-  const allowed = ['scanner', 'reviewer', 'architect', 'outreach'];
+  const allowed = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
   if (!allowed.includes(agent)) {
     return res.status(400).json({ error: `cannot pause ${agent}` });
   }
@@ -570,7 +609,7 @@ app.post('/api/pause/:agent', (req, res) => {
 
 app.post('/api/resume/:agent', (req, res) => {
   const agent = req.params.agent;
-  const allowed = ['scanner', 'reviewer', 'architect', 'outreach'];
+  const allowed = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
   if (!allowed.includes(agent)) {
     return res.status(400).json({ error: `cannot resume ${agent}` });
   }
@@ -586,29 +625,94 @@ app.post('/api/resume/:agent', (req, res) => {
   });
 });
 
-// Pin / Unpin agent CLI — prevents governor from changing the CLI backend
-app.post('/api/pin/:agent', (req, res) => {
-  const agent = req.params.agent;
-  const allowed = ['scanner', 'reviewer', 'architect', 'outreach'];
-  if (!allowed.includes(agent)) {
+// Pin / Unpin — supports granular pinning (cli, model, or both)
+// POST /api/pin/:agent           — pin both (legacy)
+// POST /api/pin/:agent/cli       — pin backend only
+// POST /api/pin/:agent/model     — pin model only
+// POST /api/unpin/:agent         — unpin all
+// POST /api/unpin/:agent/cli     — unpin backend only
+// POST /api/unpin/:agent/model   — unpin model only
+const PIN_ALLOWED = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+const ENV_DIR = '/etc/hive';
+
+function setEnvFlag(agent, flag, value) {
+  const envFile = `${ENV_DIR}/${agent}.env`;
+  try {
+    let content = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : '';
+    const regex = new RegExp(`^${flag}=.*$`, 'm');
+    if (regex.test(content)) {
+      content = content.replace(regex, `${flag}=${value}`);
+    } else {
+      content = content.trimEnd() + `\n${flag}=${value}\n`;
+    }
+    fs.writeFileSync(envFile, content);
+  } catch (e) {
+    throw new Error(`failed to update ${envFile}: ${e.message}`);
+  }
+}
+
+function removeEnvFlag(agent, flag) {
+  const envFile = `${ENV_DIR}/${agent}.env`;
+  try {
+    if (!fs.existsSync(envFile)) return;
+    let content = fs.readFileSync(envFile, 'utf8');
+    content = content.replace(new RegExp(`^${flag}=.*\\n?`, 'm'), '');
+    fs.writeFileSync(envFile, content);
+  } catch (e) {
+    throw new Error(`failed to update ${envFile}: ${e.message}`);
+  }
+}
+
+app.post('/api/pin/:agent/:dimension?', (req, res) => {
+  const { agent, dimension } = req.params;
+  if (!PIN_ALLOWED.includes(agent)) {
     return res.status(400).json({ error: `cannot pin ${agent}` });
   }
-  execFile('/usr/local/bin/hive', ['pin', agent], { timeout: 10000 }, (err, stdout) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true, output: stdout.trim() });
-  });
+  try {
+    if (!dimension || dimension === 'both') {
+      setEnvFlag(agent, 'AGENT_CLI_PINNED', 'true');
+      const lockFile = path.join(GOVERNOR_STATE_DIR, `model_lock_${agent}`);
+      fs.writeFileSync(lockFile, new Date().toISOString());
+      res.json({ ok: true, output: `${agent} pinned (both cli+model)` });
+    } else if (dimension === 'cli') {
+      setEnvFlag(agent, 'AGENT_PIN_CLI', 'true');
+      res.json({ ok: true, output: `${agent} cli pinned` });
+    } else if (dimension === 'model') {
+      setEnvFlag(agent, 'AGENT_PIN_MODEL', 'true');
+      res.json({ ok: true, output: `${agent} model pinned` });
+    } else {
+      res.status(400).json({ error: `invalid dimension: ${dimension} (valid: cli, model, both)` });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
-app.post('/api/unpin/:agent', (req, res) => {
-  const agent = req.params.agent;
-  const allowed = ['scanner', 'reviewer', 'architect', 'outreach'];
-  if (!allowed.includes(agent)) {
+app.post('/api/unpin/:agent/:dimension?', (req, res) => {
+  const { agent, dimension } = req.params;
+  if (!PIN_ALLOWED.includes(agent)) {
     return res.status(400).json({ error: `cannot unpin ${agent}` });
   }
-  execFile('/usr/local/bin/hive', ['unpin', agent], { timeout: 10000 }, (err, stdout) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true, output: stdout.trim() });
-  });
+  try {
+    if (!dimension || dimension === 'both') {
+      removeEnvFlag(agent, 'AGENT_CLI_PINNED');
+      removeEnvFlag(agent, 'AGENT_PIN_CLI');
+      removeEnvFlag(agent, 'AGENT_PIN_MODEL');
+      const lockFile = path.join(GOVERNOR_STATE_DIR, `model_lock_${agent}`);
+      try { fs.unlinkSync(lockFile); } catch (_) { /* ok if missing */ }
+      res.json({ ok: true, output: `${agent} unpinned (all)` });
+    } else if (dimension === 'cli') {
+      removeEnvFlag(agent, 'AGENT_PIN_CLI');
+      res.json({ ok: true, output: `${agent} cli unpinned` });
+    } else if (dimension === 'model') {
+      removeEnvFlag(agent, 'AGENT_PIN_MODEL');
+      res.json({ ok: true, output: `${agent} model unpinned` });
+    } else {
+      res.status(400).json({ error: `invalid dimension: ${dimension} (valid: cli, model, both)` });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Token usage

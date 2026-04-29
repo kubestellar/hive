@@ -1023,10 +1023,14 @@
     }
 
     function fmtTokens(n) {
-      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
-      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-      return String(n);
+      if (n === 0) return '0';
+      const m = n / 1e6;
+      if (m >= 100) return m.toFixed(0) + 'M';
+      if (m >= 10) return m.toFixed(1) + 'M';
+      if (m >= 1) return m.toFixed(1) + 'M';
+      if (m >= 0.1) return m.toFixed(2) + 'M';
+      if (m >= 0.01) return m.toFixed(3) + 'M';
+      return m.toFixed(3) + 'M';
     }
 
     function renderBudgetBar(budget) {
@@ -1346,7 +1350,7 @@ function intensityGauge() {
     <div class="burn-context">
       <div class="bc-stat"><span class="bc-val" style="color:#58a6ff">${fmtTokens(low)}</span><span class="bc-label">low/hr</span></div>
       <div class="bc-stat"><span class="bc-val" style="color:#d29922">${fmtTokens(avg)}</span><span class="bc-label">avg/hr</span></div>
-      <div class="bc-stat"><span class="bc-val" style="color:${color}">${fmtTokens(now)}</span><span class="bc-label">now/hr</span></div>
+      <div class="bc-stat"><span class="bc-val" style="color:${color}">${fmtTokens(now)}</span><span class="bc-label">high/hr</span></div>
       <div class="bc-stat"><span class="bc-val" style="color:#f85149">${fmtTokens(peak)}</span><span class="bc-label">peak/hr</span></div>
     </div>
     <div style="color:${color};font-size:11px;font-family:monospace;margin-top:2px">${label}</div>

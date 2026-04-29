@@ -1323,6 +1323,9 @@ function intensityGauge() {
 
   const polyline = pts.map(p => p.join(',')).join(' ');
 
+  const tStart = new Date(rates[0].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase();
+  const tEnd = new Date(rates[rates.length - 1].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase();
+
   return `<div class="burn-chart-wrap">
     <div class="burn-chart-title">burn rate (tok/hr)</div>
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px">
@@ -1335,6 +1338,9 @@ function intensityGauge() {
       <polyline points="${polyline}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       <circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="3" fill="${color}" stroke="#0d1117" stroke-width="1"/>
     </svg>
+    <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--muted);margin-top:1px;font-family:monospace">
+      <span>${tStart}</span><span>${tEnd}</span>
+    </div>
     <div class="burn-context">
       <div class="bc-stat"><span class="bc-val" style="color:#f85149">${fmtTokens(peak)}</span><span class="bc-label">peak/hr</span></div>
       <div class="bc-stat"><span class="bc-val" style="color:#d29922">${fmtTokens(avg)}</span><span class="bc-label">avg/hr</span></div>

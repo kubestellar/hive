@@ -1,5 +1,5 @@
 const express = require('express');
-const { execFile, spawn } = require('child_process');
+const { execFile, execSync, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -692,10 +692,30 @@ app.post('/api/pause/:agent', (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: `failed to write pause flag: ${e.message}` });
   }
-  execFile('/usr/local/bin/hive', ['stop', agent], { timeout: 30000 }, (err) => {
-    if (err) console.error(`pause stop error for ${agent}:`, err.message);
-    res.json({ ok: true, output: `${agent} paused` });
-  });
+  // Send 4x Esc to cancel any pending work, C-c + C-u to clear prompt, then /rename, then stop
+  const PAUSE_ESC_TO_CLEAR_MS = 2000;
+  const PAUSE_CLEAR_TO_RENAME_MS = 1000;
+  const PAUSE_RENAME_TO_STOP_MS = 3000;
+  try {
+    execSync(`tmux send-keys -t ${agent} Escape Escape Escape Escape`, { timeout: 5000 });
+  } catch (_) { /* session may not exist */ }
+  setTimeout(() => {
+    try {
+      execSync(`tmux send-keys -t ${agent} C-c`, { timeout: 5000 });
+      execSync(`tmux send-keys -t ${agent} C-u`, { timeout: 5000 });
+    } catch (_) { /* ignore */ }
+    setTimeout(() => {
+      try {
+        execSync(`tmux send-keys -t ${agent} '/rename ${agent}-paused' Enter`, { timeout: 5000 });
+      } catch (_) { /* ignore */ }
+      setTimeout(() => {
+        execFile('/usr/local/bin/hive', ['stop', agent], { timeout: 30000 }, (err) => {
+          if (err) console.error(`pause stop error for ${agent}:`, err.message);
+          res.json({ ok: true, output: `${agent} paused` });
+        });
+      }, PAUSE_RENAME_TO_STOP_MS);
+    }, PAUSE_CLEAR_TO_RENAME_MS);
+  }, PAUSE_ESC_TO_CLEAR_MS);
 });
 
 app.post('/api/resume/:agent', (req, res) => {
@@ -710,8 +730,16 @@ app.post('/api/resume/:agent', (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: `failed to remove pause flag: ${e.message}` });
   }
-  execFile('/usr/local/bin/hive', ['kick', agent], { timeout: 30000 }, (err, stdout) => {
-    if (err) return res.status(500).json({ error: err.message });
+  // Start the systemd service first (hive stop killed it), then kick after CLI is ready
+  // supervisor.sh handles /rename via AGENT_CLAUDE_RENAME_TO on startup
+  const RESUME_KICK_DELAY_MS = 20000;
+  execFile('sudo', ['systemctl', 'start', `supervised-agent@${agent}`], { timeout: 30000 }, (startErr) => {
+    if (startErr) return res.status(500).json({ error: `failed to start ${agent}: ${startErr.message}` });
+    setTimeout(() => {
+      execFile('/usr/local/bin/kick-agents.sh', [agent], { timeout: 30000 }, (kickErr) => {
+        if (kickErr) console.error(`resume kick error for ${agent}:`, kickErr.message);
+      });
+    }, RESUME_KICK_DELAY_MS);
     res.json({ ok: true, output: `${agent} resumed` });
   });
 });

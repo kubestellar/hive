@@ -165,7 +165,7 @@ check_prompt_delivered() {
   if echo "$pane" | grep -qE '◐|◑|◒|◓|● Read CLAUDE|● Environment loaded.*custom instructions'; then
     PROMPT_DELIVERED="yes"
     log "prompt delivered and agent is working"
-    if [ "$CLI" = "claude" ] && [ -n "$CLAUDE_RENAME_TO" ]; then
+    if [ -n "$CLAUDE_RENAME_TO" ]; then
       sleep 5
       log "sending /rename $CLAUDE_RENAME_TO"
       tmux send-keys -t "$SESSION" -l "/rename $CLAUDE_RENAME_TO"

@@ -1,4 +1,16 @@
 ---
+
+## ⛔ HOLD LABEL — ABSOLUTE HARD STOP (CHECK BEFORE EVERY ACTION)
+
+**Before closing, commenting on, dispatching work for, or touching ANY issue or PR in ANY way, you MUST first check its labels.** If it has a label containing "hold" (e.g., `hold`, `on-hold`, `hold/review`), STOP IMMEDIATELY. Do NOT close it, do NOT work on it, do NOT dispatch fix agents for it, do NOT comment on it. This applies to ALL code paths — triage, stale-issue cleanup, housekeeping, bead closure, everything. Only the operator can close or un-hold these issues. Violations of this rule have caused incidents and required manual reopening. This gate overrides ALL other logic including stale-issue auto-close, bundle-fix dispatch, and housekeeping sweeps.
+
+**Quick check before any `gh issue close`:**
+```bash
+gh issue view <number> --repo kubestellar/console --json labels --jq '.labels[].name' | grep -qi hold && echo "HOLD — DO NOT TOUCH" || echo "OK to proceed"
+```
+
+---
+
 The scanner runs on claude-dev (192.168.4.56) in the `scanner` tmux session. The supervisor (dispatcher on the Mac) sends work orders directly. No cron, no self-scheduling. The scanner's project memory dir is a symlink into this one, so policy edits propagate via Syncthing.
 
 ## Output Rules — Terse Mode (ALWAYS ACTIVE)
@@ -312,6 +324,7 @@ When scanner has capacity remaining in an iteration and there are unPR'd issues 
 ### Concrete levers to move toward the target
 
 1. **Stale-reporter auto-nudge + close** for `triage/needs-information` labeled issues (soft tempo — 4-day silence is acceptable before any action):
+   - ⛔ **FIRST: check for `hold` label** — if the issue has ANY label containing "hold", SKIP IT ENTIRELY. Do not nudge, do not close, do not comment.
    - **Day 4** (last maintainer comment is 4+ days old, no reporter reply): post a reminder comment: `@<reporter> any update on the questions above? If we don't hear back in a few days we'll close this, and you can reopen once you have more details.`
    - **Day 7** (still no reporter reply 3 days after the reminder): close with `--reason "not planned"` and comment `Closing for lack of reporter response. Feel free to reopen with the requested details.` — do NOT strip labels on close (keeps searchability). Post the reminder once per issue; if the issue has been nudged before, do NOT re-nudge, proceed to close when day 7 passes.
 2. **Bundle-fix small related bugs** before dispatching fix agents (already the pattern for arcade bug clusters — keep doing it; a single PR closes 3+ beads).

@@ -122,6 +122,7 @@ for proj_name in os.listdir(projects_dir):
         agent_detected = proj_agent is not None
         agent_scan_count = 0
         MAX_AGENT_SCAN = 5
+        msg_times = []
 
         try:
             with open(fpath) as f:
@@ -150,6 +151,8 @@ for proj_name in os.listdir(projects_dir):
                     if d.get("type") == "assistant" and "message" in d:
                         msg = d["message"]
                         msg_count += 1
+                        if ts:
+                            msg_times.append(ts)
 
                         if msg.get("model") and msg["model"] != "<synthetic>":
                             model = msg["model"]
@@ -169,6 +172,8 @@ for proj_name in os.listdir(projects_dir):
                         if not first_ts:
                             first_ts = ts
                         last_ts = ts
+                        if d.get("type") == "user" and ts not in msg_times:
+                            msg_times.append(ts)
         except (OSError, IOError):
             continue
 
@@ -216,6 +221,27 @@ for proj_name in os.listdir(projects_dir):
         if mtime < cutoff:
             continue
 
+        BUCKET_MINUTES = 10
+        activity = []
+        if msg_times and first_ts and last_ts:
+            try:
+                t0 = datetime.datetime.fromisoformat(first_ts.replace("Z", "+00:00")).timestamp()
+                t1 = datetime.datetime.fromisoformat(last_ts.replace("Z", "+00:00")).timestamp()
+                span = max(t1 - t0, 1)
+                num_buckets = min(max(int(span / (BUCKET_MINUTES * 60)), 2), 30)
+                bucket_size = span / num_buckets
+                buckets = [0] * num_buckets
+                for mt in msg_times:
+                    try:
+                        mts = datetime.datetime.fromisoformat(mt.replace("Z", "+00:00")).timestamp()
+                        idx = min(int((mts - t0) / bucket_size), num_buckets - 1)
+                        buckets[idx] += 1
+                    except (ValueError, TypeError):
+                        pass
+                activity = buckets
+            except (ValueError, TypeError):
+                pass
+
         sessions.append({
             "id": sid[:12] if sid else os.path.basename(fpath)[:12],
             "model": model,
@@ -231,6 +257,7 @@ for proj_name in os.listdir(projects_dir):
             "started": first_ts,
             "lastActive": last_ts,
             "mtime": int(mtime * 1000),
+            "activity": activity,
         })
 
         by_model[model]["input"] += inp
@@ -263,7 +290,7 @@ for proj_name in os.listdir(projects_dir):
 # ─── Copilot session scanning ─────────────────────────────────────────────
 # Copilot CLI stores sessions in ~/.copilot/session-state/<uuid>/
 # Events use a different schema but contain agent identity and model info.
-# No token usage data is available — we use message counts as activity proxy.
+# Token usage is available in session.shutdown events via modelMetrics.
 
 copilot_dir = os.path.join(os.path.expanduser("~"), ".copilot", "session-state")
 if os.path.isdir(copilot_dir):
@@ -288,6 +315,11 @@ if os.path.isdir(copilot_dir):
         cp_first_ts = ""
         cp_last_ts = ""
         cp_agent_scan_count = 0
+        cp_inp = 0
+        cp_out = 0
+        cp_cache_read = 0
+        cp_cache_create = 0
+        cp_msg_times = []
 
         try:
             with open(events_file) as f:
@@ -304,6 +336,9 @@ if os.path.isdir(copilot_dir):
                         if not cp_first_ts:
                             cp_first_ts = ts
                         cp_last_ts = ts
+
+                    if etype in ("user.message", "assistant.message") and ts:
+                        cp_msg_times.append(ts)
 
                     if etype == "session.start":
                         cp_model = data.get("selectedModel", cp_model)
@@ -327,6 +362,17 @@ if os.path.isdir(copilot_dir):
                         m = data.get("model", "")
                         if m and m != "unknown":
                             cp_model = m
+
+                    elif etype == "session.shutdown":
+                        cm = data.get("currentModel", "")
+                        if cm:
+                            cp_model = cm
+                        for mm_model, mm_stats in data.get("modelMetrics", {}).items():
+                            u = mm_stats.get("usage", {})
+                            cp_inp += u.get("inputTokens", 0)
+                            cp_out += u.get("outputTokens", 0)
+                            cp_cache_read += u.get("cacheReadTokens", 0)
+                            cp_cache_create += u.get("cacheWriteTokens", 0)
         except (OSError, IOError):
             continue
 
@@ -334,38 +380,86 @@ if os.path.isdir(copilot_dir):
             continue
 
         cli = "copilot"
+        cp_total = cp_inp + cp_out + cp_cache_read
+
+        BUCKET_MINUTES = 10
+        cp_activity = []
+        if cp_msg_times and cp_first_ts and cp_last_ts:
+            try:
+                t0 = datetime.datetime.fromisoformat(cp_first_ts.replace("Z", "+00:00")).timestamp()
+                t1 = datetime.datetime.fromisoformat(cp_last_ts.replace("Z", "+00:00")).timestamp()
+                span = max(t1 - t0, 1)
+                num_buckets = min(max(int(span / (BUCKET_MINUTES * 60)), 2), 30)
+                bucket_size = span / num_buckets
+                buckets = [0] * num_buckets
+                for mt in cp_msg_times:
+                    try:
+                        mts = datetime.datetime.fromisoformat(mt.replace("Z", "+00:00")).timestamp()
+                        idx = min(int((mts - t0) / bucket_size), num_buckets - 1)
+                        buckets[idx] += 1
+                    except (ValueError, TypeError):
+                        pass
+                cp_activity = buckets
+            except (ValueError, TypeError):
+                pass
 
         sessions.append({
             "id": session_id[:12],
             "model": cp_model,
             "cli": cli,
             "agent": cp_agent,
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheCreate": 0,
+            "input": cp_inp,
+            "output": cp_out,
+            "cacheRead": cp_cache_read,
+            "cacheCreate": cp_cache_create,
             "messages": cp_msg_count,
             "toolCalls": cp_tool_count,
-            "total": 0,
+            "total": cp_total,
             "project": "copilot-session",
             "started": cp_first_ts,
             "lastActive": cp_last_ts,
             "mtime": int(mtime * 1000),
+            "activity": cp_activity,
         })
 
+        by_model[cp_model]["input"] += cp_inp
+        by_model[cp_model]["output"] += cp_out
+        by_model[cp_model]["cacheRead"] += cp_cache_read
+        by_model[cp_model]["cacheCreate"] += cp_cache_create
         by_model[cp_model]["messages"] += cp_msg_count
+        by_cli[cli]["input"] += cp_inp
+        by_cli[cli]["output"] += cp_out
+        by_cli[cli]["cacheRead"] += cp_cache_read
+        by_cli[cli]["cacheCreate"] += cp_cache_create
         by_cli[cli]["messages"] += cp_msg_count
         by_cli[cli]["sessions"] += 1
+        by_agent[cp_agent]["input"] += cp_inp
+        by_agent[cp_agent]["output"] += cp_out
+        by_agent[cp_agent]["cacheRead"] += cp_cache_read
+        by_agent[cp_agent]["cacheCreate"] += cp_cache_create
         by_agent[cp_agent]["messages"] += cp_msg_count
         by_agent[cp_agent]["sessions"] += 1
+        totals["input"] += cp_inp
+        totals["output"] += cp_out
+        totals["cacheRead"] += cp_cache_read
+        totals["cacheCreate"] += cp_cache_create
         totals["messages"] += cp_msg_count
         totals["sessions"] += 1
 
-        if mtime >= weekly_cutoff:
+        if mtime >= weekly_cutoff and cp_total > 0:
+            weekly_by_agent[cp_agent]["input"] += cp_inp
+            weekly_by_agent[cp_agent]["output"] += cp_out
+            weekly_by_agent[cp_agent]["cacheRead"] += cp_cache_read
             weekly_by_agent[cp_agent]["sessions"] += 1
+            weekly_totals["input"] += cp_inp
+            weekly_totals["output"] += cp_out
+            weekly_totals["cacheRead"] += cp_cache_read
             weekly_totals["sessions"] += 1
 
-        if mtime >= one_hour_ago:
+        if mtime >= one_hour_ago and cp_total > 0:
+            hourly_by_agent[cp_agent]["input"] += cp_inp
+            hourly_by_agent[cp_agent]["output"] += cp_out
+            hourly_by_agent[cp_agent]["cacheRead"] += cp_cache_read
             hourly_by_agent[cp_agent]["sessions"] += 1
 
 # Sort sessions by most recent first

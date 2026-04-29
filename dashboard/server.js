@@ -131,10 +131,20 @@ setInterval(fetchHealthChecks, 300000);  // every 5 min (REST API)
 
 // Fetch token usage from JSONL session files every 60s
 let tokenCache = {};
+const TOKEN_CACHE_FILE = path.join(METRICS_DIR, 'tokens.json');
+const TOKEN_COLLECTOR_TIMEOUT_MS = 120000;
 function fetchTokens() {
-  execFile(path.join(__dirname, 'token-collector.sh'), [], { timeout: 30000 }, (err, stdout) => {
+  execFile(path.join(__dirname, 'token-collector.sh'), [], { timeout: TOKEN_COLLECTOR_TIMEOUT_MS }, (err, stdout) => {
     if (!err && stdout.trim()) {
-      try { tokenCache = JSON.parse(stdout.trim()); } catch (_) {}
+      try {
+        tokenCache = JSON.parse(stdout.trim());
+        try { fs.writeFileSync(TOKEN_CACHE_FILE, stdout.trim()); } catch (_) {}
+      } catch (_) {}
+    } else if (!Object.keys(tokenCache).length) {
+      try {
+        const cached = fs.readFileSync(TOKEN_CACHE_FILE, 'utf8');
+        tokenCache = JSON.parse(cached);
+      } catch (_) {}
     }
   });
 }

@@ -1470,11 +1470,21 @@ function burnAreaChart() {
         const agentCls = `a-${agent}`;
         const rows = grp.map(s => {
           const age = s.lastActive ? new Date(s.lastActive).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}) : '';
+          const act = s.activity || [];
+          const MINI_W = 60, MINI_H = 14;
+          let miniSpark = '';
+          if (act.length >= 2) {
+            const mx = Math.max(...act, 1);
+            const pts = act.map((v, i) => `${(i / (act.length - 1)) * MINI_W},${MINI_H - (v / mx) * (MINI_H - 2) - 1}`).join(' ');
+            const aClrs = { scanner: '#58a6ff', reviewer: '#3fb950', architect: '#bc8cff', outreach: '#39d2c0', supervisor: '#d29922' };
+            const clr = aClrs[s.agent] || '#8b949e';
+            miniSpark = `<span class="sparkline" style="margin-left:4px"><svg width="${MINI_W}" height="${MINI_H}" viewBox="0 0 ${MINI_W} ${MINI_H}"><polyline points="${pts}" fill="none" stroke="${clr}" stroke-width="1.2" opacity="0.7"/></svg></span>`;
+          }
           return `<div class="token-session-row" style="padding-left:12px">
             <span class="sid">${esc(s.id)}</span>
             <span class="smodel">${esc(s.model)}</span>
             <span class="stokens">${s.total > 0 ? fmtTokens(s.total) : '—'}</span>
-            <span class="smsgs">${s.messages} msgs</span>
+            <span class="smsgs">${s.messages} msgs</span>${miniSpark}
             <span class="sproj">${age}</span>
           </div>`;
         }).join('');

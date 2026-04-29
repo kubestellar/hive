@@ -97,6 +97,23 @@ function fetchGhRateLimits() {
 fetchGhRateLimits();
 setInterval(fetchGhRateLimits, GH_RATE_REFRESH_MS);
 
+// GitHub auth health — check every 60s, expose sticky alert when 401
+const GH_AUTH_CHECK_MS = 60000;
+let ghAuthOk = true;
+let ghAuthLastChecked = null;
+function checkGhAuth() {
+  execFile('bash', ['-c', 'unset GITHUB_TOKEN && gh api user --jq .login 2>&1'], { timeout: 15000 }, (err, stdout, stderr) => {
+    const output = (stdout || '') + (stderr || '');
+    const was = ghAuthOk;
+    ghAuthOk = !err && !output.includes('401') && !output.includes('auth') && stdout.trim().length > 0;
+    ghAuthLastChecked = new Date().toISOString();
+    if (was && !ghAuthOk) console.error('gh auth DOWN:', output.trim());
+    if (!was && ghAuthOk) console.log('gh auth recovered');
+  });
+}
+checkGhAuth();
+setInterval(checkGhAuth, GH_AUTH_CHECK_MS);
+
 // Fetch CI pass rate + binary health checks every 60s
 function fetchHealthChecks() {
   execFile(path.join(__dirname, 'health-check.sh'), [], { timeout: 30000 }, (err, stdout) => {
@@ -954,6 +971,11 @@ app.get('/api/model-advisor', (_req, res) => {
     result.agents.push(entry);
   }
   res.json(result);
+});
+
+// GitHub auth health
+app.get('/api/gh-auth', (_req, res) => {
+  res.json({ ok: ghAuthOk, lastChecked: ghAuthLastChecked });
 });
 
 // GitHub API rate limit alerts

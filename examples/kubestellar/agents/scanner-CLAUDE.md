@@ -144,23 +144,31 @@ Fixes #NNNN. Return PR number.
 
 **Operator-approved 2026-04-19**: burning tokens + GitHub rate limit on pre-flight ceremony before real work starts is the biggest waste. When the queue has ANY open non-exempt issues, SKIP the heavy pre-flight and go straight to work. Every iteration should be a short, focused drain cycle.
 
-**Lean iteration (target: < 2 minutes, < 5 gh API calls):**
+**Lean iteration (target: < 2 minutes per repo):**
+
+All project repos are scanned equally. Do NOT skip repos or defer non-console work.
 
 ```bash
-# 1. Oldest-first issue list (ONE gh call, the only sort that matters)
-unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open \
-  --json number,title,createdAt,labels --limit 30 | \
-  jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX") or . == "auto-qa-tuning-report") | not)] | sort_by(.createdAt) | .[0:10] | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor)m #\(.number) \(.title | .[0:55])"'
+# 1. Oldest-first issue list — ALL project repos
+for repo in kubestellar/console kubestellar/docs kubestellar/console-kb kubestellar/kubestellar-mcp; do
+  echo "=== $repo ==="
+  unset GITHUB_TOKEN && gh issue list --repo "$repo" --state open \
+    --json number,title,createdAt,labels --limit 30 | \
+    jq -r --arg repo "$repo" '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX") or . == "auto-qa-tuning-report") | not)] | sort_by(.createdAt) | .[0:10] | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor)m \($repo)#\(.number) \(.title | .[0:55])"'
+done
 
-# 2. Open PR list (ONE gh call)
-unset GITHUB_TOKEN && gh pr list --repo kubestellar/console --state open \
-  --json number,title,author,isDraft,mergeable,statusCheckRollup --limit 20
+# 2. Open PR list — ALL project repos
+for repo in kubestellar/console kubestellar/docs kubestellar/console-kb kubestellar/kubestellar-mcp; do
+  echo "=== $repo PRs ==="
+  unset GITHUB_TOKEN && gh pr list --repo "$repo" --state open \
+    --json number,title,author,isDraft,mergeable,statusCheckRollup --limit 20
+done
 
-# 3. Dispatch: for each of the 4-6 oldest issues, fire an Agent tool call in parallel
-# (Agent calls don't hit GitHub rate limit directly — only the subagent's gh calls do)
+# 3. Dispatch: oldest issues across ALL repos, fire Agent tool calls in parallel
+# Use repo-appropriate worktree paths (see dispatch template below)
 
 # 4. For PRs: auto-merge AI-authored (clubanderson, copilot-swe-agent[bot]) when CI green
-# One `gh pr merge --admin --squash` per eligible PR
+# One `gh pr merge --admin --squash` per eligible PR, on ANY repo
 ```
 
 **Drop / skip entirely in lean mode:**
@@ -168,7 +176,7 @@ unset GITHUB_TOKEN && gh pr list --repo kubestellar/console --state open \
 - **Step 0.5 bd ready queries + stale-claim sweep** — skip while peers (reviewer/architect/outreach) are paused. Only matters for multi-agent coordination.
 - **Deep SLA "analysis"** — sorting by `createdAt` IS the SLA logic. No further thinking needed.
 - **Heartbeat writes** before each tool call — one write at end of iteration is enough.
-- **GA4 / other repo scans** — the operator will ask if they want them. Not every iteration.
+- **GA4 scans** — the operator will ask if they want them. Not every iteration.
 
 **Rule**: if you find yourself "thinking" for more than 30 seconds before your first `gh pr merge` or `Agent` tool call, you're in the old ceremony mode. Stop, dispatch, log, end.
 
@@ -176,12 +184,18 @@ unset GITHUB_TOKEN && gh pr list --repo kubestellar/console --state open \
 
 ```
 Agent(subagent_type="general-purpose",
-      description="Fix #NNNN <short title>",
-      prompt="Fix kubestellar/console#NNNN. Worktree /tmp/kubestellar-console-NNNN-slug. 
-              Find the bug, fix it, commit -s, push, open PR with Fixes #NNNN. Return PR number.
+      description="Fix ORG/REPO#NNNN <short title>",
+      prompt="Fix ORG/REPO#NNNN. Clone/worktree at /tmp/REPO-NNNN-slug.
+              Find the bug, fix it, commit -s, push, open PR with Fixes ORG/REPO#NNNN. Return PR number.
               ⛔ HARD GATE: Do NOT run npm run build, npm run lint, tsc, vitest, or any local validation. Push and let CI validate. Violating this wastes tokens and time.",
       run_in_background=true)
 ```
+
+**Worktree path convention by repo:**
+- `kubestellar/console` → `/tmp/kubestellar-console-NNNN-slug`
+- `kubestellar/docs` → `/tmp/kubestellar-docs-NNNN-slug`
+- `kubestellar/console-kb` → `/tmp/console-kb-NNNN-slug`
+- `kubestellar/kubestellar-mcp` → `/tmp/kubestellar-mcp-NNNN-slug`
 
 **When to restore full ceremony**: only when the queue is at target AND peers are active. Default to lean when the queue has non-exempt work.
 
@@ -214,7 +228,7 @@ Run the verification command and paste the output.
 | "Steady state — no new issues" | Run `bd ready --actor scanner`. If ANY bead is ready, it is NOT steady state. Claim and work. |
 | "Waiting for operator approval" | Only ADOPTERS PRs and llm-d merges need approval. Everything else is yours to merge. |
 | "The fix agent will handle it" | Did you verify the agent started? Check the worktree exists and a PR was opened. |
-| "Queue is at target" | Check other repos (console-kb, docs, mcp). Target 0 means any open issue is actionable. |
+| "Queue is at target" | All repos are scanned every iteration. Target 0 means any open issue is actionable. Check PRs too. |
 | "Not actionable" / "not a code fix" | If the issue is open, it IS actionable. Dispatch a fix agent with a best-effort PR. A wrong fix that CI rejects is faster than no fix. |
 | "Deferred to next pass" | If a deferred bead is older than 1 pass, retry it NOW. Deferring twice is ignoring. |
 | "Nightly failure is flaky, not a bug" | Flaky tests are bugs. Dispatch a fix agent to stabilize the test. |

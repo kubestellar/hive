@@ -106,6 +106,7 @@ TOKEN_BUDGET_WEEKLY="${TOKEN_BUDGET_WEEKLY:-200000000}"  # ~200M billable tokens
 TOKEN_BUDGET_SAFETY_PCT="${TOKEN_BUDGET_SAFETY_PCT:-85}"
 TOKEN_BUDGET_RESET_DAY="${TOKEN_BUDGET_RESET_DAY:-4}"  # 4=Friday (Claude resets Fri 7PM)
 TOKEN_COLLECTOR_JSON="/var/run/hive-metrics/tokens.json"
+BUDGET_IGNORE_FLAG="/var/run/hive-metrics/budget_ignore"
 
 # ── Cost weights (relative to Haiku=1) ──────────────────────────────────────
 COST_WEIGHT_OPUS="${COST_WEIGHT_OPUS:-15}"
@@ -461,7 +462,9 @@ optimize_model_assignment() {
     override_reasons[$agent]=""
   done
 
-  if (( projected_pct > TOKEN_BUDGET_SAFETY_PCT )); then
+  if [[ -f "$BUDGET_IGNORE_FLAG" ]]; then
+    log "BUDGET: ignored (operator override active)"
+  elif (( projected_pct > TOKEN_BUDGET_SAFETY_PCT )); then
     log "BUDGET PRESSURE: projected ${projected_pct}% > safety ${TOKEN_BUDGET_SAFETY_PCT}%"
 
     for agent in outreach architect supervisor; do

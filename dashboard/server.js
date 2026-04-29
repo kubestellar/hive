@@ -459,6 +459,20 @@ app.get('/api/config', (_req, res) => res.json({
   dashboardTitle: DASHBOARD_TITLE,
 }));
 
+const BUDGET_IGNORE_FLAG = path.join(METRICS_DIR, 'budget_ignore');
+app.get('/api/budget-ignore', (_req, res) => {
+  res.json({ ignored: fs.existsSync(BUDGET_IGNORE_FLAG) });
+});
+app.post('/api/budget-ignore', (req, res) => {
+  const { ignored } = req.body || {};
+  if (ignored) {
+    try { fs.writeFileSync(BUDGET_IGNORE_FLAG, new Date().toISOString()); } catch (_) {}
+  } else {
+    try { fs.unlinkSync(BUDGET_IGNORE_FLAG); } catch (_) {}
+  }
+  res.json({ ignored: fs.existsSync(BUDGET_IGNORE_FLAG) });
+});
+
 // JSON API
 app.get('/api/status', async (_req, res) => {
   const data = statusCache || await fetchStatus();

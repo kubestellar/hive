@@ -1033,6 +1033,15 @@
       return b.toFixed(3) + 'B';
     }
 
+    let budgetIgnored = false;
+    fetch('/api/budget-ignore').then(r => r.json()).then(d => { budgetIgnored = d.ignored; }).catch(() => {});
+
+    function toggleBudgetIgnore() {
+      budgetIgnored = !budgetIgnored;
+      fetch('/api/budget-ignore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ignored: budgetIgnored }) })
+        .then(r => r.json()).then(d => { budgetIgnored = d.ignored; renderAll(); });
+    }
+
     function renderBudgetBar(budget) {
       if (!budget || !budget.BUDGET_WEEKLY) return '';
       const PCT_SAFE = 50;
@@ -1045,11 +1054,12 @@
       const hoursLeft = budget.HOURS_REMAINING || 0;
       const HOURS_PER_DAY = 24;
       const dailyRate = burnRate * HOURS_PER_DAY;
-      const usedFillCls = pctUsed < PCT_SAFE ? 'safe' : pctUsed < PCT_WARN ? 'warning' : 'danger';
-      const projFillCls = projPct < PCT_SAFE ? 'safe' : projPct < PCT_WARN ? 'warning' : 'danger';
+      const usedFillCls = budgetIgnored ? 'safe' : pctUsed < PCT_SAFE ? 'safe' : pctUsed < PCT_WARN ? 'warning' : 'danger';
 
       let govAction = '';
-      if (projPct > PCT_WARN) {
+      if (budgetIgnored) {
+        govAction = '<span style="color:var(--muted)">Budget enforcement disabled by operator</span>';
+      } else if (projPct > PCT_WARN) {
         govAction = '<span style="color:var(--red)">Governor downgrading models to stay within budget</span>';
       } else if (projPct > PCT_SAFE) {
         govAction = '<span style="color:var(--yellow)">Governor may downgrade non-priority agents if burn increases</span>';
@@ -1057,9 +1067,13 @@
         govAction = '<span style="color:var(--green)">Budget healthy — governor using preferred models</span>';
       }
 
+      const ignoreCheck = `<label style="font-size:0.68rem;color:var(--muted);cursor:pointer;margin-left:12px">
+        <input type="checkbox" ${budgetIgnored ? 'checked' : ''} onchange="toggleBudgetIgnore()" style="cursor:pointer;vertical-align:middle"> ignore budget
+      </label>`;
+
       return `<div class="budget-bar">
         <div class="budget-bar-label">
-          <span>Used: ${fmtTokens(used)} / ${fmtTokens(weekly)} (${pctUsed}%)</span>
+          <span>Used: ${fmtTokens(used)} / ${fmtTokens(weekly)} (${pctUsed}%)${ignoreCheck}</span>
           <span>${hoursLeft}h until reset</span>
         </div>
         <div class="budget-bar-track"><div class="budget-bar-fill ${usedFillCls}" style="width:${Math.min(pctUsed, 100)}%"></div></div>

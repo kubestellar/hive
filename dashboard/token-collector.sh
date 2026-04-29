@@ -260,6 +260,155 @@ for proj_name in os.listdir(projects_dir):
         totals["messages"] += msg_count
         totals["sessions"] += 1
 
+# ─── Copilot session scanning ─────────────────────────────────────────────
+# Copilot CLI stores sessions in ~/.copilot/session-state/<uuid>/
+# Events use a different schema but contain agent identity and model info.
+# Token usage is available in session.shutdown events via modelMetrics.
+
+copilot_dir = os.path.join(os.path.expanduser("~"), ".copilot", "session-state")
+if os.path.isdir(copilot_dir):
+    for session_id in os.listdir(copilot_dir):
+        session_dir = os.path.join(copilot_dir, session_id)
+        events_file = os.path.join(session_dir, "events.jsonl")
+        if not os.path.isfile(events_file):
+            continue
+        try:
+            mtime = os.path.getmtime(events_file)
+        except OSError:
+            continue
+        scan_cutoff = min(cutoff, weekly_cutoff)
+        if mtime < scan_cutoff:
+            continue
+
+        cp_model = "unknown"
+        cp_agent = "unknown"
+        cp_agent_detected = False
+        cp_msg_count = 0
+        cp_tool_count = 0
+        cp_first_ts = ""
+        cp_last_ts = ""
+        cp_agent_scan_count = 0
+        cp_inp = 0
+        cp_out = 0
+        cp_cache_read = 0
+        cp_cache_create = 0
+
+        try:
+            with open(events_file) as f:
+                for line in f:
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    etype = d.get("type", "")
+                    data = d.get("data", {})
+                    ts = d.get("timestamp", "")
+                    if ts:
+                        if not cp_first_ts:
+                            cp_first_ts = ts
+                        cp_last_ts = ts
+
+                    if etype == "session.start":
+                        cp_model = data.get("selectedModel", cp_model)
+
+                    elif etype == "user.message" and not cp_agent_detected:
+                        raw = data.get("content", "")
+                        if isinstance(raw, str):
+                            detected = detect_agent_from_text(raw)
+                            if detected != "unknown":
+                                cp_agent = detected
+                                cp_agent_detected = True
+                        cp_agent_scan_count += 1
+                        if cp_agent_scan_count >= MAX_AGENT_SCAN:
+                            cp_agent_detected = True
+
+                    elif etype == "assistant.message":
+                        cp_msg_count += 1
+
+                    elif etype == "tool.execution_complete":
+                        cp_tool_count += 1
+                        m = data.get("model", "")
+                        if m and m != "unknown":
+                            cp_model = m
+
+                    elif etype == "session.shutdown":
+                        cm = data.get("currentModel", "")
+                        if cm:
+                            cp_model = cm
+                        for mm_model, mm_stats in data.get("modelMetrics", {}).items():
+                            u = mm_stats.get("usage", {})
+                            cp_inp += u.get("inputTokens", 0)
+                            cp_out += u.get("outputTokens", 0)
+                            cp_cache_read += u.get("cacheReadTokens", 0)
+                            cp_cache_create += u.get("cacheWriteTokens", 0)
+        except (OSError, IOError):
+            continue
+
+        if cp_msg_count == 0:
+            continue
+
+        cli = "copilot"
+        cp_total = cp_inp + cp_out + cp_cache_read
+
+        sessions.append({
+            "id": session_id[:12],
+            "model": cp_model,
+            "cli": cli,
+            "agent": cp_agent,
+            "input": cp_inp,
+            "output": cp_out,
+            "cacheRead": cp_cache_read,
+            "cacheCreate": cp_cache_create,
+            "messages": cp_msg_count,
+            "toolCalls": cp_tool_count,
+            "total": cp_total,
+            "project": "copilot-session",
+            "started": cp_first_ts,
+            "lastActive": cp_last_ts,
+            "mtime": int(mtime * 1000),
+        })
+
+        by_model[cp_model]["input"] += cp_inp
+        by_model[cp_model]["output"] += cp_out
+        by_model[cp_model]["cacheRead"] += cp_cache_read
+        by_model[cp_model]["cacheCreate"] += cp_cache_create
+        by_model[cp_model]["messages"] += cp_msg_count
+        by_cli[cli]["input"] += cp_inp
+        by_cli[cli]["output"] += cp_out
+        by_cli[cli]["cacheRead"] += cp_cache_read
+        by_cli[cli]["cacheCreate"] += cp_cache_create
+        by_cli[cli]["messages"] += cp_msg_count
+        by_cli[cli]["sessions"] += 1
+        by_agent[cp_agent]["input"] += cp_inp
+        by_agent[cp_agent]["output"] += cp_out
+        by_agent[cp_agent]["cacheRead"] += cp_cache_read
+        by_agent[cp_agent]["cacheCreate"] += cp_cache_create
+        by_agent[cp_agent]["messages"] += cp_msg_count
+        by_agent[cp_agent]["sessions"] += 1
+        totals["input"] += cp_inp
+        totals["output"] += cp_out
+        totals["cacheRead"] += cp_cache_read
+        totals["cacheCreate"] += cp_cache_create
+        totals["messages"] += cp_msg_count
+        totals["sessions"] += 1
+
+        if mtime >= weekly_cutoff and cp_total > 0:
+            weekly_by_agent[cp_agent]["input"] += cp_inp
+            weekly_by_agent[cp_agent]["output"] += cp_out
+            weekly_by_agent[cp_agent]["cacheRead"] += cp_cache_read
+            weekly_by_agent[cp_agent]["sessions"] += 1
+            weekly_totals["input"] += cp_inp
+            weekly_totals["output"] += cp_out
+            weekly_totals["cacheRead"] += cp_cache_read
+            weekly_totals["sessions"] += 1
+
+        if mtime >= one_hour_ago and cp_total > 0:
+            hourly_by_agent[cp_agent]["input"] += cp_inp
+            hourly_by_agent[cp_agent]["output"] += cp_out
+            hourly_by_agent[cp_agent]["cacheRead"] += cp_cache_read
+            hourly_by_agent[cp_agent]["sessions"] += 1
+
 # Sort sessions by most recent first
 sessions.sort(key=lambda s: s.get("mtime", 0), reverse=True)
 

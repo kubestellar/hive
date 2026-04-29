@@ -38,3 +38,14 @@
 {"id":"int-537a4207","kind":"field_change","created_at":"2026-04-29T07:06:15.130370583Z","actor":"scanner","issue_id":"scanner-beads-g5q","extra":{"field":"status","new_value":"deferred","old_value":"open"}}
 {"id":"int-54f61b6e","kind":"field_change","created_at":"2026-04-29T07:06:15.514465816Z","actor":"scanner","issue_id":"scanner-beads-80t","extra":{"field":"status","new_value":"deferred","old_value":"open"}}
 {"id":"int-6ee712f4","kind":"field_change","created_at":"2026-04-29T07:06:15.931812531Z","actor":"scanner","issue_id":"scanner-beads-s03","extra":{"field":"status","new_value":"deferred","old_value":"open"}}
+{"id":"int-0870a333","kind":"field_change","created_at":"2026-04-29T07:37:50.990084711Z","actor":"scanner","issue_id":"scanner-beads-8e7","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-2bc71151","kind":"field_change","created_at":"2026-04-29T07:37:51.6460666Z","actor":"scanner","issue_id":"scanner-beads-bjp","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-230a99c3","kind":"field_change","created_at":"2026-04-29T07:37:52.085235384Z","actor":"scanner","issue_id":"scanner-beads-57d","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-ba2b8e3b","kind":"field_change","created_at":"2026-04-29T07:38:28.010034325Z","actor":"scanner","issue_id":"scanner-beads-g5q","extra":{"field":"status","new_value":"closed","old_value":"deferred"}}
+{"id":"int-fccaf470","kind":"field_change","created_at":"2026-04-29T07:38:28.581429158Z","actor":"scanner","issue_id":"scanner-beads-80t","extra":{"field":"status","new_value":"closed","old_value":"deferred"}}
+{"id":"int-4ea3382e","kind":"field_change","created_at":"2026-04-29T07:38:39.972835988Z","actor":"scanner","issue_id":"scanner-beads-maj","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-6e00e126","kind":"field_change","created_at":"2026-04-29T07:38:40.322511101Z","actor":"scanner","issue_id":"scanner-beads-s03","extra":{"field":"status","new_value":"in_progress","old_value":"deferred"}}
+{"id":"int-cc14b984","kind":"field_change","created_at":"2026-04-29T07:38:53.887317917Z","actor":"scanner","issue_id":"scanner-beads-2mo","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-242108c5","kind":"field_change","created_at":"2026-04-29T07:40:01.62592375Z","actor":"scanner","issue_id":"scanner-beads-maj","extra":{"field":"status","new_value":"deferred","old_value":"in_progress"}}
+{"id":"int-e42cb594","kind":"field_change","created_at":"2026-04-29T07:40:35.965602954Z","actor":"scanner","issue_id":"scanner-beads-2mo","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-70ee1a79","kind":"field_change","created_at":"2026-04-29T07:40:45.18086498Z","actor":"scanner","issue_id":"scanner-beads-s03","extra":{"field":"status","new_value":"deferred","old_value":"in_progress"}}

@@ -260,6 +260,114 @@ for proj_name in os.listdir(projects_dir):
         totals["messages"] += msg_count
         totals["sessions"] += 1
 
+# ─── Copilot session scanning ─────────────────────────────────────────────
+# Copilot CLI stores sessions in ~/.copilot/session-state/<uuid>/
+# Events use a different schema but contain agent identity and model info.
+# No token usage data is available — we use message counts as activity proxy.
+
+copilot_dir = os.path.join(os.path.expanduser("~"), ".copilot", "session-state")
+if os.path.isdir(copilot_dir):
+    for session_id in os.listdir(copilot_dir):
+        session_dir = os.path.join(copilot_dir, session_id)
+        events_file = os.path.join(session_dir, "events.jsonl")
+        if not os.path.isfile(events_file):
+            continue
+        try:
+            mtime = os.path.getmtime(events_file)
+        except OSError:
+            continue
+        scan_cutoff = min(cutoff, weekly_cutoff)
+        if mtime < scan_cutoff:
+            continue
+
+        cp_model = "unknown"
+        cp_agent = "unknown"
+        cp_agent_detected = False
+        cp_msg_count = 0
+        cp_tool_count = 0
+        cp_first_ts = ""
+        cp_last_ts = ""
+        cp_agent_scan_count = 0
+
+        try:
+            with open(events_file) as f:
+                for line in f:
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    etype = d.get("type", "")
+                    data = d.get("data", {})
+                    ts = d.get("timestamp", "")
+                    if ts:
+                        if not cp_first_ts:
+                            cp_first_ts = ts
+                        cp_last_ts = ts
+
+                    if etype == "session.start":
+                        cp_model = data.get("selectedModel", cp_model)
+
+                    elif etype == "user.message" and not cp_agent_detected:
+                        raw = data.get("content", "")
+                        if isinstance(raw, str):
+                            detected = detect_agent_from_text(raw)
+                            if detected != "unknown":
+                                cp_agent = detected
+                                cp_agent_detected = True
+                        cp_agent_scan_count += 1
+                        if cp_agent_scan_count >= MAX_AGENT_SCAN:
+                            cp_agent_detected = True
+
+                    elif etype == "assistant.message":
+                        cp_msg_count += 1
+
+                    elif etype == "tool.execution_complete":
+                        cp_tool_count += 1
+                        m = data.get("model", "")
+                        if m and m != "unknown":
+                            cp_model = m
+        except (OSError, IOError):
+            continue
+
+        if cp_msg_count == 0:
+            continue
+
+        cli = "copilot"
+
+        sessions.append({
+            "id": session_id[:12],
+            "model": cp_model,
+            "cli": cli,
+            "agent": cp_agent,
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheCreate": 0,
+            "messages": cp_msg_count,
+            "toolCalls": cp_tool_count,
+            "total": 0,
+            "project": "copilot-session",
+            "started": cp_first_ts,
+            "lastActive": cp_last_ts,
+            "mtime": int(mtime * 1000),
+        })
+
+        by_model[cp_model]["messages"] += cp_msg_count
+        by_cli[cli]["messages"] += cp_msg_count
+        by_cli[cli]["sessions"] += 1
+        by_agent[cp_agent]["messages"] += cp_msg_count
+        by_agent[cp_agent]["sessions"] += 1
+        totals["messages"] += cp_msg_count
+        totals["sessions"] += 1
+
+        if mtime >= weekly_cutoff:
+            weekly_by_agent[cp_agent]["sessions"] += 1
+            weekly_totals["sessions"] += 1
+
+        if mtime >= one_hour_ago:
+            hourly_by_agent[cp_agent]["sessions"] += 1
+
 # Sort sessions by most recent first
 sessions.sort(key=lambda s: s.get("mtime", 0), reverse=True)
 

@@ -61,10 +61,10 @@ if command -v gh &>/dev/null; then
   if [ -n "$in_progress_issues" ]; then
     ip_tmp=$(mktemp -d)
     for inum in $in_progress_issues; do
-      (gh api "repos/${REPO}/issues/${inum}" --jq '{number: .number, title: .title, state: .state}' > "$ip_tmp/$inum" 2>/dev/null || echo "{\"number\":$inum,\"title\":\"\",\"state\":\"open\"}" > "$ip_tmp/$inum") &
+      (gh api "repos/${REPO}/issues/${inum}" --jq '{number: .number, title: .title, state: .state, labels: [.labels[].name]}' > "$ip_tmp/$inum" 2>/dev/null || echo "{\"number\":$inum,\"title\":\"\",\"state\":\"open\",\"labels\":[]}" > "$ip_tmp/$inum") &
     done
     wait
-    scanner_inprogress_json=$(for inum in $in_progress_issues; do cat "$ip_tmp/$inum" 2>/dev/null; done | jq -s '[.[] | select(.state == "open")]' 2>/dev/null || echo "[]")
+    scanner_inprogress_json=$(for inum in $in_progress_issues; do cat "$ip_tmp/$inum" 2>/dev/null; done | jq -s '[.[] | select(.state == "open" and ([.labels[] | select(. == "hold")] | length == 0))]' 2>/dev/null || echo "[]")
     rm -rf "$ip_tmp"
   fi
 

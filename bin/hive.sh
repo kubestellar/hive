@@ -410,10 +410,10 @@ ensure_agents() {
   hdr "Agent services"
 
   local services=(
-    "claude-scanner.service:scanner"
-    "hive@reviewer.service:reviewer"
-    "hive@architect.service:architect"
-    "hive@outreach.service:outreach"
+    "supervised-agent@scanner.service:scanner"
+    "supervised-agent@reviewer.service:reviewer"
+    "supervised-agent@architect.service:architect"
+    "supervised-agent@outreach.service:outreach"
   )
   local all_units=("${services[@]}" "kick-governor.timer:governor")
 
@@ -959,11 +959,11 @@ cmd_attach() {
 cmd_logs() {
   case "${1:-governor}" in
     governor)           exec journalctl -u kick-governor -f --no-pager ;;
-    scanner)            exec journalctl -u claude-scanner -f --no-pager ;;
-    reviewer)           exec journalctl -u "hive@reviewer" -f --no-pager ;;
-    architect|feature)  exec journalctl -u "hive@architect" -f --no-pager ;;
-    outreach)           exec journalctl -u "hive@outreach" -f --no-pager ;;
-    supervisor)         exec journalctl -u "hive@supervisor" -f --no-pager ;;
+    scanner)            exec journalctl -u "supervised-agent@scanner" -f --no-pager ;;
+    reviewer)           exec journalctl -u "supervised-agent@reviewer" -f --no-pager ;;
+    architect|feature)  exec journalctl -u "supervised-agent@architect" -f --no-pager ;;
+    outreach)           exec journalctl -u "supervised-agent@outreach" -f --no-pager ;;
+    supervisor)         exec journalctl -u "supervised-agent@supervisor" -f --no-pager ;;
     *) die "Unknown agent. Use: governor scanner reviewer architect outreach supervisor" ;;
   esac
 }
@@ -979,17 +979,17 @@ cmd_stop() {
   local target="${1:-all}"
   if [[ "$target" == "all" ]]; then
     info "Stopping all agents..."
-    for svc in claude-scanner hive@reviewer hive@architect hive@outreach hive@supervisor; do
-      sudo systemctl stop "$svc" 2>/dev/null && ok "Stopped $svc" || true
+    for agent in scanner reviewer architect outreach supervisor; do
+      sudo systemctl stop "supervised-agent@${agent}" 2>/dev/null && ok "Stopped $agent" || true
     done
     sudo systemctl stop kick-governor.timer 2>/dev/null && ok "Stopped governor" || true
   else
     case "$target" in
-      scanner)  sudo systemctl stop claude-scanner ;;
-      reviewer) sudo systemctl stop "hive@reviewer" ;;
-      architect|feature) sudo systemctl stop "hive@architect" ;;
-      outreach) sudo systemctl stop "hive@outreach" ;;
-      supervisor) sudo systemctl stop "hive@supervisor" ;;
+      scanner)  sudo systemctl stop "supervised-agent@scanner" ;;
+      reviewer) sudo systemctl stop "supervised-agent@reviewer" ;;
+      architect|feature) sudo systemctl stop "supervised-agent@architect" ;;
+      outreach) sudo systemctl stop "supervised-agent@outreach" ;;
+      supervisor) sudo systemctl stop "supervised-agent@supervisor" ;;
       *) die "Unknown agent: $target" ;;
     esac
     ok "Stopped $target"

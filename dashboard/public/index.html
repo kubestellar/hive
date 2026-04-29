@@ -1024,13 +1024,13 @@
 
     function fmtTokens(n) {
       if (n === 0) return '0';
-      const m = n / 1e6;
-      if (m >= 100) return m.toFixed(0) + 'M';
-      if (m >= 10) return m.toFixed(1) + 'M';
-      if (m >= 1) return m.toFixed(1) + 'M';
-      if (m >= 0.1) return m.toFixed(2) + 'M';
-      if (m >= 0.01) return m.toFixed(3) + 'M';
-      return m.toFixed(3) + 'M';
+      const b = n / 1e9;
+      if (b >= 100) return b.toFixed(0) + 'B';
+      if (b >= 10) return b.toFixed(1) + 'B';
+      if (b >= 1) return b.toFixed(2) + 'B';
+      if (b >= 0.1) return b.toFixed(2) + 'B';
+      if (b >= 0.01) return b.toFixed(3) + 'B';
+      return b.toFixed(3) + 'B';
     }
 
     function renderBudgetBar(budget) {

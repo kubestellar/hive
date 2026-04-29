@@ -888,4 +888,7 @@ CENTRAL_INTERACTIONS="/tmp/hive/.beads/interactions.jsonl"
 } > "${CENTRAL_INTERACTIONS}.tmp" 2>/dev/null && mv "${CENTRAL_INTERACTIONS}.tmp" "$CENTRAL_INTERACTIONS" || true
 log "Central ledger synced ($(wc -l < "$CENTRAL_ISSUES" 2>/dev/null || echo 0) issues)"
 
+# Scan agent panes for GitHub API rate limit messages
+/tmp/hive/bin/gh-rate-check.sh 2>/dev/null || log "WARN: gh-rate-check.sh failed (non-fatal)"
+
 log "DONE"

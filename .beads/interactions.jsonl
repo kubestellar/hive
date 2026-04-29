@@ -93,3 +93,7 @@
 {"id":"int-a04356e1","kind":"field_change","created_at":"2026-04-29T15:39:35.385718199Z","actor":"scanner","issue_id":"scanner-beads-any-types-2","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
 {"id":"int-7ff4f6a8","kind":"field_change","created_at":"2026-04-29T15:45:18.997258747Z","actor":"scanner","issue_id":"scanner-beads-fix-catch","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
 {"id":"int-1609fd0b","kind":"field_change","created_at":"2026-04-29T15:45:22.832216715Z","actor":"scanner","issue_id":"scanner-beads-fix-coverage3","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-12957afe","kind":"field_change","created_at":"2026-04-29T21:16:16.947526006Z","actor":"scanner","issue_id":"scanner-beads-fix-catch","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-a24ae55c","kind":"field_change","created_at":"2026-04-29T21:16:17.51350093Z","actor":"scanner","issue_id":"scanner-beads-fix-coverage3","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-94bbfa9e","kind":"field_change","created_at":"2026-04-29T21:16:18.087701442Z","actor":"scanner","issue_id":"scanner-beads-fix-magic","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-575e7465","kind":"field_change","created_at":"2026-04-29T21:16:18.63740237Z","actor":"scanner","issue_id":"scanner-beads-fix-any","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}

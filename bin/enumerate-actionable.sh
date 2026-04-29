@@ -229,13 +229,15 @@ if [ -n "$missing_sha_issues" ]; then
     num="${entry##*:}"
     marker_file="${SHA_HOLD_MARKER}_${repo//\//_}_${num}"
     if [ ! -f "$marker_file" ]; then
-      gh issue edit "$num" --repo "$repo" --add-label "hold" 2>/dev/null || true
+      gh issue edit "$num" --repo "$repo" --add-label "hold" --remove-label "kind/bug" 2>/dev/null || true
       gh issue comment "$num" --repo "$repo" --body "$(cat <<'COMMENT'
-Thanks for filing this issue! To help us reproduce and investigate, could you please include the **commit SHA** of the build you're running?
+Thanks for filing this issue! To help us reproduce and investigate, could you please include the **commit SHA** of the build you're running.
 
 You can find it by:
-- **Command line**: `git rev-parse HEAD` in your repo checkout
-- **Console UI**: Check the version/build info in the footer or About dialog
+- **Git**: `git rev-parse HEAD` in your repo checkout
+- **Git log**: `git log --oneline -1`
+- **GitHub CLI**: `gh api repos/kubestellar/console/commits/main --jq .sha`
+- **Console UI**: Check the build version/commit hash in the bottom-right footer
 
 We've put this issue on hold until we can confirm which version it was filed against. Once you add the SHA, we'll pick it back up right away.
 COMMENT

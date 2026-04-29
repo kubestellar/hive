@@ -33,38 +33,31 @@ issues_tmp=$(mktemp)
 prs_tmp=$(mktemp)
 trap 'rm -f "$issues_tmp" "$prs_tmp"' EXIT
 
-# --- Fetch issues and PRs in parallel across all repos ---
+# --- Fetch issues and PRs sequentially across all repos ---
 for repo in "${REPOS[@]}"; do
-  (
-    # Fetch open issues
-    gh api "repos/${repo}/issues?state=open&per_page=${ISSUE_LIMIT}&sort=created&direction=asc" \
-      --jq "[.[] | select(.pull_request == null) | {
-        repo: \"${repo}\",
-        number: .number,
-        title: .title,
-        created_at: .created_at,
-        labels: [.labels[].name],
-        assignees: [.assignees[].login],
-        url: .html_url
-      }]" 2>/dev/null || echo "[]"
-  ) >> "$issues_tmp" &
+  gh api "repos/${repo}/issues?state=open&per_page=${ISSUE_LIMIT}&sort=created&direction=asc" \
+    --jq "[.[] | select(.pull_request == null) | {
+      repo: \"${repo}\",
+      number: .number,
+      title: .title,
+      created_at: .created_at,
+      labels: [.labels[].name],
+      assignees: [.assignees[].login],
+      url: .html_url
+    }]" >> "$issues_tmp" 2>/dev/null || echo "[]" >> "$issues_tmp"
 
-  (
-    # Fetch open PRs
-    gh api "repos/${repo}/pulls?state=open&per_page=${PR_LIMIT}&sort=created&direction=asc" \
-      --jq "[.[] | {
-        repo: \"${repo}\",
-        number: .number,
-        title: .title,
-        created_at: .created_at,
-        labels: [.labels[].name],
-        author: .user.login,
-        draft: .draft,
-        url: .html_url
-      }]" 2>/dev/null || echo "[]"
-  ) >> "$prs_tmp" &
+  gh api "repos/${repo}/pulls?state=open&per_page=${PR_LIMIT}&sort=created&direction=asc" \
+    --jq "[.[] | {
+      repo: \"${repo}\",
+      number: .number,
+      title: .title,
+      created_at: .created_at,
+      labels: [.labels[].name],
+      author: .user.login,
+      draft: .draft,
+      url: .html_url
+    }]" >> "$prs_tmp" 2>/dev/null || echo "[]" >> "$prs_tmp"
 done
-wait
 
 # --- Filter issues with python3 ---
 all_issues=$(cat "$issues_tmp" | python3 -c "
@@ -159,14 +152,11 @@ if [ -n "$pr_numbers" ]; then
   for entry in $pr_numbers; do
     repo="${entry%%:*}"
     num="${entry##*:}"
-    (
-      files=$(gh api "repos/${repo}/pulls/${num}/files" --jq '.[].filename' 2>/dev/null || echo "")
-      if echo "$files" | grep -qi 'adopters'; then
-        echo "$num" >> "$adopters_tmp"
-      fi
-    ) &
+    files=$(gh api "repos/${repo}/pulls/${num}/files" --jq '.[].filename' 2>/dev/null || echo "")
+    if echo "$files" | grep -qi 'adopters'; then
+      echo "$num" >> "$adopters_tmp"
+    fi
   done
-  wait
 fi
 
 adopters_prs=""

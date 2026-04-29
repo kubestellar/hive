@@ -539,7 +539,7 @@ Output is oldest→newest. **Dispatch fix agents for the 6-8 oldest this iterati
 **Every iteration's first action**: compute SLA status from the enumerator (already pre-filtered):
 
 ```bash
-cat /var/run/hive-metrics/actionable.json | jq -r '.sla_violations as $v | .issues.items | sort_by(.age_minutes) | reverse | .[] | "\(.age_minutes) \(.repo)#\(.number) \(.title | .[0:60])"' | head -20
+cat /var/run/hive-metrics/actionable.json | jq -r '.issues.sla_violations as $v | .issues.items | sort_by(.age_minutes) | reverse | .[] | "\(.age_minutes) \(.repo)#\(.number) \(.title | .[0:60])"' | head -20
 ```
 The enumerator already excludes hold, do-not-merge, LFX, and ADOPTERS. Everything else counts — including nightly-regression, workflow-failure, and test-failure issues. SLA violation count is at `.sla_violations`.
 

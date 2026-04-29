@@ -1364,8 +1364,8 @@ function intensityGauge() {
     <div class="burn-context">
       <div class="bc-stat"><span class="bc-val" style="color:#58a6ff">${fmtTokens(low)}</span><span class="bc-label">low/hr</span></div>
       <div class="bc-stat"><span class="bc-val" style="color:#d29922">${fmtTokens(avg)}</span><span class="bc-label">avg/hr</span></div>
-      <div class="bc-stat"><span class="bc-val" style="color:${color}">${fmtTokens(now)}</span><span class="bc-label">high/hr</span></div>
       <div class="bc-stat"><span class="bc-val" style="color:#f85149">${fmtTokens(peak)}</span><span class="bc-label">peak/hr</span></div>
+      <div class="bc-stat"><span class="bc-val" style="color:${color}">${fmtTokens(now)}</span><span class="bc-label">current/hr</span></div>
     </div>
     <div style="color:${color};font-size:11px;font-family:monospace;margin-top:2px">${label}</div>
   </div>`;
@@ -1568,34 +1568,44 @@ function burnAreaChart() {
     function renderGhRateLimits(ghRateLimits) {
       const el = document.getElementById('gh-rate-alert');
       const alerts = (ghRateLimits && ghRateLimits.alerts) || [];
-      // Filter out expired alerts client-side
+      const pullbacks = (ghRateLimits && ghRateLimits.pullbacks) || [];
       const now = Math.floor(Date.now() / 1000);
       const GH_RATE_DEFAULT_TTL = 3600;
+      const SECONDS_PER_MINUTE = 60;
+      const MINUTES_PER_HOUR = 60;
       const active = alerts.filter(a => {
         const ttl = a.ttl_seconds || GH_RATE_DEFAULT_TTL;
         return now - (a.detected_epoch || 0) < ttl;
       });
-      if (active.length === 0) {
+      const activePullbacks = pullbacks.filter(p => now < (p.expiry_epoch || 0));
+      if (active.length === 0 && activePullbacks.length === 0) {
         el.className = 'gh-rate-alert';
         el.innerHTML = '';
         return;
       }
       el.className = 'gh-rate-alert active';
-      const SECONDS_PER_MINUTE = 60;
-      const MINUTES_PER_HOUR = 60;
       const items = active.map(a => {
         const ageSec = now - (a.detected_epoch || now);
         let ageStr;
         if (ageSec < SECONDS_PER_MINUTE) ageStr = ageSec + 's ago';
         else if (ageSec < SECONDS_PER_MINUTE * MINUTES_PER_HOUR) ageStr = Math.floor(ageSec / SECONDS_PER_MINUTE) + 'm ago';
         else ageStr = Math.floor(ageSec / (SECONDS_PER_MINUTE * MINUTES_PER_HOUR)) + 'h ago';
+        const cliTag = a.cli ? ` <span style="opacity:0.6;font-size:0.65rem">(${esc(a.cli)})</span>` : '';
         return `<div class="gh-rate-alert-item">
-          <span class="gh-rate-alert-agent">${esc(a.agent)}</span>
+          <span class="gh-rate-alert-agent">${esc(a.agent)}${cliTag}</span>
           <span class="gh-rate-alert-age">${ageStr}</span>
           <span class="gh-rate-alert-msg">${esc(a.message || 'GitHub API rate limited')}</span>
         </div>`;
       }).join('');
-      el.innerHTML = `<div class="gh-rate-alert-title">GitHub API Rate Limit (${active.length} agent${active.length > 1 ? 's' : ''})</div>${items}`;
+      const pullbackHtml = activePullbacks.map(p => {
+        const remainSec = (p.expiry_epoch || 0) - now;
+        const remainMin = Math.max(0, Math.ceil(remainSec / SECONDS_PER_MINUTE));
+        const paused = (p.paused_agents || []).join(', ') || 'none';
+        return `<div style="font-size:0.72rem;color:#d29922;margin-top:6px;padding-top:6px;border-top:1px solid rgba(210,153,34,0.25)">
+          ⏸ Pullback (${esc(p.cli || '?')}): paused <strong>${esc(paused)}</strong> — resumes in ${remainMin}m
+        </div>`;
+      }).join('');
+      el.innerHTML = `<div class="gh-rate-alert-title">GitHub API Rate Limit (${active.length} agent${active.length > 1 ? 's' : ''})</div>${items}${pullbackHtml}`;
     }
 
     // Guard: skip agent re-render while a dropdown is focused/open

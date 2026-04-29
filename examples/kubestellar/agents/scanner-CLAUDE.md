@@ -166,7 +166,7 @@ for repo in kubestellar/console kubestellar/docs kubestellar/console-kb kubestel
   echo "=== $repo ==="
   unset GITHUB_TOKEN && gh issue list --repo "$repo" --state open \
     --json number,title,createdAt,labels --limit 30 | \
-    jq -r --arg repo "$repo" '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX") or . == "auto-qa-tuning-report") | not)] | sort_by(.createdAt) | .[0:10] | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor)m \($repo)#\(.number) \(.title | .[0:55])"'
+    jq -r --arg repo "$repo" '[.[] | select([.labels[].name] | any(. == "do-not-merge" or . == "hold" or startswith("LFX") or . == "auto-qa-tuning-report") | not)] | sort_by(.createdAt) | .[0:10] | .[] | "\(((now - (.createdAt | fromdate)) / 60)m \($repo)#\(.number) \(.title | .[0:55])"'
 done
 
 # 2. Open PR list — ALL project repos
@@ -405,7 +405,7 @@ Within the same-age bucket (tie-break), sub-order:
 ```bash
 unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open \
   --json number,title,createdAt,labels --limit 100 | \
-  jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX")) | not)] | sort_by(.createdAt) | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor)m #\(.number) \(.title | .[0:60])"'
+  jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or . == "hold" or startswith("LFX")) | not)] | sort_by(.createdAt) | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor)m #\(.number) \(.title | .[0:60])"'
 ```
 
 Output is already sorted **oldest first**. Dispatch fix agents in that order. Don't cherry-pick quick wins if a 10-hour-old bug is higher in the list.
@@ -518,7 +518,7 @@ If `bd` is missing or errors, log `Beads: skipped (bd unavailable: <error>)` and
 ```bash
 unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open \
   --json number,title,createdAt,labels --limit 100 \
-  | jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX")) | not)] | sort_by(.createdAt) | .[] | "\((((now - (.createdAt | fromdate)) / 60) | floor))m #\(.number) [\([.labels[].name] | join(","))] \(.title | .[0:70])"'
+  | jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or . == "hold" or startswith("LFX")) | not)] | sort_by(.createdAt) | .[] | "\((((now - (.createdAt | fromdate)) / 60) | floor))m #\(.number) [\([.labels[].name] | join(","))] \(.title | .[0:70])"'
 ```
 
 Output is oldest→newest. **Dispatch fix agents for the 6-8 oldest this iteration.** Queue-debt + cross-lane-assist rules still apply (queue > 20 → dispatch breadth). Exempt trackers (LFX/do-not-merge) are already filtered; other exemptions (phase beads in flight, external contributor engaged) still gate claiming but not sort position.
@@ -537,7 +537,7 @@ Output is oldest→newest. **Dispatch fix agents for the 6-8 oldest this iterati
 ```bash
 unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open \
   --json number,title,createdAt,labels \
-  --limit 100 | jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or startswith("LFX") ) | not )] | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor) \(.number) \(.title | .[0:60])"' \
+  --limit 100 | jq -r '[.[] | select([.labels[].name] | any(. == "do-not-merge" or . == "hold" or startswith("LFX") ) | not )] | .[] | "\(((now - (.createdAt | fromdate)) / 60) | floor) \(.number) \(.title | .[0:60])"' \
   | sort -nr | head -20
 ```
 Excludes only explicit exempt trackers (do-not-merge, LFX mentorships). Everything else counts — including nightly-regression, workflow-failure, and test-failure issues.

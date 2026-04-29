@@ -615,22 +615,48 @@ kick() {
 /tmp/hive/bin/enumerate-actionable.sh 2>/dev/null || log "WARN: enumerate-actionable.sh failed (non-fatal)"
 /tmp/hive/bin/merge-gate.sh 2>/dev/null || log "WARN: merge-gate.sh failed (non-fatal)"
 
-# Build actionable summary for scanner kick message
+# Build inline work list for scanner kick message (agents must NOT list issues/PRs themselves)
 _ENUM_FILE="/var/run/hive-metrics/actionable.json"
 _MERGE_FILE="/var/run/hive-metrics/merge-eligible.json"
-_ENUM_SUMMARY=""
+_WORK_LIST=""
 if [ -f "$_ENUM_FILE" ]; then
   _ENUM_ISSUES=$(python3 -c "import json; print(json.load(open('$_ENUM_FILE')).get('issues',{}).get('count',0))" 2>/dev/null || echo 0)
   _ENUM_PRS=$(python3 -c "import json; print(json.load(open('$_ENUM_FILE')).get('prs',{}).get('count',0))" 2>/dev/null || echo 0)
   _ENUM_SLA=$(python3 -c "import json; print(json.load(open('$_ENUM_FILE')).get('issues',{}).get('sla_violations',0))" 2>/dev/null || echo 0)
-  _ENUM_SUMMARY="ACTIONABLE: ${_ENUM_ISSUES} issues, ${_ENUM_PRS} PRs"
-  [ "$_ENUM_SLA" -gt 0 ] 2>/dev/null && _ENUM_SUMMARY="${_ENUM_SUMMARY}, ${_ENUM_SLA} SLA VIOLATIONS"
-  _ENUM_SUMMARY="${_ENUM_SUMMARY}."
+  _ISSUES_INLINE=$(python3 -c "
+import json
+d = json.load(open('$_ENUM_FILE'))
+items = sorted(d.get('issues',{}).get('items',[]), key=lambda x: x.get('age_minutes',0), reverse=True)
+for i in items[:20]:
+    print(f\"  {i['age_minutes']}m {i['repo']}#{i['number']} [{','.join(i.get('labels',[]))}] {i['title'][:70]}\")
+" 2>/dev/null || echo "  (none)")
+  _PRS_INLINE=$(python3 -c "
+import json
+d = json.load(open('$_ENUM_FILE'))
+for p in d.get('prs',{}).get('items',[]):
+    print(f\"  {p['repo']}#{p['number']} by @{p.get('author','')} {p['title'][:70]}\")
+" 2>/dev/null || echo "  (none)")
+  _WORK_LIST="ACTIONABLE ISSUES (${_ENUM_ISSUES}, oldest first):
+${_ISSUES_INLINE}
+ACTIONABLE PRs (${_ENUM_PRS}):
+${_PRS_INLINE}"
+  [ "$_ENUM_SLA" -gt 0 ] 2>/dev/null && _WORK_LIST="${_WORK_LIST}
+⚠️ ${_ENUM_SLA} SLA VIOLATIONS (>30 min)"
 fi
-_MERGE_SUMMARY=""
+_MERGE_INLINE=""
 if [ -f "$_MERGE_FILE" ]; then
   _MERGE_COUNT=$(python3 -c "import json; print(json.load(open('$_MERGE_FILE')).get('count',0))" 2>/dev/null || echo 0)
-  [ "$_MERGE_COUNT" -gt 0 ] 2>/dev/null && _MERGE_SUMMARY=" MERGE-READY: ${_MERGE_COUNT} PRs (see /var/run/hive-metrics/merge-eligible.json)."
+  if [ "$_MERGE_COUNT" -gt 0 ] 2>/dev/null; then
+    _MERGE_LIST=$(python3 -c "
+import json
+d = json.load(open('$_MERGE_FILE'))
+for p in d.get('merge_eligible',[]):
+    print(f\"  {p['repo']}#{p['number']} {p['title'][:70]}\")
+" 2>/dev/null || echo "  (none)")
+    _MERGE_INLINE="
+MERGE-READY PRs (${_MERGE_COUNT}):
+${_MERGE_LIST}"
+  fi
 fi
 
 if policy_changed "scanner"; then
@@ -638,7 +664,11 @@ if policy_changed "scanner"; then
 else
   _SCANNER_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
 fi
-SCANNER_MSG="[agent:scanner] [KICK] git pull /tmp/hive. ${_SCANNER_POLICY_INSTR} ${_ENUM_SUMMARY}${_MERGE_SUMMARY} Read /var/run/hive-metrics/actionable.json for the canonical issue/PR list (pre-filtered, hold/ADOPTERS excluded). NEVER run gh issue list or gh pr list directly — the enumerator is your only source. Read /var/run/hive-metrics/merge-eligible.json for merge-ready PRs. Dispatch fix agents for 4-6 oldest issues across ALL repos, merge only from the merge-eligible list. Do NOT stand by — if issues exist, work them. Deferred beads older than 1 pass MUST be retried. NEVER run vitest, npm test, npm run build, tsc, or any test/build locally — dispatch fix agents instead, they read CI logs. Beads: ~/scanner-beads"
+SCANNER_MSG="[agent:scanner] [KICK] git pull /tmp/hive. ${_SCANNER_POLICY_INSTR}
+YOUR WORK LIST (pre-filtered — hold/ADOPTERS/drafts excluded):
+${_WORK_LIST}${_MERGE_INLINE}
+⛔ NEVER run gh issue list or gh pr list — the work list above is your ONLY source. You may use gh issue view, gh pr view, gh pr merge, gh pr create on individual items.
+Dispatch fix agents for 4-6 oldest issues across ALL repos, merge only from the merge-ready list. Do NOT stand by — if issues exist, work them. Deferred beads older than 1 pass MUST be retried. NEVER run vitest, npm test, npm run build, tsc, or any test/build locally — dispatch fix agents instead, they read CI logs. Beads: ~/scanner-beads"
 
 # Build live health preamble for reviewer — tells it exactly what's red RIGHT NOW
 _rh_json=$(/tmp/hive/dashboard/health-check.sh 2>/dev/null || echo '{}')

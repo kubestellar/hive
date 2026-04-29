@@ -377,7 +377,7 @@
     /* Token burn rate chart */
     .burn-chart-wrap { margin: 8px 0 12px; }
     .burn-chart-title { font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; }
-    .burn-context { display: flex; gap: 16px; margin-top: 6px; font-size: 0.7rem; font-family: monospace; }
+    .burn-context { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.7rem; font-family: monospace; }
     .burn-context .bc-stat { display: flex; flex-direction: column; align-items: center; }
     .burn-context .bc-val { font-weight: 700; font-size: 0.85rem; }
     .burn-context .bc-label { color: var(--muted); font-size: 0.6rem; }
@@ -925,7 +925,7 @@
         <div class="gov-grid">
           <div class="gov-stat"><div class="label">timer</div><div class="val ${cls}">${gov.active ? '● active' : '⚠ DEAD'}</div></div>
           <div class="gov-stat"><div class="label">mode</div><div class="val" style="color:${modeColor}">${gov.mode}</div></div>
-          <div class="gov-stat"><div class="label">actionable</div><div class="spark-row"><span class="val">${issueCount}</span>${issuesSpark}</div></div>
+          <div class="gov-stat"><div class="label">actionable issues</div><div class="spark-row"><span class="val">${issueCount}</span>${issuesSpark}</div></div>
           <div class="gov-stat"><div class="label">PRs</div><div class="spark-row"><span class="val">${gov.prs}</span>${prsSpark}</div></div>
           <div class="gov-stat"><div class="label">next run</div><div class="val">${gov.nextKick || '—'}</div></div>
         </div>
@@ -1023,10 +1023,14 @@
     }
 
     function fmtTokens(n) {
-      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
-      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-      return String(n);
+      if (n === 0) return '0';
+      const m = n / 1e6;
+      if (m >= 100) return m.toFixed(0) + 'M';
+      if (m >= 10) return m.toFixed(1) + 'M';
+      if (m >= 1) return m.toFixed(1) + 'M';
+      if (m >= 0.1) return m.toFixed(2) + 'M';
+      if (m >= 0.01) return m.toFixed(3) + 'M';
+      return m.toFixed(3) + 'M';
     }
 
     function renderBudgetBar(budget) {
@@ -1125,7 +1129,7 @@
 
       const MINUTES_PER_HOUR = 60;
       const HOURS_PER_WEEK = 168;
-      const AGENT_ORDER = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+      const AGENT_ORDER = ['supervisor', 'scanner', 'reviewer', 'architect', 'outreach'];
       const rows = [];
       let totalWeeklyBurn = 0;
 
@@ -1236,22 +1240,50 @@
 function computeHourlyBurnRates() {
   const MIN_POINTS = 6;
   if (historyData.length < MIN_POINTS) return null;
+
+  // Collect points where tokenTotal actually changed (skip stale repeats)
+  const changePoints = [];
+  let lastVal = -1;
+  for (const s of historyData) {
+    const v = s.tokenTotal || 0;
+    if (v !== lastVal) {
+      changePoints.push({ t: s.t, v });
+      lastVal = v;
+    }
+  }
+  if (changePoints.length < 3) return null;
+
+  // Compute rate between consecutive change points
+  const rawRates = [];
+  for (let i = 1; i < changePoints.length; i++) {
+    const dt = (changePoints[i].t - changePoints[i - 1].t) / 1000;
+    if (dt <= 0) continue;
+    const delta = changePoints[i].v - changePoints[i - 1].v;
+    if (delta <= 0) continue;
+    rawRates.push({ t: changePoints[i].t, rate: (delta / dt) * 3600 });
+  }
+  if (rawRates.length < 3) return null;
+
+  // Cap outliers at p95 to remove collector-reset spikes
+  const sorted = rawRates.map(r => r.rate).sort((a, b) => a - b);
+  const P95_IDX = Math.floor(sorted.length * 0.95);
+  const cap = sorted[Math.min(P95_IDX, sorted.length - 1)] * 1.5;
+  for (const r of rawRates) { if (r.rate > cap) r.rate = cap; }
+
+  // Bucket into 5-minute windows
   const BUCKET_MS = 300000;
   const rates = [];
   let i = 0;
-  while (i < historyData.length) {
-    const bucketStart = historyData[i].t;
-    const bucketEnd = bucketStart + BUCKET_MS;
-    let j = i;
-    while (j < historyData.length && historyData[j].t < bucketEnd) j++;
-    if (j > i && j < historyData.length) {
-      const dt = (historyData[j - 1].t - historyData[i].t) / 1000;
-      if (dt > 0) {
-        const delta = (historyData[j - 1].tokenTotal || 0) - (historyData[i].tokenTotal || 0);
-        rates.push({ t: bucketStart, rate: Math.max(0, (delta / dt) * 3600) });
-      }
+  while (i < rawRates.length) {
+    const bucketEnd = rawRates[i].t + BUCKET_MS;
+    let sum = 0, count = 0;
+    const bt = rawRates[i].t;
+    while (i < rawRates.length && rawRates[i].t < bucketEnd) {
+      sum += rawRates[i].rate;
+      count++;
+      i++;
     }
-    i = j || i + 1;
+    if (count > 0) rates.push({ t: bt, rate: sum / count });
   }
   return rates.length >= 3 ? rates : null;
 }
@@ -1295,23 +1327,31 @@ function intensityGauge() {
 
   const polyline = pts.map(p => p.join(',')).join(' ');
 
-  return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:260px">
+  const tStart = new Date(rates[0].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase();
+  const tEnd = new Date(rates[rates.length - 1].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase();
+
+  const dotLeftPct = (parseFloat(lastPt[0]) / W * 100).toFixed(1);
+  const dotTopPct = (parseFloat(lastPt[1]) / H * 100).toFixed(1);
+
+  return `<div class="burn-chart-wrap">
     <div class="burn-chart-title">burn rate (tok/hr)</div>
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-      <line x1="${PAD}" y1="${yPeak}" x2="${W - PAD}" y2="${yPeak}" stroke="#f85149" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5"/>
-      <line x1="${PAD}" y1="${yAvg}" x2="${W - PAD}" y2="${yAvg}" stroke="#d29922" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5"/>
-      <line x1="${PAD}" y1="${yLow}" x2="${W - PAD}" y2="${yLow}" stroke="#58a6ff" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5"/>
-      <text x="${W - PAD}" y="${yPeak}" dy="-2" text-anchor="end" fill="#f85149" font-size="7" opacity="0.7">peak</text>
-      <text x="${W - PAD}" y="${yAvg}" dy="-2" text-anchor="end" fill="#d29922" font-size="7" opacity="0.7">avg</text>
-      <text x="${W - PAD}" y="${yLow}" dy="8" text-anchor="end" fill="#58a6ff" font-size="7" opacity="0.7">low</text>
-      <polyline points="${polyline}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="3" fill="${color}" stroke="#0d1117" stroke-width="1"/>
-    </svg>
+    <div style="position:relative">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block">
+        <line x1="${PAD}" y1="${yPeak}" x2="${W - PAD}" y2="${yPeak}" stroke="#f85149" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5" vector-effect="non-scaling-stroke"/>
+        <line x1="${PAD}" y1="${yAvg}" x2="${W - PAD}" y2="${yAvg}" stroke="#d29922" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5" vector-effect="non-scaling-stroke"/>
+        <line x1="${PAD}" y1="${yLow}" x2="${W - PAD}" y2="${yLow}" stroke="#58a6ff" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5" vector-effect="non-scaling-stroke"/>
+        <polyline points="${polyline}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      </svg>
+      <div style="position:absolute;left:${dotLeftPct}%;top:${dotTopPct}%;width:6px;height:6px;border-radius:50%;background:${color};border:1px solid #0d1117;transform:translate(-50%,-50%)"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--muted);margin-top:1px;font-family:monospace">
+      <span>${tStart}</span><span>${tEnd}</span>
+    </div>
     <div class="burn-context">
-      <div class="bc-stat"><span class="bc-val" style="color:#f85149">${fmtTokens(peak)}</span><span class="bc-label">peak/hr</span></div>
-      <div class="bc-stat"><span class="bc-val" style="color:#d29922">${fmtTokens(avg)}</span><span class="bc-label">avg/hr</span></div>
-      <div class="bc-stat"><span class="bc-val" style="color:${color}">${fmtTokens(now)}</span><span class="bc-label">now/hr</span></div>
       <div class="bc-stat"><span class="bc-val" style="color:#58a6ff">${fmtTokens(low)}</span><span class="bc-label">low/hr</span></div>
+      <div class="bc-stat"><span class="bc-val" style="color:#d29922">${fmtTokens(avg)}</span><span class="bc-label">avg/hr</span></div>
+      <div class="bc-stat"><span class="bc-val" style="color:#f85149">${fmtTokens(peak)}</span><span class="bc-label">peak/hr</span></div>
+      <div class="bc-stat"><span class="bc-val" style="color:${color}">${fmtTokens(now)}</span><span class="bc-label">current/hr</span></div>
     </div>
     <div style="color:${color};font-size:11px;font-family:monospace;margin-top:2px">${label}</div>
   </div>`;
@@ -1372,18 +1412,19 @@ function burnAreaChart() {
   const belowBand = nowVal < buckets[buckets.length - 1].p25;
   const dotColor = aboveBand ? '#f85149' : belowBand ? '#58a6ff' : '#3fb950';
 
-  const firstTime = new Date(rates[0].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true});
-  const lastTime = new Date(rates[rates.length - 1].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true});
+  const areaDotLeftPct = (parseFloat(lastNow.split(',')[0]) / W * 100).toFixed(1);
+  const areaDotTopPct = (parseFloat(lastNow.split(',')[1]) / H * 100).toFixed(1);
 
   return `<div class="burn-area-wrap">
-    <div class="burn-area-title">burn rate distribution · <span style="color:rgba(57,210,192,0.6)">p25–p75 band</span> · <span style="color:#39d2c0">actual</span></div>
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px">
-      <polygon points="${bandTop.join(' ')} ${bandBot.join(' ')}" fill="rgba(57,210,192,0.12)" stroke="none"/>
-      <polyline points="${medianPts.join(' ')}" fill="none" stroke="rgba(57,210,192,0.3)" stroke-width="1" stroke-dasharray="2,2"/>
-      <polyline points="${nowPts.join(' ')}" fill="none" stroke="#39d2c0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${lastNow.split(',')[0]}" cy="${lastNow.split(',')[1]}" r="3" fill="${dotColor}" stroke="#0d1117" stroke-width="1"/>
-    </svg>
-    <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--muted)">${firstTime}<span>${lastTime}</span></div>
+    <div class="burn-area-title" style="text-align:left">burn rate distribution · <span style="color:rgba(57,210,192,0.6)">p25–p75 band</span> · <span style="color:#39d2c0">actual</span></div>
+    <div style="position:relative">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block">
+        <polygon points="${bandTop.join(' ')} ${bandBot.join(' ')}" fill="rgba(57,210,192,0.12)" stroke="none"/>
+        <polyline points="${medianPts.join(' ')}" fill="none" stroke="rgba(57,210,192,0.3)" stroke-width="1" stroke-dasharray="2,2" vector-effect="non-scaling-stroke"/>
+        <polyline points="${nowPts.join(' ')}" fill="none" stroke="#39d2c0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      </svg>
+      <div style="position:absolute;left:${areaDotLeftPct}%;top:${areaDotTopPct}%;width:6px;height:6px;border-radius:50%;background:${dotColor};border:1px solid #0d1117;transform:translate(-50%,-50%)"></div>
+    </div>
   </div>`;
 }
 
@@ -1396,7 +1437,8 @@ function burnAreaChart() {
         return;
       }
 
-      const sessionsOpen = el.querySelector('.token-sessions')?.open || false;
+      const sessionsEl = el.querySelector('.token-sessions');
+      const sessionsOpen = sessionsEl ? sessionsEl.open : true;
 
       const t = tokens.totals;
       const totalTokens = t.input + t.output + t.cacheRead;
@@ -1415,24 +1457,52 @@ function burnAreaChart() {
         </div>`;
       }).join('');
 
-      const sessionRows = sessions.map(s => {
-        const age = s.lastActive ? new Date(s.lastActive).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}) : '';
-        const agentName = s.agent && s.agent !== 'unknown' ? s.agent : '';
-        const agentCls = agentName ? `a-${agentName}` : 'a-unknown';
-        return `<div class="token-session-row">
-          <span class="sid">${esc(s.id)}</span>
-          <span class="sagent ${agentCls}">${agentName || '—'}</span>
-          <span class="smodel">${esc(s.model)}</span>
-          <span class="stokens">${fmtTokens(s.total)}</span>
-          <span class="smsgs">${s.messages} msgs</span>
-          <span class="sproj">${esc(s.project)} · ${age}</span>
+      const HIVE_AGENTS = new Set(['scanner', 'reviewer', 'architect', 'outreach', 'supervisor']);
+      const agentSessions = sessions.filter(s => HIVE_AGENTS.has(s.agent));
+      const grouped = {};
+      for (const s of agentSessions) {
+        if (!grouped[s.agent]) grouped[s.agent] = [];
+        grouped[s.agent].push(s);
+      }
+      const AGENT_ORDER = ['supervisor', 'scanner', 'reviewer', 'architect', 'outreach'];
+      const sortedGroups = AGENT_ORDER.filter(a => grouped[a]).map(a => [a, grouped[a]]);
+      const sessionRows = sortedGroups.map(([agent, grp]) => {
+        const agentCls = `a-${agent}`;
+        const rows = grp.map(s => {
+          const age = s.lastActive ? new Date(s.lastActive).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}) : '';
+          const act = s.activity || [];
+          const miniW = 60, miniH = 14;
+          let miniSpark = '';
+          if (act.length >= 2) {
+            const mx = Math.max(...act, 1);
+            const pts = act.map((v, i) => `${(i / (act.length - 1)) * miniW},${miniH - (v / mx) * (miniH - 2) - 1}`).join(' ');
+            const aClrs = { scanner: '#58a6ff', reviewer: '#3fb950', architect: '#bc8cff', outreach: '#39d2c0', supervisor: '#d29922' };
+            const clr = aClrs[s.agent] || '#8b949e';
+            miniSpark = `<span class="sparkline" style="margin-left:4px"><svg width="${miniW}" height="${miniH}" viewBox="0 0 ${miniW} ${miniH}"><polyline points="${pts}" fill="none" stroke="${clr}" stroke-width="1.2" opacity="0.7"/></svg></span>`;
+          }
+          return `<div class="token-session-row" style="padding-left:12px">
+            <span class="sid">${esc(s.id)}</span>
+            <span class="smodel">${esc(s.model)}</span>
+            <span class="stokens">${s.total > 0 ? fmtTokens(s.total) : '—'}</span>
+            <span class="smsgs">${s.messages} msgs</span>${miniSpark}
+            <span class="sproj">${age}</span>
+          </div>`;
+        }).join('');
+        const totalMsgs = grp.reduce((a, s) => a + s.messages, 0);
+        const totalTokens = grp.reduce((a, s) => a + s.total, 0);
+        return `<div style="margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+            <span class="sagent ${agentCls}" style="font-weight:700">${agent}</span>
+            <span style="color:var(--muted);font-size:0.65rem">${grp.length} session${grp.length > 1 ? 's' : ''} · ${totalMsgs} msgs${totalTokens > 0 ? ' · ' + fmtTokens(totalTokens) : ''}</span>
+          </div>
+          ${rows}
         </div>`;
       }).join('');
 
       const advisorHtml = buildCadenceAdvisor(tokens.byAgent || {});
 
       const totalSpark = sparkSvg(getHistorySeries('tokenTotal'), '#39d2c0');
-      const agentNames = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+      const agentNames = ['supervisor', 'scanner', 'reviewer', 'architect', 'outreach'];
       const agentColors = { scanner: '#58a6ff', reviewer: '#3fb950', architect: '#bc8cff', outreach: '#39d2c0', supervisor: '#d29922' };
       const agentSparkRows = agentNames.map(name => {
         const ba = tokens.byAgent || {};
@@ -1444,7 +1514,11 @@ function burnAreaChart() {
 
       el.innerHTML = `<div class="token-panel">
         <div class="token-title">Token Usage <span class="lookback">${tokens.lookbackHours || 24}h window · ${t.sessions} sessions</span></div>
-        <div class="token-grid" style="align-items:center">${intensityGauge()}
+        <div style="display:flex;gap:16px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0">${intensityGauge()}</div>
+          <div style="flex:1.5;min-width:0">${burnAreaChart()}</div>
+        </div>
+        <div class="token-grid">
           <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--cyan)">${fmtTokens(totalTokens)}</span>${totalSpark}</div><div class="tlabel">total tokens</div></div>
           <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--blue)">${fmtTokens(t.input)}</span>${sparkSvg(getHistorySeries('tokenInput'), '#58a6ff')}</div><div class="tlabel">input</div></div>
           <div class="token-stat"><div class="spark-row"><span class="tval" style="color:var(--purple)">${fmtTokens(t.output)}</span>${sparkSvg(getHistorySeries('tokenOutput'), '#bc8cff')}</div><div class="tlabel">output</div></div>
@@ -1453,10 +1527,9 @@ function burnAreaChart() {
           <div class="token-stat"><div class="spark-row"><span class="tval">${t.messages}</span>${sparkSvg(getHistorySeries('tokenMessages'), '#8b949e')}</div><div class="tlabel">messages</div></div>
         </div>
         ${agentSparkRows ? `<div class="token-grid" style="margin-top:4px">${agentSparkRows}</div>` : ''}
-        ${burnAreaChart()}
         ${advisorHtml}
         <div class="token-models">${modelChips}</div>
-        ${sessions.length > 0 ? `<details class="token-sessions"${sessionsOpen ? ' open' : ''}><summary>Active Sessions (${sessions.length})</summary>${sessionRows}</details>` : ''}
+        ${agentSessions.length > 0 ? `<details class="token-sessions"${sessionsOpen ? ' open' : ''}><summary>Active Sessions (${agentSessions.length})</summary>${sessionRows}</details>` : ''}
       </div>`;
     }
 

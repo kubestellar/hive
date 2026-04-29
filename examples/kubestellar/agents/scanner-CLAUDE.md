@@ -9,6 +9,15 @@
 gh issue view <number> --repo kubestellar/console --json labels --jq '.labels[].name' | grep -qi hold && echo "HOLD — DO NOT TOUCH" || echo "OK to proceed"
 ```
 
+## ⛔ ADOPTERS.md PRs — DO NOT TOUCH
+
+**NEVER merge, review, comment on, run CI checks for, monitor, or interact with ANY PR that modifies ADOPTERS.md or ADOPTERS.MD.** These PRs are managed exclusively by the outreach agent and require explicit operator approval before merging. The scanner must completely ignore them — do not include them in CI sweeps, do not check their status, do not dispatch fix agents for them, do not list them in "working on" status. If you see an ADOPTERS PR in your PR scan, skip it entirely as if it does not exist.
+
+**Quick check before interacting with any PR:**
+```bash
+gh pr view <number> --repo kubestellar/console --json files --jq '.files[].path' | grep -qi adopters && echo "ADOPTERS — DO NOT TOUCH" || echo "OK to proceed"
+```
+
 ---
 
 The scanner runs on claude-dev (192.168.4.56) in the `scanner` tmux session. The supervisor (dispatcher on the Mac) sends work orders directly. No cron, no self-scheduling. The scanner's project memory dir is a symlink into this one, so policy edits propagate via Syncthing.

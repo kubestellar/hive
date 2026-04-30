@@ -28,6 +28,10 @@ PROJECT="${PROJECT_NAME:-KubeStellar}"
 
 EXEMPT_LABEL_REGEX="nightly-tests|LFX|do-not-merge|meta-tracker|auto-qa-tuning-report|hold|adopters|changes-requested|waiting-on-author"
 
+# Use real gh binary — the /usr/local/bin/gh wrapper blocks listing commands
+# (designed for agents) which would break this infrastructure script.
+GH=/usr/bin/gh
+
 # Auth: use HIVE_GITHUB_TOKEN if set
 if [ -n "${HIVE_GITHUB_TOKEN:-}" ]; then
   unset GITHUB_TOKEN 2>/dev/null || true
@@ -41,8 +45,8 @@ trap 'rm -rf "$tmpdir"' EXIT
 for repo in "${REPOS[@]}"; do
   rname="${repo##*/}"
   (
-    issues=$(gh issue list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
-    prs=$(gh pr list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
+    issues=$($GH issue list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
+    prs=$($GH pr list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
     echo "${issues} ${prs}" > "$tmpdir/repo_${rname}"
   ) &
 done
@@ -52,31 +56,31 @@ for repo in "${REPOS[@]}"; do
   rname="${repo##*/}"
   (
     # Use gh search which is GraphQL-backed and more reliable than REST /issues
-    actionable_issues=$(gh issue list --repo "$repo" --state open --json "number,labels" \
+    actionable_issues=$($GH issue list --repo "$repo" --state open --json "number,labels" \
       --jq "[.[] | select(.labels | map(.name) | any(test(\"${EXEMPT_LABEL_REGEX}\"; \"i\")) | not)] | length" 2>/dev/null || echo "-1")
-    actionable_prs=$(gh pr list --repo "$repo" --state open --json "number,labels" \
+    actionable_prs=$($GH pr list --repo "$repo" --state open --json "number,labels" \
       --jq "[.[] | select(.labels | map(.name) | any(test(\"${EXEMPT_LABEL_REGEX}\"; \"i\")) | not)] | length" 2>/dev/null || echo "-1")
     echo "${actionable_issues} ${actionable_prs}" > "$tmpdir/actionable_${rname}"
   ) &
 done
 
 # ── Fetch primary repo metadata (stars, forks, contributors, adopters) ──
-(gh api "repos/${PRIMARY_REPO}" --jq '.stargazers_count' > "$tmpdir/stars" 2>/dev/null || echo 0 > "$tmpdir/stars") &
-(gh api "repos/${PRIMARY_REPO}" --jq '.forks_count' > "$tmpdir/forks" 2>/dev/null || echo 0 > "$tmpdir/forks") &
+($GH api "repos/${PRIMARY_REPO}" --jq '.stargazers_count' > "$tmpdir/stars" 2>/dev/null || echo 0 > "$tmpdir/stars") &
+($GH api "repos/${PRIMARY_REPO}" --jq '.forks_count' > "$tmpdir/forks" 2>/dev/null || echo 0 > "$tmpdir/forks") &
 (
-  c=$(gh api "repos/${PRIMARY_REPO}/contributors?per_page=1" -i 2>/dev/null | grep -oP 'page=\K\d+(?=>; rel="last")' || echo 0)
-  [ "$c" = "0" ] && c=$(gh api "repos/${PRIMARY_REPO}/contributors" --jq 'length' 2>/dev/null || echo 0)
+  c=$($GH api "repos/${PRIMARY_REPO}/contributors?per_page=1" -i 2>/dev/null | grep -oP 'page=\K\d+(?=>; rel="last")' || echo 0)
+  [ "$c" = "0" ] && c=$($GH api "repos/${PRIMARY_REPO}/contributors" --jq 'length' 2>/dev/null || echo 0)
   echo "$c" > "$tmpdir/contribs"
 ) &
 (
-  a=$(gh api "repos/${PRIMARY_REPO}/contents/ADOPTERS.MD" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0)
+  a=$($GH api "repos/${PRIMARY_REPO}/contents/ADOPTERS.MD" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -cP '^\|.*\|.*\|' || echo 0)
   a=$(( a > 2 ? a - 2 : 0 ))
   echo "$a" > "$tmpdir/adopters"
 ) &
 
 # ── Fetch ACMM badge count (kubestellar-specific) ──
 if [ "${PROJECT_ORG}" = "kubestellar" ]; then
-  (gh api repos/kubestellar/docs/contents/src/app/%5Blocale%5D/acmm-leaderboard/page.tsx --jq '.content' 2>/dev/null \
+  ($GH api repos/kubestellar/docs/contents/src/app/%5Blocale%5D/acmm-leaderboard/page.tsx --jq '.content' 2>/dev/null \
     | base64 -d 2>/dev/null \
     | sed -n '/BADGE_PARTICIPANTS = new Set/,/\]);/p' \
     | grep -cP '^\s+"[a-zA-Z]' > "$tmpdir/acmm" 2>/dev/null || echo 0 > "$tmpdir/acmm") &
@@ -85,8 +89,8 @@ else
 fi
 
 # ── Fetch outreach PR counts ──
-(gh api "search/issues?q=author:${AI_AUTHOR}+type:pr+is:open+${PROJECT}+in:title+-org:${PROJECT_ORG}" --jq '.total_count' > "$tmpdir/outreach_open" 2>/dev/null || echo 0 > "$tmpdir/outreach_open") &
-(gh api "search/issues?q=author:${AI_AUTHOR}+type:pr+is:merged+${PROJECT}+in:title+-org:${PROJECT_ORG}" --jq '.total_count' > "$tmpdir/outreach_merged" 2>/dev/null || echo 0 > "$tmpdir/outreach_merged") &
+($GH api "search/issues?q=author:${AI_AUTHOR}+type:pr+is:open+${PROJECT}+in:title+-org:${PROJECT_ORG}" --jq '.total_count' > "$tmpdir/outreach_open" 2>/dev/null || echo 0 > "$tmpdir/outreach_open") &
+($GH api "search/issues?q=author:${AI_AUTHOR}+type:pr+is:merged+${PROJECT}+in:title+-org:${PROJECT_ORG}" --jq '.total_count' > "$tmpdir/outreach_merged" 2>/dev/null || echo 0 > "$tmpdir/outreach_merged") &
 
 wait
 

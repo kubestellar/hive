@@ -13,6 +13,10 @@ elif [ -f "$SCRIPT_DIR/bin/hive-config.sh" ]; then
   source "$SCRIPT_DIR/bin/hive-config.sh"
 fi
 
+# Use real gh binary — the /usr/local/bin/gh wrapper blocks listing commands
+# (designed for agents) which would break this infrastructure script.
+GH=/usr/bin/gh
+
 REPO="${PROJECT_PRIMARY_REPO:-kubestellar/console}"
 AI_AUTHOR="${PROJECT_AI_AUTHOR:-${AI_AUTHOR}}"
 PROJECT="${PROJECT_NAME:-KubeStellar}"
@@ -34,15 +38,15 @@ outreach_model=$(echo "$agent_status" | jq -r '.agents[] | select(.name == "outr
 # ── Scanner: issue→PR pairs from open + recently merged AI-authored PRs ──
 RECENT_MERGED_HOURS=24
 scanner_pairs_json="[]"
-if command -v gh &>/dev/null; then
+if command -v $GH &>/dev/null; then
   # Open PRs
-  open_prs=$(gh api "repos/${REPO}/pulls?state=open&per_page=50" \
+  open_prs=$($GH api "repos/${REPO}/pulls?state=open&per_page=50" \
     --jq "[.[] | select(.user.login == \"${AI_AUTHOR}\") | {pr: .number, title: .title, body: (.body // \"\"), created: .created_at, state: \"open\"}]" 2>/dev/null || echo "[]")
   # Recently merged PRs (last 24h)
   since=$(date -u -d "-${RECENT_MERGED_HOURS} hours" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v-${RECENT_MERGED_HOURS}H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "")
   merged_prs="[]"
   if [ -n "$since" ]; then
-    merged_prs=$(gh api "repos/${REPO}/pulls?state=closed&per_page=30&sort=updated&direction=desc" \
+    merged_prs=$($GH api "repos/${REPO}/pulls?state=closed&per_page=30&sort=updated&direction=desc" \
       --jq "[.[] | select(.user.login == \"${AI_AUTHOR}\" and .merged_at != null and .merged_at >= \"$since\") | {pr: .number, title: .title, body: (.body // \"\"), merged: .merged_at, state: \"merged\"}]" 2>/dev/null || echo "[]")
   fi
   all_prs=$(echo "$open_prs" "$merged_prs" | jq -s 'add' 2>/dev/null || echo "[]")
@@ -61,7 +65,7 @@ if command -v gh &>/dev/null; then
   if [ -n "$in_progress_issues" ]; then
     ip_tmp=$(mktemp -d)
     for inum in $in_progress_issues; do
-      (gh api "repos/${REPO}/issues/${inum}" --jq '{number: .number, title: .title, state: .state, labels: [.labels[].name]}' > "$ip_tmp/$inum" 2>/dev/null || echo "{\"number\":$inum,\"title\":\"\",\"state\":\"open\",\"labels\":[]}" > "$ip_tmp/$inum") &
+      ($GH api "repos/${REPO}/issues/${inum}" --jq '{number: .number, title: .title, state: .state, labels: [.labels[].name]}' > "$ip_tmp/$inum" 2>/dev/null || echo "{\"number\":$inum,\"title\":\"\",\"state\":\"open\",\"labels\":[]}" > "$ip_tmp/$inum") &
     done
     wait
     scanner_inprogress_json=$(for inum in $in_progress_issues; do cat "$ip_tmp/$inum" 2>/dev/null; done | jq -s '[.[] | select(.state == "open" and ([.labels[] | select(. == "hold")] | length == 0))]' 2>/dev/null || echo "[]")
@@ -74,7 +78,7 @@ if command -v gh &>/dev/null; then
     # Fetch all unique issue titles in parallel
     unique_issues=$(echo "$scanner_pairs_json" | jq -r '.[].issue' | sort -un | grep -v '^0$')
     for inum in $unique_issues; do
-      (gh api "repos/${REPO}/issues/${inum}" --jq '{title: .title, state: .state}' > "$issue_tmp/$inum" 2>/dev/null || echo '{"title":"","state":"open"}' > "$issue_tmp/$inum") &
+      ($GH api "repos/${REPO}/issues/${inum}" --jq '{title: .title, state: .state}' > "$issue_tmp/$inum" 2>/dev/null || echo '{"title":"","state":"open"}' > "$issue_tmp/$inum") &
     done
     wait
     # Build title and state lookup maps

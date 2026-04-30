@@ -313,9 +313,10 @@ for marker_file in "${SHA_HOLD_MARKER}"_*; do
   mid="${marker_base#sha_hold_posted_}"
   mid="${mid%_${num}}"
   repo="${mid/_//}"
-  # Fetch current issue body and check for SHA
+  # Fetch current issue body + comments and check for SHA
   body=$(gh_api_retry "repos/${repo}/issues/${num}" --jq '.body // ""' || echo "")
-  has_sha=$(echo "$body" | python3 -c "
+  comments_text=$(gh_api_retry "repos/${repo}/issues/${num}/comments" --jq '[.[].body // ""] | join("\n")' || echo "")
+  has_sha=$(printf '%s\n%s' "$body" "$comments_text" | python3 -c "
 import sys, re
 SHA_PATTERN = re.compile(r'[0-9a-f]{7,40}\b')
 print('yes' if SHA_PATTERN.search(sys.stdin.read()) else 'no')
@@ -323,7 +324,7 @@ print('yes' if SHA_PATTERN.search(sys.stdin.read()) else 'no')
   if [ "$has_sha" = "yes" ]; then
     gh issue edit "$num" --repo "$repo" --remove-label "hold" --add-label "kind/bug" 2>/dev/null || true
     rm -f "$marker_file"
-    log "SHA-UNHOLD: ${repo}#${num} — SHA found in body, removed hold, restored kind/bug"
+    log "SHA-UNHOLD: ${repo}#${num} — SHA found in body/comments, removed hold, restored kind/bug"
   fi
 done
 

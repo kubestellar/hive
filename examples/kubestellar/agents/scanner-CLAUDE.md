@@ -78,37 +78,17 @@ The supervisor sorts open issues in this priority order:
 
 Ties are broken by smallest-first (fastest to merge → fastest drain). The supervisor applies this sort when it builds the work list you receive.
 
-### Clustering — group related issues before dispatch
+### Clustering — Pre-Computed by Pipeline
 
-Before dispatching Agent tool calls, the supervisor identifies **clusters of related issues** and bundles each cluster into ONE Agent. A single PR that closes 5 related bugs is vastly more efficient than 5 separate PRs.
+**Do NOT cluster issues manually.** The pre-kick pipeline (`issue-classifier.sh` + `pr-cluster-detector.sh`) groups related issues by: component keyword, reporter window, label combo, and failure mode. Your kick message includes a `CLUSTERS` section with pre-built bundles.
 
-**Clustering signals** (issues likely share a root cause):
-
-- **Same component keyword in title**: `Card: Foo`, `Settings: Foo`, `Cluster Admin Foo`, arcade game names (`KubeKong`/`NodeInvaders`/etc.)
-- **Same label combo + theme**: multiple `kind/bug` + `settings` bugs filed in the same hour → likely settings-component audit
-- **Same reporter within a short window**: walkthrough testers file 5-15 bugs in 30 min, often on the same area
-- **Same file/directory**: different bugs but all in `web/src/components/cards/ACMMFeedbackLoops.tsx`
-- **Same failure mode across components**: 4 i18n bugs → one `t()` wrap PR
-
-**Supervisor work-order format with clusters:**
-
+**When you see a cluster in your work list:**
 ```
-Work on (oldest first):
-- Cluster A (bundle into 1 agent): #8947, #8949, #8950, #8951 (ACMM card visual bugs)
-- Cluster B (bundle into 1 agent): #8871, #8873 (English-only labels in Settings sync + PagerDuty)
-- Single: #8940 Cluster Metrics (no bundle match)
+BUNDLE [settings-i18n]: #123, #124, #125 (3 issues)
 ```
+Dispatch ONE agent for all issues in the bundle. The prompt should say "fix all N in one PR."
 
-Scanner dispatches: 1 agent for Cluster A (prompt says "fix all 4 in one PR"), 1 for Cluster B, 1 for the single. 3 agents, 3 PRs, 7 issues closed.
-
-Past successful bundles (reference):
-- **PR #8885** closed #8871 + #8873 (Settings i18n)
-- **PR #8886** closed #8877+8878+8879+8880 (Profile/TokenUsage/OpsGenie i18n)
-- **PR #8946** closed #8847+8849+8850+8851+8852 (ACMM card cluster)
-- **PR #8965** closed 10 arcade game bugs (ContainerTetris, NodeInvaders, KubeKong, PodBrothers, Kubedle, KubeDoom)
-- **PR #8960** closed 8 cluster-management i18n bugs
-
-**Rule**: if two or more pending issues touch the same component file OR share a title prefix OR are from the same reporter within 30 min, bundle them into one Agent. One PR is always better than N.
+**If no clusters are listed**, dispatch one agent per issue as normal.
 
 ### Paused issues (skip until queue is quiet)
 
@@ -250,27 +230,23 @@ Run the verification command and paste the output.
 | "The fix agent will handle it" | Did you verify the agent started? Check the worktree exists and a PR was opened. |
 | "Queue is at target" | All repos are scanned every iteration. Target 0 means any open issue is actionable. Check PRs too. |
 | "Not actionable" / "not a code fix" | If the issue is open, it IS actionable. Dispatch a fix agent with a best-effort PR. A wrong fix that CI rejects is faster than no fix. |
-| "Deferred to next pass" | If a deferred bead is older than 1 pass, retry it NOW. Deferring twice is ignoring. |
+| "Deferred to next pass" | If a deferred bead appears in your work list, retry it. If it doesn't appear, the pipeline excluded it for a reason (hold, ADOPTERS, etc.) — leave it alone. |
 | "Nightly failure is flaky, not a bug" | Flaky tests are bugs. Dispatch a fix agent to stabilize the test. |
 | "PR partially addresses it" | Partially is not fully. If the issue is still open, dispatch a fix agent for the remaining gap. |
 
-## Model Tiering for Sub-agents — Cost Optimization
+## Model Tiering for Sub-agents — Pre-Computed by Pipeline
 
-When dispatching fix agents via the `Agent` tool, select the model based on task complexity:
+Each issue in your kick message includes `[tier/model]` — use the `model_recommendation` field directly:
 
-| Complexity | Criteria | Model | Rationale |
-|------------|----------|-------|-----------|
-| **Simple** | 1-2 files, <50 lines, clear fix (typo, label, const extraction, i18n wrap) | `model: "haiku"` | 15x cheaper than Opus |
-| **Medium** | 3-5 files, multi-component, needs reading issue + cross-referencing | `model: "sonnet"` | 5x cheaper than Opus |
-| **Complex** | >5 files, architecture, new feature, public API change, race condition | (default — no override) | Needs full reasoning |
+| Tier marker | Model | When |
+|-------------|-------|------|
+| `[S/haiku]` | `model: "haiku"` | Simple: i18n, const, label, typo fixes |
+| `[M/sonnet]` | `model: "sonnet"` | Medium: multi-component, cross-referencing |
+| `[C/opus]` | (no override) | Complex: architecture, API, cross-file refactor |
 
-**How to classify** — check these signals:
-- Issue has `auto-qa` label + mechanical fix title → **Simple**
-- Issue title contains "i18n", "const", "label", "typo", "rename" → **Simple**
-- Issue touches a single card or component → **Medium**
-- Issue involves cross-file refactor, state management, or API → **Complex**
+**Do NOT classify complexity yourself.** The pipeline classifier (`issue-classifier.sh`) pre-computes `complexity_tier` and `model_recommendation` per issue using rules from `hive-project.yaml`. Use whatever tier is in your work list.
 
-**Dispatch example with model tiering:**
+**Dispatch example:**
 ```
 Agent(subagent_type="general-purpose",
       model="haiku",
@@ -279,7 +255,13 @@ Agent(subagent_type="general-purpose",
       run_in_background=true)
 ```
 
-When in doubt, use Sonnet — it handles most tasks well at moderate cost.
+## Issue Clusters — Pre-Computed by Pipeline
+
+Your kick message includes `CLUSTERS` — pre-grouped related issues that should be bundled into a single agent/PR. **Do NOT cluster issues yourself.** If the pipeline says "BUNDLE [settings-i18n]: #123, #124, #125" — dispatch one agent for all three.
+
+## Lane Assignment — Pre-Computed by Pipeline
+
+Each issue has a `lane` field. **Only work on issues with `lane=scanner`.** Issues with `lane=architect` or `lane=outreach` belong to other agents — skip them entirely even if they appear in your work list.
 
 ## Step 0 — pre-flight re-read (MANDATORY, before anything else)
 

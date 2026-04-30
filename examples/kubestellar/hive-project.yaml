@@ -71,6 +71,143 @@ outreach:
     property_id: "525401563"
     service_account_key: "/home/dev/.config/gcloud-keys/ga4-reader-key.json"
 
+classification:
+  # Deterministic rules for issue classification — agents read results, not rules.
+  # Other projects: add your own patterns here.
+  complexity:
+    simple:
+      labels: ["auto-qa", "auto-qa-coverage", "auto-qa-i18n", "auto-qa-const"]
+      title_patterns:
+        - '\b(i18n|const|label|typo|rename|spelling|missing\s+translation|hardcoded\s+string)\b'
+      model: "haiku"
+    complex:
+      labels: ["architecture", "epic", "rfc", "redesign"]
+      title_patterns:
+        - '\b(refactor|redesign|migrat|api\s+change|breaking\s+change|rearchitect)\b'
+      model: "opus"
+    default_model: "sonnet"
+  tracker_prefixes: ["[Auto-QA]", "[Nightly]", "Nightly Test Suite"]
+  lanes:
+    architect:
+      labels: ["architecture", "epic", "rfc", "redesign"]
+      title_patterns:
+        - '\b(refactor|redesign|migrat|api\s+change|breaking\s+change|rearchitect)\b'
+    outreach:
+      labels: ["outreach", "cncf", "awesome-list", "external-submission", "adopters"]
+      title_patterns:
+        - '\b(awesome[- ]list|outreach|adopter|CNCF|landscape|external\s+submission)\b'
+    # default lane is "scanner" — everything not matched above
+  architecture_signals:
+    title_patterns:
+      - '\b(refactor|redesign|migrat|api\s+change|breaking\s+change|rearchitect)\b'
+    labels: ["architecture", "epic", "rfc", "redesign"]
+    min_directories: 4
+  clustering:
+    reporter_window_seconds: 1800
+    failure_modes:
+      i18n: '\b(i18n|translation|locali[sz]|t\(\)|intl)\b'
+      null-check: '\b(null|undefined|cannot read|TypeError|NoneType)\b'
+      css-visual: '\b(overflow|truncat|align|margin|padding|z-index|opacity|visible|hidden)\b'
+      test-flake: '\b(flaky|intermittent|timeout|race condition|retry)\b'
+  copilot_check:
+    lookback_days: 1
+    severity_keywords:
+      high: ["security", "vulnerability", "injection", "xss", "sql", "auth", "credential", "secret"]
+      medium: ["null", "undefined", "error", "exception", "crash", "race", "deadlock", "memory", "leak"]
+      low: ["style", "naming", "format", "whitespace", "comment", "typo", "nit", "minor"]
+
+# Pipeline: deterministic scripts that run before agent kicks.
+# Categories:
+#   enumerator — fetch and filter the canonical work list
+#   classifier — enrich items with deterministic metadata
+#   gate        — pre-check merge/action eligibility
+#   monitor     — detect state in external systems (GA4, Copilot, outreach PRs)
+#   enforcer    — block agents from forbidden operations (always-on, not per-kick)
+#
+# Each stage declares:
+#   script:    path relative to bin/
+#   output:    path to JSON output file
+#   consumers: which agents read this output (or "all")
+#   phase:     pre-kick | post-kick | always-on
+#   depends:   stages that must complete first (by name)
+pipeline:
+  stages:
+    # --- Phase 1: Enumerate (must run first) ---
+    - name: enumerator
+      category: enumerator
+      script: enumerate-actionable.sh
+      output: /var/run/hive-metrics/actionable.json
+      consumers: all
+      phase: pre-kick
+      depends: []
+
+    # --- Phase 2: Classify + Gate (depend on enumerator) ---
+    - name: classifier
+      category: classifier
+      script: issue-classifier.sh
+      output: /var/run/hive-metrics/actionable.json  # enriches in-place
+      consumers: [scanner, architect]
+      phase: pre-kick
+      depends: [enumerator]
+
+    - name: cluster-detector
+      category: classifier
+      script: pr-cluster-detector.sh
+      output: /var/run/hive-metrics/actionable.json  # enriches in-place
+      consumers: [scanner]
+      phase: pre-kick
+      depends: [classifier]
+
+    - name: architecture-detector
+      category: classifier
+      script: architecture-detector.sh
+      output: /var/run/hive-metrics/actionable.json  # enriches in-place
+      consumers: [scanner, architect]
+      phase: pre-kick
+      depends: [classifier]
+
+    - name: merge-gate
+      category: gate
+      script: merge-gate.sh
+      output: /var/run/hive-metrics/merge-eligible.json
+      consumers: [scanner]
+      phase: pre-kick
+      depends: [enumerator]
+
+    # --- Phase 3: Monitors (can run in parallel, depend on enumerator) ---
+    - name: copilot-comments
+      category: monitor
+      script: copilot-comment-checker.sh
+      output: /var/run/hive-metrics/copilot-comments.json
+      consumers: [reviewer]
+      phase: pre-kick
+      depends: [enumerator]
+
+    - name: outreach-tracker
+      category: monitor
+      script: outreach-tracker.sh
+      output: /var/run/hive-metrics/outreach-prs.json
+      consumers: [outreach]
+      phase: pre-kick
+      depends: [enumerator]
+
+    - name: ga4-anomalies
+      category: monitor
+      script: ga4-anomaly-detector.sh
+      output: /var/run/hive-metrics/ga4-anomalies.json
+      consumers: [reviewer]
+      phase: pre-kick
+      depends: []
+
+    # --- Always-on: Enforcers ---
+    - name: gh-wrapper
+      category: enforcer
+      script: null  # installed at /usr/local/bin/gh, not run per-kick
+      output: null
+      consumers: all
+      phase: always-on
+      depends: []
+
 dashboard:
   title: "KubeStellar Console Hive"
   port: 3001

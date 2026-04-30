@@ -611,9 +611,16 @@ kick() {
 # Policy hash compression: if CLAUDE.md (and skill files) are unchanged since
 # the last kick, we tell the agent to skip re-reading to save tokens.
 
-# --- Pre-kick enumeration: canonical actionable issues/PRs + merge eligibility ---
-/tmp/hive/bin/enumerate-actionable.sh 2>/dev/null || log "WARN: enumerate-actionable.sh failed (non-fatal)"
-/tmp/hive/bin/merge-gate.sh 2>/dev/null || log "WARN: merge-gate.sh failed (non-fatal)"
+# --- Pre-kick pipeline: enumerators → classifiers → gates → monitors ---
+# Runs all stages declared in hive-project.yaml → pipeline.stages in dependency order.
+# Each stage writes its output to /var/run/hive-metrics/*.json.
+# Agents receive pre-computed data in their kick messages — never query GitHub directly.
+/tmp/hive/bin/run-pipeline.sh 2>/dev/null || log "WARN: run-pipeline.sh failed (non-fatal, falling back to direct calls)"
+# Fallback: if pipeline runner failed, try the critical scripts directly
+if [ ! -f "/var/run/hive-metrics/actionable.json" ]; then
+  /tmp/hive/bin/enumerate-actionable.sh 2>/dev/null || log "WARN: enumerate-actionable.sh failed (non-fatal)"
+  /tmp/hive/bin/merge-gate.sh 2>/dev/null || log "WARN: merge-gate.sh failed (non-fatal)"
+fi
 
 # Build inline work list for scanner kick message (agents must NOT list issues/PRs themselves)
 _ENUM_FILE="/var/run/hive-metrics/actionable.json"
@@ -627,9 +634,23 @@ if [ -f "$_ENUM_FILE" ]; then
 import json
 d = json.load(open('$_ENUM_FILE'))
 items = sorted(d.get('issues',{}).get('items',[]), key=lambda x: x.get('age_minutes',0), reverse=True)
-for i in items[:20]:
-    print(f\"  {i['age_minutes']}m {i['repo']}#{i['number']} [{','.join(i.get('labels',[]))}] {i['title'][:70]}\")
+# Only show scanner-lane issues (classifier pre-assigns lanes)
+scanner_items = [i for i in items if i.get('lane', 'scanner') == 'scanner']
+for i in scanner_items[:20]:
+    tier = i.get('complexity_tier', '?')[0]
+    model = i.get('model_recommendation', 'sonnet')
+    tracker = ' [TRACKER]' if i.get('is_tracker') else ''
+    print(f\"  {i['age_minutes']}m {i['repo']}#{i['number']} [{tier}/{model}] [{','.join(i.get('labels',[]))}] {i['title'][:60]}{tracker}\")
 " 2>/dev/null || echo "  (none)")
+  # Build cluster summary for scanner
+  _CLUSTERS_INLINE=$(python3 -c "
+import json
+d = json.load(open('$_ENUM_FILE'))
+clusters = d.get('clusters', [])
+for c in clusters[:10]:
+    nums = ', '.join(f\"#{i['number']}\" for i in c['issues'])
+    print(f\"  BUNDLE [{c['key']}]: {nums} ({c['count']} issues)\")
+" 2>/dev/null || echo "")
   _PRS_INLINE=$(python3 -c "
 import json
 d = json.load(open('$_ENUM_FILE'))
@@ -664,11 +685,17 @@ if policy_changed "scanner"; then
 else
   _SCANNER_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
 fi
+_CLUSTER_SECTION=""
+if [ -n "$_CLUSTERS_INLINE" ]; then
+  _CLUSTER_SECTION="
+CLUSTERS (bundle into 1 agent each):
+${_CLUSTERS_INLINE}"
+fi
 SCANNER_MSG="[agent:scanner] [KICK] git pull /tmp/hive. ${_SCANNER_POLICY_INSTR}
-YOUR WORK LIST (pre-filtered — hold/ADOPTERS/drafts excluded):
-${_WORK_LIST}${_MERGE_INLINE}
+YOUR WORK LIST (pre-filtered — hold/ADOPTERS/drafts excluded, classified):
+${_WORK_LIST}${_CLUSTER_SECTION}${_MERGE_INLINE}
 ⛔ NEVER run gh issue list or gh pr list — the work list above is your ONLY source. You may use gh issue view, gh pr view, gh pr merge, gh pr create on individual items.
-Dispatch fix agents for 4-6 oldest issues across ALL repos, merge only from the merge-ready list. Do NOT stand by — if issues exist, work them. Deferred beads older than 1 pass MUST be retried. NEVER run vitest, npm test, npm run build, tsc, or any test/build locally — dispatch fix agents instead, they read CI logs. Beads: ~/scanner-beads"
+Use the model_recommendation for each issue (S=haiku, M=sonnet, C=opus). Bundle clustered issues into 1 agent per cluster. Skip issues with lane!=scanner. Dispatch fix agents for 4-6 oldest issues across ALL repos, merge only from the merge-ready list. Do NOT stand by — if issues exist, work them. NEVER run vitest, npm test, npm run build, tsc, or any test/build locally. Beads: ~/scanner-beads"
 
 # Build live health preamble for reviewer — tells it exactly what's red RIGHT NOW
 _rh_json=$(/tmp/hive/dashboard/health-check.sh 2>/dev/null || echo '{}')
@@ -695,7 +722,35 @@ if policy_changed "reviewer"; then
 else
   _REVIEWER_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
 fi
-REVIEWER_MSG="[agent:reviewer] [KICK] ${_HEALTH_PREAMBLE}git pull /tmp/hive. ${_REVIEWER_POLICY_INSTR} Full reviewer pass — GA4 error watch FIRST (30min vs 7d baseline, file issues for anomalies), then fix REDs (NOT Playwright — file issues only, scanner owns Playwright fixes), merge green PRs, scan merged PRs for Copilot comments. Beads: ~/reviewer-beads"
+# Build reviewer pipeline data preamble
+_COPILOT_FILE="/var/run/hive-metrics/copilot-comments.json"
+_GA4_FILE="/var/run/hive-metrics/ga4-anomalies.json"
+_COPILOT_PREAMBLE=""
+_GA4_PREAMBLE=""
+if [ -f "$_COPILOT_FILE" ]; then
+  _COPILOT_COUNT=$(python3 -c "import json; d=json.load(open('$_COPILOT_FILE')); print(d.get('total_unaddressed',0))" 2>/dev/null || echo 0)
+  if [ "$_COPILOT_COUNT" -gt 0 ] 2>/dev/null; then
+    _COPILOT_DETAILS=$(python3 -c "
+import json
+d = json.load(open('$_COPILOT_FILE'))
+for c in d.get('comments', [])[:10]:
+    sev = c.get('severity','?').upper()
+    print(f\"  [{sev}] {c['repo']}#{c['pr_number']} {c.get('file','')}:{c.get('line','')} — {c['body'][:80]}\")
+" 2>/dev/null || echo "  (details unavailable)")
+    _COPILOT_PREAMBLE="
+COPILOT COMMENTS (${_COPILOT_COUNT} unaddressed — pre-fetched):
+${_COPILOT_DETAILS}"
+  fi
+fi
+if [ -f "$_GA4_FILE" ]; then
+  _GA4_SUMMARY=$(python3 -c "import json; print(json.load(open('$_GA4_FILE')).get('summary',''))" 2>/dev/null || echo "")
+  if [ -n "$_GA4_SUMMARY" ]; then
+    _GA4_PREAMBLE="
+GA4: ${_GA4_SUMMARY}"
+  fi
+fi
+REVIEWER_MSG="[agent:reviewer] [KICK] ${_HEALTH_PREAMBLE}git pull /tmp/hive. ${_REVIEWER_POLICY_INSTR}${_GA4_PREAMBLE}${_COPILOT_PREAMBLE}
+Fix REDs (NOT Playwright — file issues only, scanner owns Playwright fixes), merge green PRs. Copilot comments and GA4 data above are pre-computed — do NOT re-query. Read /var/run/hive-metrics/copilot-comments.json and /var/run/hive-metrics/ga4-anomalies.json for full details. Beads: ~/reviewer-beads"
 
 if policy_changed "architect"; then
   _ARCHITECT_POLICY_INSTR="Read your CLAUDE.md."
@@ -709,7 +764,30 @@ if policy_changed "outreach"; then
 else
   _OUTREACH_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
 fi
-OUTREACH_MSG="[agent:outreach] [KICK] git pull /tmp/hive. ${_OUTREACH_POLICY_INSTR} Full outreach pass. Beads: ~/outreach-beads"
+# Build outreach pipeline data preamble
+_OUTREACH_FILE="/var/run/hive-metrics/outreach-prs.json"
+_OUTREACH_PREAMBLE=""
+if [ -f "$_OUTREACH_FILE" ]; then
+  _OUTREACH_PREAMBLE=$(python3 -c "
+import json
+d = json.load(open('$_OUTREACH_FILE'))
+c = d.get('counts', {})
+violations = d.get('one_pr_per_org_violations', {})
+lines = []
+lines.append(f\"OUTREACH STATUS: {c.get('open_total',0)} open ({c.get('open_adopters',0)} adopters), {c.get('merged_total',0)} merged, {c.get('unique_orgs_merged',0)}/{c.get('target_placements',0)} placements ({c.get('progress_pct',0)}%)\")
+if violations:
+    lines.append(f'⚠ ONE-PR-PER-ORG VIOLATIONS: {\", \".join(violations.keys())}')
+blocked = d.get('blocked_orgs', [])
+if blocked:
+    lines.append(f'Blocked orgs (have open PR): {\", \".join(blocked[:20])}')
+print('\n'.join(lines))
+" 2>/dev/null || echo "")
+fi
+_OUTREACH_SECTION=""
+[ -n "$_OUTREACH_PREAMBLE" ] && _OUTREACH_SECTION="
+${_OUTREACH_PREAMBLE}"
+OUTREACH_MSG="[agent:outreach] [KICK] git pull /tmp/hive. ${_OUTREACH_POLICY_INSTR}${_OUTREACH_SECTION}
+Full outreach pass. PR counts above are pre-computed — do NOT re-query with gh search. Read /var/run/hive-metrics/outreach-prs.json for full details. Check blocked_orgs before opening new PRs. Beads: ~/outreach-beads"
 
 # ── Governor model integration ──────────────────────────────────────
 # Reads /var/run/kick-governor/model_<agent> written by the governor's

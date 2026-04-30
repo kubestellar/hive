@@ -209,8 +209,10 @@ function fetchActivity() {
 fetchActivity();
 setInterval(fetchActivity, REFRESH_MS);
 
-// Historical data — keep last 2 hours of snapshots (5s intervals = ~1440 points)
+// Historical data — keep last 12 hours of snapshots (30s intervals = ~1440 points)
 const MAX_HISTORY = 1440;
+const SPARK_RECORD_INTERVAL = 6; // record every 6th tick (5s × 6 = 30s)
+let sparkTickCount = 0;
 const SPARKLINE_FILE = path.join(HISTORY_DIR, 'sparkline.json');
 let history = [];
 try {
@@ -392,10 +394,13 @@ function fetchStatus() {
         for (const a of (statusCache.agents || [])) {
           snap.agents[a.name] = { busy: a.busy === 'working' ? 1 : 0, restarts: a.restarts || 0 };
         }
-        history.push(snap);
-        if (history.length > MAX_HISTORY) history.shift();
-        // Persist sparkline every 12 ticks (~60s) to avoid hammering disk on every 5s fetch
-        if (history.length % 12 === 0) {
+        sparkTickCount++;
+        if (sparkTickCount % SPARK_RECORD_INTERVAL === 0) {
+          history.push(snap);
+          if (history.length > MAX_HISTORY) history.shift();
+        }
+        // Persist sparkline every 2 min (~4 recorded points)
+        if (sparkTickCount % (SPARK_RECORD_INTERVAL * 4) === 0) {
           try { fs.writeFileSync(SPARKLINE_FILE, JSON.stringify(history)); } catch (_) {}
         }
         resolve(statusCache);

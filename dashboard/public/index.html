@@ -950,7 +950,7 @@
       const FIX_TIME_SPARK_COLOR = '#d2a8ff';
       const itmHistory = (itm.history || []).map(h => h.median || h.avg);
       const itmSpark = sparkSvg(itmHistory, FIX_TIME_SPARK_COLOR);
-      const itmTitle = itmCount > 0 ? `avg: ${formatFixTime(itmAvg)} | p90: ${formatFixTime(itm.p90_minutes)} | fastest: ${formatFixTime(itm.fastest_minutes)} | slowest: ${formatFixTime(itm.slowest_minutes)} | ${itmCount} fixes` : 'no data yet';
+      const itmTitle = itmCount > 0 ? `MTTR (Mean Time to Resolution) — median: ${formatFixTime(itmMedian)} | avg: ${formatFixTime(itmAvg)} | p90: ${formatFixTime(itm.p90_minutes)} | fastest: ${formatFixTime(itm.fastest_minutes)} | slowest: ${formatFixTime(itm.slowest_minutes)} | ${itmCount} fixes in last 30d` : 'MTTR — no data yet';
 
       el.innerHTML = `
         <div class="gov-title">Governor</div>
@@ -959,7 +959,7 @@
           <div class="gov-stat"><div class="label">mode</div><div class="val" style="color:${modeColor}">${gov.mode}</div></div>
           <div class="gov-stat"><div class="label">actionable issues</div><div class="spark-row"><span class="val">${issueCount}</span>${issuesSpark}</div></div>
           <div class="gov-stat"><div class="label">PRs</div><div class="spark-row"><span class="val">${gov.prs}</span>${prsSpark}</div></div>
-          <div class="gov-stat" title="${itmTitle}"><div class="label">median fix time</div><div class="spark-row"><span class="val" style="color:${FIX_TIME_SPARK_COLOR}">${formatFixTime(itmMedian)}</span>${itmSpark}</div></div>
+          <div class="gov-stat" title="${itmTitle}"><div class="label">MTTR</div><div class="spark-row"><span class="val" style="color:${FIX_TIME_SPARK_COLOR}">${formatFixTime(itmMedian)}</span>${itmSpark}</div></div>
           <div class="gov-stat"><div class="label">next run</div><div class="val">${gov.nextKick || '—'}</div></div>
         </div>
         <div class="temp-gauge">

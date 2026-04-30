@@ -294,25 +294,21 @@ json.dump(result, open('$ITM_FILE','w'))
 print(f'issue-to-merge: avg={avg}m median={median}m p90={p90}m count={len(durations)}')
 " 2>&1 || echo "issue-to-merge: python computation failed"
 
-# ── Update shields.io badge gist ───────────────────────────────────────────
+# ── Update MTTR badge gist ─────────────────────────────────────────────────
 BADGE_GIST_ID="${BADGE_GIST_ID:-4ae525a9797e8f83231ac344fcb47226}"
 if [ -f "$ITM_FILE" ]; then
   badge_median=$(jq -r '.median_minutes // 0' "$ITM_FILE" 2>/dev/null || echo 0)
   badge_count=$(jq -r '.count // 0' "$ITM_FILE" 2>/dev/null || echo 0)
   if [ "$badge_count" -gt 0 ] 2>/dev/null; then
-    if [ "$badge_median" -le 60 ]; then
-      badge_color="brightgreen"
-    elif [ "$badge_median" -le 240 ]; then
-      badge_color="yellow"
-    else
-      badge_color="red"
-    fi
+    if [ "$badge_median" -le 60 ]; then badge_color="brightgreen"
+    elif [ "$badge_median" -le 240 ]; then badge_color="yellow"
+    else badge_color="red"; fi
     badge_msg="${badge_median} min"
   else
     badge_color="lightgrey"
     badge_msg="no data"
   fi
-  badge_json="{\"schemaVersion\":1,\"label\":\"median fix time\",\"message\":\"${badge_msg}\",\"color\":\"${badge_color}\"}"
+  badge_json="{\"schemaVersion\":1,\"label\":\"MTTR\",\"message\":\"${badge_msg}\",\"color\":\"${badge_color}\"}"
   echo "$badge_json" > "$tmpdir/median-fix.json"
   $GH gist edit "$BADGE_GIST_ID" -f median-fix.json "$tmpdir/median-fix.json" 2>/dev/null || echo "badge gist update failed"
 fi

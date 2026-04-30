@@ -455,6 +455,21 @@
         `</svg></span>`;
     }
 
+    function dailyAggregate(rawData, key) {
+      if (!rawData || rawData.length === 0) return [];
+      const MS_PER_DAY = 86400000;
+      const buckets = {};
+      for (const s of rawData) {
+        const dayKey = Math.floor((s.t || 0) / MS_PER_DAY);
+        const keys = key.split('.');
+        let v = s;
+        for (const k of keys) v = v?.[k];
+        buckets[dayKey] = v ?? 0;
+      }
+      const sortedDays = Object.keys(buckets).sort((a, b) => a - b);
+      return sortedDays.map(d => buckets[d]);
+    }
+
     function getHistorySeries(key) {
       return historyData.map(s => {
         const keys = key.split('.');
@@ -580,9 +595,9 @@
         const acmm = m.acmm || 0;
         const awOpen = m.awesomeOpen || 0;
         const awMerged = m.awesomeMerged || 0;
-        const starSpark = sparkSvg((window._trendData || []).map(s => s.stars || 0), '#e3b341');
-        const awOpenSpark = sparkSvg((window._trendData || []).map(s => s.awesomeOpen || 0), '#58a6ff');
-        const awMergedSpark = sparkSvg((window._trendData || []).map(s => s.awesomeMerged || 0), '#3fb950');
+        const starSpark = sparkSvg(dailyAggregate(window._trendData || [], 'stars'), '#e3b341');
+        const awOpenSpark = sparkSvg(dailyAggregate(window._trendData || [], 'awesomeOpen'), '#58a6ff');
+        const awMergedSpark = sparkSvg(dailyAggregate(window._trendData || [], 'awesomeMerged'), '#3fb950');
         return `<div class="agent-indicators">
           <div class="ind-group"><span class="ind-group-label">GROWTH</span><div class="ind-dots">
             <span class="ind-dot-item"><span class="ind-num">⭐ ${stars}</span><span class="ind-dlabel">stars ${starSpark}</span></span>
@@ -1126,7 +1141,7 @@
       const alerts = (ghRateLimits && ghRateLimits.alerts) || [];
       // Filter out expired alerts client-side
       const now = Math.floor(Date.now() / 1000);
-      const GH_RATE_DEFAULT_TTL = 3600;
+      const GH_RATE_DEFAULT_TTL = 900;
       const active = alerts.filter(a => {
         const ttl = a.ttl_seconds || GH_RATE_DEFAULT_TTL;
         return now - (a.detected_epoch || 0) < ttl;

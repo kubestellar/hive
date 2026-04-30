@@ -195,3 +195,99 @@ done
 
 echo "$total_actionable_issues" > "${STATE_DIR:-/var/run/kick-governor}/queue_issues"
 echo "$total_actionable_prs" > "${STATE_DIR:-/var/run/kick-governor}/queue_prs"
+
+# ── Issue-to-merge time metric ──────────────────────────────────────────────
+# Fetch merged PRs, extract Fixes #N refs, look up issue createdAt, compute stats.
+# Writes to issue_to_merge.json — server.js reads it on a timer.
+ITM_FILE="$CACHE_DIR/issue_to_merge.json"
+ITM_PR_LIMIT=100
+ITM_BUCKET_MS=$((6 * 60 * 60 * 1000))
+ITM_BACKFILL_DAYS=30
+
+merged_prs=$($GH pr list --repo "$PRIMARY_REPO" --state merged --limit "$ITM_PR_LIMIT" --json number,body,mergedAt 2>/dev/null || echo "[]")
+
+# Extract issue refs and compute stats with jq + gh issue view
+python3 -c "
+import json, sys, subprocess, time, os, math
+
+prs = json.loads('''$merged_prs''')
+import re
+fixes_re = re.compile(r'(?:fixes|closes|resolves)\s+#(\d+)', re.IGNORECASE)
+
+refs = []
+for pr in prs:
+    body = pr.get('body') or ''
+    merged = pr.get('mergedAt')
+    if not merged: continue
+    for m in fixes_re.finditer(body):
+        refs.append({'issue': int(m.group(1)), 'mergedAt': merged})
+
+if not refs:
+    result = {'avg_minutes':0,'median_minutes':0,'p90_minutes':0,'count':0,
+              'fastest_minutes':0,'slowest_minutes':0,
+              'updated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+              'history':[]}
+    json.dump(result, open('$ITM_FILE','w'))
+    print('issue-to-merge: no Fixes #N refs found')
+    sys.exit(0)
+
+# Fetch issue createdAt dates
+issue_nums = list(set(r['issue'] for r in refs))
+created = {}
+gh = '/usr/bin/gh'
+for num in issue_nums:
+    try:
+        out = subprocess.check_output([gh,'issue','view',str(num),'--repo','$PRIMARY_REPO',
+                                       '--json','createdAt','--jq','.createdAt'],
+                                      timeout=15, stderr=subprocess.DEVNULL).decode().strip()
+        if out: created[num] = out
+    except: pass
+
+from datetime import datetime, timezone
+durations = []
+bucketed = {}
+bucket_ms = $ITM_BUCKET_MS
+for ref in refs:
+    ca = created.get(ref['issue'])
+    if not ca: continue
+    try:
+        issue_t = datetime.fromisoformat(ca.replace('Z','+00:00')).timestamp() * 1000
+        merge_t = datetime.fromisoformat(ref['mergedAt'].replace('Z','+00:00')).timestamp() * 1000
+    except: continue
+    if merge_t <= issue_t: continue
+    minutes = round((merge_t - issue_t) / 60000)
+    durations.append(minutes)
+    bk = int(merge_t // bucket_ms) * bucket_ms
+    bucketed.setdefault(bk, []).append(minutes)
+
+if not durations:
+    result = {'avg_minutes':0,'median_minutes':0,'p90_minutes':0,'count':0,
+              'fastest_minutes':0,'slowest_minutes':0,
+              'updated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+              'history':[]}
+    json.dump(result, open('$ITM_FILE','w'))
+    sys.exit(0)
+
+durations.sort()
+avg = round(sum(durations)/len(durations))
+median = durations[len(durations)//2]
+p90 = durations[min(int(len(durations)*0.9), len(durations)-1)]
+fastest = durations[0]
+slowest = durations[-1]
+
+cutoff = time.time()*1000 - $ITM_BACKFILL_DAYS*86400000
+history = []
+for t in sorted(bucketed.keys()):
+    if t < cutoff: continue
+    vals = bucketed[t]
+    history.append({'t': t, 'avg': round(sum(vals)/len(vals))})
+
+result = {
+    'avg_minutes': avg, 'median_minutes': median, 'p90_minutes': p90,
+    'count': len(durations), 'fastest_minutes': fastest, 'slowest_minutes': slowest,
+    'updated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+    'history': history
+}
+json.dump(result, open('$ITM_FILE','w'))
+print(f'issue-to-merge: avg={avg}m median={median}m p90={p90}m count={len(durations)}')
+" 2>&1 || echo "issue-to-merge: python computation failed"

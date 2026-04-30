@@ -33,7 +33,14 @@ print(json.dumps(result))
 " "$PROJECT_YAML" 2>/dev/null || echo '{"repos":[],"copilot":{}}')
 
 REPOS=$(echo "$CONFIG" | python3 -c "import json,sys; [print(r) for r in json.load(sys.stdin)['repos']]" 2>/dev/null)
-COPILOT_BOT=$(echo "$CONFIG" | python3 -c "import json,sys; print(json.load(sys.stdin)['copilot'].get('bot_name', 'copilot-swe-agent[bot]'))" 2>/dev/null || echo "copilot-swe-agent[bot]")
+# Copilot code review posts as "Copilot"; the fix-agent posts as "copilot-swe-agent[bot]"
+COPILOT_BOTS=$(echo "$CONFIG" | python3 -c "
+import json,sys
+copilot = json.load(sys.stdin)['copilot']
+bots = copilot.get('bot_names', ['Copilot', 'copilot-swe-agent[bot]'])
+if isinstance(bots, str): bots = [bots]
+print(','.join(bots))
+" 2>/dev/null || echo "Copilot,copilot-swe-agent[bot]")
 
 if [ -z "$REPOS" ]; then
   echo '{"error":"no repos","total_unaddressed":0,"comments":[]}' > "$OUTPUT_FILE"
@@ -74,8 +81,10 @@ for p in prs:
   [ -z "$pr_numbers" ] && continue
 
   for pr_num in $pr_numbers; do
+    # Build jq select filter for all bot names
+    _bot_filter=$(echo "$COPILOT_BOTS" | tr ',' '\n' | sed 's/.*/.user.login == "&"/' | paste -sd'|' -)
     comments=$($REAL_GH api "repos/${repo}/pulls/${pr_num}/comments" \
-      --jq "[.[] | select(.user.login == \"${COPILOT_BOT}\") | {
+      --jq "[.[] | select(${_bot_filter}) | {
         id: .id,
         path: .path,
         line: .line,

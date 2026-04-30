@@ -1,5 +1,7 @@
 # hive
 
+[![Median Fix Time](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fclubanderson%2F4ae525a9797e8f83231ac344fcb47226%2Fraw%2Fmedian-fix.json&style=for-the-badge)](https://github.com/kubestellar/console/issues)
+
 **One command starts everything. Your phone, Slack, or Discord buzzes if anything needs you.**
 
 ![hive dashboard](docs/dashboard-screenshot.png)

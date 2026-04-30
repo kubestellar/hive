@@ -204,13 +204,14 @@ ITM_PR_LIMIT=100
 ITM_BUCKET_MS=$((6 * 60 * 60 * 1000))
 ITM_BACKFILL_DAYS=30
 
-merged_prs=$($GH pr list --repo "$PRIMARY_REPO" --state merged --limit "$ITM_PR_LIMIT" --json number,body,mergedAt 2>/dev/null || echo "[]")
+merged_prs_file="$tmpdir/merged_prs.json"
+$GH pr list --repo "$PRIMARY_REPO" --state merged --limit "$ITM_PR_LIMIT" --json number,body,mergedAt > "$merged_prs_file" 2>/dev/null || echo "[]" > "$merged_prs_file"
 
 # Extract issue refs and compute stats with jq + gh issue view
 python3 -c "
 import json, sys, subprocess, time, os, math
 
-prs = json.loads('''$merged_prs''')
+prs = json.load(open('$merged_prs_file'))
 import re
 fixes_re = re.compile(r'(?:fixes|closes|resolves)\s+#(\d+)', re.IGNORECASE)
 

@@ -37,8 +37,8 @@ if [ "$BEFORE" != "$AFTER" ]; then
     src="$HIVE_REPO/$script"
     dst="$INSTALL_DIR/$filename"
     if [ -f "$src" ] && [ -f "$dst" ]; then
-      cp "$src" "$dst"
-      chmod +x "$dst"
+      sudo cp "$src" "$dst"
+      sudo chmod +x "$dst"
       SYNCED="$SYNCED $filename"
     fi
   done
@@ -51,8 +51,8 @@ for src in "$HIVE_REPO"/bin/*.sh; do
   dst="$INSTALL_DIR/$filename"
   [ -f "$dst" ] || continue
   if ! cmp -s "$src" "$dst"; then
-    cp "$src" "$dst"
-    chmod +x "$dst"
+    sudo cp "$src" "$dst"
+    sudo chmod +x "$dst"
     SYNCED="$SYNCED $filename(drift)"
   fi
 done

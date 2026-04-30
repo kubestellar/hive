@@ -44,8 +44,27 @@ fi
 
 ISSUE_LIMIT=50
 PR_LIMIT=30
+MAX_RETRIES=3
+RETRY_DELAY_SECS=2
 
 log() { echo "[$(date -Is)] ENUM $*" >> "$LOG"; }
+
+# Retry wrapper for gh api calls — concurrent agent sessions cause transient failures
+gh_api_retry() {
+  local attempt=1
+  local output
+  while [ "$attempt" -le "$MAX_RETRIES" ]; do
+    if output=$(/usr/bin/gh api "$@" 2>&1); then
+      echo "$output"
+      return 0
+    fi
+    log "WARN: gh api $1 attempt $attempt/$MAX_RETRIES failed: $(echo "$output" | head -1)"
+    attempt=$((attempt + 1))
+    [ "$attempt" -le "$MAX_RETRIES" ] && sleep "$RETRY_DELAY_SECS"
+  done
+  log "ERROR: gh api $1 failed after $MAX_RETRIES attempts"
+  return 1
+}
 
 log "START — scanning ${#REPOS[@]} repos"
 
@@ -54,8 +73,9 @@ prs_tmp=$(mktemp)
 trap 'rm -f "$issues_tmp" "$prs_tmp"' EXIT
 
 # --- Fetch issues and PRs sequentially across all repos ---
+fetch_failures=0
 for repo in "${REPOS[@]}"; do
-  /usr/bin/gh api "repos/${repo}/issues?state=open&per_page=${ISSUE_LIMIT}&sort=created&direction=asc" \
+  if ! gh_api_retry "repos/${repo}/issues?state=open&per_page=${ISSUE_LIMIT}&sort=created&direction=asc" \
     --jq "[.[] | select(.pull_request == null) | {
       repo: \"${repo}\",
       number: .number,
@@ -67,9 +87,12 @@ for repo in "${REPOS[@]}"; do
       labels: [.labels[].name],
       assignees: [.assignees[].login],
       url: .html_url
-    }]" >> "$issues_tmp" 2>/dev/null || echo "[]" >> "$issues_tmp"
+    }]" >> "$issues_tmp"; then
+    echo "[]" >> "$issues_tmp"
+    fetch_failures=$((fetch_failures + 1))
+  fi
 
-  /usr/bin/gh api "repos/${repo}/pulls?state=open&per_page=${PR_LIMIT}&sort=created&direction=asc" \
+  if ! gh_api_retry "repos/${repo}/pulls?state=open&per_page=${PR_LIMIT}&sort=created&direction=asc" \
     --jq "[.[] | {
       repo: \"${repo}\",
       number: .number,
@@ -79,8 +102,22 @@ for repo in "${REPOS[@]}"; do
       author: .user.login,
       draft: .draft,
       url: .html_url
-    }]" >> "$prs_tmp" 2>/dev/null || echo "[]" >> "$prs_tmp"
+    }]" >> "$prs_tmp"; then
+    echo "[]" >> "$prs_tmp"
+    fetch_failures=$((fetch_failures + 1))
+  fi
 done
+
+if [ "$fetch_failures" -gt 0 ]; then
+  log "WARN: $fetch_failures API calls failed after retries"
+fi
+
+# If ALL repos failed, preserve the previous actionable.json rather than overwriting with empty
+total_calls=$((${#REPOS[@]} * 2))
+if [ "$fetch_failures" -eq "$total_calls" ]; then
+  log "ERROR: all $total_calls API calls failed — preserving previous actionable.json"
+  exit 0
+fi
 
 # --- Filter issues with python3 ---
 all_issues=$(cat "$issues_tmp" | python3 -c "
@@ -175,7 +212,7 @@ if [ -n "$pr_numbers" ]; then
   for entry in $pr_numbers; do
     repo="${entry%%:*}"
     num="${entry##*:}"
-    files=$(/usr/bin/gh api "repos/${repo}/pulls/${num}/files" --jq '.[].filename' 2>/dev/null || echo "")
+    files=$(gh_api_retry "repos/${repo}/pulls/${num}/files" --jq '.[].filename' || echo "")
     if echo "$files" | grep -qi 'adopters'; then
       echo "$num" >> "$adopters_tmp"
     fi
@@ -277,7 +314,7 @@ for marker_file in "${SHA_HOLD_MARKER}"_*; do
   mid="${mid%_${num}}"
   repo="${mid/_//}"
   # Fetch current issue body and check for SHA
-  body=$(/usr/bin/gh api "repos/${repo}/issues/${num}" --jq '.body // ""' 2>/dev/null || echo "")
+  body=$(gh_api_retry "repos/${repo}/issues/${num}" --jq '.body // ""' || echo "")
   has_sha=$(echo "$body" | python3 -c "
 import sys, re
 SHA_PATTERN = re.compile(r'[0-9a-f]{7,40}\b')
@@ -342,7 +379,7 @@ result = {
     }
 }
 print(json.dumps(result, indent=2))
-" "$all_issues" "$all_prs" "${PROJECT_PRIMARY_REPO:-}" > "$TMP_FILE" 2>/dev/null
+" "$all_issues" "$all_prs" "${PROJECT_PRIMARY_REPO:-}" > "$TMP_FILE"
 
 mv "$TMP_FILE" "$OUTPUT_FILE"
 

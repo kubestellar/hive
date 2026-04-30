@@ -1169,7 +1169,7 @@
       renderTokens(data.tokens || {});
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
-      requestAnimationFrame(() => window.scrollTo(0, scrollY));
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, scrollY)));
     }
 
     function esc(s) {

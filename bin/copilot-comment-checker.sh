@@ -82,7 +82,7 @@ for p in prs:
 
   for pr_num in $pr_numbers; do
     # Build jq select filter for all bot names
-    _bot_filter=$(echo "$COPILOT_BOTS" | tr ',' '\n' | sed 's/.*/.user.login == "&"/' | paste -sd'|' -)
+    _bot_filter=$(echo "$COPILOT_BOTS" | tr ',' '\n' | sed 's/.*/.user.login == "&"/' | paste -sd'~' - | sed 's/~/ or /g')
     comments=$($REAL_GH api "repos/${repo}/pulls/${pr_num}/comments" \
       --jq "[.[] | select(${_bot_filter}) | {
         id: .id,

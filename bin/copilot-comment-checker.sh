@@ -15,7 +15,7 @@ REAL_GH="/usr/bin/gh"
 
 PROJECT_YAML="${HIVE_PROJECT_YAML:-/etc/hive/hive-project.yaml}"
 if [ ! -f "$PROJECT_YAML" ]; then
-  PROJECT_YAML="$(dirname "$(dirname "$0")")/examples/kubestellar/hive-project.yaml"
+  PROJECT_YAML="$(find "$(dirname "$(dirname "$0")")/examples" -name 'hive-project.yaml' -type f 2>/dev/null | head -1)"
 fi
 
 log() { echo "[$(date -Is)] COPILOT-CHECK $*" >> "$LOG"; }
@@ -33,6 +33,7 @@ print(json.dumps(result))
 " "$PROJECT_YAML" 2>/dev/null || echo '{"repos":[],"copilot":{}}')
 
 REPOS=$(echo "$CONFIG" | python3 -c "import json,sys; [print(r) for r in json.load(sys.stdin)['repos']]" 2>/dev/null)
+COPILOT_BOT=$(echo "$CONFIG" | python3 -c "import json,sys; print(json.load(sys.stdin)['copilot'].get('bot_name', 'copilot-swe-agent[bot]'))" 2>/dev/null || echo "copilot-swe-agent[bot]")
 
 if [ -z "$REPOS" ]; then
   echo '{"error":"no repos","total_unaddressed":0,"comments":[]}' > "$OUTPUT_FILE"
@@ -74,7 +75,7 @@ for p in prs:
 
   for pr_num in $pr_numbers; do
     comments=$($REAL_GH api "repos/${repo}/pulls/${pr_num}/comments" \
-      --jq "[.[] | select(.user.login == \"copilot-swe-agent[bot]\") | {
+      --jq "[.[] | select(.user.login == \"${COPILOT_BOT}\") | {
         id: .id,
         path: .path,
         line: .line,

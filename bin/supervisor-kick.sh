@@ -20,10 +20,14 @@
 
 set -euo pipefail
 
+# Source project config for AGENTS_WORKDIR
+# shellcheck source=hive-config.sh
+source "$(dirname "$0")/hive-config.sh" 2>/dev/null || source /usr/local/bin/hive-config.sh 2>/dev/null || true
+
 SESSION="${1:?Usage: supervisor-kick.sh <session> \"<message>\"}"
 MESSAGE="${2:?Usage: supervisor-kick.sh <session> \"<message>\"}"
 
-WORKDIR="${AGENT_WORKDIR:-/home/dev/kubestellar-console}"
+WORKDIR="${AGENT_WORKDIR:-${AGENTS_WORKDIR:-/home/dev}}"
 MODEL="${AGENT_MODEL:-claude-sonnet-4-6}"
 IDLE_MARKER="❯"
 READY_TIMEOUT="${READY_TIMEOUT:-45}"

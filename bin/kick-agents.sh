@@ -25,6 +25,15 @@ elif [[ -f /usr/local/etc/hive/backends.conf ]]; then
   source /usr/local/etc/hive/backends.conf
 fi
 
+# Source project config for org/repo/author values
+if [[ -f "${SCRIPT_DIR}/hive-config.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/hive-config.sh"
+elif [[ -f /usr/local/bin/hive-config.sh ]]; then
+  # shellcheck disable=SC1091
+  source /usr/local/bin/hive-config.sh
+fi
+
 TARGET="${1:-all}"
 TMUX_BIN="${TMUX_BIN:-tmux}"
 LOG="/var/log/kick-agents.log"
@@ -46,7 +55,9 @@ mkdir -p "$BACKEND_STATE_DIR" 2>/dev/null || true
 # to skip redundant re-reads when policy is unchanged between kicks.
 POLICY_HASH_DIR="/var/run/hive-metrics"
 mkdir -p "$POLICY_HASH_DIR" 2>/dev/null || true
-AGENTS_DIR="${SCRIPT_DIR}/../examples/kubestellar/agents"
+# Auto-detect agents directory from repo examples/ structure
+AGENTS_DIR=$(find "${SCRIPT_DIR}/.." -path '*/examples/*/agents' -type d 2>/dev/null | head -1)
+AGENTS_DIR="${AGENTS_DIR:-${SCRIPT_DIR}/../agents}"
 
 GOVERNOR_FLAG_DIR="/var/run/kick-governor"
 
@@ -402,10 +413,31 @@ check_rate_limit() {
   ) &
 }
 
+render_policy() {
+  # Substitute template variables in a policy file before sending to agents.
+  # This allows policy templates to reference project-specific values from
+  # hive-project.yaml / hive-config.sh without hardcoding them.
+  local policy_file="$1"
+  sed \
+    -e "s|\${PROJECT_ORG}|${PROJECT_ORG}|g" \
+    -e "s|\${PROJECT_PRIMARY_REPO}|${PROJECT_PRIMARY_REPO}|g" \
+    -e "s|\${PROJECT_AI_AUTHOR}|${PROJECT_AI_AUTHOR}|g" \
+    -e "s|\${PROJECT_REPOS_LIST}|${PROJECT_REPOS}|g" \
+    -e "s|\${GA4_PROPERTY_ID}|${OUTREACH_GA4_PROPERTY_ID}|g" \
+    -e "s|\${HIVE_REPO}|${PROJECT_HIVE_REPO:-kubestellar/hive}|g" \
+    -e "s|\${AGENTS_WORKDIR}|${AGENTS_WORKDIR}|g" \
+    -e "s|\${BEADS_BASE}|${BEADS_BASE}|g" \
+    "$policy_file"
+}
+
 policy_changed() {
   # Returns 0 (true) if the agent's policy (CLAUDE.md + skill files) has changed
   # since the last kick, 1 (false) if unchanged. Hash is stored in
   # $POLICY_HASH_DIR/policy_hash_<agent> so it persists across kicks.
+  #
+  # Hash is computed on the RENDERED output (after template variable substitution)
+  # so that config changes (e.g. PROJECT_ORG) trigger re-kicks even if the
+  # raw policy file is unchanged.
   local agent="$1"
   local policy_file="${AGENTS_DIR}/${agent}-CLAUDE.md"
   local hash_file="${POLICY_HASH_DIR}/policy_hash_${agent}"
@@ -414,14 +446,14 @@ policy_changed() {
     return 0  # No policy file — treat as changed to force read
   fi
 
-  # Hash CLAUDE.md plus any skill files in <agent>-skills/ directory
+  # Hash RENDERED CLAUDE.md plus any skill files in <agent>-skills/ directory
   local skills_dir="${AGENTS_DIR}/${agent}-skills"
   local current_hash
   if [[ -d "$skills_dir" ]]; then
-    # Sort skill files for deterministic ordering before hashing
-    current_hash=$(cat "$policy_file" $(find "$skills_dir" -type f | sort) 2>/dev/null | md5sum | cut -d' ' -f1)
+    # Sort skill files for deterministic ordering; render all through template substitution
+    current_hash=$({ render_policy "$policy_file"; for f in $(find "$skills_dir" -type f | sort); do render_policy "$f"; done; } 2>/dev/null | md5sum | cut -d' ' -f1)
   else
-    current_hash=$(md5sum "$policy_file" 2>/dev/null | cut -d' ' -f1)
+    current_hash=$(render_policy "$policy_file" 2>/dev/null | md5sum | cut -d' ' -f1)
   fi
 
   if [[ -f "$hash_file" ]] && [[ "$(cat "$hash_file" 2>/dev/null)" == "$current_hash" ]]; then
@@ -726,11 +758,19 @@ for _rk in nightly nightlyCompliance nightlyDashboard nightlyPlaywright hourly w
   _rv=$(echo "$_rh_json" | jq -r ".${_rk} // -1" 2>/dev/null || echo -1)
   [ "$_rv" = "0" ] && _rh_reds="${_rh_reds} ${_rk}=RED"
 done
-for _dk in vllm pokprod; do
+# Read deploy job names from HEALTH_DEPLOY_JOBS config (JSON array)
+_deploy_job_names=$(python3 -c "
+import json
+jobs = json.loads('${HEALTH_DEPLOY_JOBS:-[]}')
+for j in jobs:
+    name = j.get('name', '') if isinstance(j, dict) else j
+    if name: print(name)
+" 2>/dev/null || true)
+for _dk in $_deploy_job_names; do
   _dv=$(echo "$_rh_json" | jq -r ".${_dk} // -1" 2>/dev/null || echo -1)
   [ "$_dv" = "0" ] && _rh_reds="${_rh_reds} deploy:${_dk}=RED"
 done
-_rh_cvg=$(curl -sf "${BADGE_URL:-https://gist.githubusercontent.com/clubanderson/b9a9ae8469f1897a22d5a40629bc1e82/raw/coverage-badge.json}" 2>/dev/null | jq -r '.message // "0"' | tr -d '%' || echo 0)
+_rh_cvg=$(curl -sf "${OUTREACH_COVERAGE_BADGE_URL:-${BADGE_URL:-}}" 2>/dev/null | jq -r '.message // "0"' | tr -d '%' || echo 0)
 [ "${_rh_cvg:-0}" -lt 91 ] && _rh_reds="${_rh_reds} coverage=${_rh_cvg}%<91%"
 if [ -n "$_rh_reds" ]; then
   _HEALTH_PREAMBLE="URGENT — RED INDICATORS:${_rh_reds}. Fix these first. "
@@ -1027,12 +1067,14 @@ bd dolt push 2>&1 | tee -a "$LOG" || log "WARN: bd dolt push failed (non-fatal)"
 CENTRAL_ISSUES="/tmp/hive/.beads/issues.jsonl"
 CENTRAL_INTERACTIONS="/tmp/hive/.beads/interactions.jsonl"
 {
-  for agent_dir in /home/dev/{scanner,reviewer,architect,outreach,supervisor}-beads; do
+  for _agent in ${AGENTS_ENABLED:-supervisor scanner reviewer architect outreach}; do
+    agent_dir="${BEADS_BASE:-/home/dev}/${_agent}-beads"
     [ -f "$agent_dir/.beads/issues.jsonl" ] && cat "$agent_dir/.beads/issues.jsonl"
   done
 } > "${CENTRAL_ISSUES}.tmp" 2>/dev/null && mv "${CENTRAL_ISSUES}.tmp" "$CENTRAL_ISSUES" || true
 {
-  for agent_dir in /home/dev/{scanner,reviewer,architect,outreach,supervisor}-beads; do
+  for _agent in ${AGENTS_ENABLED:-supervisor scanner reviewer architect outreach}; do
+    agent_dir="${BEADS_BASE:-/home/dev}/${_agent}-beads"
     [ -f "$agent_dir/.beads/interactions.jsonl" ] && cat "$agent_dir/.beads/interactions.jsonl"
   done
 } > "${CENTRAL_INTERACTIONS}.tmp" 2>/dev/null && mv "${CENTRAL_INTERACTIONS}.tmp" "$CENTRAL_INTERACTIONS" || true

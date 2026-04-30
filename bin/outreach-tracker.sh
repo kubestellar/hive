@@ -15,7 +15,7 @@ REAL_GH="/usr/bin/gh"
 
 PROJECT_YAML="${HIVE_PROJECT_YAML:-/etc/hive/hive-project.yaml}"
 if [ ! -f "$PROJECT_YAML" ]; then
-  PROJECT_YAML="$(dirname "$(dirname "$0")")/examples/kubestellar/hive-project.yaml"
+  PROJECT_YAML="$(find "$(dirname "$(dirname "$0")")/examples" -name 'hive-project.yaml' -type f 2>/dev/null | head -1)"
 fi
 
 log() { echo "[$(date -Is)] OUTREACH-TRACK $*" >> "$LOG"; }
@@ -26,7 +26,7 @@ import yaml, sys, json
 with open(sys.argv[1]) as f:
     cfg = yaml.safe_load(f)
 result = {
-    'ai_author': cfg.get('project', {}).get('ai_author', 'clubanderson'),
+    'ai_author': cfg.get('project', {}).get('ai_author', ''),
     'org': cfg.get('project', {}).get('org', ''),
     'repos': cfg.get('project', {}).get('repos', []),
     'target_placements': cfg.get('outreach', {}).get('target_placements', 0),
@@ -34,7 +34,7 @@ result = {
 print(json.dumps(result))
 " "$PROJECT_YAML" 2>/dev/null || echo '{}')
 
-AI_AUTHOR=$(echo "$CONFIG" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ai_author','clubanderson'))" 2>/dev/null)
+AI_AUTHOR=$(echo "$CONFIG" | python3 -c "import json,sys; print(json.load(sys.stdin).get('ai_author',''))" 2>/dev/null)
 ORG=$(echo "$CONFIG" | python3 -c "import json,sys; print(json.load(sys.stdin).get('org',''))" 2>/dev/null)
 TARGET=$(echo "$CONFIG" | python3 -c "import json,sys; print(json.load(sys.stdin).get('target_placements',0))" 2>/dev/null)
 INTERNAL_REPOS=$(echo "$CONFIG" | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin).get('repos',[])))" 2>/dev/null)

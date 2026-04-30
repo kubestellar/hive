@@ -47,7 +47,7 @@ EOF
 | When | TASK | PROGRESS example |
 |------|------|-----------------|
 | Pass start | Starting architect pass | scanning issues and PRs |
-| Before each `gh issue list` / `gh pr list` | Fetching issues/PRs | fetching open issues from kubestellar/console |
+| Before each `gh issue list` / `gh pr list` | Fetching issues/PRs | fetching open issues from ${PROJECT_PRIMARY_REPO} |
 | Before reading each source file | Reading source | reading pkg/api/handler.go |
 | Before opening issue | Opening tracking issue | opening issue: <slug> |
 | After issue opened | Building fix | opened #N — implementing fix |

@@ -7,11 +7,15 @@
 #   - All required CI checks pass (ignoring: tide, Playwright, netlify)
 #   - It is not a draft
 #   - It is not excluded by the enumerator (hold, ADOPTERS, etc.)
-#   - Author is clubanderson or copilot-swe-agent[bot] (AI-authored)
+#   - Author is the project's AI author or a known bot (AI-authored)
 #
 # Agents should ONLY merge PRs that appear in this file.
 
 set -euo pipefail
+
+# Source project config for AI author
+# shellcheck source=hive-config.sh
+source "$(dirname "$0")/hive-config.sh" 2>/dev/null || source /usr/local/bin/hive-config.sh 2>/dev/null || true
 
 ACTIONABLE_FILE="/var/run/hive-metrics/actionable.json"
 OUTPUT_FILE="/var/run/hive-metrics/merge-eligible.json"
@@ -114,7 +118,7 @@ checks_dir = sys.argv[1]
 eligible = []
 not_ready = []
 
-AI_AUTHORS = {'clubanderson', 'copilot-swe-agent[bot]'}
+AI_AUTHORS = {os.environ.get('PROJECT_AI_AUTHOR', ''), 'copilot-swe-agent[bot]', 'github-actions[bot]', 'dependabot[bot]'} - {''}
 
 for f in sorted(glob.glob(os.path.join(checks_dir, '*.json'))):
     try:

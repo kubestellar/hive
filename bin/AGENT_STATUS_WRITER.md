@@ -20,7 +20,7 @@ agent-status-writer <agent_name> "Scanning X for Y" "5/5 repos complete" "Found 
 | Param | Example | Notes |
 |-------|---------|-------|
 | `agent_name` | `scanner` | Must match agent tmux session |
-| `task` | `Scanning kubestellar/console for open issues` | What you're doing |
+| `task` | `Scanning org/repo for open issues` | What you're doing |
 | `progress` | `3/5 repos (console, docs, console-kb)` | Current step/percent |
 | `results` | `Found 12 issues: 8 unassigned, 4 waiting-on-feedback` | What you've found/done |
 
@@ -30,7 +30,7 @@ Status written to: `~/.hive/<agent>_status.txt`
 
 ```
 AGENT=scanner
-TASK=Scanning kubestellar/console for open issues
+TASK=Scanning org/repo for open issues
 PROGRESS=3/5 repos complete
 RESULTS=Found 12 issues
 UPDATED=2026-04-25T02:47:00+00:00
@@ -50,7 +50,7 @@ UPDATED=2026-04-25T02:47:00+00:00
 agent-status-writer scanner "Scanning 5 repos for open issues" "" ""
 
 # Each repo
-agent-status-writer scanner "Scanning 5 repos for open issues" "1/5: scanning kubestellar/console" "0 issues found so far"
+agent-status-writer scanner "Scanning 5 repos for open issues" "1/5: scanning org/repo" "0 issues found so far"
 agent-status-writer scanner "Scanning 5 repos for open issues" "2/5: scanning console-kb" "8 issues found so far"
 
 # Final

@@ -9,8 +9,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-AGENTS_HOME="${HOME}/.kubestellar-agents"
-SCANNER_HOME="${HOME}/.kubestellar-fix-loop"
+AGENTS_HOME="${HOME}/.hive-agents"
+SCANNER_HOME="${HOME}/.hive-fix-loop"
 LEDGER_HOME="${HOME}/agent-ledger"
 NTFY_TOPIC="${1:-}"
 
@@ -34,27 +34,33 @@ for agent in "${AGENTS[@]}"; do
 done
 
 # 2. Clone repos for mutating agents
+# Read repo list from hive-project.yaml or fall back to PROJECT_REPOS_LIST env var
+REPOS="${PROJECT_REPOS_LIST:-}"
+ORG="${PROJECT_ORG:-}"
+PRIMARY_REPO_NAME="${PROJECT_PRIMARY_REPO##*/}"  # strip org prefix
+
 log "Cloning repos for worker agents"
 for agent in fixer architect; do
-  for repo in console console-kb console-marketplace docs; do
+  for repo_full in $REPOS; do
+    repo="${repo_full##*/}"  # strip org prefix
     target="$AGENTS_HOME/$agent/$repo"
     if [ -d "$target/.git" ]; then
       echo "  ✓ $agent/$repo exists"
     else
       echo "  → Cloning $repo for $agent..."
-      git clone "https://github.com/kubestellar/$repo.git" "$target" 2>/dev/null || echo "  ⚠ Clone failed for $repo"
+      git clone "https://github.com/$repo_full.git" "$target" 2>/dev/null || echo "  ⚠ Clone failed for $repo"
     fi
   done
 done
 
-# Read-only clones for reviewer/outreach (only console needed)
+# Read-only clones for reviewer/outreach (only primary repo needed)
 for agent in reviewer outreach; do
-  target="$AGENTS_HOME/$agent/console"
+  target="$AGENTS_HOME/$agent/$PRIMARY_REPO_NAME"
   if [ -d "$target/.git" ]; then
-    echo "  ✓ $agent/console exists"
+    echo "  ✓ $agent/$PRIMARY_REPO_NAME exists"
   else
-    echo "  → Cloning console for $agent..."
-    git clone "https://github.com/kubestellar/console.git" "$target" 2>/dev/null || echo "  ⚠ Clone failed"
+    echo "  → Cloning $PRIMARY_REPO_NAME for $agent..."
+    git clone "https://github.com/${PROJECT_PRIMARY_REPO}.git" "$target" 2>/dev/null || echo "  ⚠ Clone failed"
   fi
 done
 
@@ -130,7 +136,7 @@ echo "│  📣 ks-outreach  (Sonnet, executor)        │"
 echo "├──────────────────────────────────────────────┤"
 echo "│  Scanner: cron every 15 min                  │"
 echo "│  Beads: ~/agent-ledger/                      │"
-echo "│  State: ~/.kubestellar-fix-loop/state.db     │"
+echo "│  State: ~/.hive-fix-loop/state.db     │"
 echo "└──────────────────────────────────────────────┘"
 echo ""
 echo "Attach: tmux attach -t ks-supervisor"

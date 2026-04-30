@@ -56,7 +56,7 @@ When started with `hive supervisor` or when the session is named `supervisor`, i
 2. **Rename + color this session**: `/rename supervisor` then `/color purple`
 3. **Read your beads**: `cd /home/dev/supervisor-beads && bd list --json` and `bd ready --json`
 4. **Read policy files** from `/home/dev/.claude/projects/-Users-andan02/memory/`:
-   - Read `/tmp/hive/examples/kubestellar/agents/scanner-CLAUDE.md` — scanner rules
+   - Read `${HIVE_REPO}/examples/kubestellar/agents/scanner-CLAUDE.md` — scanner rules
    - `project_reviewer_policy.md` — reviewer rules
    - `MEMORY.md` — full memory index
 5. **Read kick-agents.sh** — `/tmp/hive/bin/kick-agents.sh` — memorize the full startup messages (PULL_INSTRUCTIONS, BEADS_RESTORE, BEADS_SYNC, and each agent's MSG). You MUST include these in every work order.
@@ -212,19 +212,20 @@ tmux send-keys -t <session> Enter
 
 | Repo | Target open issues |
 |------|-------------------|
-| `kubestellar/console` | ~10 |
-| `kubestellar/console-kb` | 0 |
-| `kubestellar/docs` | 0 |
-| `kubestellar/kubestellar-mcp` | 0 |
-| `kubestellar/console-marketplace` | exempt (CNCF card stubs) |
+| Repos from `${PROJECT_REPOS_LIST}` | Configured per-repo targets |
+
+<!-- Populate this table from hive-project.yaml. Example:
+| `org/primary-repo` | ~10 |
+| `org/docs`         | 0   |
+-->
 
 ## Issue Priority Order — ALWAYS work in this sequence
 
 1. **P0 — Broken builds from merged PRs** (`kind/regression` or build check failing on `main`). Stop everything else. Fix immediately. A broken `main` blocks all other work.
 2. **P0 — `kubestellar-console-bot` roundtrip failures** — any issue or workflow run containing "roundtrip failed" or "kubestellar-console-bot roundtrip". This means the bot's end-to-end validation is broken. High ntfy, P0 bead, fix immediately.
-3. **P0 — `Build and Deploy KC` workflow failures** — any failed run of this workflow on `kubestellar/console`. Check:
+3. **P0 — `Build and Deploy KC` workflow failures** — any failed run of this workflow on `${PROJECT_PRIMARY_REPO}`. Check:
    ```bash
-   unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Build and Deploy KC" --limit 5 --json databaseId,conclusion,status,headBranch,createdAt --jq '.[] | select(.conclusion=="failure")'
+   unset GITHUB_TOKEN && gh run list --repo ${PROJECT_PRIMARY_REPO} --workflow "Build and Deploy KC" --limit 5 --json databaseId,conclusion,status,headBranch,createdAt --jq '.[] | select(.conclusion=="failure")'
    ```
    Any failure → P0 bead, high ntfy, dispatch fix agent immediately before scanning other issues.
 4. **P1 — CI check failures on open PRs** (build, dco, coverage-gate, fullstack-smoke, ts-null-safety red).
@@ -250,7 +251,7 @@ Instruct the fix agent explicitly: "Fix issues #A, #B, and #C in one PR — they
 
 ## SLA — 30 Minutes Issue-to-Merged-PR
 
-Hard target. Every open issue on `kubestellar/console` should have a merged fix within 30 min of `createdAt`. Age is the primary sort key — always oldest first (after P0/P1 are clear).
+Hard target. Every open issue on `${PROJECT_PRIMARY_REPO}` should have a merged fix within 30 min of `createdAt`. Age is the primary sort key — always oldest first (after P0/P1 are clear).
 
 ## Skip List
 
@@ -292,7 +293,7 @@ Each time the operator sends a message or asks for status:
 ```
 Agent(subagent_type="general-purpose",
       description="Fix #NNNN <short title>",
-      prompt="Fix kubestellar/console#NNNN. Worktree /tmp/kubestellar-console-NNNN-slug.
+      prompt="Fix ${PROJECT_PRIMARY_REPO}#NNNN. Worktree /tmp/${PROJECT_PRIMARY_REPO##*/}-NNNN-slug.
               Read the issue, fix it, git commit -s, push, open PR with Fixes #NNNN.
               unset GITHUB_TOKEN before all gh commands.
               ⛔ HARD GATE: Do NOT run npm run build, npm run lint, tsc, vitest, or any local validation. Push and let CI validate. Violating this wastes tokens and time.
@@ -310,9 +311,9 @@ Agent(subagent_type="general-purpose",
 
 All fix agents MUST use git worktrees. Never work on main directly:
 ```bash
-git worktree add /tmp/kubestellar-console-<slug> -b <branch>
+git worktree add /tmp/${PROJECT_PRIMARY_REPO##*/}-<slug> -b <branch>
 ```
-Path convention: `/tmp/kubestellar-console-<issue-num>-<slug>`
+Path convention: `/tmp/${PROJECT_PRIMARY_REPO##*/}-<issue-num>-<slug>`
 
 ## Scanner Session — What It Does
 
@@ -334,28 +335,28 @@ tmux send-keys -t scanner Enter
 The `reviewer` session (Sonnet 4.6) handles post-merge work:
 - Coverage ratchet ≥91% check
 - OAuth code presence (static grep)
-- CI workflow health sweep (all workflows on kubestellar/console)
+- CI workflow health sweep (all workflows on ${PROJECT_PRIMARY_REPO})
 - Release freshness (nightly ≤36h, weekly ≤9d)
 - Post-merge diff scan for regressions
 - CodeQL alert drain (310 open, 78 high/critical as of 2026-04-23)
 - Copilot review comments on merged PRs
 - GA4 error watch: new error classes (30m vs 7d baseline), trending errors (>3× baseline), login_failure spikes
 - GA4 adoption digest: active users, engagement, top content, traffic sources, conversions, 7-day trend chart
-- **Brew formula freshness**: `kubestellar/homebrew-tap` formula version must match latest stable console release
+- **Brew formula freshness**: `${PROJECT_HOMEBREW_REPO}` formula version must match latest stable console release
   ```bash
-  unset GITHUB_TOKEN && gh api /repos/kubestellar/console/releases --jq '[.[] | select(.draft==false and .prerelease==false)] | .[0].tag_name'
-  unset GITHUB_TOKEN && gh api /repos/kubestellar/homebrew-tap/contents/Formula/kubestellar-console.rb --jq '.content' | base64 -d | grep 'version\|tag'
+  unset GITHUB_TOKEN && gh api /repos/${PROJECT_PRIMARY_REPO}/releases --jq '[.[] | select(.draft==false and .prerelease==false)] | .[0].tag_name'
+  unset GITHUB_TOKEN && gh api /repos/${PROJECT_HOMEBREW_REPO}/contents/Formula/${PROJECT_PRIMARY_REPO##*/}.rb --jq '.content' | base64 -d | grep 'version\|tag'
   ```
   Mismatch → high ntfy + file issue on `homebrew-tap` + dispatch fix agent to bump the formula.
 - **Helm chart freshness**: `deploy/helm/Chart.yaml` `appVersion` must match latest stable console release.
   ```bash
-  unset GITHUB_TOKEN && gh api /repos/kubestellar/console/contents/deploy/helm/Chart.yaml --jq '.content' | base64 -d | grep 'appVersion\|version'
+  unset GITHUB_TOKEN && gh api /repos/${PROJECT_PRIMARY_REPO}/contents/deploy/helm/Chart.yaml --jq '.content' | base64 -d | grep 'appVersion\|version'
   ```
-  Mismatch → high ntfy + file issue on `kubestellar/console` + dispatch fix agent to bump Chart.yaml.
+  Mismatch → high ntfy + file issue on `${PROJECT_PRIMARY_REPO}` + dispatch fix agent to bump Chart.yaml.
 - **vllm-d deployment health**: check the last 5 runs of the `Build and Deploy KC` workflow for jobs named `deploy-vllm-d`. Any failure → high ntfy + regression issue + bead P1.
   ```bash
-  unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Build and Deploy KC" --limit 5 --json databaseId,conclusion,status,createdAt
-  # Then: gh run view <id> --repo kubestellar/console --json jobs --jq '.jobs[] | select(.name | test("vllm|pok"; "i")) | {name, conclusion, status}'
+  unset GITHUB_TOKEN && gh run list --repo ${PROJECT_PRIMARY_REPO} --workflow "Build and Deploy KC" --limit 5 --json databaseId,conclusion,status,createdAt
+  # Then: gh run view <id> --repo ${PROJECT_PRIMARY_REPO} --json jobs --jq '.jobs[] | select(.name | test("vllm|pok"; "i")) | {name, conclusion, status}'
   ```
 - **pok-prod01 deployment health**: check the same `Build and Deploy KC` workflow runs for jobs named `deploy-pok-prod`. Verify the deployed version matches the latest stable release tag. Any failure or version mismatch → high ntfy + regression issue + bead P1.
 
@@ -422,7 +423,7 @@ curl -s -H "Title: <agent>: <action>" -H "Priority: high" -d "<details>" $NTFY_S
   ```
   Run `unset GITHUB_TOKEN && gh issue list --repo <repo> --state open --json number --jq length` and
   `unset GITHUB_TOKEN && gh pr list --repo <repo> --state open --json number --jq length` for each repo.
-- **External contributor PR reviewed** — when scanner posts a review on a non-clubanderson PR, send ntfy with PR number, author, and review summary. External contributors need timely feedback — scanner must re-review when they push updates.
+- **External contributor PR reviewed** — when scanner posts a review on a non-${PROJECT_AI_AUTHOR} PR, send ntfy with PR number, author, and review summary. External contributors need timely feedback — scanner must re-review when they push updates.
 - Scanner issues dispatched to fix agents
 - Reviewer pass started + what it's checking
 - Reviewer findings (coverage %, GA4 anomalies, CI failures, version mismatches)

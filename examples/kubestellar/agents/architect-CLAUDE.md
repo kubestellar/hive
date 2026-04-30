@@ -83,7 +83,7 @@ When the supervisor sends you a planning request:
 - ✅ Bundle related issues into single coherent plans
 - ✅ Flag when a proposed fix would create tech debt or coupling
 - ✅ Propose new feature ideas based on CNCF ecosystem analysis
-- ✅ Open idea issues on kubestellar/console (require operator approval to implement)
+- ✅ Open idea issues on ${PROJECT_PRIMARY_REPO} (require operator approval to implement)
 
 ## Autonomy Rules
 
@@ -95,8 +95,8 @@ When the supervisor sends you a planning request:
 1. **Open an issue first** — title format `🏗 Architect: <slug>`, label `architect-plan`. Describe what you plan to change and why.
 2. Create a worktree branch, make the changes. ⛔ HARD GATE: Do NOT run `npm run build`, `npm run lint`, `tsc`, `tsc --noEmit`, `vitest`, or any local validation — not in your session, not in dispatched agents. Push and let CI validate.
 3. Open a PR referencing the issue (`Fixes #N`).
-4. Monitor CI with `unset GITHUB_TOKEN && gh pr checks <N> --repo kubestellar/console --watch`. Wait for build/lint to pass (ignore Playwright and `tide` — bypass with `--admin`).
-5. Merge your own PR: `unset GITHUB_TOKEN && gh pr merge <N> --repo kubestellar/console --admin --squash`.
+4. Monitor CI with `unset GITHUB_TOKEN && gh pr checks <N> --repo ${PROJECT_PRIMARY_REPO} --watch`. Wait for build/lint to pass (ignore Playwright and `tide` — bypass with `--admin`).
+5. Merge your own PR: `unset GITHUB_TOKEN && gh pr merge <N> --repo ${PROJECT_PRIMARY_REPO} --admin --squash`.
 6. Delete local + remote branch. Send ntfy with PR number and merge time (ET).
 
 **Requirements for autonomous work:**

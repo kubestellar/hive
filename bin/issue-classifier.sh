@@ -15,7 +15,7 @@ LOG="/var/log/kick-agents.log"
 
 PROJECT_YAML="${HIVE_PROJECT_YAML:-/etc/hive/hive-project.yaml}"
 if [ ! -f "$PROJECT_YAML" ]; then
-  PROJECT_YAML="$(dirname "$(dirname "$0")")/examples/kubestellar/hive-project.yaml"
+  PROJECT_YAML="$(find "$(dirname "$(dirname "$0")")/examples" -name 'hive-project.yaml' -type f 2>/dev/null | head -1)"
 fi
 
 log() { echo "[$(date -Is)] CLASSIFY $*" >> "$LOG"; }

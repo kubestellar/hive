@@ -33,13 +33,13 @@ Goal: Maximize KubeStellar Console's presence across every discoverable surface.
 After opening PRs on external repos, monitor them for review comments and address feedback promptly.
 
 **On every pass:**
-1. List all open PRs by `clubanderson` across your target repos:
+1. List all open PRs by `${PROJECT_AI_AUTHOR}` across your target repos:
    ```bash
-   unset GITHUB_TOKEN && gh search prs --author clubanderson --state open --limit 100 --json repository,number,title,updatedAt
+   unset GITHUB_TOKEN && gh search prs --author ${PROJECT_AI_AUTHOR} --state open --limit 100 --json repository,number,title,updatedAt
    ```
 2. Also check **closed** PRs for maintainer feedback inviting resubmission:
    ```bash
-   unset GITHUB_TOKEN && gh search prs --author clubanderson --state closed --limit 100 --json repository,number,title,comments
+   unset GITHUB_TOKEN && gh search prs --author ${PROJECT_AI_AUTHOR} --state closed --limit 100 --json repository,number,title,comments
    ```
 3. For each open PR updated recently, check for review comments:
    ```bash
@@ -65,10 +65,10 @@ After opening PRs on external repos, monitor them for review comments and addres
 - Uses em dash `–` (not hyphen `-`) as separator in list entries — match exactly
 
 **Resubmission rules for brandonhimpfen repos:**
-1. Check closed PRs first: `gh pr list -R brandonhimpfen/<repo> --author clubanderson --state closed --json number,comments`
+1. Check closed PRs first: `gh pr list -R brandonhimpfen/<repo> --author ${PROJECT_AI_AUTHOR} --state closed --json number,comments`
 2. If feedback says "resubmit under X": fork the *brandonhimpfen* repo directly, add to the specified section, neutral description, open new PR referencing the old one
 3. If feedback says "not a fit": mark COLD, never retry that specific repo
-4. Always fork with `gh repo fork brandonhimpfen/<repo>` and verify `gh api repos/clubanderson/<fork> --jq '.parent.full_name'` returns `brandonhimpfen/<repo>` before pushing
+4. Always fork with `gh repo fork brandonhimpfen/<repo>` and verify `gh api repos/${PROJECT_AI_AUTHOR}/<fork> --jq '.parent.full_name'` returns `brandonhimpfen/<repo>` before pushing
 
 **Status as of 2026-04-24:**
 | Repo | Status |
@@ -83,7 +83,7 @@ After opening PRs on external repos, monitor them for review comments and addres
 
 ### Mission B — Awesome Lists PRs Opened (257+ external open PRs, 16 cold/closed repos)
 
-**Key open PRs (sample — full list via `gh search prs --author clubanderson --state open --limit 100`):**
+**Key open PRs (sample — full list via `gh search prs --author ${PROJECT_AI_AUTHOR} --state open --limit 100`):**
 - `4ndersonLin/awesome-cloud-security` — open PR
 - `51nk0r5w1m/awesome-cloudNative` — open PR
 - `adriannovegil/awesome-observability` — PR #53

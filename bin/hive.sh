@@ -108,8 +108,19 @@ load_conf() {
     # shellcheck disable=SC1090
     . "$CONF"
   fi
-  # Defaults
-  HIVE_REPOS="${HIVE_REPOS:-kubestellar/console kubestellar/console-marketplace kubestellar/docs kubestellar/homebrew-tap kubestellar/console-kb}"
+  # Source project config for org/repo values
+  if [[ -f "${_HIVE_SCRIPT_DIR}/hive-config.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "${_HIVE_SCRIPT_DIR}/hive-config.sh"
+  elif [[ -f /usr/local/bin/hive-config.sh ]]; then
+    # shellcheck disable=SC1091
+    source /usr/local/bin/hive-config.sh
+  fi
+  # Defaults — prefer PROJECT_REPOS from hive-config.sh over hardcoded list
+  HIVE_REPOS="${HIVE_REPOS:-${PROJECT_REPOS:-}}"
+  if [[ -z "$HIVE_REPOS" ]]; then
+    die "HIVE_REPOS is empty. Set it in $CONF, hive-project.yaml, or HIVE_REPOS env var."
+  fi
   NTFY_TOPIC="${NTFY_TOPIC:-}"
   NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
   SLACK_WEBHOOK="${SLACK_WEBHOOK:-}"
@@ -148,7 +159,7 @@ usage() {
 
 ${BLD}SETUP${RST}
   1. sudo apt install tmux
-  2. curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/main/install.sh | sudo bash
+  2. curl -fsSL https://raw.githubusercontent.com/${PROJECT_ORG:-kubestellar}/hive/main/install.sh | sudo bash
   3. sudo nano /etc/hive/hive.conf   # set NTFY_TOPIC, HIVE_REPOS, HIVE_BACKENDS
   4. hive supervisor
 
@@ -397,8 +408,9 @@ ensure_repo() {
       && ok "Repo current ($REPO_DIR)" \
       || warn "Could not pull — using cached version"
   else
-    info "Cloning kubestellar/hive → $REPO_DIR..."
-    git clone --depth=1 https://github.com/kubestellar/hive.git "$REPO_DIR" -q 2>/dev/null \
+    HIVE_REPO_URL="https://github.com/${PROJECT_ORG:-kubestellar}/hive.git"
+    info "Cloning ${PROJECT_ORG:-kubestellar}/hive → $REPO_DIR..."
+    git clone --depth=1 "$HIVE_REPO_URL" "$REPO_DIR" -q 2>/dev/null \
       && ok "Repo cloned" \
       || warn "Clone failed — continuing without fresh repo"
   fi
@@ -435,7 +447,7 @@ ensure_agents() {
         || die "install.sh failed — check output above"
       sudo systemctl daemon-reload
     else
-      die "Units missing and $REPO_DIR/install.sh not found. Run: git clone https://github.com/kubestellar/hive $REPO_DIR"
+      die "Units missing and $REPO_DIR/install.sh not found. Run: git clone https://github.com/${PROJECT_ORG:-kubestellar}/hive $REPO_DIR"
     fi
   fi
 

@@ -51,13 +51,13 @@ sqlite3 ~/.kubestellar-fix-loop/state.db "UPDATE items SET status='triaged', not
 
 ### 3. Fix actionable items
 For items marked 'fixing':
-1. `cd /tmp/kubestellar-{repo}` (clone if missing)
+1. `cd /tmp/{repo}` (clone if missing)
 2. `git checkout main && git pull --rebase origin main`
 3. `git checkout -b fix/{description}`
 4. Make the code changes
 5. `git add -A && git commit -s -m "emoji description"`
 6. `git push origin fix/{description}`
-7. `unset GITHUB_TOKEN && gh pr create --repo kubestellar/{repo} ...`
+7. `unset GITHUB_TOKEN && gh pr create --repo ${PROJECT_ORG}/{repo} ...`
 8. `unset GITHUB_TOKEN && gh pr merge {number} --admin --squash`
 9. Cleanup: `git checkout main && git pull && git branch -D fix/{description}`
 10. Close linked issues
@@ -67,10 +67,10 @@ For items marked 'fixing':
 After every fix/close:
 ```bash
 # Get fresh counts
-COUNTS=$(for r in console console-kb console-marketplace docs kubestellar-mcp claude-plugins; do
-  ic=$(unset GITHUB_TOKEN && gh issue list --repo "kubestellar/$r" --state open --limit 200 --json number --jq 'length' 2>/dev/null || echo 0)
-  pc=$(unset GITHUB_TOKEN && gh pr list --repo "kubestellar/$r" --state open --json number --jq 'length' 2>/dev/null || echo 0)
-  echo "$r: ${ic}i/${pc}pr"
+COUNTS=$(for repo in $HIVE_REPOS; do
+  ic=$(unset GITHUB_TOKEN && gh issue list --repo "$repo" --state open --limit 200 --json number --jq 'length' 2>/dev/null || echo 0)
+  pc=$(unset GITHUB_TOKEN && gh pr list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo 0)
+  echo "$repo: ${ic}i/${pc}pr"
 done)
 curl -sf -H "Title: ✅ {repo}#{number} closed" -H "Tags: white_check_mark" \
   -d "{reason}\n$COUNTS" "https://ntfy.sh/ks-fix-loop"
@@ -85,7 +85,8 @@ For each open PR:
 
 ### 6. Check nightly CI
 ```bash
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --limit 10 --json name,conclusion,databaseId,createdAt | jq '[.[] | select(.conclusion == "failure")]'
+PRIMARY_REPO="${HIVE_REPOS%% *}"  # first repo in list
+unset GITHUB_TOKEN && gh run list --repo "$PRIMARY_REPO" --limit 10 --json name,conclusion,databaseId,createdAt | jq '[.[] | select(.conclusion == "failure")]'
 ```
 For each failure: download logs, analyze root cause, fix if actionable.
 

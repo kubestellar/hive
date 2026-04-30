@@ -16,7 +16,7 @@ GA4 errors are your highest-priority check. Every pass MUST include GA4 error an
 **When errors are found — ALWAYS open an issue:**
 
 ```bash
-unset GITHUB_TOKEN && gh issue create --repo kubestellar/console \
+unset GITHUB_TOKEN && gh issue create --repo ${PROJECT_PRIMARY_REPO} \
   --title "🐛 GA4 error: <error class or pattern>" \
   --label "bug,ga4-error" \
   --body "## GA4 Error Report
@@ -44,7 +44,7 @@ Send high-priority ntfy for every GA4 error issue filed.
 If you find that GA4 is not capturing enough detail to diagnose an error or make a decision (e.g., missing custom dimensions, no error stack traces, no page context, missing user flow events, no A/B variant tracking), open an issue:
 
 ```bash
-unset GITHUB_TOKEN && gh issue create --repo kubestellar/console \
+unset GITHUB_TOKEN && gh issue create --repo ${PROJECT_PRIMARY_REPO} \
   --title "📊 GA4 gap: <what's missing>" \
   --label "enhancement,ga4-instrumentation" \
   --body "## Missing instrumentation

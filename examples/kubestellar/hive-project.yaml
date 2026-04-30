@@ -15,6 +15,7 @@ project:
     - kubestellar/kubestellar-mcp
   ai_author: "clubanderson"
   website: "console.kubestellar.io"
+  hive_repo: "kubestellar/hive"
 
 agents:
   enabled:
@@ -25,6 +26,7 @@ agents:
     - outreach
   beads_base: "/home/dev"
   workdir: "/home/dev/kubestellar-console"
+  policy_dir: "examples/kubestellar/agents"
 
 health_checks:
   workflows:
@@ -110,6 +112,7 @@ classification:
       css-visual: '\b(overflow|truncat|align|margin|padding|z-index|opacity|visible|hidden)\b'
       test-flake: '\b(flaky|intermittent|timeout|race condition|retry)\b'
   copilot_check:
+    bot_name: "copilot-swe-agent[bot]"
     lookback_days: 1
     severity_keywords:
       high: ["security", "vulnerability", "injection", "xss", "sql", "auth", "credential", "secret"]
@@ -207,6 +210,17 @@ pipeline:
       consumers: all
       phase: always-on
       depends: []
+
+governor:
+  exempt_labels:
+    - nightly-tests
+    - LFX
+    - do-not-merge
+    - meta-tracker
+    - hold
+    - adopters
+    - changes-requested
+    - waiting-on-author
 
 dashboard:
   title: "KubeStellar Console Hive"

@@ -51,13 +51,13 @@ Copilot reviews every PR we open. Those comments often flag real issues. **Every
 **Workflow:**
 
 ```bash
-# 1. Get PRs merged in the last 24h by clubanderson
-unset GITHUB_TOKEN && gh pr list --repo kubestellar/console --state merged \
-  --author clubanderson --limit 30 \
+# 1. Get PRs merged in the last 24h by ${PROJECT_AI_AUTHOR}
+unset GITHUB_TOKEN && gh pr list --repo ${PROJECT_PRIMARY_REPO} --state merged \
+  --author ${PROJECT_AI_AUTHOR} --limit 30 \
   --json number,title,mergedAt --jq '.[] | "\(.number) \(.title)"'
 
 # 2. For each merged PR, check for Copilot review comments
-unset GITHUB_TOKEN && gh api "repos/kubestellar/console/pulls/<NUMBER>/comments" \
+unset GITHUB_TOKEN && gh api "repos/${PROJECT_PRIMARY_REPO}/pulls/<NUMBER>/comments" \
   --jq '[.[] | select(.user.login == "Copilot")] | .[] | {body: .body[:200], path: .path, line: .line}'
 
 # 3. For each PR with unaddressed Copilot comments:

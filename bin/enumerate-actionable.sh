@@ -20,8 +20,12 @@ LOG="/var/log/kick-agents.log"
 # Read repos from hive-project.yaml (single source of truth)
 PROJECT_YAML="${HIVE_PROJECT_YAML:-/etc/hive/hive-project.yaml}"
 if [ ! -f "$PROJECT_YAML" ]; then
-  PROJECT_YAML="$(dirname "$(dirname "$0")")/examples/kubestellar/hive-project.yaml"
+  PROJECT_YAML="$(find "$(dirname "$(dirname "$0")")/examples" -name 'hive-project.yaml' -type f 2>/dev/null | head -1)"
 fi
+
+# Source project config for AI author and primary repo
+# shellcheck source=hive-config.sh
+source "$(dirname "$0")/hive-config.sh" 2>/dev/null || source /usr/local/bin/hive-config.sh 2>/dev/null || true
 
 if [ -f "$PROJECT_YAML" ]; then
   mapfile -t REPOS < <(python3 -c "
@@ -199,7 +203,7 @@ print(json.dumps(filtered))
 
 # --- SHA enforcement for external contributor issues ---
 # Internal authors: their issues don't need a SHA (auto-generated issues, maintainer issues)
-INTERNAL_AUTHORS="clubanderson copilot-swe-agent[bot] github-actions[bot] dependabot[bot]"
+INTERNAL_AUTHORS="${PROJECT_AI_AUTHOR:-} copilot-swe-agent[bot] github-actions[bot] dependabot[bot]"
 SHA_HOLD_MARKER="/var/run/hive-metrics/sha_hold_posted"
 mkdir -p "$(dirname "$SHA_HOLD_MARKER")"
 
@@ -244,13 +248,13 @@ if [ -n "$missing_sha_issues" ]; then
     marker_file="${SHA_HOLD_MARKER}_${repo//\//_}_${num}"
     if [ ! -f "$marker_file" ]; then
       gh issue edit "$num" --repo "$repo" --add-label "hold" --remove-label "kind/bug" 2>/dev/null || true
-      gh issue comment "$num" --repo "$repo" --body "$(cat <<'COMMENT'
+      gh issue comment "$num" --repo "$repo" --body "$(cat <<COMMENT
 Thanks for filing this issue! To help us reproduce and investigate, could you please include the **commit SHA** of the build you're running.
 
 You can find it by:
-- **Git**: `git rev-parse HEAD` in your repo checkout
-- **Git log**: `git log --oneline -1`
-- **GitHub CLI**: `/usr/bin/gh api repos/kubestellar/console/commits/main --jq .sha`
+- **Git**: \`git rev-parse HEAD\` in your repo checkout
+- **Git log**: \`git log --oneline -1\`
+- **GitHub CLI**: \`/usr/bin/gh api repos/${repo}/commits/main --jq .sha\`
 - **Console UI**: Check the build version/commit hash in the bottom-right footer
 
 We've put this issue on hold until we can confirm which version it was filed against. Once you add the SHA, we'll pick it back up right away.
@@ -294,11 +298,12 @@ issue_count=$(echo "$all_issues" | python3 -c "import json,sys; print(len(json.l
 pr_count=$(echo "$all_prs" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
 
 python3 -c "
-import json, sys
+import json, os, sys
 from datetime import datetime, timezone
 
 issues = json.loads(sys.argv[1])
 prs = json.loads(sys.argv[2])
+primary_repo = sys.argv[3] if len(sys.argv) > 3 else os.environ.get('PROJECT_PRIMARY_REPO', '')
 
 now = datetime.now(timezone.utc)
 
@@ -316,7 +321,7 @@ for i in issues:
     i.pop('author_type', None)
 
 SLA_MINUTES = 30
-sla_violations = [i for i in issues if i.get('age_minutes', 0) > SLA_MINUTES and i.get('repo') == 'kubestellar/console']
+sla_violations = [i for i in issues if i.get('age_minutes', 0) > SLA_MINUTES and i.get('repo') == primary_repo]
 
 result = {
     'generated_at': now.isoformat(),
@@ -337,7 +342,7 @@ result = {
     }
 }
 print(json.dumps(result, indent=2))
-" "$all_issues" "$all_prs" > "$TMP_FILE" 2>/dev/null
+" "$all_issues" "$all_prs" "${PROJECT_PRIMARY_REPO:-}" > "$TMP_FILE" 2>/dev/null
 
 mv "$TMP_FILE" "$OUTPUT_FILE"
 

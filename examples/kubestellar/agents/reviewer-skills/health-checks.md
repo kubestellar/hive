@@ -17,8 +17,8 @@ This returns JSON with: `ci`, `brew`, `helm`, `nightly`, `nightlyRel`, `weekly`,
 
 1. Pull the failed workflow's logs:
    ```bash
-   unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "<workflow name>" --limit 1 --json databaseId,conclusion --jq '.[0]'
-   unset GITHUB_TOKEN && gh run view <run_id> --repo kubestellar/console --log-failed 2>&1 | tail -80
+   unset GITHUB_TOKEN && gh run list --repo ${PROJECT_PRIMARY_REPO} --workflow "<workflow name>" --limit 1 --json databaseId,conclusion --jq '.[0]'
+   unset GITHUB_TOKEN && gh run view <run_id> --repo ${PROJECT_PRIMARY_REPO} --log-failed 2>&1 | tail -80
    ```
 2. Diagnose the root cause from the logs
 3. **Fix it yourself** — create a branch, fix the workflow or test code, open a PR:
@@ -45,15 +45,15 @@ This returns JSON with: `ci`, `brew`, `helm`, `nightly`, `nightlyRel`, `weekly`,
 
 ## Brew Formula Check — every pass
 
-Check `kubestellar/homebrew-tap` for staleness every pass:
+Check `${PROJECT_HOMEBREW_REPO}` for staleness every pass:
 
 ```bash
 # Console formula version
-unset GITHUB_TOKEN && gh api repos/kubestellar/homebrew-tap/contents/Formula/kubestellar-console.rb \
+unset GITHUB_TOKEN && gh api repos/${PROJECT_HOMEBREW_REPO}/contents/Formula/${PROJECT_PRIMARY_REPO##*/}.rb \
   --jq '.content' | base64 -d | grep '^\s*version'
 
-# Latest kubestellar/console release (non-draft)
-unset GITHUB_TOKEN && gh release list --repo kubestellar/console --limit 5 \
+# Latest ${PROJECT_PRIMARY_REPO} release (non-draft)
+unset GITHUB_TOKEN && gh release list --repo ${PROJECT_PRIMARY_REPO} --limit 5 \
   --json tagName,publishedAt,isDraft --jq '[.[] | select(.isDraft==false)] | .[0]'
 ```
 
@@ -64,8 +64,8 @@ If formula version ≠ latest release tag → file a P2 bead + ntfy (topic: `$NT
 Check the last 5 runs of the `Build and Deploy KC` workflow:
 
 ```bash
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Build and Deploy KC" --limit 5 --json databaseId,conclusion,status,createdAt
-# Then: gh run view <id> --repo kubestellar/console --json jobs --jq '.jobs[] | select(.name | test("vllm|pok"; "i")) | {name, conclusion, status}'
+unset GITHUB_TOKEN && gh run list --repo ${PROJECT_PRIMARY_REPO} --workflow "Build and Deploy KC" --limit 5 --json databaseId,conclusion,status,createdAt
+# Then: gh run view <id> --repo ${PROJECT_PRIMARY_REPO} --json jobs --jq '.jobs[] | select(.name | test("vllm|pok"; "i")) | {name, conclusion, status}'
 ```
 
 Any failure → high ntfy + regression issue + bead P1.
@@ -77,7 +77,7 @@ Also verify the deployed version matches the latest stable release tag for pok-p
 `deploy/helm/Chart.yaml` `appVersion` must match latest stable console release:
 
 ```bash
-unset GITHUB_TOKEN && gh api /repos/kubestellar/console/contents/deploy/helm/Chart.yaml --jq '.content' | base64 -d | grep 'appVersion\|version'
+unset GITHUB_TOKEN && gh api /repos/${PROJECT_PRIMARY_REPO}/contents/deploy/helm/Chart.yaml --jq '.content' | base64 -d | grep 'appVersion\|version'
 ```
 
-Mismatch → high ntfy + file issue on `kubestellar/console` + dispatch fix agent to bump Chart.yaml.
+Mismatch → high ntfy + file issue on `${PROJECT_PRIMARY_REPO}` + dispatch fix agent to bump Chart.yaml.

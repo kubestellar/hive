@@ -107,6 +107,118 @@ Each supervisor process tracks agent restarts in `/var/run/kick-governor/restart
 
 ---
 
+## Deterministic Pipeline
+
+Hive separates work into two layers:
+
+- **Deterministic layer** (shell scripts + JSON + config) — handles every decision where a human would give the same answer every time. Runs before agents wake up.
+- **Non-deterministic layer** (LLM agents) — receives pre-computed data and focuses on judgment calls: reading code, reasoning about fixes, writing PRs.
+
+The rule: **if a human would give the same answer every time, it belongs in infrastructure, not in a prompt.**
+
+LLMs treat "NEVER" rules as suggestions. No amount of prompt engineering reliably prevents an agent from closing a hold-labeled issue or merging an untested PR. The deterministic pipeline removes those decisions from the agent entirely.
+
+### Pipeline stages
+
+Each stage runs as a shell script, declared in `hive-project.yaml`, with explicit dependencies:
+
+| Category | What it does | Example |
+|----------|-------------|---------|
+| **Enumerator** | Fetches and filters the canonical work list | `enumerate-actionable.sh` — queries GitHub, excludes hold/exempt labels, filters by author |
+| **Classifier** | Enriches items with deterministic metadata | `issue-classifier.sh` — complexity, model tier, lane assignment based on label/title patterns |
+| **Gate** | Pre-checks eligibility before action | `merge-gate.sh` — CI green? Author authorized? Required reviews in? |
+| **Monitor** | Detects state in external systems | `ga4-anomaly-detector.sh` — production error spikes; `copilot-comment-checker.sh` — unaddressed review comments |
+| **Enforcer** | Blocks agents from forbidden operations | `gh` wrapper — prevents merging to main, closing hold issues, pushing to protected branches |
+
+Stages declare their consumers and dependencies. The pipeline runner resolves the DAG and executes in parallel where possible.
+
+### Adding a pipeline stage
+
+1. Add an entry to `pipeline.stages[]` in `hive-project.yaml`
+2. Write the script in `bin/`
+3. Declare `output`, `consumers`, `phase`, and `depends`
+4. The pipeline runner picks it up on the next kick cycle
+
+### Config-driven rules
+
+Classification patterns, clustering signals, severity keywords, and exempt labels all live in `hive-project.yaml`. Scripts read rules from config — they don't contain project-specific logic. Change the config, change the behavior.
+
+---
+
+## Adapting for Your Project
+
+Hive is designed to be forked and configured, not hardcoded. All project-specific values live in `hive-project.yaml`.
+
+### Step by step
+
+1. **Copy the example config:**
+   ```bash
+   sudo cp examples/kubestellar/hive-project.yaml /etc/hive/hive-project.yaml
+   ```
+
+2. **Edit the `project` section** — your org, repos, AI author account:
+   ```yaml
+   project:
+     name: "My Project"
+     org: "my-org"
+     primary_repo: "my-org/my-repo"
+     repos:
+       - my-org/my-repo
+       - my-org/my-docs
+     ai_author: "my-bot-account"
+   ```
+
+3. **Edit `agents.enabled`** — pick which agents you need:
+   ```yaml
+   agents:
+     enabled:
+       - supervisor
+       - scanner
+       - reviewer
+       # - architect    # optional
+       # - outreach     # optional
+       # - docs-agent   # add your own
+   ```
+
+4. **Edit `classification`** — your labels, lane patterns, complexity rules:
+   ```yaml
+   classification:
+     complexity:
+       simple:
+         labels: ["typo", "docs"]
+         model: "haiku"
+       complex:
+         labels: ["architecture", "epic"]
+         model: "opus"
+       default_model: "sonnet"
+   ```
+
+5. **Copy and edit agent CLAUDE.md files** from `examples/kubestellar/agents/`. Template variables like `${PROJECT_ORG}`, `${PROJECT_PRIMARY_REPO}`, and `${PROJECT_AI_AUTHOR}` are substituted automatically at kick time — you don't need to hardcode your project values.
+
+6. **Set agent `.env` files** with your workdir and model preferences.
+
+7. **Start:**
+   ```bash
+   hive supervisor
+   ```
+
+### Template variables
+
+Agent policy files (CLAUDE.md) support these template variables, substituted by `kick-agents.sh` at kick time:
+
+| Variable | Source in config | Example value |
+|----------|-----------------|---------------|
+| `${PROJECT_ORG}` | `project.org` | `kubestellar` |
+| `${PROJECT_PRIMARY_REPO}` | `project.primary_repo` | `kubestellar/console` |
+| `${PROJECT_AI_AUTHOR}` | `project.ai_author` | `clubanderson` |
+| `${PROJECT_REPOS_LIST}` | `project.repos` | `kubestellar/console kubestellar/docs ...` |
+| `${HIVE_REPO}` | `project.hive_repo` | `kubestellar/hive` |
+| `${GA4_PROPERTY_ID}` | `outreach.ga4.property_id` | `525401563` |
+| `${AGENTS_WORKDIR}` | `agents.workdir` | `/home/dev/my-project` |
+| `${BEADS_BASE}` | `agents.beads_base` | `/home/dev` |
+
+---
+
 ## Backends
 
 Set `HIVE_BACKENDS` in `hive.conf`. `HIVE_AUTO_INSTALL=true` installs missing backends on startup.

@@ -1,6 +1,6 @@
 ## Auto-QA: Autonomous Auto-QA PR Processor
 
-Continuously discover and fix all open auto-qa issues and stalled copilot PRs on `kubestellar/console`. Work through every item without asking — the user will review and merge PRs separately.
+Continuously discover and fix all open auto-qa issues and stalled copilot PRs on `${PROJECT_PRIMARY_REPO}`. Work through every item without asking — the user will review and merge PRs separately.
 
 Use `unset GITHUB_TOKEN &&` before all `gh` commands. Use sub-agents (Agent tool) to parallelize independent work.
 
@@ -10,22 +10,22 @@ Use `unset GITHUB_TOKEN &&` before all `gh` commands. Use sub-agents (Agent tool
 
 ```bash
 # Open auto-qa issues
-unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --label "auto-qa" --state open --json number,title,labels,createdAt --limit 50
+unset GITHUB_TOKEN && gh issue list --repo ${PROJECT_PRIMARY_REPO} --label "auto-qa" --state open --json number,title,labels,createdAt --limit 50
 
 # Open PRs from copilot on auto-qa branches
-unset GITHUB_TOKEN && gh pr list --repo kubestellar/console --state open --search "[Auto-QA]" --json number,title,headRefName,author,labels,additions,deletions,createdAt --limit 50
+unset GITHUB_TOKEN && gh pr list --repo ${PROJECT_PRIMARY_REPO} --state open --search "[Auto-QA]" --json number,title,headRefName,author,labels,additions,deletions,createdAt --limit 50
 
 # Also check for GA4-Error issues (same workflow)
-unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --label "ga4-error" --state open --json number,title,labels,createdAt --limit 50
+unset GITHUB_TOKEN && gh issue list --repo ${PROJECT_PRIMARY_REPO} --label "ga4-error" --state open --json number,title,labels,createdAt --limit 50
 
-# Check for existing fix/auto-qa-* PRs by clubanderson (already being worked on — skip these)
-unset GITHUB_TOKEN && gh pr list --repo kubestellar/console --state open --search "auto-qa author:clubanderson" --json number,title,headRefName --limit 50
+# Check for existing fix/auto-qa-* PRs by ${PROJECT_AI_AUTHOR} (already being worked on — skip these)
+unset GITHUB_TOKEN && gh pr list --repo ${PROJECT_PRIMARY_REPO} --state open --search "auto-qa author:${PROJECT_AI_AUTHOR}" --json number,title,headRefName --limit 50
 ```
 
 **Triage rules (no user interaction needed):**
 - **Stalled copilot PR** = PR by `copilot-swe-agent` with `size/XS` label (0 additions, 0 deletions). → **Takeover.**
 - **Issue with no PR** = Auto-QA or GA4-Error issue with no linked open PR. → **New fix.**
-- **Issue with existing `fix/auto-qa-*` PR by clubanderson** = Already being worked on. → **Skip.**
+- **Issue with existing `fix/auto-qa-*` PR by ${PROJECT_AI_AUTHOR}** = Already being worked on. → **Skip.**
 - **Active copilot PR with real changes** (additions > 0) = Copilot is working. → **Skip.**
 - **Issue with `ai-needs-human` label** = Still attempt a fix. Only skip if the fix truly requires human judgment after reading the issue.
 
@@ -49,17 +49,17 @@ Process items in this priority order:
 
 ```bash
 # Step 1: Get the current PR body
-unset GITHUB_TOKEN && gh pr view <PR_NUMBER> --repo kubestellar/console --json body -q .body > /tmp/pr_body_<PR_NUMBER>.txt
+unset GITHUB_TOKEN && gh pr view <PR_NUMBER> --repo ${PROJECT_PRIMARY_REPO} --json body -q .body > /tmp/pr_body_<PR_NUMBER>.txt
 
 # Step 2: Remove all auto-close keywords (Fixes/Closes/Resolves + # + number)
 # Use perl for reliable in-place editing with case-insensitive replace
 perl -pi -e 's/(Fixes|Closes|Resolves)\s+#(\d+)/Related to #$2/gi' /tmp/pr_body_<PR_NUMBER>.txt
 
 # Step 3: Update the PR body
-unset GITHUB_TOKEN && gh pr edit <PR_NUMBER> --repo kubestellar/console --body "$(cat /tmp/pr_body_<PR_NUMBER>.txt)"
+unset GITHUB_TOKEN && gh pr edit <PR_NUMBER> --repo ${PROJECT_PRIMARY_REPO} --body "$(cat /tmp/pr_body_<PR_NUMBER>.txt)"
 
 # Step 4: Now safe to close
-unset GITHUB_TOKEN && gh pr close <PR_NUMBER> --repo kubestellar/console --comment "Closing stalled copilot PR. Taking over with a manual fix."
+unset GITHUB_TOKEN && gh pr close <PR_NUMBER> --repo ${PROJECT_PRIMARY_REPO} --comment "Closing stalled copilot PR. Taking over with a manual fix."
 
 # Step 5: Delete the copilot branch
 unset GITHUB_TOKEN && git push origin --delete copilot/<branch-name>
@@ -68,7 +68,7 @@ unset GITHUB_TOKEN && git push origin --delete copilot/<branch-name>
 #### 2b. Read the Issue
 
 ```bash
-unset GITHUB_TOKEN && gh issue view <ISSUE_NUMBER> --repo kubestellar/console --json body,title,labels
+unset GITHUB_TOKEN && gh issue view <ISSUE_NUMBER> --repo ${PROJECT_PRIMARY_REPO} --json body,title,labels
 ```
 
 Parse the issue to extract:
@@ -126,7 +126,7 @@ unset GITHUB_TOKEN && git push -u origin fix/auto-qa-<issue-number>
 Create the PR:
 
 ```bash
-unset GITHUB_TOKEN && gh pr create --repo kubestellar/console \
+unset GITHUB_TOKEN && gh pr create --repo ${PROJECT_PRIMARY_REPO} \
   --title "<emoji> <Short description>" \
   --body "$(cat <<'EOF'
 ## Summary

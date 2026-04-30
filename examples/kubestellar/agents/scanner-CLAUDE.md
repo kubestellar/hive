@@ -6,7 +6,7 @@
 
 **Quick check before any `gh issue close`:**
 ```bash
-gh issue view <number> --repo kubestellar/console --json labels --jq '.labels[].name' | grep -qi hold && echo "HOLD — DO NOT TOUCH" || echo "OK to proceed"
+gh issue view <number> --repo ${PROJECT_PRIMARY_REPO} --json labels --jq '.labels[].name' | grep -qi hold && echo "HOLD — DO NOT TOUCH" || echo "OK to proceed"
 ```
 
 ## ⛔ ADOPTERS.md PRs — DO NOT TOUCH
@@ -15,7 +15,7 @@ gh issue view <number> --repo kubestellar/console --json labels --jq '.labels[].
 
 **Quick check before interacting with any PR:**
 ```bash
-gh pr view <number> --repo kubestellar/console --json files --jq '.files[].path' | grep -qi adopters && echo "ADOPTERS — DO NOT TOUCH" || echo "OK to proceed"
+gh pr view <number> --repo ${PROJECT_PRIMARY_REPO} --json files --jq '.files[].path' | grep -qi adopters && echo "ADOPTERS — DO NOT TOUCH" || echo "OK to proceed"
 ```
 
 ---
@@ -99,11 +99,11 @@ Dispatch ONE agent for all issues in the bundle. The prompt should say "fix all 
 Skip paused issues until queue drops to target (~10 non-exempt) and stays quiet.
 
 **LANE BOUNDARY — HARD RULE**:
-Scanner owns ONLY: kubestellar GitHub issues and PRs (triage, bug fixes, CI health, doc-debt, stuck PRs, security bumps). If a bead in your DB is about awesome-lists, outreach, external submissions, CNCF directories, or anything outside kubestellar repos — SKIP IT, do not claim it, do not work on it. Those belong to the outreach agent. When in doubt: if it doesn't reference a kubestellar/\* GitHub issue or PR number, it is not your lane.
+Scanner owns ONLY: ${PROJECT_ORG} GitHub issues and PRs (triage, bug fixes, CI health, doc-debt, stuck PRs, security bumps). If a bead in your DB is about awesome-lists, outreach, external submissions, CNCF directories, or anything outside ${PROJECT_ORG} repos — SKIP IT, do not claim it, do not work on it. Those belong to the outreach agent. When in doubt: if it doesn't reference a ${PROJECT_ORG}/\* GitHub issue or PR number, it is not your lane.
 
 **DO NOT**:
 - Register your own cron
-- Touch awesome-list repos, fork external repos, or submit PRs to non-kubestellar repos
+- Touch awesome-list repos, fork external repos, or submit PRs to non-${PROJECT_ORG} repos
 - Stand by waiting for work orders — if open issues exist, scan and dispatch
 
 **DO**:
@@ -135,7 +135,7 @@ This ensures every dispatched agent has a trackable bead. If scanner crashes mid
 **Fix-agent prompt template** (each dispatched Agent):
 
 ```
-Fix kubestellar/console#NNNN. Worktree /tmp/kubestellar-console-NNNN-slug.
+Fix ${PROJECT_PRIMARY_REPO}#NNNN. Worktree /tmp/<repo-name>-NNNN-slug.
 Read the issue body, produce a focused fix, commit -s, push, open PR with
 Fixes #NNNN. Return PR number.
 ⛔ HARD GATE: Do NOT run npm run build, npm run lint, tsc, vitest, or any local validation. Push and let CI validate. Violating this wastes tokens and time.
@@ -167,7 +167,7 @@ cat /var/run/hive-metrics/merge-eligible.json | jq -r '.merge_eligible[] | "\(.r
 # 3. Dispatch: oldest issues across ALL repos, fire Agent tool calls in parallel
 # Use repo-appropriate worktree paths (see dispatch template below)
 
-# 4. For PRs: auto-merge AI-authored (clubanderson, copilot-swe-agent[bot]) when CI green
+# 4. For PRs: auto-merge AI-authored (${PROJECT_AI_AUTHOR}, copilot-swe-agent[bot]) when CI green
 # One `gh pr merge --admin --squash` per eligible PR, on ANY repo
 ```
 
@@ -192,10 +192,7 @@ Agent(subagent_type="general-purpose",
 ```
 
 **Worktree path convention by repo:**
-- `kubestellar/console` → `/tmp/kubestellar-console-NNNN-slug`
-- `kubestellar/docs` → `/tmp/kubestellar-docs-NNNN-slug`
-- `kubestellar/console-kb` → `/tmp/console-kb-NNNN-slug`
-- `kubestellar/kubestellar-mcp` → `/tmp/kubestellar-mcp-NNNN-slug`
+- For any repo `${PROJECT_ORG}/<repo-name>` → `/tmp/<repo-name>-NNNN-slug`
 
 **When to restore full ceremony**: only when the queue is at target AND peers are active. Default to lean when the queue has non-exempt work.
 
@@ -251,7 +248,7 @@ Each issue in your kick message includes `[tier/model]` — use the `model_recom
 Agent(subagent_type="general-purpose",
       model="haiku",
       description="Fix #NNNN i18n wrap",
-      prompt="Fix kubestellar/console#NNNN. ...",
+      prompt="Fix ${PROJECT_PRIMARY_REPO}#NNNN. ...",
       run_in_background=true)
 ```
 
@@ -267,7 +264,7 @@ Each issue has a `lane` field. **Only work on issues with `lane=scanner`.** Issu
 
 **At the very start of every cron iteration**, use the `Read` tool to re-read these files from disk:
 
-1. `/tmp/hive/examples/kubestellar/agents/scanner-CLAUDE.md` (this file)
+1. This policy file (scanner-CLAUDE.md)
 2. Every `feedback_*.md` and `project_*.md` file under `/home/dev/.claude/projects/-Users-andan02/memory/` whose name is referenced anywhere in this policy (MEMORY.md has the full index).
 3. `/home/dev/.claude/projects/-Users-andan02/memory/cron_scan_log.md` — last 100 lines, so you know what the previous iterations did.
 
@@ -283,11 +280,8 @@ Per operator preference on 2026-04-17:
 
 | Repo | Target open count | Why |
 |---|---:|---|
-| `kubestellar/console` | **~10** | Room for active work + tracker issues (LFX, nightly, tracker) |
-| `kubestellar/console-kb` | **0** | No intentionally-open items here |
-| `kubestellar/docs` | **0** | No intentionally-open items here |
-| `kubestellar/kubestellar-mcp` | **0** | No intentionally-open items here |
-| `kubestellar/console-marketplace` | **exempt** | 40+ CNCF outreach card stubs are intentional community work |
+| `${PROJECT_PRIMARY_REPO}` | **~10** | Room for active work + tracker issues |
+| Other repos in `${PROJECT_ORG}` | **0** | No intentionally-open items here |
 
 **Report against the target every iteration** in the scan log block (new field `Queue: <repo>=N (target N)`), and flag in the summary line when any tracked repo exceeds its target by >2.
 
@@ -484,7 +478,7 @@ If `bd` is missing or errors, log `Beads: skipped (bd unavailable: <error>)` and
 
 ## Responsibilities per firing
 
-1. **Scan all open issues AND PRs** on: `kubestellar/console`, `kubestellar/console-kb`, `kubestellar/docs`, `kubestellar/console-marketplace`, `kubestellar/kubestellar-mcp`.
+1. **Scan all open issues AND PRs** on all repos listed in `${PROJECT_REPOS_LIST}`.
 2. **Every issue kind** — bugs, enhancements, features, documentation, help-wanted. Do NOT filter to only bugs — see [feedback_fix_enhancements_too.md](feedback_fix_enhancements_too.md).
 3. **Security screen** every new issue — see [feedback_security_screening.md](feedback_security_screening.md).
 4. **Fix what you can** using git worktrees (never on main — MEMORY.md top-level rule).
@@ -511,7 +505,7 @@ Output is oldest→newest. **Dispatch fix agents for the 6-8 oldest this iterati
 
 ## Customer SLA — 30 MINUTES from issue-filed to PR-merged (HARD PROMISE)
 
-**This is the project's public promise to users**: ANY open issue on kubestellar/console should have a merged fix (or a filed phase bead with explicit architect-in-progress) within 30 minutes of `createdAt`. Labels don't matter — bug, enhancement, kind/feature, Auto-QA, help wanted, no label — ALL of them count toward the SLA. Applies to:
+**This is the project's public promise to users**: ANY open issue on ${PROJECT_PRIMARY_REPO} should have a merged fix (or a filed phase bead with explicit architect-in-progress) within 30 minutes of `createdAt`. Labels don't matter — bug, enhancement, kind/feature, Auto-QA, help wanted, no label — ALL of them count toward the SLA. Applies to:
 - Human bug reports (any kind label)
 - Feature requests + enhancements (must at minimum get a bead + lane-transfer to architect within 30 min)
 - Auto-QA findings (even P3)
@@ -560,7 +554,7 @@ The SLA is an OBLIGATION, not an aspiration. Missing it is worse than shipping a
 
 1. In a single message, call the `Agent` tool **4-6 times with concurrent tool_use blocks**. Each agent gets ONE bug + title + bead ID.
 2. Each dispatched agent:
-   - Creates its own worktree: `/tmp/kubestellar-console-<bug-num>-<slug>`
+   - Creates its own worktree: `/tmp/<repo-name>-<bug-num>-<slug>`
    - Reads the issue body, produces a focused fix
    - ⛔ Does NOT run npm run build, npm run lint, tsc, vitest, or any local validation — CI handles that
    - Commits with `-s` (DCO sign-off, per CLAUDE.md)
@@ -607,7 +601,7 @@ All repos are already included. The enumerator covers all repos listed in hive-p
 ### Triage decision tree (per PR)
 
 1. **Author classification**:
-   - AI-authored (`clubanderson` is AI per CLAUDE.md; `copilot-swe-agent[bot]`; scanner's own branches) → self-merge-eligible path.
+   - AI-authored (`${PROJECT_AI_AUTHOR}` is AI per CLAUDE.md; `copilot-swe-agent[bot]`; scanner's own branches) → self-merge-eligible path.
    - Community contributor → review path.
 
 2. **CI status** (required for any merge):
@@ -625,7 +619,7 @@ All repos are already included. The enumerator covers all repos listed in hive-p
 
 | Author | CI | Size | Action |
 |---|---|---|---|
-| AI-authored | green | any | `gh pr merge --admin --squash` (matches CLAUDE.md auto-merge workflow for kubestellar/console) |
+| AI-authored | green | any | `gh pr merge --admin --squash` (matches CLAUDE.md auto-merge workflow for ${PROJECT_PRIMARY_REPO}) |
 | Community | green | small | Read diff, if clean: `/lgtm` + `/approve` comments (Prow) OR `gh pr merge --admin --squash` if no Prow. Thank the contributor. |
 | Community | green | medium | Read diff, leave 1-2 specific comments if improvements possible; if clean, approve + merge. |
 | Community | green | large | Leave a structured review: what works, what needs changes, link to docs/conventions. If structural (new pattern, API change), lane-transfer to architect via `bd create --actor architect --set-metadata lane_transfer=scanner-to-architect` for RFC review. |
@@ -816,7 +810,7 @@ If the scan is interrupted mid-way, that's fine — the SCAN_START_ET heartbeat 
 
 ## Scanner state (updated by scanner on first discovery)
 
-- **GA4 property ID for kubestellar/console**: `525401563` (set as default env on the dev@claude-dev box, so `mcp__google-analytics__*` tools pick it up automatically; still pass it explicitly when querying other properties). Service-account key at `/home/dev/.config/gcloud-keys/ga4-reader-key.json`.
+- **GA4 property ID for ${PROJECT_PRIMARY_REPO}**: `${GA4_PROPERTY_ID}` (set as default env on the dev@claude-dev box, so `mcp__google-analytics__*` tools pick it up automatically; still pass it explicitly when querying other properties). Service-account key at `/home/dev/.config/gcloud-keys/ga4-reader-key.json`.
 
 ## Self-Update Protocol — MANDATORY when you discover new rules
 

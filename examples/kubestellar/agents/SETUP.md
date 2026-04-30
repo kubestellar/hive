@@ -57,35 +57,35 @@ ssh root@100.x.x.x hostname
 ssh root@100.x.x.x  # or 192.168.4.28 if not on VPN
 
 # Agent home
-mkdir -p ~/.kubestellar-agents/{supervisor,scanner,architect,reviewer,outreach}
+mkdir -p ~/.hive-agents/{supervisor,scanner,architect,reviewer,outreach}
 
 # Clone repos for each mutating agent
+# Replace ${PROJECT_ORG} and repo names with your project's values from hive-project.yaml
 for agent in scanner architect; do
-  cd ~/.kubestellar-agents/$agent
-  git clone https://github.com/kubestellar/console.git
-  git clone https://github.com/kubestellar/console-kb.git
-  git clone https://github.com/kubestellar/console-marketplace.git
-  git clone https://github.com/kubestellar/docs.git
+  cd ~/.hive-agents/$agent
+  for repo in ${PROJECT_REPOS_LIST}; do
+    git clone "https://github.com/${repo}.git"
+  done
 done
 
-# Reviewer and outreach get read-only clones
+# Reviewer and outreach get read-only clones (primary repo only)
 for agent in reviewer outreach; do
-  cd ~/.kubestellar-agents/$agent
-  git clone https://github.com/kubestellar/console.git
+  cd ~/.hive-agents/$agent
+  git clone "https://github.com/${PROJECT_PRIMARY_REPO}.git"
 done
 ```
 
 ## Step 2: Initialize supervisor
 
 ```bash
-cd ~/.kubestellar-agents/supervisor
+cd ~/.hive-agents/supervisor
 git init
 # Copy supervisor-CLAUDE.md as CLAUDE.md
 cp /path/to/supervisor-CLAUDE.md CLAUDE.md
 git add CLAUDE.md && git commit -m "init"
 
 # Symlink state.db
-ln -sf ~/.kubestellar-fix-loop/state.db state.db
+ln -sf ~/.hive-fix-loop/state.db state.db
 ```
 
 ## Step 3: Initialize beads ledger
@@ -99,9 +99,9 @@ bd init
 
 ```bash
 # Copy worker.sh
-mkdir -p ~/.kubestellar-fix-loop
-cp /path/to/worker.sh ~/.kubestellar-fix-loop/worker.sh
-chmod +x ~/.kubestellar-fix-loop/worker.sh
+mkdir -p ~/.hive-fix-loop
+cp /path/to/worker.sh ~/.hive-fix-loop/worker.sh
+chmod +x ~/.hive-fix-loop/worker.sh
 
 # NOTE: No cron installation needed. EXECUTOR MODE — agents are kicked by
 # the governor (systemd timer) and supervisor, not by self-scheduled crons.
@@ -112,10 +112,10 @@ chmod +x ~/.kubestellar-fix-loop/worker.sh
 
 ```bash
 # Copy CLAUDE.md for each executor into their console dir
-cp scanner-CLAUDE.md ~/.kubestellar-agents/scanner/console/CLAUDE.md
-cp architect-CLAUDE.md ~/.kubestellar-agents/architect/console/CLAUDE.md
-cp reviewer-CLAUDE.md ~/.kubestellar-agents/reviewer/console/CLAUDE.md
-cp outreach-CLAUDE.md ~/.kubestellar-agents/outreach/console/CLAUDE.md
+cp scanner-CLAUDE.md ~/.hive-agents/scanner/console/CLAUDE.md
+cp architect-CLAUDE.md ~/.hive-agents/architect/console/CLAUDE.md
+cp reviewer-CLAUDE.md ~/.hive-agents/reviewer/console/CLAUDE.md
+cp outreach-CLAUDE.md ~/.hive-agents/outreach/console/CLAUDE.md
 
 # Copy env files (adjust paths for Linux — /root/ instead of /Users/andan02/)
 # If using systemd:

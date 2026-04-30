@@ -14,7 +14,7 @@ Load this when checking or fixing test coverage below the 91% target.
 # Use Agent tool with run_in_background=true
 Agent(subagent_type="general-purpose",
       description="Fix coverage below 91%",
-      prompt="In /home/dev/kubestellar-console/web, run npm run test:coverage. If below 91%, identify the 3-5 files with worst coverage, write tests, create branch coverage/increase-<timestamp>, git commit -s, push, open PR. Return the PR number and new coverage %.",
+      prompt="In ${AGENTS_WORKDIR}/web, run npm run test:coverage. If below 91%, identify the 3-5 files with worst coverage, write tests, create branch coverage/increase-<timestamp>, git commit -s, push, open PR. Return the PR number and new coverage %.",
       run_in_background=true)
 ```
 

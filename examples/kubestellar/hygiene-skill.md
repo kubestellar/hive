@@ -1,8 +1,10 @@
 ## KubeStellar Comprehensive Hygiene
 
-Run a full operational sweep across the kubestellar GitHub organization repos: **console**, **console-marketplace**, **console-kb**, **docs**, and **homebrew-tap**.
+Run a full operational sweep across all project repos defined in `$HIVE_REPOS` (read from hive-project.yaml at kick time).
 
 Execute ALL sections below in order. Use sub-agents (Agent tool) to parallelize independent checks. Use `unset GITHUB_TOKEN &&` before all `gh` commands.
+
+**Setup:** All `gh` commands below iterate over `$HIVE_REPOS` (space-separated list of `org/repo` entries). The kick script sets this from `hive-project.yaml`.
 
 ---
 
@@ -11,24 +13,22 @@ Execute ALL sections below in order. Use sub-agents (Agent tool) to parallelize 
 Check the latest workflow runs for each of these. Report status (pass/fail/in-progress), duration, and link.
 
 ```bash
-# Console — nightly compliance, nightly issues, weekly builds
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --limit 10 --json name,status,conclusion,createdAt,url
+# Check all repos for workflow runs
+for repo in $HIVE_REPOS; do
+  echo "=== $repo ==="
+  unset GITHUB_TOKEN && gh run list --repo "$repo" --limit 10 --json name,status,conclusion,createdAt,url
 
-# Console — check kc-agent build (Docker/Quay image build workflows)
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Docker Build" --limit 3 --json name,status,conclusion,createdAt,url 2>/dev/null
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Release" --limit 3 --json name,status,conclusion,createdAt,url 2>/dev/null
+  # Check for build-specific workflows (Docker, Release, Helm, Brew)
+  for wf in "Docker Build" "Release"; do
+    unset GITHUB_TOKEN && gh run list --repo "$repo" --workflow "$wf" --limit 3 --json name,status,conclusion,createdAt,url 2>/dev/null
+  done
 
-# Helm chart builds
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --limit 20 --json name,status,conclusion,createdAt | jq '[.[] | select(.name | test("helm|chart"; "i"))]'
+  # Helm chart builds
+  unset GITHUB_TOKEN && gh run list --repo "$repo" --limit 20 --json name,status,conclusion,createdAt | jq '[.[] | select(.name | test("helm|chart"; "i"))]'
 
-# Brew builds
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --limit 20 --json name,status,conclusion,createdAt | jq '[.[] | select(.name | test("brew|formula"; "i"))]'
-
-# Console-kb workflows
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console-kb --limit 5 --json name,status,conclusion,createdAt,url
-
-# Docs workflows
-unset GITHUB_TOKEN && gh run list --repo kubestellar/docs --limit 5 --json name,status,conclusion,createdAt,url
+  # Brew builds
+  unset GITHUB_TOKEN && gh run list --repo "$repo" --limit 20 --json name,status,conclusion,createdAt | jq '[.[] | select(.name | test("brew|formula"; "i"))]'
+done
 ```
 
 Report a table of all workflow runs with any failures highlighted.
@@ -40,9 +40,9 @@ Report a table of all workflow runs with any failures highlighted.
 For each repo, check if CI is green on the main/default branch:
 
 ```bash
-for repo in console console-marketplace console-kb docs; do
-  echo "=== kubestellar/$repo ==="
-  unset GITHUB_TOKEN && gh run list --repo "kubestellar/$repo" --branch main --limit 5 --json name,status,conclusion,createdAt
+for repo in $HIVE_REPOS; do
+  echo "=== $repo ==="
+  unset GITHUB_TOKEN && gh run list --repo "$repo" --branch main --limit 5 --json name,status,conclusion,createdAt
 done
 ```
 
@@ -55,9 +55,9 @@ Flag any failing CI on main — these are critical.
 For each repo, list all open PRs with their status, CI checks, review state, and age:
 
 ```bash
-for repo in console console-marketplace console-kb docs; do
-  echo "=== kubestellar/$repo ==="
-  unset GITHUB_TOKEN && gh pr list --repo "kubestellar/$repo" --state open --json number,title,author,createdAt,reviewDecision,statusCheckRollup,labels,url
+for repo in $HIVE_REPOS; do
+  echo "=== $repo ==="
+  unset GITHUB_TOKEN && gh pr list --repo "$repo" --state open --json number,title,author,createdAt,reviewDecision,statusCheckRollup,labels,url
 done
 ```
 
@@ -75,9 +75,9 @@ For each open PR:
 For each repo, list all open issues:
 
 ```bash
-for repo in console console-marketplace console-kb docs; do
-  echo "=== kubestellar/$repo ==="
-  unset GITHUB_TOKEN && gh issue list --repo "kubestellar/$repo" --state open --json number,title,labels,createdAt,author,url
+for repo in $HIVE_REPOS; do
+  echo "=== $repo ==="
+  unset GITHUB_TOKEN && gh issue list --repo "$repo" --state open --json number,title,labels,createdAt,author,url
 done
 ```
 
@@ -94,9 +94,11 @@ For each issue:
 Check for issues created by nightly workflows (typically labeled `nightly`, `automated`, `triage-needed`, or created by `github-actions`):
 
 ```bash
-unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open --label "triage-needed" --json number,title,createdAt,labels,url
-unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open --label "nightly" --json number,title,createdAt,labels,url 2>/dev/null
-unset GITHUB_TOKEN && gh issue list --repo kubestellar/console --state open --search "author:github-actions" --json number,title,createdAt,labels,url
+# Check primary repo for nightly findings (adapt repo if nightlies run elsewhere)
+PRIMARY_REPO="${HIVE_REPOS%% *}"  # first repo in list
+unset GITHUB_TOKEN && gh issue list --repo "$PRIMARY_REPO" --state open --label "triage-needed" --json number,title,createdAt,labels,url
+unset GITHUB_TOKEN && gh issue list --repo "$PRIMARY_REPO" --state open --label "nightly" --json number,title,createdAt,labels,url 2>/dev/null
+unset GITHUB_TOKEN && gh issue list --repo "$PRIMARY_REPO" --state open --search "author:github-actions" --json number,title,createdAt,labels,url
 ```
 
 For each nightly finding:
@@ -109,7 +111,7 @@ For each nightly finding:
 
 ### 6. Branch & Ref Cleanup
 
-For each repo found in `/tmp/kubestellar-*` (main repos only, not worktrees):
+For each repo found in `/tmp/` matching project repo names (main repos only, not worktrees):
 
 1. **Pull main** if on main branch
 2. **Prune** stale remote tracking refs: `git remote prune origin`
@@ -120,10 +122,15 @@ Write a discovery script to `/tmp/ks-hygiene-discover.sh` and run with `/opt/hom
 ```bash
 #!/usr/bin/env bash
 declare -A seen
-for d in /tmp/kubestellar-*; do
+for d in /tmp/*; do
   [ -d "$d/.git" ] || continue
   remote=$(cd "$d" && git remote get-url origin 2>/dev/null)
-  [[ "$remote" == *"github.com/kubestellar/"* ]] || continue
+  # Match any repo in $HIVE_REPOS
+  matched=false
+  for repo in $HIVE_REPOS; do
+    [[ "$remote" == *"github.com/$repo"* ]] && matched=true && break
+  done
+  $matched || continue
   if [ -z "${seen[$remote]}" ] || [ ${#d} -lt ${#seen[$remote]} ]; then
     seen[$remote]="$d"
   fi
@@ -160,16 +167,16 @@ Check the latest "Build and Deploy KC" workflow for deployment status to both cl
 
 ```bash
 # Latest deploy workflow run
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Build and Deploy KC" --limit 5 --json name,status,conclusion,createdAt,url
+unset GITHUB_TOKEN && gh run list --repo ${PROJECT_PRIMARY_REPO} --workflow "Build and Deploy KC" --limit 5 --json name,status,conclusion,createdAt,url
 
 # Job-level detail for latest run
-LATEST_RUN=$(unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Build and Deploy KC" --branch main --limit 1 --json databaseId --jq '.[0].databaseId')
-unset GITHUB_TOKEN && gh run view "$LATEST_RUN" --repo kubestellar/console --json jobs --jq '.jobs[] | "\(.name) | \(.status) | \(.conclusion)"'
+LATEST_RUN=$(unset GITHUB_TOKEN && gh run list --repo ${PROJECT_PRIMARY_REPO} --workflow "Build and Deploy KC" --branch main --limit 1 --json databaseId --jq '.[0].databaseId')
+unset GITHUB_TOKEN && gh run view "$LATEST_RUN" --repo ${PROJECT_PRIMARY_REPO} --json jobs --jq '.jobs[] | "\(.name) | \(.status) | \(.conclusion)"'
 ```
 
 For each deployment target:
 - **deploy-pok-prod**: Should be PASS. If failing, check logs.
-- **deploy-vllm-d**: Known blocker — GitHub PAT in `arc-github-secret-kubestellar` expires periodically. If failing with RBAC error, flag as "needs VPN + PAT renewal".
+- **deploy-vllm-d**: Known blocker — GitHub PAT in the deploy secret expires periodically. If failing with RBAC error, flag as "needs VPN + PAT renewal".
 
 Also check if clusters are reachable (best-effort, depends on VPN):
 ```bash
@@ -185,24 +192,24 @@ Verify the Helm chart and Homebrew formulas are up-to-date with the latest relea
 
 ```bash
 # Latest weekly release
-unset GITHUB_TOKEN && gh release list --repo kubestellar/console --limit 5 --json tagName,createdAt,isPrerelease --jq '[.[] | select(.isPrerelease == false)] | .[0]'
+unset GITHUB_TOKEN && gh release list --repo ${PROJECT_PRIMARY_REPO} --limit 5 --json tagName,createdAt,isPrerelease --jq '[.[] | select(.isPrerelease == false)] | .[0]'
 
 # Latest nightly release
-unset GITHUB_TOKEN && gh release list --repo kubestellar/console --limit 5 --json tagName,createdAt,isPrerelease --jq '[.[] | select(.isPrerelease == true)] | .[0]'
+unset GITHUB_TOKEN && gh release list --repo ${PROJECT_PRIMARY_REPO} --limit 5 --json tagName,createdAt,isPrerelease --jq '[.[] | select(.isPrerelease == true)] | .[0]'
 
 # Brew formula versions
-unset GITHUB_TOKEN && gh api repos/kubestellar/homebrew-tap/contents/Formula/kubestellar-console.rb --jq '.content' | tr -d '\n' | base64 -d | grep 'version "'
-unset GITHUB_TOKEN && gh api repos/kubestellar/homebrew-tap/contents/Formula/kc-agent.rb --jq '.content' | tr -d '\n' | base64 -d | grep 'version "'
+# Brew formula versions (adapt paths for your project's homebrew tap)
+# unset GITHUB_TOKEN && gh api repos/${PROJECT_ORG}/homebrew-tap/contents/Formula/<formula>.rb --jq '.content' | tr -d '\n' | base64 -d | grep 'version "'
 
 # Helm Chart Release workflow
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Helm Chart Release" --limit 3 --json status,conclusion,createdAt,url
+unset GITHUB_TOKEN && gh run list --repo ${PROJECT_PRIMARY_REPO} --workflow "Helm Chart Release" --limit 3 --json status,conclusion,createdAt,url
 
 # Release workflow (creates nightly + weekly releases + updates brew)
-unset GITHUB_TOKEN && gh run list --repo kubestellar/console --workflow "Release" --limit 3 --json status,conclusion,createdAt,url
+unset GITHUB_TOKEN && gh run list --repo ${PROJECT_PRIMARY_REPO} --workflow "Release" --limit 3 --json status,conclusion,createdAt,url
 ```
 
 Flag:
-- **Brew formula stale**: if `kubestellar-console` version < latest weekly release version
+- **Brew formula stale**: if formula version < latest weekly release version
 - **kc-agent formula stale**: if version < latest nightly release version
 - **Nightly missing**: if today's date has no nightly release AND the Release workflow failed
 - **Helm chart release failures**: any recent Helm Chart Release workflow failures
@@ -228,7 +235,7 @@ Output a comprehensive summary with:
 
 - **NEVER delete worktrees** — user rule, no exceptions
 - **NEVER push to any remote** — unless fixing a critical nightly finding (then use worktree + PR workflow)
-- **NEVER merge PRs on kubestellar repos without user approval** — present recommendations, don't auto-merge
+- **NEVER merge PRs on project repos without user approval** — present recommendations, don't auto-merge
 - **NEVER commit directly to main** — always use feature branches
 - **Ignore Playwright failures** — not blocking for PRs
 - **Ignore `llm-d-deployer`** — archived/read-only

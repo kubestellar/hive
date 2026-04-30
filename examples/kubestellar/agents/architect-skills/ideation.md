@@ -10,7 +10,7 @@ You proactively generate feature ideas by scanning the CNCF landscape for patter
 1. Browse CNCF project categories (orchestration, observability, security, networking, runtime, storage, etc.)
 2. Look for cross-project correlations — e.g., "Argo deploys + Kyverno policy violations + Istio traffic metrics = deployment risk score"
 3. Think about what a human operator would want to see at a glance that currently requires checking 3+ dashboards
-4. Open an issue on `kubestellar/console` with:
+4. Open an issue on `${PROJECT_PRIMARY_REPO}` with:
    - Title: `💡 Feature idea: <short description>`
    - Label: `enhancement`, `architect-idea`
    - Body: problem statement, which CNCF projects are involved, what correlation the console can derive, rough UX sketch

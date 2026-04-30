@@ -61,11 +61,15 @@ if [[ -z "${HIVE_REPOS:-}" ]]; then
     [[ -n "${PROJECT_REPOS:-}" ]] && HIVE_REPOS="$PROJECT_REPOS"
   fi
 fi
-IFS=' ' read -ra REPOS <<< "${HIVE_REPOS:-kubestellar/console kubestellar/console-kb kubestellar/docs kubestellar/console-marketplace kubestellar/kubestellar-mcp}"
+if [[ -z "${HIVE_REPOS:-}" ]]; then
+  echo "FATAL: HIVE_REPOS is empty. Set it in governor.env, hive-project.yaml, or HIVE_REPOS env var." >&2
+  exit 1
+fi
+IFS=' ' read -ra REPOS <<< "$HIVE_REPOS"
 
 # ── Exempt-label filter ─────────────────────────────────────────────────────
 # Issues matching any of these labels are NOT counted toward the actionable queue.
-EXEMPT_LABEL_REGEX="nightly-tests|LFX|do-not-merge|meta-tracker|auto-qa-tuning-report|hold|adopters|changes-requested|waiting-on-author"
+EXEMPT_LABEL_REGEX="${GOVERNOR_EXEMPT_LABELS:-nightly-tests|LFX|do-not-merge|meta-tracker|auto-qa-tuning-report|hold|adopters|changes-requested|waiting-on-author}"
 
 # ── Queue depth thresholds ──────────────────────────────────────────────────
 # SURGE → BUSY → QUIET → IDLE as queue drains.

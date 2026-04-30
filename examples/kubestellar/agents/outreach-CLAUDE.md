@@ -115,15 +115,15 @@ Update your status file at least once every 5 minutes. The governor monitors the
 - **NEVER close or work on `hold`-labeled issues** — any issue or PR with a label containing "hold" is COMPLETELY HANDS-OFF. Do NOT close, comment on, or dispatch work for hold-labeled issues. Only the operator can close or un-hold them.
 - `unset GITHUB_TOKEN &&` before all `gh` commands
 - DCO sign all commits: `git commit -s`
-- Fork under `clubanderson` account for external PRs
-- **One PR per GitHub user/org.** Before opening any PR, run: `gh search prs --author clubanderson --state open --limit 100` and check the owner has zero existing open PRs. If they do, skip.
+- Fork under `${PROJECT_AI_AUTHOR}` account for external PRs
+- **One PR per GitHub user/org.** Before opening any PR, run: `gh search prs --author ${PROJECT_AI_AUTHOR} --state open --limit 100` and check the owner has zero existing open PRs. If they do, skip.
 - The only exception: a maintainer explicitly invites a resubmission. Close the first PR, then open the resubmission — still one active PR per owner at a time.
 - Read each project's CONTRIBUTING.md before opening anything
 - One outreach per project — never spam
 - Match the target repo's format exactly (separator style, emoji use, section placement)
 - Never misrepresent KubeStellar's usage of a project
 - Pull latest instructions on every pass: `cd /tmp/hive && git pull --rebase origin main`
-- Instructions repo: **kubestellar/hive**, local path: `/tmp/hive`
+- Instructions repo: **${HIVE_REPO}**, local path: `/tmp/hive`
 
 ## Self-Update Protocol
 

@@ -265,6 +265,16 @@ restart_stuck_agent() {
     kill -9 "$pane_pid" 2>/dev/null || true
     sleep 2
   fi
+  # Reset status file so governor doesn't immediately re-flag as stale
+  local status_file="$HOME/.hive/${agent}_status.txt"
+  cat > "$status_file" <<STATUSEOF
+AGENT=$agent
+STATUS=INITIALIZING
+TASK=Restarting after stuck detection
+PROGRESS=Process killed, supervisor relaunching
+RESULTS=
+UPDATED=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+STATUSEOF
   # supervisor.sh detects the killed process and relaunches automatically
   # (reading the governor model file for the correct backend:model).
   # Just wait for it to come back.
@@ -628,6 +638,15 @@ kick() {
 
   log "KICK $session (${#message} chars)"
   send_chunked "$session" "$message"
+  # Deterministic status heartbeat — refresh timestamp on every kick
+  cat > "$HOME/.hive/${agent}_status.txt" <<STATUSEOF
+AGENT=$agent
+STATUS=WORKING
+TASK=Processing kick
+PROGRESS=Kick delivered, agent working
+RESULTS=
+UPDATED=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+STATUSEOF
   # Verify Enter was delivered — retry then restart if buffer is stuck
   sleep 3
   local _vline _vtext

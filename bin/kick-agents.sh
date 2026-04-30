@@ -668,11 +668,10 @@ kick() {
 # Each stage writes its output to /var/run/hive-metrics/*.json.
 # Agents receive pre-computed data in their kick messages — never query GitHub directly.
 /tmp/hive/bin/run-pipeline.sh 2>/dev/null || log "WARN: run-pipeline.sh failed (non-fatal, falling back to direct calls)"
-# Fallback: if pipeline runner failed, try the critical scripts directly
-if [ ! -f "/var/run/hive-metrics/actionable.json" ]; then
-  /tmp/hive/bin/enumerate-actionable.sh 2>/dev/null || log "WARN: enumerate-actionable.sh failed (non-fatal)"
-  /tmp/hive/bin/merge-gate.sh 2>/dev/null || log "WARN: merge-gate.sh failed (non-fatal)"
-fi
+# Always refresh the enumerator and merge gate — the pipeline may have 0 stages
+# configured, and a stale actionable.json causes agents to miss new issues.
+/tmp/hive/bin/enumerate-actionable.sh 2>/dev/null || log "WARN: enumerate-actionable.sh failed (non-fatal)"
+/tmp/hive/bin/merge-gate.sh 2>/dev/null || log "WARN: merge-gate.sh failed (non-fatal)"
 
 # Build inline work list for scanner kick message (agents must NOT list issues/PRs themselves)
 _ENUM_FILE="/var/run/hive-metrics/actionable.json"

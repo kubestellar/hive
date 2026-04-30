@@ -280,8 +280,9 @@ cutoff = time.time()*1000 - $ITM_BACKFILL_DAYS*86400000
 history = []
 for t in sorted(bucketed.keys()):
     if t < cutoff: continue
-    vals = bucketed[t]
-    history.append({'t': t, 'avg': round(sum(vals)/len(vals))})
+    vals = sorted(bucketed[t])
+    bucket_median = vals[len(vals)//2]
+    history.append({'t': t, 'avg': round(sum(vals)/len(vals)), 'median': bucket_median})
 
 result = {
     'avg_minutes': avg, 'median_minutes': median, 'p90_minutes': p90,

@@ -18,6 +18,18 @@ gh issue view <number> --repo ${PROJECT_PRIMARY_REPO} --json labels --jq '.label
 gh pr view <number> --repo ${PROJECT_PRIMARY_REPO} --json files --jq '.files[].path' | grep -qi adopters && echo "ADOPTERS — DO NOT TOUCH" || echo "OK to proceed"
 ```
 
+## ⛔ NO @copilot / @claude / GITHUB COMMENT DISPATCH — NEVER
+
+**NEVER post `@copilot`, `@claude`, or any bot-mention comment on a GitHub issue as a way to dispatch work.** You are the fix agent. You fix issues yourself by creating a worktree, editing code, running the build, committing, pushing, and opening a PR. Posting `@copilot fix this issue` or `@claude fix this` on GitHub does nothing — those integrations are broken, the jobs fail, and the issues rot in the queue while you think someone else is handling them.
+
+**Prohibited actions:**
+- `gh issue comment --body "@copilot ..."` — NEVER
+- `gh issue comment --body "@claude ..."` — NEVER
+- Any comment that delegates work to an external bot or agent — NEVER
+- Assigning `copilot-swe-agent[bot]` to issues — NEVER
+
+**What to do instead:** Read `/var/run/hive-metrics/actionable.json` for the work queue, then for each issue: create a git worktree, make the fix, run `npm run build` to verify, commit with `-s`, push, and open a PR with `gh pr create`. You are the fixer, not a dispatcher.
+
 ---
 
 The scanner runs on claude-dev (192.168.4.56) in the `scanner` tmux session. The supervisor (dispatcher on the Mac) sends work orders directly. No cron, no self-scheduling. The scanner's project memory dir is a symlink into this one, so policy edits propagate via Syncthing.
@@ -160,7 +172,7 @@ cat /var/run/hive-metrics/actionable.json | jq -r '.prs.items[] | "\(.repo)#\(.n
 cat /var/run/hive-metrics/merge-eligible.json | jq -r '.merge_eligible[] | "\(.repo)#\(.number) \(.title)"'
 ```
 
-⛔ **NEVER run `gh issue list` or `gh pr list` directly.** The enumerator (`/var/run/hive-metrics/actionable.json`) is your ONLY source for issues and PRs. It is pre-filtered to exclude hold-labeled items, ADOPTERS PRs, drafts, and exempt labels. Running your own queries bypasses these safety filters and has caused incidents (hold issues closed, ADOPTERS PRs merged without approval).
+⛔ **NEVER run `gh issue list`, `gh pr list`, `gh search issues`, `gh search prs`, or any `gh api repos/*/issues` query directly.** The enumerator (`/var/run/hive-metrics/actionable.json`) is your ONLY source for issues and PRs. It is pre-filtered to exclude hold-labeled items, ADOPTERS PRs, drafts, and exempt labels. Running your own queries bypasses these safety filters and has caused incidents (hold issues closed, ADOPTERS PRs merged without approval). If actionable.json is empty or stale, STOP and report "actionable.json is stale/empty — enumerator may be broken" instead of trying to query GitHub directly.
 
 ⛔ **NEVER merge a PR that is not in `/var/run/hive-metrics/merge-eligible.json`.** The merge gate checks CI status and author classification. Only merge PRs listed there.
 

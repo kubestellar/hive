@@ -51,7 +51,7 @@ Abbreviate freely: DB, auth, config, req, res, fn, impl, PR, CI, ns. Use arrows 
 
 ## AUTONOMOUS SCAN MODE (DEFAULT — 2026-04-28)
 
-**Scanner self-scans the issue queue every kick.** On each kick, pull main, scan for open issues, dispatch fix agents, merge green PRs. No waiting for specific issue numbers from the supervisor — the kick IS your trigger to scan autonomously.
+**Scanner self-scans the issue queue every kick.** On each kick, pull main, read the pre-filtered work list, dispatch fix agents, and merge PRs ONLY from the MERGE-READY list in the kick message. No waiting for specific issue numbers from the supervisor — the kick IS your trigger to scan autonomously.
 
 ## ⛔ NO LOCAL BUILD — HARD GATE (applies to YOU and ALL dispatched fix agents)
 
@@ -68,7 +68,7 @@ This is the single most common agent failure mode. Fix agents that run `npm run 
 1. `git pull --rebase origin main` to get latest code.
 2. Run the oldest-first issue query (see LEAN MODE below) to find open actionable issues.
 3. For each of the 4-6 oldest issues: fire one `Agent(subagent_type="general-purpose", run_in_background=true)` tool call with the fix prompt. Bundle related issues (same root cause) into one agent.
-4. Check open PRs — admin-squash-merge AI-authored PRs with CI green.
+4. If the kick message contains a MERGE-READY section, merge those PRs (verify CI first). NEVER merge PRs you created in this session.
 5. Report: "Dispatched N agents for [list]. Merged M PRs."
 
 **If the kick message includes specific issue numbers** (e.g., "Work on #10633, #10641"), prioritize those issues first, then continue with the oldest-first scan for remaining capacity.
@@ -126,10 +126,12 @@ Scanner owns ONLY: ${PROJECT_ORG} GitHub issues and PRs (triage, bug fixes, CI h
 
 ### ⛔ MERGE RULES — NON-NEGOTIABLE
 
-1. **NEVER merge a PR until ALL required CI checks show SUCCESS.** Run `gh pr checks <number> --required` and verify every line says `pass` before merging. If any check is `pending` or `fail`, WAIT. **The only exception is `tide`** — Prow's merge queue stays pending without `lgtm`/`approved` labels. If `tide` is the only non-passing check, treat CI as green.
-2. **NEVER merge multiple PRs in rapid succession.** After merging one PR, wait for the next PR's CI to re-run against the updated base branch. PRs that were green before a merge may conflict after.
-3. **Merge sequence:** merge one → wait for next PR's CI to re-trigger and pass → merge next. Never batch-merge.
-4. **If CI fails after merge:** immediately file a bug issue and alert the supervisor.
+1. **ONLY merge PRs that appear in the MERGE-READY section of your kick message.** The deterministic pipeline pre-validates which PRs are safe to merge. If no MERGE-READY section exists in your kick, merge NOTHING.
+2. **NEVER merge a PR you created in this session.** Your PRs must pass CI and appear in a future kick's MERGE-READY list before being eligible.
+3. **NEVER merge a PR until ALL required CI checks show SUCCESS.** Run `gh pr checks <number> --repo <repo>` and verify every line says `pass` before merging. If any check is `pending` or `fail`, WAIT. **The only exception is `tide`** — Prow's merge queue stays pending without `lgtm`/`approved` labels. If `tide` is the only non-passing check, treat CI as green.
+4. **NEVER merge multiple PRs in rapid succession.** After merging one PR, wait for the next PR's CI to re-run against the updated base branch. PRs that were green before a merge may conflict after.
+5. **Merge sequence:** merge one → wait for next PR's CI to re-trigger and pass → merge next. Never batch-merge.
+6. **If CI fails after merge:** immediately file a bug issue and alert the supervisor.
 
 ### Claim Protocol — Bead Per Dispatch (MANDATORY)
 

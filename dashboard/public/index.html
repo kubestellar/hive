@@ -76,7 +76,7 @@
     .value.idle { color: var(--muted); }
     .value.copilot { color: var(--cyan); }
     .value.claude { color: var(--purple); }
-    .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; word-break: break-word; white-space: pre-line; line-height: 1.5; min-height: 7.5em; }
+    .doing { font-size: 0.75rem; color: var(--cyan); margin-top: 6px; word-break: break-word; white-space: normal; line-height: 1.5; min-height: 5.6em; width: 100%; }
     .summary-age { display: inline-block; font-size: 0.6rem; font-style: normal; border-radius: 3px; padding: 1px 5px; margin-right: 5px; vertical-align: middle; white-space: nowrap; }
     .summary-age.age-recent { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.3); }
     .summary-age.age-stale  { background: rgba(248,81,73,0.15);  color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
@@ -912,6 +912,13 @@
       }).join('');
     }
 
+    function formatFixTime(minutes) {
+      if (!minutes || minutes <= 0) return '—';
+      if (minutes < 60) return `${minutes}m`;
+      if (minutes < 1440) return `${(minutes / 60).toFixed(1)}h`;
+      return `${(minutes / 1440).toFixed(1)}d`;
+    }
+
     function renderGovernor(gov, cadenceMatrix, data) {
       const el = document.getElementById('governor');
       const cls = gov.active ? 'active' : 'dead';
@@ -936,6 +943,15 @@
       const firstTime = tlData.length > 0 ? new Date(tlData[0].t).toLocaleDateString([], {month:'numeric',day:'numeric'}) + ' ' + new Date(tlData[0].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}) : '';
       const lastTime = tlData.length > 0 ? new Date(tlData[tlData.length-1].t).toLocaleDateString([], {month:'numeric',day:'numeric'}) + ' ' + new Date(tlData[tlData.length-1].t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true}) : '';
 
+      const itm = data.issueToMerge || {};
+      const itmAvg = itm.avg_minutes || 0;
+      const itmMedian = itm.median_minutes || 0;
+      const itmCount = itm.count || 0;
+      const FIX_TIME_SPARK_COLOR = '#d2a8ff';
+      const itmHistory = (itm.history || []).map(h => h.avg);
+      const itmSpark = sparkSvg(itmHistory, FIX_TIME_SPARK_COLOR);
+      const itmTitle = itmCount > 0 ? `median: ${formatFixTime(itmMedian)} | p90: ${formatFixTime(itm.p90_minutes)} | fastest: ${formatFixTime(itm.fastest_minutes)} | slowest: ${formatFixTime(itm.slowest_minutes)} | ${itmCount} fixes` : 'no data yet';
+
       el.innerHTML = `
         <div class="gov-title">Governor</div>
         <div class="gov-grid">
@@ -943,6 +959,7 @@
           <div class="gov-stat"><div class="label">mode</div><div class="val" style="color:${modeColor}">${gov.mode}</div></div>
           <div class="gov-stat"><div class="label">actionable issues</div><div class="spark-row"><span class="val">${issueCount}</span>${issuesSpark}</div></div>
           <div class="gov-stat"><div class="label">PRs</div><div class="spark-row"><span class="val">${gov.prs}</span>${prsSpark}</div></div>
+          <div class="gov-stat" title="${itmTitle}"><div class="label">avg fix time</div><div class="spark-row"><span class="val" style="color:${FIX_TIME_SPARK_COLOR}">${formatFixTime(itmAvg)}</span>${itmSpark}</div></div>
           <div class="gov-stat"><div class="label">next run</div><div class="val">${gov.nextKick || '—'}</div></div>
         </div>
         <div class="temp-gauge">

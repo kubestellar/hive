@@ -63,6 +63,140 @@ try { fs.mkdirSync(HISTORY_DIR, { recursive: true }); } catch (_) {}
 const PERSIST_INTERVAL_MS = 15 * 60 * 1000; // 15 min
 const MAX_PERSISTENT_POINTS = 30 * 24 * 4; // 30 days at 15-min intervals = 2880
 
+// ── Issue-to-merge time metric ──────────────────────────────────────────────
+const ISSUE_TO_MERGE_FILE = path.join(METRICS_DIR, 'issue_to_merge.json');
+const ISSUE_TO_MERGE_REFRESH_MS = 15 * 60 * 1000; // 15 min between refreshes
+const ISSUE_TO_MERGE_PR_LIMIT = 100; // number of merged PRs to scan
+const ISSUE_TO_MERGE_BACKFILL_DAYS = 30; // backfill window in days
+const ISSUE_TO_MERGE_BUCKET_MS = 6 * 60 * 60 * 1000; // 6 hours per history bucket
+const ISSUE_TO_MERGE_STARTUP_DELAY_MS = 30000; // wait 30s after startup before first fetch
+let issueToMergeCache = {};
+try {
+  issueToMergeCache = JSON.parse(fs.readFileSync(ISSUE_TO_MERGE_FILE, 'utf8'));
+  console.log(`Loaded issue-to-merge cache: avg=${issueToMergeCache.avg_minutes}m, count=${issueToMergeCache.count}`);
+} catch (_) { /* first run or missing file */ }
+
+function fetchIssueToMerge() {
+  const repo = PROJECT_PRIMARY_REPO || 'kubestellar/console';
+  const cmd = `unset GITHUB_TOKEN && gh pr list --repo ${repo} --state merged --limit ${ISSUE_TO_MERGE_PR_LIMIT} --json number,body,mergedAt`;
+  execFile('bash', ['-c', cmd], { timeout: 60000 }, (err, stdout) => {
+    if (err) {
+      console.error('issue-to-merge: failed to fetch PRs:', err.message);
+      return; // keep stale cache
+    }
+    let prs;
+    try { prs = JSON.parse(stdout.trim()); } catch (e) {
+      console.error('issue-to-merge: JSON parse error:', e.message);
+      return;
+    }
+    // Extract Fixes #N references from each PR body
+    const fixesPattern = /(?:fixes|closes|resolves)\s+#(\d+)/gi;
+    const issueRefs = []; // { issueNum, mergedAt }
+    for (const pr of prs) {
+      if (!pr.body || !pr.mergedAt) continue;
+      let match;
+      fixesPattern.lastIndex = 0;
+      const body = pr.body;
+      while ((match = fixesPattern.exec(body)) !== null) {
+        issueRefs.push({ issueNum: parseInt(match[1], 10), mergedAt: pr.mergedAt });
+      }
+    }
+    if (issueRefs.length === 0) {
+      console.log('issue-to-merge: no Fixes #N references found in merged PRs');
+      issueToMergeCache = { avg_minutes: 0, median_minutes: 0, p90_minutes: 0, count: 0, fastest_minutes: 0, slowest_minutes: 0, updated_at: new Date().toISOString(), history: issueToMergeCache.history || [] };
+      try { fs.writeFileSync(ISSUE_TO_MERGE_FILE, JSON.stringify(issueToMergeCache)); } catch (_) {}
+      return;
+    }
+    // Batch fetch issue createdAt — limit concurrency to avoid rate limits
+    const MAX_CONCURRENT_ISSUE_FETCHES = 5;
+    const issueNums = [...new Set(issueRefs.map(r => r.issueNum))];
+    const issueCreatedMap = {}; // issueNum -> createdAt
+    let idx = 0;
+    function fetchNextBatch() {
+      const batch = issueNums.slice(idx, idx + MAX_CONCURRENT_ISSUE_FETCHES);
+      idx += MAX_CONCURRENT_ISSUE_FETCHES;
+      if (batch.length === 0) {
+        computeIssueToMergeStats(issueRefs, issueCreatedMap);
+        return;
+      }
+      let pending = batch.length;
+      for (const num of batch) {
+        const issueCmd = `unset GITHUB_TOKEN && gh issue view ${num} --repo ${repo} --json createdAt --jq .createdAt`;
+        execFile('bash', ['-c', issueCmd], { timeout: 15000 }, (ierr, iout) => {
+          if (!ierr && iout.trim()) {
+            issueCreatedMap[num] = iout.trim();
+          }
+          pending--;
+          if (pending === 0) fetchNextBatch();
+        });
+      }
+    }
+    fetchNextBatch();
+  });
+}
+
+function computeIssueToMergeStats(issueRefs, issueCreatedMap) {
+  const MS_PER_MINUTE = 60000;
+  const durations = []; // minutes
+  const bucketedDurations = {}; // bucketTimestamp -> [minutes]
+  for (const ref of issueRefs) {
+    const createdAt = issueCreatedMap[ref.issueNum];
+    if (!createdAt) continue;
+    const issueTime = new Date(createdAt).getTime();
+    const mergeTime = new Date(ref.mergedAt).getTime();
+    if (isNaN(issueTime) || isNaN(mergeTime) || mergeTime <= issueTime) continue;
+    const minutes = Math.round((mergeTime - issueTime) / MS_PER_MINUTE);
+    durations.push(minutes);
+    // Bucket by merge time for history sparkline
+    const bucketKey = Math.floor(mergeTime / ISSUE_TO_MERGE_BUCKET_MS) * ISSUE_TO_MERGE_BUCKET_MS;
+    if (!bucketedDurations[bucketKey]) bucketedDurations[bucketKey] = [];
+    bucketedDurations[bucketKey].push(minutes);
+  }
+  if (durations.length === 0) {
+    issueToMergeCache = { avg_minutes: 0, median_minutes: 0, p90_minutes: 0, count: 0, fastest_minutes: 0, slowest_minutes: 0, updated_at: new Date().toISOString(), history: issueToMergeCache.history || [] };
+    try { fs.writeFileSync(ISSUE_TO_MERGE_FILE, JSON.stringify(issueToMergeCache)); } catch (_) {}
+    return;
+  }
+  durations.sort((a, b) => a - b);
+  const sum = durations.reduce((s, v) => s + v, 0);
+  const avg = Math.round(sum / durations.length);
+  const median = durations[Math.floor(durations.length / 2)];
+  const P90_INDEX_FACTOR = 0.9;
+  const p90Idx = Math.min(Math.floor(durations.length * P90_INDEX_FACTOR), durations.length - 1);
+  const p90 = durations[p90Idx];
+  const fastest = durations[0];
+  const slowest = durations[durations.length - 1];
+  // Build history array from bucketed data
+  const cutoff = Date.now() - (ISSUE_TO_MERGE_BACKFILL_DAYS * 24 * 60 * 60 * 1000);
+  const history = Object.entries(bucketedDurations)
+    .filter(([t]) => Number(t) >= cutoff)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([t, vals]) => {
+      const bucketAvg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+      return { t: Number(t), avg: bucketAvg };
+    });
+  issueToMergeCache = {
+    avg_minutes: avg,
+    median_minutes: median,
+    p90_minutes: p90,
+    count: durations.length,
+    fastest_minutes: fastest,
+    slowest_minutes: slowest,
+    updated_at: new Date().toISOString(),
+    history,
+  };
+  try {
+    fs.writeFileSync(ISSUE_TO_MERGE_FILE, JSON.stringify(issueToMergeCache));
+    console.log(`issue-to-merge: avg=${avg}m median=${median}m p90=${p90}m count=${durations.length}`);
+  } catch (e) { console.error('issue-to-merge: failed to write cache:', e.message); }
+}
+
+// Start issue-to-merge collection after a startup delay, then every 15 min
+setTimeout(() => {
+  fetchIssueToMerge();
+  setInterval(fetchIssueToMerge, ISSUE_TO_MERGE_REFRESH_MS);
+}, ISSUE_TO_MERGE_STARTUP_DELAY_MS);
+
 // Cache for status data
 let statusCache = null;
 let lastFetch = 0;
@@ -246,6 +380,7 @@ function persistSnapshot() {
     ciPassRate: ciPassRate || 0,
     awesomeOpen: am.outreach?.awesomeOpen || 0,
     awesomeMerged: am.outreach?.awesomeMerged || 0,
+    issueToMergeAvg: issueToMergeCache.avg_minutes || 0,
   };
   persistentHistory.push(snap);
   if (persistentHistory.length > MAX_PERSISTENT_POINTS) {
@@ -322,6 +457,8 @@ function fetchStatus() {
             }
           } catch (_) {}
         }
+        // Issue-to-merge time metric
+        statusCache.issueToMerge = issueToMergeCache;
         // GitHub API rate limit alerts
         statusCache.ghRateLimits = ghRateLimitsCache;
         // Activity from JSONL tailing + tmux scraping — no stale status file fallback

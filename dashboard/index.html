@@ -760,6 +760,21 @@
       }).join('');
     }
 
+    function formatFixTime(minutes) {
+      if (!minutes || minutes <= 0) return '--';
+      const MINUTES_PER_HOUR = 60;
+      const MINUTES_PER_DAY = 1440;
+      if (minutes >= MINUTES_PER_DAY) {
+        const days = Math.floor(minutes / MINUTES_PER_DAY);
+        const hrs = Math.floor((minutes % MINUTES_PER_DAY) / MINUTES_PER_HOUR);
+        return `${days}d ${hrs}h`;
+      }
+      const h = Math.floor(minutes / MINUTES_PER_HOUR);
+      const m = minutes % MINUTES_PER_HOUR;
+      if (h === 0) return `${m}m`;
+      return `${h}h ${m}m`;
+    }
+
     function renderGovernor(gov, cadenceMatrix, data) {
       const el = document.getElementById('governor');
       const cls = gov.active ? 'active' : 'dead';
@@ -770,6 +785,17 @@
       const total = (gov.issues || 0) + (gov.prs || 0);
       const currentMode = gov.mode || 'idle';
       const modes = ['idle', 'quiet', 'busy', 'surge'];
+
+      // Issue-to-merge time metric
+      const itm = data.issueToMerge || {};
+      const itmAvg = itm.avg_minutes || 0;
+      const itmMedian = itm.median_minutes || 0;
+      const itmCount = itm.count || 0;
+      const itmHistory = itm.history || [];
+      const itmSparkData = itmHistory.map(h => h.avg || 0);
+      const FIX_TIME_SPARK_COLOR = '#d29922'; // yellow
+      const itmSpark = sparkSvg(itmSparkData, FIX_TIME_SPARK_COLOR);
+      const itmTitle = itmCount > 0 ? `median: ${formatFixTime(itmMedian)} | p90: ${formatFixTime(itm.p90_minutes)} | fastest: ${formatFixTime(itm.fastest_minutes)} | slowest: ${formatFixTime(itm.slowest_minutes)} | ${itmCount} fixes` : 'no data yet';
 
       // Gauge bar — thresholds: idle≤2, quiet≤10, busy≤20, surge>20
       const maxQ = 30;
@@ -792,6 +818,7 @@
           <div class="gov-stat"><div class="label">actionable</div><div class="spark-row"><span class="val">${total}</span>${totalSpark}</div></div>
           <div class="gov-stat"><div class="label">issues</div><div class="spark-row"><span class="val">${gov.issues}</span>${issuesSpark}</div></div>
           <div class="gov-stat"><div class="label">PRs</div><div class="spark-row"><span class="val">${gov.prs}</span>${prsSpark}</div></div>
+          <div class="gov-stat" title="${itmTitle}"><div class="label">avg fix time</div><div class="spark-row"><span class="val" style="color:${FIX_TIME_SPARK_COLOR}">${formatFixTime(itmAvg)}</span>${itmSpark}</div></div>
           <div class="gov-stat"><div class="label">next run</div><div class="val">${gov.nextKick || '—'}</div></div>
         </div>
         <div class="temp-gauge">

@@ -691,6 +691,7 @@ STATUSEOF
 # configured, and a stale actionable.json causes agents to miss new issues.
 /tmp/hive/bin/enumerate-actionable.sh 2>/dev/null || log "WARN: enumerate-actionable.sh failed (non-fatal)"
 /tmp/hive/bin/merge-gate.sh 2>/dev/null || log "WARN: merge-gate.sh failed (non-fatal)"
+/tmp/hive/bin/copilot-comment-checker.sh 2>/dev/null || log "WARN: copilot-comment-checker.sh failed (non-fatal)"
 
 # Build inline work list for scanner kick message (agents must NOT list issues/PRs themselves)
 _ENUM_FILE="/var/run/hive-metrics/actionable.json"

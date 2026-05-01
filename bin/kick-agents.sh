@@ -687,7 +687,7 @@ STATUSEOF
 # After git pull updates the repo copy, sync it so new pipeline stages take effect.
 _REPO_PROJECT_YAML=$(find /tmp/hive/examples -name 'hive-project.yaml' -type f 2>/dev/null | head -1)
 if [ -n "$_REPO_PROJECT_YAML" ] && [ -f "$_REPO_PROJECT_YAML" ]; then
-  cp "$_REPO_PROJECT_YAML" /etc/hive/hive-project.yaml 2>/dev/null || true
+  sudo cp "$_REPO_PROJECT_YAML" /etc/hive/hive-project.yaml 2>/dev/null || true
 fi
 
 # --- Pre-kick pipeline: enumerators → classifiers → gates → monitors ---

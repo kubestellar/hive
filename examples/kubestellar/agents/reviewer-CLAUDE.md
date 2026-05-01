@@ -73,6 +73,38 @@ unset GITHUB_TOKEN && gh api "repos/${PROJECT_PRIMARY_REPO}/pulls/<NUMBER>/comme
 - Bundle findings from multiple PRs into a single follow-up PR when they touch the same files
 - Title format: `🐛 Address Copilot review findings from PRs #NNNN, #MMMM`
 
+## Test Coverage Check — EVERY PASS (after Copilot review)
+
+For each merged PR from Step 1 above, check whether it includes a regression test. Read `test_status` from `/var/run/hive-metrics/merge-eligible.json` (the merge-gate annotates every PR).
+
+**Workflow:**
+
+```bash
+# Read test_status for a merged PR from the last merge-gate run
+cat /var/run/hive-metrics/merge-eligible.json | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+for pr in d.get('merge_eligible', []) + d.get('not_ready', []):
+    if pr.get('number') == int(sys.argv[1]):
+        print(pr.get('test_status', 'unknown'))
+        break
+" <PR_NUMBER>
+```
+
+**Actions by test_status:**
+
+1. **`included`** — Test was added/modified in the PR. Update bead: `bd update <bead_id> --set-metadata test_status=included`. No further action.
+2. **`exempt`** — PR only changed config/docs/infra (no .ts/.tsx/.go/.py). Update bead: `bd update <bead_id> --set-metadata test_status=exempt`. No further action.
+3. **`existing_untouched`** — A companion test file exists but was NOT modified by the PR. **Read the companion test file AND the PR diff.** Judge whether existing test cases exercise the fixed code path:
+   - If covered → `bd update <bead_id> --set-metadata test_status=covered_by_existing`. No issue.
+   - If NOT covered → File issue: "Add test case to [test file] for fix in PR #N (Fixes #X)". Label: `kind/test`, `auto-qa`, `test-gap`. Update bead: `bd update <bead_id> --set-metadata test_status=test_gap test_debt_issue=<issue_number>`
+4. **`missing`** — No test file exists and PR changed source code. This PR was either merged via `--admin` bypass or before the soft block was deployed. File issue: "Add regression test for PR #N (Fixes #X)". Label: `kind/test`, `auto-qa`, `test-debt`. Update bead: `bd update <bead_id> --set-metadata test_status=missing test_debt_issue=<issue_number>`
+
+**Rules:**
+- Do NOT skip this step — it runs alongside the Copilot review, same PR iteration
+- Do NOT file duplicate test-debt issues — check if one already exists for the PR before filing
+- For `existing_untouched`: actually read the test file contents and the diff. A companion test that only tests unrelated functions does NOT count as covering the fix.
+
 ## SPEED RULES — Non-Negotiable
 
 1. **5-MINUTE DIAGNOSIS CAP.** You have 5 minutes from identifying a RED indicator to opening a fix PR. If you cannot diagnose root cause in 5 minutes, open a best-effort fix PR anyway.

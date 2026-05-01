@@ -48,9 +48,8 @@ if [ -n "$INSTANCE" ]; then
 
   echo "==> stopping + disabling instance $INSTANCE"
   for unit in \
-    "hive-healthcheck@${INSTANCE}.timer" \
-    "hive-renew@${INSTANCE}.timer" \
-    "hive@${INSTANCE}.service"; do
+    "hive@${INSTANCE}.service" \
+    "supervised-agent@${INSTANCE}.service"; do
     systemctl disable --now "$unit" 2>/dev/null || true
   done
 
@@ -68,31 +67,35 @@ kill_session_if_present
 
 echo "==> stopping + disabling single-instance units"
 for unit in \
-  hive-healthcheck.timer \
-  hive-renew.timer \
-  hive.service; do
+  hive.service \
+  supervised-agent@scanner.service \
+  supervised-agent@reviewer.service \
+  supervised-agent@architect.service \
+  supervised-agent@outreach.service \
+  supervised-agent@supervisor.service; do
   systemctl disable --now "$unit" 2>/dev/null || true
 done
 
-echo "==> removing unit files (single + templated)"
+echo "==> removing unit files (single + templated + legacy)"
 for unit in \
   hive.service \
-  hive-renew.service \
-  hive-renew.timer \
-  hive-healthcheck.service \
-  hive-healthcheck.timer \
   "hive@.service" \
-  "hive-renew@.service" \
-  "hive-renew@.timer" \
-  "hive-healthcheck@.service" \
-  "hive-healthcheck@.timer"; do
+  "supervised-agent@.service" \
+  agent-healthcheck.service \
+  agent-healthcheck.timer \
+  agent-renew.service \
+  agent-renew.timer; do
   rm -f "$SYSTEMD_DIR/$unit"
 done
 
 echo "==> removing scripts"
-rm -f "$BIN_DIR/agent-supervisor.sh" "$BIN_DIR/agent-healthcheck.sh"
-# Also remove the legacy wrapper if a pre-fix install left it behind.
-rm -f "$BIN_DIR/agent-launch.sh"
+rm -f "$BIN_DIR/supervisor.sh" "$BIN_DIR/agent-healthcheck.sh" \
+      "$BIN_DIR/agent-launch.sh" "$BIN_DIR/kick-agents.sh" \
+      "$BIN_DIR/kick-governor.sh" "$BIN_DIR/notify.sh" \
+      "$BIN_DIR/supervisor-kick.sh" "$BIN_DIR/hive-config.sh" \
+      "$BIN_DIR/gh-wrapper.sh"
+# Clean up legacy names from prior installs.
+rm -f "$BIN_DIR/agent-supervisor.sh" "$BIN_DIR/agent-pause.sh"
 
 echo "==> systemctl daemon-reload"
 systemctl daemon-reload

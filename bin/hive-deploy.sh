@@ -157,7 +157,7 @@ if echo "$SYNCED" | grep -q '\.service\|\.timer'; then
 fi
 
 # Ensure per-agent watchdog services are enabled and running.
-# Each agent gets its own hive@<name>.service backed by agent-supervisor.sh,
+# Each agent gets its own hive@<name>.service backed by supervisor.sh,
 # which monitors the tmux session and restarts if it dies.
 # Migrate from monolithic hive.service to per-agent hive@<name>.service.
 # The old hive.service only watchdogged the supervisor; per-agent units

@@ -914,9 +914,7 @@
 
     function formatFixTime(minutes) {
       if (!minutes || minutes <= 0) return '—';
-      if (minutes < 60) return `${minutes}m`;
-      if (minutes < 1440) return `${(minutes / 60).toFixed(1)}h`;
-      return `${(minutes / 1440).toFixed(1)}d`;
+      return `${minutes}m`;
     }
 
     function renderGovernor(gov, cadenceMatrix, data) {

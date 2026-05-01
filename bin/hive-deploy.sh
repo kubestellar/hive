@@ -28,6 +28,7 @@ AFTER=$(git rev-parse HEAD)
 
 SYNCED=""
 DASHBOARD_CHANGED=""
+DISCORD_CHANGED=""
 
 if [ "$BEFORE" != "$AFTER" ]; then
   CHANGED_FILES=$(git diff --name-only "$BEFORE" "$AFTER")
@@ -43,6 +44,7 @@ if [ "$BEFORE" != "$AFTER" ]; then
     fi
   done
   DASHBOARD_CHANGED=$(echo "$CHANGED_FILES" | grep '^dashboard/' || true)
+  DISCORD_CHANGED=$(echo "$CHANGED_FILES" | grep '^discord/' || true)
 fi
 
 # Drift check: even if HEAD unchanged, installed files may be stale
@@ -93,6 +95,58 @@ if [ -n "$DASH_RESTART_NEEDED" ] && [ -z "$DASHBOARD_CHANGED" ]; then
   sudo systemctl restart hive-dashboard.service 2>/dev/null && \
     SYNCED="$SYNCED dashboard(drift-restart)" || \
     log "WARN: failed to restart hive-dashboard (drift)"
+fi
+
+# Restart Discord bot if any discord/ files changed during pull
+if [ -n "$DISCORD_CHANGED" ]; then
+  sudo systemctl restart hive-discord.service 2>/dev/null && \
+    SYNCED="$SYNCED discord(restart)" || \
+    log "WARN: failed to restart hive-discord"
+fi
+
+# Discord bot drift check: restart if running process is older than discord files
+DISCORD_RESTART_NEEDED=""
+if systemctl is-active --quiet hive-discord.service 2>/dev/null; then
+  DISCORD_PID=$(systemctl show hive-discord.service --property=MainPID --value 2>/dev/null)
+  if [ -n "$DISCORD_PID" ] && [ "$DISCORD_PID" != "0" ]; then
+    DISCORD_START=$(stat -c %Y "/proc/$DISCORD_PID" 2>/dev/null || echo 0)
+    for df in "$HIVE_REPO"/discord/*.js "$HIVE_REPO"/discord/lib/*.js; do
+      [ -f "$df" ] || continue
+      FILE_MTIME=$(stat -c %Y "$df" 2>/dev/null || echo 0)
+      if [ "$FILE_MTIME" -gt "$DISCORD_START" ]; then
+        DISCORD_RESTART_NEEDED="yes"
+        break
+      fi
+    done
+  fi
+fi
+if [ -n "$DISCORD_RESTART_NEEDED" ] && [ -z "$DISCORD_CHANGED" ]; then
+  sudo systemctl restart hive-discord.service 2>/dev/null && \
+    SYNCED="$SYNCED discord(drift-restart)" || \
+    log "WARN: failed to restart hive-discord (drift)"
+fi
+
+# Sync hive-project.yaml to /etc/hive if changed
+HIVE_PROJECT="$HIVE_REPO/examples/kubestellar/hive-project.yaml"
+HIVE_PROJECT_INSTALLED="/etc/hive/hive-project.yaml"
+if [ -f "$HIVE_PROJECT" ] && ! cmp -s "$HIVE_PROJECT" "$HIVE_PROJECT_INSTALLED" 2>/dev/null; then
+  sudo cp "$HIVE_PROJECT" "$HIVE_PROJECT_INSTALLED" && \
+    SYNCED="$SYNCED hive-project.yaml" || \
+    log "WARN: failed to sync hive-project.yaml"
+fi
+
+# Sync systemd units if changed
+for unit in "$HIVE_REPO"/systemd/*.service "$HIVE_REPO"/systemd/*.timer; do
+  [ -f "$unit" ] || continue
+  unitname=$(basename "$unit")
+  dst="/etc/systemd/system/$unitname"
+  if [ -f "$dst" ] && cmp -s "$unit" "$dst"; then
+    continue
+  fi
+  sudo cp "$unit" "$dst" && SYNCED="$SYNCED $unitname" || true
+done
+if echo "$SYNCED" | grep -q '\.service\|\.timer'; then
+  sudo systemctl daemon-reload 2>/dev/null || true
 fi
 
 if [ -n "$SYNCED" ]; then

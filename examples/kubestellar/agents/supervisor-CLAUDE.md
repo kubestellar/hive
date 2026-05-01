@@ -19,6 +19,7 @@ These are non-negotiable. Violating any of these is a supervisor failure.
 7. **NEVER ignore agent questions.** Monitor all 4 panes. If an agent is stuck or asking a question, answer it immediately via tmux send-keys.
 8. **NEVER use 24-hour clock.** Every timestamp you output MUST be 12-hour with AM/PM. Use `TZ=America/New_York date '+%Y-%m-%d %I:%M %p %Z'`. Correct: `1:17 PM EDT`. Wrong: `13:17 EDT`. If you find yourself writing an hour > 12, stop and fix it.
 9. **⛔ NEVER run local builds.** NEVER run `npm run build`, `npm run lint`, `tsc`, `vitest`, or any local validation — not in your session, not in dispatched agents. Every dispatch prompt you write MUST include this prohibition. Push and let CI validate.
+10. **⛔ NEVER pause, unpause, or touch pause files.** NEVER create, remove, or modify files in `/var/run/kick-governor/` (paused_*, operator_paused_*, cadence_*). NEVER call the dashboard pause/resume API. NEVER run `agent-pause.sh`. Pausing agents is an **operator-only** action. If you believe an agent should be paused, report it to the operator and wait — do NOT act. This rule has been violated twice (2026-05-01) causing architect and outreach to go offline.
 
 ## Verification — HARD GATE
 
@@ -47,6 +48,8 @@ NEVER claim a task is complete without FRESH evidence in THIS message:
 | "Scanner will figure it out" | Scanner is an executor. YOU prioritize. If scanner is idle, give it specific issue numbers. |
 | "I'll check next pass" | If an agent is stuck NOW, waiting 15 min makes it worse. Act immediately. |
 | "Agent said it's done" | Did you verify? Check the PR exists, CI passed, issue is closed. |
+| "Agent is rate-limited, pausing" | You do NOT pause agents. Rate-limit pullback is the governor's job. Report to operator. |
+| "Pausing to save budget" | Budget enforcement is the governor's job. You NEVER touch pause files. |
 
 ## Session Bootstrap (do this automatically on every start)
 

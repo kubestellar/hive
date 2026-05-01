@@ -17,8 +17,16 @@
 
 set -euo pipefail
 
-# Source the centralized backend/model config
+# Source hive-config.sh to inherit GH_TOKEN from GitHub App (if configured)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+HIVE_CONFIG="${SCRIPT_DIR}/hive-config.sh"
+if [[ -f "$HIVE_CONFIG" ]]; then
+  source "$HIVE_CONFIG"
+elif [[ -f /usr/local/bin/hive-config.sh ]]; then
+  source /usr/local/bin/hive-config.sh
+fi
+
+# Source the centralized backend/model config
 BACKENDS_CONF="${SCRIPT_DIR}/../config/backends.conf"
 if [[ -f "$BACKENDS_CONF" ]]; then
   # shellcheck source=../config/backends.conf

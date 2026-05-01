@@ -183,7 +183,7 @@ print(json.dumps(alerts))
       # Skip scanner — it's the one that found the limit, let it finish its cycle
       [ "$other_agent" = "$agent" ] && continue
 
-      if [ -f "$GOVERNOR_FLAG_DIR/paused_${other_agent}" ]; then
+      if [ -f "$GOVERNOR_FLAG_DIR/paused_${other_agent}" ] || [ -f "$GOVERNOR_FLAG_DIR/operator_paused_${other_agent}" ]; then
         already_paused+=("$other_agent")
       else
         touch "$GOVERNOR_FLAG_DIR/paused_${other_agent}"

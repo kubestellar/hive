@@ -111,7 +111,7 @@ apply_tmux_styling() {
 PROMPT_DELIVERED=""
 
 is_paused() {
-  [[ -f "$GOVERNOR_STATE_DIR/paused_${SESSION}" ]]
+  [[ -f "$GOVERNOR_STATE_DIR/paused_${SESSION}" ]] || [[ -f "$GOVERNOR_STATE_DIR/operator_paused_${SESSION}" ]]
 }
 
 write_paused_launcher() {

@@ -328,7 +328,8 @@ function fetchStatus() {
           } catch (_) {}
           try {
             const pf = path.join(GOVERNOR_STATE_DIR, `paused_${a.name}`);
-            if (fs.existsSync(pf)) { a.paused = true; a.cadence = 'paused'; }
+            const opf = path.join(GOVERNOR_STATE_DIR, `operator_paused_${a.name}`);
+            if (fs.existsSync(pf) || fs.existsSync(opf)) { a.paused = true; a.cadence = 'paused'; }
           } catch (_) {}
           // Pin state
           try {
@@ -1013,7 +1014,8 @@ app.get('/api/model-advisor', (_req, res) => {
 
     try {
       const pf = path.join(GOVERNOR_STATE_DIR, `paused_${agent}`);
-      if (fs.existsSync(pf)) entry.paused = true;
+      const opf = path.join(GOVERNOR_STATE_DIR, `operator_paused_${agent}`);
+      if (fs.existsSync(pf) || fs.existsSync(opf)) entry.paused = true;
     } catch (_) {}
 
     result.agents.push(entry);

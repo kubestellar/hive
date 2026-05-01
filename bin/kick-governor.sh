@@ -150,6 +150,9 @@ RATE_LIMIT_COOLDOWN="${RATE_LIMIT_COOLDOWN:-1800}"  # 30 min
 
 # ── Paths ───────────────────────────────────────────────────────────────────
 STATE_DIR="/var/run/kick-governor"
+_is_agent_paused() {
+  [[ -f "$STATE_DIR/paused_${1}" ]] || [[ -f "$STATE_DIR/operator_paused_${1}" ]]
+}
 LOG_FILE="/var/log/kick-governor.log"
 KICK_SCRIPT="${KICK_SCRIPT:-/usr/local/bin/kick-agents.sh}"
 GH_BIN="${GH_BIN:-gh}"
@@ -521,7 +524,7 @@ optimize_model_assignment() {
 
   for agent in "${agents[@]}"; do
     # Skip paused agents — don't write model files that trigger restarts
-    if [[ -f "$STATE_DIR/paused_${agent}" ]]; then
+    if _is_agent_paused "$agent"; then
       log "  PAUSED: $agent — skipping model assignment"
       continue
     fi
@@ -636,7 +639,7 @@ maybe_kick() {
   elapsed=$(seconds_since_last_kick "$agent")
 
   # Dashboard pause flag — survives governor ticks
-  if [[ -f "$STATE_DIR/paused_${agent}" ]]; then
+  if _is_agent_paused "$agent"; then
     # Track that this agent is paused so we can detect unpause next tick
     touch "$STATE_DIR/was_paused_${agent}"
     log "SKIP ${agent} (mode=${mode} — DASHBOARD PAUSED)"
@@ -700,7 +703,7 @@ echo "$busy_pct"  > "$STATE_DIR/busyness_pct"
 
 # Write per-agent cadences for hive status to read
 for _agent in scanner reviewer architect outreach supervisor; do
-  if [[ -f "$STATE_DIR/paused_${_agent}" ]]; then
+  if _is_agent_paused "$_agent"; then
     echo "paused" > "$STATE_DIR/cadence_${_agent}"
     continue
   fi
@@ -738,7 +741,7 @@ done)"
 # If C-c + C-u fails (buffer completely stuck), flag agent for restart.
 BUFFER_STUCK_HEARTBEAT_THRESHOLD=1200  # 20 minutes — skip buffer-stuck flag if status file is fresher
 for _fa in scanner reviewer supervisor architect outreach; do
-  [[ -f "$STATE_DIR/paused_${_fa}" ]] && continue
+  _is_agent_paused "$_fa" && continue
   tmux has-session -t "$_fa" 2>/dev/null || continue
   _pane_text=$(tmux capture-pane -t "$_fa" -p 2>/dev/null || true)
   _prompt_line=$(echo "$_pane_text" | grep "❯" | tail -1)
@@ -781,7 +784,7 @@ STUCK_COUNT_FILE="$STATE_DIR/stuck_counts"
 touch "$STUCK_COUNT_FILE" 2>/dev/null || true
 
 for _sa in scanner reviewer architect outreach supervisor; do
-  [[ -f "$STATE_DIR/paused_${_sa}" ]] && continue
+  _is_agent_paused "$_sa" && continue
   _status_file="$HOME/.hive/${_sa}_status.txt"
   [[ ! -f "$_status_file" ]] && continue
 

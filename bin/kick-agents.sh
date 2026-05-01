@@ -61,6 +61,10 @@ AGENTS_DIR="${AGENTS_DIR:-${SCRIPT_DIR}/../agents}"
 
 GOVERNOR_FLAG_DIR="/var/run/kick-governor"
 
+_is_agent_paused() {
+  [[ -f "$GOVERNOR_FLAG_DIR/paused_${1}" ]] || [[ -f "$GOVERNOR_FLAG_DIR/operator_paused_${1}" ]]
+}
+
 # Agent handoff state — captures last N lines of work context when switching backends
 HANDOFF_DIR="/tmp/agent-handoff"
 mkdir -p "$HANDOFF_DIR" 2>/dev/null || true
@@ -508,7 +512,7 @@ kick() {
   local agent="$3"
 
   # Respect pause state — if agent is paused, skip the kick entirely
-  if [[ -f "$GOVERNOR_FLAG_DIR/paused_${agent}" ]]; then
+  if _is_agent_paused "$agent"; then
     log "SKIP $session — agent is paused"
     return
   fi
@@ -932,7 +936,7 @@ apply_model_if_changed() {
   local agent="$1" session="$2"
 
   # Skip model changes for paused agents
-  if [[ -f "$GOVERNOR_FLAG_DIR/paused_${agent}" ]]; then
+  if _is_agent_paused "$agent"; then
     return 0
   fi
 

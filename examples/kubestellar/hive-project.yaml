@@ -17,6 +17,11 @@ project:
   website: "console.kubestellar.io"
   hive_repo: "kubestellar/hive"
 
+github_app:
+  app_id: "3568013"
+  installation_id: "128685788"
+  private_key_file: "/etc/hive/gh-app-key.pem"
+
 agents:
   enabled:
     - supervisor

@@ -13,7 +13,9 @@
 #   HEALTH_BREW_TAP_REPO, HEALTH_BREW_FORMULA, HEALTH_HELM_CHART_PATH,
 #   HEALTH_RELEASE_WORKFLOW, OUTREACH_ENABLED, OUTREACH_DESCRIPTION,
 #   OUTREACH_TARGET_PLACEMENTS, OUTREACH_COVERAGE_BADGE_URL,
-#   OUTREACH_GA4_PROPERTY_ID, OUTREACH_GA4_KEY_PATH
+#   OUTREACH_GA4_PROPERTY_ID, OUTREACH_GA4_KEY_PATH,
+#   GH_APP_ID, GH_APP_INSTALLATION_ID, GH_APP_KEY_FILE,
+#   HIVE_GITHUB_TOKEN (auto-generated if GitHub App is configured), GH_TOKEN
 
 _HIVE_CONFIG="${HIVE_PROJECT_CONFIG:-/etc/hive/hive-project.yaml}"
 
@@ -122,6 +124,22 @@ if [[ -f "$_HIVE_CONFIG" ]]; then
   HEALTH_BREW_FORMULA=$(_hive_read "health_checks.brew.formula" "")
   HEALTH_HELM_CHART_PATH=$(_hive_read "health_checks.helm.chart_path" "")
   HEALTH_RELEASE_WORKFLOW=$(_hive_read "health_checks.release_workflow" "")
+
+  # GitHub App (optional — isolates agent API calls from user's personal rate limit)
+  GH_APP_ID=$(_hive_read "github_app.app_id" "")
+  GH_APP_INSTALLATION_ID=$(_hive_read "github_app.installation_id" "")
+  GH_APP_KEY_FILE=$(_hive_read "github_app.private_key_file" "/etc/hive/gh-app-key.pem")
+  export GH_APP_ID GH_APP_INSTALLATION_ID GH_APP_KEY_FILE
+  if [[ -n "$GH_APP_ID" && -n "$GH_APP_INSTALLATION_ID" && -f "$GH_APP_KEY_FILE" ]]; then
+    _app_token_script="${HIVE_BIN:-/usr/local/bin}/gh-app-token.sh"
+    if [[ -x "$_app_token_script" ]]; then
+      HIVE_GITHUB_TOKEN=$("$_app_token_script" 2>/dev/null || true)
+      if [[ -n "$HIVE_GITHUB_TOKEN" ]]; then
+        export HIVE_GITHUB_TOKEN
+        export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+      fi
+    fi
+  fi
 
   # Outreach
   OUTREACH_ENABLED=$(_hive_read "outreach.enabled" "false")

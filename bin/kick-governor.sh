@@ -736,6 +736,7 @@ done)"
 
 # Clear stuck input on every tick — C-c + C-u to discard, not Enter to execute.
 # If C-c + C-u fails (buffer completely stuck), flag agent for restart.
+BUFFER_STUCK_HEARTBEAT_THRESHOLD=1200  # 20 minutes — skip buffer-stuck flag if status file is fresher
 for _fa in scanner reviewer supervisor architect outreach; do
   [[ -f "$STATE_DIR/paused_${_fa}" ]] && continue
   tmux has-session -t "$_fa" 2>/dev/null || continue
@@ -751,8 +752,23 @@ for _fa in scanner reviewer supervisor architect outreach; do
     # Verify clear worked — if text persists, buffer is frozen
     _after2=$(tmux capture-pane -t "$_fa" -p 2>/dev/null | grep "❯" | tail -1 | sed 's/.*❯[[:space:]]*//')
     if [ -n "$_after2" ] && [ ${#_after2} -gt 2 ]; then
-      log "STUCK ${_fa} — buffer frozen (${#_after2} chars), flagging for restart"
-      touch "$STATE_DIR/needs_restart_${_fa}"
+      # Check status file heartbeat before flagging — agent may be working despite pane text
+      _bf_status_file="$HOME/.hive/${_fa}_status.txt"
+      _bf_updated=$(grep '^UPDATED=' "$_bf_status_file" 2>/dev/null | cut -d= -f2 || true)
+      _bf_skip=false
+      if [ -n "$_bf_updated" ]; then
+        _bf_epoch=$(date -d "$_bf_updated" +%s 2>/dev/null || echo 0)
+        _bf_now=$(date +%s)
+        _bf_age=$(( _bf_now - _bf_epoch ))
+        if (( _bf_age < BUFFER_STUCK_HEARTBEAT_THRESHOLD )); then
+          log "SKIP-STUCK ${_fa} — buffer frozen but status file fresh (${_bf_age}s old), not flagging"
+          _bf_skip=true
+        fi
+      fi
+      if [ "$_bf_skip" = "false" ]; then
+        log "STUCK ${_fa} — buffer frozen (${#_after2} chars), flagging for restart"
+        touch "$STATE_DIR/needs_restart_${_fa}"
+      fi
     fi
   fi
 done

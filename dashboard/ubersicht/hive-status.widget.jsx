@@ -12,6 +12,8 @@ const COVERAGE_WARN_OFFSET = 10;
 const BUDGET_SAFE_PCT = 50;
 const BUDGET_WARN_PCT = 85;
 const GAUGE_MAX_QUEUE = 30;
+const MTTR_GOOD_MIN = 60;
+const MTTR_WARN_MIN = 180;
 const WIDGET_WIDTH = 340;
 const STORAGE_KEY = "hive-widget-pos";
 
@@ -86,6 +88,20 @@ const modelTier = (model) => {
   return { color: C.yellow, short };
 };
 
+const fmtTime = (min) => {
+  if (!min || min <= 0) return "—";
+  if (min < 60) return `${Math.round(min)}m`;
+  if (min < 1440) return `${(min / 60).toFixed(1)}h`;
+  return `${(min / 1440).toFixed(1)}d`;
+};
+
+const mttrColor = (min) => {
+  if (!min || min <= 0) return C.muted;
+  if (min <= MTTR_GOOD_MIN) return C.green;
+  if (min <= MTTR_WARN_MIN) return C.yellow;
+  return C.red;
+};
+
 const fmtTokens = (n) => {
   if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
@@ -117,6 +133,7 @@ export const render = ({ output }) => {
   const budget = data.budget || {};
   const metrics = data.agentMetrics || {};
   const health = data.health || {};
+  const itm = data.issueToMerge || {};
   const total = (gov.issues || 0) + (gov.prs || 0);
   const gaugePct = Math.min((total / GAUGE_MAX_QUEUE) * 100, 100);
 
@@ -147,6 +164,18 @@ export const render = ({ output }) => {
           <span>next: {gov.nextKick || "—"}</span>
         </div>
       </div>
+
+      {/* MTTR */}
+      {itm.median_minutes > 0 && (
+        <div style={S.mttrRow}>
+          <span style={{ color: C.muted }}>⏱ MTTR</span>
+          <span style={{ color: mttrColor(itm.median_minutes), fontWeight: 700 }}>
+            {fmtTime(itm.median_minutes)}
+          </span>
+          <span style={{ color: C.dimmed }}>·</span>
+          <span style={{ color: C.muted }}>{itm.count || 0} fixes</span>
+        </div>
+      )}
 
       {/* Budget bar */}
       {budget.BUDGET_WEEKLY > 0 && (
@@ -336,6 +365,11 @@ const S = {
   gaugeLabels: {
     display: "flex", justifyContent: "space-between",
     fontSize: 8, color: C.muted, marginTop: 2,
+  },
+
+  mttrRow: {
+    display: "flex", alignItems: "center", gap: 4,
+    fontSize: 9, marginBottom: 6,
   },
 
   budgetWrap: { marginBottom: 8 },

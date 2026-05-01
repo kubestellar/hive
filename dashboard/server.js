@@ -753,8 +753,10 @@ app.post('/api/pause/:agent', (req, res) => {
     return res.status(400).json({ error: `cannot pause ${agent}` });
   }
   const pauseFlag = path.join(GOVERNOR_CADENCE_DIR, `paused_${agent}`);
+  const operatorFlag = path.join(GOVERNOR_CADENCE_DIR, `operator_paused_${agent}`);
   try {
     fs.writeFileSync(pauseFlag, new Date().toISOString());
+    fs.writeFileSync(operatorFlag, new Date().toISOString());
     fs.writeFileSync(path.join(GOVERNOR_CADENCE_DIR, `cadence_${agent}`), 'paused');
   } catch (e) {
     return res.status(500).json({ error: `failed to write pause flag: ${e.message}` });
@@ -792,8 +794,10 @@ app.post('/api/resume/:agent', (req, res) => {
     return res.status(400).json({ error: `cannot resume ${agent}` });
   }
   const pauseFlag = path.join(GOVERNOR_CADENCE_DIR, `paused_${agent}`);
+  const operatorFlag = path.join(GOVERNOR_CADENCE_DIR, `operator_paused_${agent}`);
   try {
     if (fs.existsSync(pauseFlag)) fs.unlinkSync(pauseFlag);
+    if (fs.existsSync(operatorFlag)) fs.unlinkSync(operatorFlag);
   } catch (e) {
     return res.status(500).json({ error: `failed to remove pause flag: ${e.message}` });
   }

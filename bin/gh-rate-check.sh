@@ -73,6 +73,10 @@ for pullback_file in "$PULLBACK_STATE_DIR"/pullback_*.json; do
     paused_by_us=$(python3 -c "import json; print(' '.join(json.load(open('$pullback_file')).get('paused_agents', [])))" 2>/dev/null || echo "")
     cli_name=$(python3 -c "import json; print(json.load(open('$pullback_file')).get('cli', 'unknown'))" 2>/dev/null || echo "unknown")
     for agent in $paused_by_us; do
+      if [ -f "$GOVERNOR_FLAG_DIR/operator_paused_${agent}" ]; then
+        log "PULLBACK-SKIP $agent — operator-paused, not resuming after pullback for cli=$cli_name"
+        continue
+      fi
       if [ -f "$GOVERNOR_FLAG_DIR/paused_${agent}" ]; then
         rm -f "$GOVERNOR_FLAG_DIR/paused_${agent}"
         log "PULLBACK-RESUME $agent — rate-limit pullback expired for cli=$cli_name"

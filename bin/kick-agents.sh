@@ -694,6 +694,13 @@ if [ -f "/tmp/hive/bin/hive-config.sh" ]; then
   sudo cp /tmp/hive/bin/hive-config.sh /usr/local/bin/hive-config.sh 2>/dev/null || true
   source /usr/local/bin/hive-config.sh 2>/dev/null || true
 fi
+if [ -f "/tmp/hive/bin/gh-zombie-reaper.sh" ]; then
+  sudo cp /tmp/hive/bin/gh-zombie-reaper.sh /usr/local/bin/gh-zombie-reaper.sh 2>/dev/null || true
+  sudo chmod +x /usr/local/bin/gh-zombie-reaper.sh 2>/dev/null || true
+fi
+for _unit in /tmp/hive/systemd/*.service /tmp/hive/systemd/*.timer; do
+  [ -f "$_unit" ] && sudo cp "$_unit" /etc/systemd/system/ 2>/dev/null || true
+done
 
 # --- Pre-kick pipeline: enumerators → classifiers → gates → monitors ---
 # Runs all stages declared in hive-project.yaml → pipeline.stages in dependency order.

@@ -119,8 +119,9 @@ const handleResizeMove = (e) => {
     widgetSize.h = newH;
     resizeElement.style.top = widgetPosition.top + "px";
   }
-  resizeElement.style.width = widgetSize.w + "px";
-  resizeElement.style.height = widgetSize.h + "px";
+  const newScale = widgetSize.w / DEFAULT_WIDTH;
+  resizeElement.style.transform = `scale(${newScale})`;
+  resizeElement.style.height = (widgetSize.h / newScale) + "px";
 };
 const handleResizeEnd = () => {
   isResizing = false;
@@ -204,8 +205,16 @@ export const render = ({ output }) => {
   const total = (gov.issues || 0) + (gov.prs || 0);
   const gaugePct = Math.min((total / GAUGE_MAX_QUEUE) * 100, 100);
 
+  const scale = widgetSize.w / DEFAULT_WIDTH;
+
   return (
-    <div style={S.container} data-hive-container>
+    <div style={{
+      ...S.container,
+      width: DEFAULT_WIDTH,
+      height: widgetSize.h / scale,
+      transform: `scale(${scale})`,
+      transformOrigin: "top left",
+    }} data-hive-container>
       {/* Header */}
       <div style={S.header}>
         <span onMouseDown={handleDragStart} style={S.dragHandle}>⋮⋮</span>
@@ -413,7 +422,7 @@ export const render = ({ output }) => {
 const S = {
   container: {
     position: "fixed", top: widgetPosition.top, left: widgetPosition.left,
-    width: widgetSize.w, height: widgetSize.h,
+    width: DEFAULT_WIDTH,
     boxSizing: "border-box", overflowY: "auto", overflowX: "hidden",
     background: C.bg, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
     borderRadius: 14, border: `1px solid ${C.border}`,

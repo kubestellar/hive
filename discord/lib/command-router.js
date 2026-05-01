@@ -107,13 +107,14 @@ class CommandRouter {
   _help() {
     return [
       '**Hive Discord Bot Commands**',
-      '`status` — show system status',
-      '`governor` — show governor mode and thresholds',
-      '`scanner <prompt>` — send prompt to scanner',
-      '`reviewer <prompt>` — send prompt to reviewer',
-      '`kick <agent> [prompt]` — kick an agent with optional prompt',
-      '`pause <agent>` — pause an agent',
-      '`resume <agent>` — resume an agent',
+      '`!status` — show system status',
+      '`!governor` — show governor mode and thresholds',
+      '`!scanner <prompt>` — send prompt to scanner',
+      '`!reviewer <prompt>` — send prompt to reviewer',
+      '`!kick <agent> [prompt]` — kick an agent with optional prompt',
+      '`!pause <agent>` — pause an agent',
+      '`!resume <agent>` — resume an agent',
+      '`!help` — show this message',
       '',
       `Valid agents: ${this.validAgents.join(', ')}`,
     ].join('\n');

@@ -572,20 +572,15 @@ app.get('/api/events', (req, res) => {
   req.on('close', () => clearInterval(interval));
 });
 
-// Widget download
+// Widget download — serves the JSX file directly
 app.get('/api/widget', (_req, res) => {
-  console.log('widget endpoint hit');
-  const widgetDir = path.join(__dirname, 'ubersicht', 'hive-status.widget');
-  if (!fs.existsSync(widgetDir)) {
-    console.error('widget dir not found:', widgetDir);
-    return res.status(404).json({ error: 'widget not found', path: widgetDir });
+  const widgetFile = path.join(__dirname, 'ubersicht', 'hive-status.widget.jsx');
+  if (!fs.existsSync(widgetFile)) {
+    return res.status(404).json({ error: 'widget not found', path: widgetFile });
   }
-  res.setHeader('Content-Type', 'application/gzip');
-  res.setHeader('Content-Disposition', 'attachment; filename="hive-status.widget.tar.gz"');
-  const tar = spawn('tar', ['czf', '-', '-C', path.join(__dirname, 'ubersicht'), 'hive-status.widget']);
-  tar.stdout.pipe(res);
-  tar.stderr.on('data', (d) => console.error('tar error:', d.toString()));
-  tar.on('error', () => res.status(500).end());
+  res.setHeader('Content-Type', 'text/jsx; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="hive-status.widget.jsx"');
+  fs.createReadStream(widgetFile).pipe(res);
 });
 
 // Map dashboard agent names to tmux session names

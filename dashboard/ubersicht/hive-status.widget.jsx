@@ -1,6 +1,7 @@
 // Hive Status — Übersicht Widget
 // Install: copy hive-status.widget/ to ~/Library/Application Support/Übersicht/widgets/
 // Requires: hive dashboard running at HIVE_URL below
+// Drag the ⋮⋮ handle to reposition. Position is saved automatically.
 
 const HIVE_URL = "http://192.168.4.56:3001";
 const REFRESH_MS = 5000;
@@ -11,10 +12,56 @@ const COVERAGE_WARN_OFFSET = 10;
 const BUDGET_SAFE_PCT = 50;
 const BUDGET_WARN_PCT = 85;
 const GAUGE_MAX_QUEUE = 30;
+const WIDGET_WIDTH = 340;
+const STORAGE_KEY = "hive-widget-pos";
 
 export const refreshFrequency = REFRESH_MS;
 
 export const command = `curl -sf ${HIVE_URL}/api/status 2>/dev/null || echo '{"error":true}'`;
+
+// --- Draggable position persistence ---
+let isDragging = false;
+let dragStart = { x: 0, y: 0 };
+let posStart = { x: 0, y: 0 };
+let dragElement = null;
+
+const getStoredPosition = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch (e) { /* ignore */ }
+  return { top: 600, left: 20 };
+};
+const savePosition = (pos) => {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(pos)); } catch (e) { /* ignore */ }
+};
+let widgetPosition = getStoredPosition();
+
+const handleDragStart = (e) => {
+  isDragging = true;
+  dragStart = { x: e.clientX, y: e.clientY };
+  posStart = { ...widgetPosition };
+  dragElement = e.target.closest('[data-hive-container]');
+  document.addEventListener("mousemove", handleDragMove);
+  document.addEventListener("mouseup", handleDragEnd);
+  e.preventDefault();
+};
+const handleDragMove = (e) => {
+  if (!isDragging || !dragElement) return;
+  widgetPosition = {
+    top: Math.max(0, posStart.top + (e.clientY - dragStart.y)),
+    left: Math.max(0, posStart.left + (e.clientX - dragStart.x)),
+  };
+  dragElement.style.top = widgetPosition.top + "px";
+  dragElement.style.left = widgetPosition.left + "px";
+};
+const handleDragEnd = () => {
+  isDragging = false;
+  dragElement = null;
+  savePosition(widgetPosition);
+  document.removeEventListener("mousemove", handleDragMove);
+  document.removeEventListener("mouseup", handleDragEnd);
+};
 
 const C = {
   green: "#3fb950", red: "#f85149", yellow: "#d29922",
@@ -54,8 +101,11 @@ export const render = ({ output }) => {
 
   if (data.error) {
     return (
-      <div style={S.container}>
-        <div style={S.header}>🐝 HIVE</div>
+      <div style={S.container} data-hive-container>
+        <div style={S.header}>
+          <span onMouseDown={handleDragStart} style={S.dragHandle}>⋮⋮</span>
+          🐝 HIVE
+        </div>
         <span style={S.err}>dashboard offline</span>
       </div>
     );
@@ -71,9 +121,10 @@ export const render = ({ output }) => {
   const gaugePct = Math.min((total / GAUGE_MAX_QUEUE) * 100, 100);
 
   return (
-    <div style={S.container}>
+    <div style={S.container} data-hive-container>
       {/* Header */}
       <div style={S.header}>
+        <span onMouseDown={handleDragStart} style={S.dragHandle}>⋮⋮</span>
         🐝 HIVE
         <span style={{ ...S.badge, background: gov.active ? C.green : C.red }}>
           GOV {gov.active ? "●" : "⚠"}
@@ -255,15 +306,21 @@ export const render = ({ output }) => {
 
 const S = {
   container: {
-    position: "fixed", bottom: 20, left: 20, width: 340,
+    position: "fixed", top: widgetPosition.top, left: widgetPosition.left,
+    maxWidth: WIDGET_WIDTH, boxSizing: "border-box",
     background: C.bg, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
     borderRadius: 14, border: `1px solid ${C.border}`,
     padding: 14, fontFamily: "'SF Mono', 'JetBrains Mono', 'Fira Code', monospace",
     fontSize: 11, color: C.text, lineHeight: 1.4, zIndex: 9999,
+    overflow: "hidden", pointerEvents: "auto",
   },
   header: {
     display: "flex", alignItems: "center", gap: 6,
     fontSize: 13, fontWeight: 700, marginBottom: 8, letterSpacing: 1,
+  },
+  dragHandle: {
+    cursor: "grab", fontSize: 12, color: C.muted,
+    padding: "0 2px", userSelect: "none", lineHeight: 1,
   },
   badge: {
     fontSize: 8, padding: "1px 5px", borderRadius: 3,
@@ -295,7 +352,7 @@ const S = {
   card: {
     background: C.surface, borderRadius: 7,
     padding: "6px 7px", border: "1px solid", borderColor: C.border,
-    transition: "border-color 0.3s",
+    transition: "border-color 0.3s", overflow: "hidden", minWidth: 0,
   },
   cardHeader: { display: "flex", alignItems: "center", gap: 3 },
   dot: {
@@ -311,7 +368,10 @@ const S = {
     border: "1px solid", fontWeight: 600,
   },
 
-  meta: { fontSize: 8, color: C.dimmed, marginTop: 2 },
+  meta: {
+    fontSize: 8, color: C.dimmed, marginTop: 2,
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  },
 
   doing: {
     fontSize: 8, color: C.cyan, marginTop: 3,

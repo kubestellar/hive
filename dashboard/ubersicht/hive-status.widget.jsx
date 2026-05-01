@@ -1,7 +1,7 @@
 // Hive Status — Übersicht Widget
 // Install: copy hive-status.widget/ to ~/Library/Application Support/Übersicht/widgets/
 // Requires: hive dashboard running at HIVE_URL below
-// Drag the ⋮⋮ handle to reposition. Position is saved automatically.
+// Drag the ⋮⋮ handle to reposition. Drag edges/corner to resize. Both persist automatically.
 
 const HIVE_URL = "http://192.168.4.56:3001";
 const REFRESH_MS = 5000;
@@ -14,8 +14,13 @@ const BUDGET_WARN_PCT = 85;
 const GAUGE_MAX_QUEUE = 30;
 const MTTR_GOOD_MIN = 60;
 const MTTR_WARN_MIN = 180;
-const WIDGET_WIDTH = 340;
+const DEFAULT_WIDTH = 340;
+const DEFAULT_HEIGHT = 500;
+const MIN_WIDTH = 260;
+const MIN_HEIGHT = 200;
+const RESIZE_HANDLE_SIZE = 8;
 const STORAGE_KEY = "hive-widget-pos";
+const SIZE_STORAGE_KEY = "hive-widget-size";
 
 export const refreshFrequency = REFRESH_MS;
 
@@ -63,6 +68,68 @@ const handleDragEnd = () => {
   savePosition(widgetPosition);
   document.removeEventListener("mousemove", handleDragMove);
   document.removeEventListener("mouseup", handleDragEnd);
+};
+
+// --- Resize persistence ---
+let isResizing = false;
+let resizeDir = null;
+let resizeStart = { x: 0, y: 0 };
+let sizeStart = { w: 0, h: 0 };
+let resizeElement = null;
+
+const getStoredSize = () => {
+  try {
+    const stored = localStorage.getItem(SIZE_STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch (e) { /* ignore */ }
+  return { w: DEFAULT_WIDTH, h: DEFAULT_HEIGHT };
+};
+const saveSize = (size) => {
+  try { localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify(size)); } catch (e) { /* ignore */ }
+};
+let widgetSize = getStoredSize();
+
+const handleResizeStart = (dir) => (e) => {
+  isResizing = true;
+  resizeDir = dir;
+  resizeStart = { x: e.clientX, y: e.clientY };
+  sizeStart = { ...widgetSize };
+  posStart = { ...widgetPosition };
+  resizeElement = e.target.closest('[data-hive-container]');
+  document.addEventListener("mousemove", handleResizeMove);
+  document.addEventListener("mouseup", handleResizeEnd);
+  e.preventDefault();
+  e.stopPropagation();
+};
+const handleResizeMove = (e) => {
+  if (!isResizing || !resizeElement) return;
+  const dx = e.clientX - resizeStart.x;
+  const dy = e.clientY - resizeStart.y;
+  if (resizeDir.includes("e")) widgetSize.w = Math.max(MIN_WIDTH, sizeStart.w + dx);
+  if (resizeDir.includes("s")) widgetSize.h = Math.max(MIN_HEIGHT, sizeStart.h + dy);
+  if (resizeDir.includes("w")) {
+    const newW = Math.max(MIN_WIDTH, sizeStart.w - dx);
+    widgetPosition.left = posStart.left + (sizeStart.w - newW);
+    widgetSize.w = newW;
+    resizeElement.style.left = widgetPosition.left + "px";
+  }
+  if (resizeDir.includes("n")) {
+    const newH = Math.max(MIN_HEIGHT, sizeStart.h - dy);
+    widgetPosition.top = posStart.top + (sizeStart.h - newH);
+    widgetSize.h = newH;
+    resizeElement.style.top = widgetPosition.top + "px";
+  }
+  resizeElement.style.width = widgetSize.w + "px";
+  resizeElement.style.height = widgetSize.h + "px";
+};
+const handleResizeEnd = () => {
+  isResizing = false;
+  resizeDir = null;
+  resizeElement = null;
+  saveSize(widgetSize);
+  savePosition(widgetPosition);
+  document.removeEventListener("mousemove", handleResizeMove);
+  document.removeEventListener("mouseup", handleResizeEnd);
 };
 
 const C = {
@@ -329,6 +396,16 @@ export const render = ({ output }) => {
           </span>
         ))}
       </div>
+
+      {/* Resize handles */}
+      <div onMouseDown={handleResizeStart("e")} style={S.resizeE} />
+      <div onMouseDown={handleResizeStart("s")} style={S.resizeS} />
+      <div onMouseDown={handleResizeStart("w")} style={S.resizeW} />
+      <div onMouseDown={handleResizeStart("n")} style={S.resizeN} />
+      <div onMouseDown={handleResizeStart("se")} style={S.resizeSE} />
+      <div onMouseDown={handleResizeStart("sw")} style={S.resizeSW} />
+      <div onMouseDown={handleResizeStart("ne")} style={S.resizeNE} />
+      <div onMouseDown={handleResizeStart("nw")} style={S.resizeNW} />
     </div>
   );
 };
@@ -336,12 +413,13 @@ export const render = ({ output }) => {
 const S = {
   container: {
     position: "fixed", top: widgetPosition.top, left: widgetPosition.left,
-    maxWidth: WIDGET_WIDTH, boxSizing: "border-box",
+    width: widgetSize.w, height: widgetSize.h,
+    boxSizing: "border-box", overflowY: "auto", overflowX: "hidden",
     background: C.bg, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
     borderRadius: 14, border: `1px solid ${C.border}`,
     padding: 14, fontFamily: "'SF Mono', 'JetBrains Mono', 'Fira Code', monospace",
     fontSize: 11, color: C.text, lineHeight: 1.4, zIndex: 9999,
-    overflow: "hidden", pointerEvents: "auto",
+    pointerEvents: "auto",
   },
   header: {
     display: "flex", alignItems: "center", gap: 6,
@@ -382,7 +460,7 @@ const S = {
     fontSize: 8, color: C.muted, marginTop: 1,
   },
 
-  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5 },
+  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 5 },
   card: {
     background: C.surface, borderRadius: 7,
     padding: "6px 7px", border: "1px solid", borderColor: C.border,
@@ -435,4 +513,45 @@ const S = {
   },
 
   err: { color: C.red, fontSize: 11 },
+
+  resizeE: {
+    position: "absolute", top: RESIZE_HANDLE_SIZE, right: 0,
+    width: RESIZE_HANDLE_SIZE, bottom: RESIZE_HANDLE_SIZE,
+    cursor: "ew-resize",
+  },
+  resizeW: {
+    position: "absolute", top: RESIZE_HANDLE_SIZE, left: 0,
+    width: RESIZE_HANDLE_SIZE, bottom: RESIZE_HANDLE_SIZE,
+    cursor: "ew-resize",
+  },
+  resizeS: {
+    position: "absolute", left: RESIZE_HANDLE_SIZE, right: RESIZE_HANDLE_SIZE,
+    bottom: 0, height: RESIZE_HANDLE_SIZE,
+    cursor: "ns-resize",
+  },
+  resizeN: {
+    position: "absolute", left: RESIZE_HANDLE_SIZE, right: RESIZE_HANDLE_SIZE,
+    top: 0, height: RESIZE_HANDLE_SIZE,
+    cursor: "ns-resize",
+  },
+  resizeSE: {
+    position: "absolute", right: 0, bottom: 0,
+    width: RESIZE_HANDLE_SIZE * 2, height: RESIZE_HANDLE_SIZE * 2,
+    cursor: "nwse-resize",
+  },
+  resizeSW: {
+    position: "absolute", left: 0, bottom: 0,
+    width: RESIZE_HANDLE_SIZE * 2, height: RESIZE_HANDLE_SIZE * 2,
+    cursor: "nesw-resize",
+  },
+  resizeNE: {
+    position: "absolute", right: 0, top: 0,
+    width: RESIZE_HANDLE_SIZE * 2, height: RESIZE_HANDLE_SIZE * 2,
+    cursor: "nesw-resize",
+  },
+  resizeNW: {
+    position: "absolute", left: 0, top: 0,
+    width: RESIZE_HANDLE_SIZE * 2, height: RESIZE_HANDLE_SIZE * 2,
+    cursor: "nwse-resize",
+  },
 };

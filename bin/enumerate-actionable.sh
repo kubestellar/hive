@@ -306,6 +306,8 @@ fi
 # --- Re-check previously SHA-held issues: if SHA was added, unhold them ---
 for marker_file in "${SHA_HOLD_MARKER}"_*; do
   [ -f "$marker_file" ] || continue
+  # Skip already-resolved markers — no need to re-check
+  grep -q "^resolved=" "$marker_file" 2>/dev/null && continue
   # Extract repo and number from marker filename: sha_hold_posted_org_repo_NUM
   marker_base=$(basename "$marker_file")
   num="${marker_base##*_}"

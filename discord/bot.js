@@ -67,7 +67,18 @@ function sendEmbed(embed, target) {
   drainQueue();
 }
 
-const bridge = new DashboardBridge(config, sendMessage, sendEmbed);
+async function setTopic(topic) {
+  try {
+    const channel = await client.channels.fetch(config.channelPrimary);
+    if (channel && channel.setTopic) {
+      await channel.setTopic(topic);
+    }
+  } catch (err) {
+    console.error('Topic update error:', err.message);
+  }
+}
+
+const bridge = new DashboardBridge(config, sendMessage, sendEmbed, setTopic);
 const watcher = new PipelineWatcher(config, sendMessage, sendEmbed);
 
 let statusInterval = null;

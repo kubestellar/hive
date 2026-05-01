@@ -1,16 +1,24 @@
 const http = require('http');
 const { agentMessage } = require('./formatter');
 
+const { AGENTS } = require('./agent-identities');
+
 const SSE_RECONNECT_BASE_MS = 5000;
 const SSE_RECONNECT_MAX_MS = 60000;
 const DASHBOARD_STALE_WARN_MS = 30000;
+const TOPIC_DEBOUNCE_MS = 5000;
+const TOPIC_AGENT_ORDER = ['scanner', 'reviewer', 'architect', 'outreach', 'supervisor'];
+const TOPIC_STATE_ICONS = { working: '🟢', idle: '⚪', paused: '🔴' };
 
 class DashboardBridge {
-  constructor(config, sendMessage, sendEmbed) {
+  constructor(config, sendMessage, sendEmbed, setTopic) {
     this.config = config;
     this.sendMessage = sendMessage;
     this.sendEmbed = sendEmbed;
+    this.setTopic = setTopic || (() => {});
     this.lastState = null;
+    this.lastTopic = '';
+    this.topicTimer = null;
     this.reconnectDelay = SSE_RECONNECT_BASE_MS;
     this.staleTimer = null;
     this.firstEvent = true;
@@ -91,6 +99,7 @@ class DashboardBridge {
 
     this._diffAgents(data);
     this._diffGovernor(data);
+    this._updateTopic(data);
     this.lastState = data;
   }
 
@@ -126,6 +135,29 @@ class DashboardBridge {
         this.sendMessage(agentMessage(name, `\n\`\`\`\n${lines}\n\`\`\``));
       }
     }
+  }
+
+  _updateTopic(data) {
+    const agents = Array.isArray(data.agents) ? data.agents : [];
+    const agentMap = {};
+    for (const a of agents) { if (a.name) agentMap[a.name] = a; }
+
+    const parts = TOPIC_AGENT_ORDER.map(name => {
+      const a = agentMap[name];
+      if (!a) return null;
+      const emoji = (AGENTS[name] || {}).emoji || '?';
+      const state = a.cadence === 'paused' ? 'paused' : (a.busy || 'idle');
+      const icon = TOPIC_STATE_ICONS[state] || TOPIC_STATE_ICONS.idle;
+      return `${emoji}${icon}`;
+    }).filter(Boolean);
+
+    const gov = data.governor || {};
+    const topic = `${parts.join(' ')} · ${gov.mode || '?'} · ${gov.issues || 0}i ${gov.prs || 0}pr`;
+
+    if (topic === this.lastTopic) return;
+    this.lastTopic = topic;
+    clearTimeout(this.topicTimer);
+    this.topicTimer = setTimeout(() => this.setTopic(topic), TOPIC_DEBOUNCE_MS);
   }
 
   _diffGovernor(data) {

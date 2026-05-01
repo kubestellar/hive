@@ -10,25 +10,25 @@
 #
 #   SURGE (queue > SURGE_THRESHOLD, default 20):
 #     scanner   → every 15 min
-#     reviewer  → every 30 min
+#     reviewer  → PAUSED
 #     architect → PAUSED
-#     outreach  → every 30 min
+#     outreach  → PAUSED
 #
 #   BUSY (queue > BUSY_THRESHOLD, default 10):
 #     scanner   → every 15 min
-#     reviewer  → every 15 min
-#     architect → every 1 hour
-#     outreach  → every 1 hour
+#     reviewer  → every 1 hour
+#     architect → PAUSED
+#     outreach  → PAUSED
 #
 #   QUIET (queue > IDLE_THRESHOLD, default 2):
 #     scanner   → every 15 min
-#     reviewer  → every 30 min
-#     architect → every 30 min
-#     outreach  → every 2 hours
+#     reviewer  → every 45 min
+#     architect → PAUSED
+#     outreach  → PAUSED
 #
 #   IDLE (queue ≤ IDLE_THRESHOLD):
 #     scanner   → every 15 min
-#     reviewer  → every 1 hour
+#     reviewer  → every 15 min
 #     architect → every 30 min  (jam — queue is clear)
 #     outreach  → every 2 hours
 #
@@ -85,14 +85,14 @@ CADENCE_SCANNER_BUSY_SEC="${CADENCE_SCANNER_BUSY_SEC:-900}"       # 15 min
 CADENCE_SCANNER_QUIET_SEC="${CADENCE_SCANNER_QUIET_SEC:-900}"     # 15 min
 CADENCE_SCANNER_IDLE_SEC="${CADENCE_SCANNER_IDLE_SEC:-900}"       # 15 min
 
-CADENCE_REVIEWER_SURGE_SEC="${CADENCE_REVIEWER_SURGE_SEC:-900}"    # 15 min
-CADENCE_REVIEWER_BUSY_SEC="${CADENCE_REVIEWER_BUSY_SEC:-900}"     # 15 min
-CADENCE_REVIEWER_QUIET_SEC="${CADENCE_REVIEWER_QUIET_SEC:-900}"   # 15 min
-CADENCE_REVIEWER_IDLE_SEC="${CADENCE_REVIEWER_IDLE_SEC:-900}"     # 15 min
+CADENCE_REVIEWER_SURGE_SEC="${CADENCE_REVIEWER_SURGE_SEC:-0}"       # PAUSED
+CADENCE_REVIEWER_BUSY_SEC="${CADENCE_REVIEWER_BUSY_SEC:-3600}"     # 1 hour
+CADENCE_REVIEWER_QUIET_SEC="${CADENCE_REVIEWER_QUIET_SEC:-2700}"   # 45 min
+CADENCE_REVIEWER_IDLE_SEC="${CADENCE_REVIEWER_IDLE_SEC:-900}"      # 15 min
 
 CADENCE_ARCHITECT_SURGE_SEC="${CADENCE_ARCHITECT_SURGE_SEC:-0}"     # PAUSED
-CADENCE_ARCHITECT_BUSY_SEC="${CADENCE_ARCHITECT_BUSY_SEC:-3600}"    # 1 hour
-CADENCE_ARCHITECT_QUIET_SEC="${CADENCE_ARCHITECT_QUIET_SEC:-1800}"  # 30 min
+CADENCE_ARCHITECT_BUSY_SEC="${CADENCE_ARCHITECT_BUSY_SEC:-0}"      # PAUSED
+CADENCE_ARCHITECT_QUIET_SEC="${CADENCE_ARCHITECT_QUIET_SEC:-0}"    # PAUSED
 CADENCE_ARCHITECT_IDLE_SEC="${CADENCE_ARCHITECT_IDLE_SEC:-1800}"    # 30 min (jam)
 
 CADENCE_SUPERVISOR_SURGE_SEC="${CADENCE_SUPERVISOR_SURGE_SEC:-300}"   # 5 min
@@ -100,9 +100,9 @@ CADENCE_SUPERVISOR_BUSY_SEC="${CADENCE_SUPERVISOR_BUSY_SEC:-600}"    # 10 min
 CADENCE_SUPERVISOR_QUIET_SEC="${CADENCE_SUPERVISOR_QUIET_SEC:-900}"  # 15 min
 CADENCE_SUPERVISOR_IDLE_SEC="${CADENCE_SUPERVISOR_IDLE_SEC:-1800}"   # 30 min
 
-CADENCE_OUTREACH_SURGE_SEC="${CADENCE_OUTREACH_SURGE_SEC:-1800}"    # 30 min
-CADENCE_OUTREACH_BUSY_SEC="${CADENCE_OUTREACH_BUSY_SEC:-3600}"      # 1 hour
-CADENCE_OUTREACH_QUIET_SEC="${CADENCE_OUTREACH_QUIET_SEC:-7200}"    # 2 hours
+CADENCE_OUTREACH_SURGE_SEC="${CADENCE_OUTREACH_SURGE_SEC:-0}"       # PAUSED
+CADENCE_OUTREACH_BUSY_SEC="${CADENCE_OUTREACH_BUSY_SEC:-0}"         # PAUSED
+CADENCE_OUTREACH_QUIET_SEC="${CADENCE_OUTREACH_QUIET_SEC:-0}"       # PAUSED
 CADENCE_OUTREACH_IDLE_SEC="${CADENCE_OUTREACH_IDLE_SEC:-7200}"      # 2 hours
 
 # ── Token budget ────────────────────────────────────────────────────────────

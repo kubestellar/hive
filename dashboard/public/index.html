@@ -862,8 +862,9 @@
           ${needsLogin ? '<div class="login-warning">⚠ NOT LOGGED IN — run /login</div>' : ''}
           ${summaryEl}${indEl}
           <div class="agent-actions">
-            <input type="text" class="kick-prompt" id="kick-prompt-${a.name}" placeholder="custom prompt (optional)" />
-            <button class="btn" onclick="kick('${a.name}')">kick</button>
+            <input type="text" class="kick-prompt" id="kick-prompt-${a.name}" placeholder="custom prompt (optional)" onkeydown="if(event.key==='Enter'){kick('${a.name}')}" />
+            <button class="btn" onclick="kick('${a.name}')" title="Send custom prompt to agent">send</button>
+            <button class="btn" onclick="document.getElementById('kick-prompt-${a.name}').value='';kick('${a.name}')">kick</button>
             <select class="btn backend-select" onchange="switchCli('${a.name}', this.value); this.selectedIndex=0">
               <option value="" disabled selected>cli ▾</option>
               ${KNOWN_BACKENDS.map(b => `<option value="${b}" ${a.cli === b ? 'disabled' : ''}>${b}</option>`).join('')}

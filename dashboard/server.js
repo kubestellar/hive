@@ -795,9 +795,11 @@ app.post('/api/resume/:agent', (req, res) => {
   }
   const pauseFlag = path.join(GOVERNOR_CADENCE_DIR, `paused_${agent}`);
   const operatorFlag = path.join(GOVERNOR_CADENCE_DIR, `operator_paused_${agent}`);
+  const cadenceFlag = path.join(GOVERNOR_CADENCE_DIR, `cadence_${agent}`);
   try {
     if (fs.existsSync(pauseFlag)) fs.unlinkSync(pauseFlag);
     if (fs.existsSync(operatorFlag)) fs.unlinkSync(operatorFlag);
+    if (fs.existsSync(cadenceFlag)) fs.unlinkSync(cadenceFlag);
   } catch (e) {
     return res.status(500).json({ error: `failed to remove pause flag: ${e.message}` });
   }

@@ -27,7 +27,7 @@
 #     outreach  → every 2 hours
 #
 #   IDLE (queue ≤ IDLE_THRESHOLD):
-#     scanner   → every 30 min
+#     scanner   → every 15 min
 #     reviewer  → every 1 hour
 #     architect → every 30 min  (jam — queue is clear)
 #     outreach  → every 2 hours
@@ -83,7 +83,7 @@ IDLE_THRESHOLD_ISSUES="${IDLE_THRESHOLD_ISSUES:-2}"
 CADENCE_SCANNER_SURGE_SEC="${CADENCE_SCANNER_SURGE_SEC:-900}"     # 15 min
 CADENCE_SCANNER_BUSY_SEC="${CADENCE_SCANNER_BUSY_SEC:-900}"       # 15 min
 CADENCE_SCANNER_QUIET_SEC="${CADENCE_SCANNER_QUIET_SEC:-900}"     # 15 min
-CADENCE_SCANNER_IDLE_SEC="${CADENCE_SCANNER_IDLE_SEC:-1800}"      # 30 min
+CADENCE_SCANNER_IDLE_SEC="${CADENCE_SCANNER_IDLE_SEC:-900}"       # 15 min
 
 CADENCE_REVIEWER_SURGE_SEC="${CADENCE_REVIEWER_SURGE_SEC:-900}"    # 15 min
 CADENCE_REVIEWER_BUSY_SEC="${CADENCE_REVIEWER_BUSY_SEC:-900}"     # 15 min

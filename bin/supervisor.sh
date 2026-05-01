@@ -7,8 +7,13 @@
 # AGENT_RATE_LIMIT_FAILOVER=true and AGENT_FAILOVER_CMD in env).
 set -u
 
-# Source centralized backend/model config
+# Source shared config (provides hive_log, hive_is_paused, etc.)
 _SUP_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+for _cf in "${_SUP_SCRIPT_DIR}/hive-config.sh" /usr/local/bin/hive-config.sh; do
+  if [[ -f "$_cf" ]]; then source "$_cf"; break; fi
+done
+
+# Source centralized backend/model config
 _SUP_BACKENDS_CONF="${_SUP_SCRIPT_DIR}/../config/backends.conf"
 if [[ -f "$_SUP_BACKENDS_CONF" ]]; then
   # shellcheck source=../config/backends.conf
@@ -48,7 +53,7 @@ RATE_LIMIT_ALERTED=""
 
 ACTIVE_LAUNCH_CMD="$AGENT_LAUNCH_CMD"
 
-log() { printf '[%s] %s\n' "$(date -Is)" "$*"; }
+log() { hive_log "$*"; }
 
 # ─── Write launcher script (avoids quoting hell with eval) ─────────────────
 
@@ -110,9 +115,7 @@ apply_tmux_styling() {
 
 PROMPT_DELIVERED=""
 
-is_paused() {
-  [[ -f "$GOVERNOR_STATE_DIR/paused_${SESSION}" ]] || [[ -f "$GOVERNOR_STATE_DIR/operator_paused_${SESSION}" ]]
-}
+is_paused() { hive_is_paused "$SESSION"; }
 
 write_paused_launcher() {
   cat > "$LAUNCHER" << LAUNCH
@@ -251,8 +254,14 @@ check_rate_limit_and_failover() {
   pane=$(tmux capture-pane -t "$SESSION" -p 2>/dev/null) || return 0
 
   if echo "$pane" | grep -qiE "$RATE_LIMIT_REGEX"; then
+    # Paused agents must not be switched — failover violates operator intent
+    if is_paused; then
+      [ -z "$RATE_LIMIT_ALERTED" ] && log "rate limit on $CLI but $SESSION is PAUSED — not switching"
+      RATE_LIMIT_ALERTED="paused"
+      return 0
+    fi
     # Pinned agents must not be switched — alert but stay on the pinned CLI
-    local envfile="/etc/supervised-agent/${SESSION}.env"
+    local envfile="/etc/hive/${SESSION}.env"
     if grep -q "^AGENT_CLI_PINNED=true" "$envfile" 2>/dev/null; then
       if [ -z "$RATE_LIMIT_ALERTED" ]; then
         log "rate limit on $CLI but $SESSION is PINNED — NOT switching"
@@ -318,7 +327,6 @@ check_rate_limit_and_failover() {
 # ACTIVE_LAUNCH_CMD. This function checks the governor model file before
 # relaunch and updates ACTIVE_LAUNCH_CMD + CLI to match.
 
-GOVERNOR_STATE_DIR="/var/run/kick-governor"
 GOVERNOR_MODEL_DIR="$GOVERNOR_STATE_DIR"
 
 sync_launch_cmd_from_governor() {
@@ -363,7 +371,17 @@ agent_alive() {
 
 trap 'log "supervisor exiting"; exit 0' TERM INT
 
+# Prevent double-restart race: if systemd respawns supervisor while another
+# instance is still running, the second exits immediately.
+LOCK_FILE="/var/run/hive-supervisor-${SESSION}.lock"
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+  log "another supervisor for $SESSION is running; exiting"
+  exit 0
+fi
+
 log "supervisor started (session=$SESSION, cli=$CLI, poll=${POLL_SEC}s, failover=$RATE_LIMIT_FAILOVER)"
+sync_launch_cmd_from_governor
 if session_alive && agent_alive; then
   log "existing session $SESSION is healthy; adopting without restart"
 else

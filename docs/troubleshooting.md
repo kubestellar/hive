@@ -18,7 +18,7 @@ Cause: the agent is hitting an interactive prompt that needs a human to dismiss.
 
 Fix: find the unique text of the "accept" option (e.g. `Yes, and always allow access to`) and put it in `AGENT_AUTO_APPROVE_PHRASE`. The supervisor will auto-send `Down Enter` the next time that phrase appears in the pane.
 
-If your agent needs multiple different approvals, extend `approve_prompt_if_present()` in `bin/agent-supervisor.sh` to loop over a list of phrases.
+If your agent needs multiple different approvals, extend `approve_prompt_if_present()` in `bin/supervisor.sh` to loop over a list of phrases.
 
 ## `systemctl restart hive` didn't pick up my new `AGENT_LOOP_PROMPT`
 
@@ -57,7 +57,7 @@ If step 1 works but the healthcheck doesn't push, the most common cause is `NTFY
 
 ## Supervisor keeps respawning even though the agent looks healthy
 
-Check the `agent_alive()` heuristic in `bin/agent-supervisor.sh`. It considers the agent dead if no non-shell process is running under the pane PID. If your launch command has an extra shell wrapper, the supervisor may mistake the wrapper for "dead." Remove the wrapper, or edit the heuristic.
+Check the `agent_alive()` heuristic in `bin/supervisor.sh`. It considers the agent dead if no non-shell process is running under the pane PID. If your launch command has an extra shell wrapper, the supervisor may mistake the wrapper for "dead." Remove the wrapper, or edit the heuristic.
 
 ## Agent writes the heartbeat but scans are obviously broken
 

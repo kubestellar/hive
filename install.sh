@@ -50,14 +50,10 @@ done
 if [ -n "$INSTANCE" ]; then
   ENV_FILE="/etc/hive/${INSTANCE}.env"
   UNIT_SUPERVISOR="hive@${INSTANCE}.service"
-  UNIT_RENEW_TIMER="hive-renew@${INSTANCE}.timer"
-  UNIT_HEALTH_TIMER="hive-healthcheck@${INSTANCE}.timer"
   TEMPLATED=1
 else
   ENV_FILE="/etc/hive/agent.env"
   UNIT_SUPERVISOR="hive.service"
-  UNIT_RENEW_TIMER="hive-renew.timer"
-  UNIT_HEALTH_TIMER="hive-healthcheck.timer"
   TEMPLATED=0
 fi
 
@@ -91,32 +87,22 @@ if ! id "$AGENT_USER" >/dev/null 2>&1; then
 fi
 
 echo "==> installing scripts to $BIN_DIR"
-install -m 0755 "$REPO_DIR/bin/agent-supervisor.sh"   "$BIN_DIR/agent-supervisor.sh"
+install -m 0755 "$REPO_DIR/bin/supervisor.sh"         "$BIN_DIR/supervisor.sh"
+install -m 0755 "$REPO_DIR/bin/agent-launch.sh"       "$BIN_DIR/agent-launch.sh"
 install -m 0755 "$REPO_DIR/bin/agent-healthcheck.sh"  "$BIN_DIR/agent-healthcheck.sh"
 install -m 0755 "$REPO_DIR/bin/kick-agents.sh"        "$BIN_DIR/kick-agents.sh"
 install -m 0755 "$REPO_DIR/bin/kick-governor.sh"      "$BIN_DIR/kick-governor.sh"
 install -m 0755 "$REPO_DIR/bin/notify.sh"             "$BIN_DIR/notify.sh"
 install -m 0755 "$REPO_DIR/bin/supervisor-kick.sh"    "$BIN_DIR/supervisor-kick.sh"
-# Remove the old agent-launch.sh if it exists from a prior install — the
-# supervisor now expands AGENT_LAUNCH_CMD inline, no wrapper needed.
-rm -f "$BIN_DIR/agent-launch.sh"
+install -m 0755 "$REPO_DIR/bin/hive-config.sh"        "$BIN_DIR/hive-config.sh"
+install -m 0755 "$REPO_DIR/bin/gh-wrapper.sh"         "$BIN_DIR/gh-wrapper.sh"
+# Clean up scripts from prior installs that no longer exist.
+rm -f "$BIN_DIR/agent-supervisor.sh" "$BIN_DIR/agent-pause.sh"
 
 if [ "$TEMPLATED" = 1 ]; then
-  UNITS=(
-    "hive@.service"
-    "hive-renew@.service"
-    "hive-renew@.timer"
-    "hive-healthcheck@.service"
-    "hive-healthcheck@.timer"
-  )
+  UNITS=( "hive@.service" )
 else
-  UNITS=(
-    "hive.service"
-    "hive-renew.service"
-    "hive-renew.timer"
-    "hive-healthcheck.service"
-    "hive-healthcheck.timer"
-  )
+  UNITS=( "hive.service" )
 fi
 
 echo "==> installing systemd units to $SYSTEMD_DIR (User=$AGENT_USER)"
@@ -135,13 +121,10 @@ systemctl daemon-reload
 
 echo "==> enabling + starting units"
 systemctl enable --now "$UNIT_SUPERVISOR"
-systemctl enable --now "$UNIT_RENEW_TIMER"
-systemctl enable --now "$UNIT_HEALTH_TIMER"
 
 echo
 echo "Installed."
 echo "  systemctl status $UNIT_SUPERVISOR"
-echo "  systemctl list-timers $UNIT_RENEW_TIMER $UNIT_HEALTH_TIMER"
 echo "  journalctl -u $UNIT_SUPERVISOR -f"
 echo
 echo "Attach to the agent session:"

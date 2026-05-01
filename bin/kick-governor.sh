@@ -150,9 +150,7 @@ RATE_LIMIT_COOLDOWN="${RATE_LIMIT_COOLDOWN:-1800}"  # 30 min
 
 # ── Paths ───────────────────────────────────────────────────────────────────
 STATE_DIR="/var/run/kick-governor"
-_is_agent_paused() {
-  [[ -f "$STATE_DIR/paused_${1}" ]] || [[ -f "$STATE_DIR/operator_paused_${1}" ]]
-}
+_is_agent_paused() { hive_is_paused "$1"; }
 LOG_FILE="/var/log/kick-governor.log"
 KICK_SCRIPT="${KICK_SCRIPT:-/usr/local/bin/kick-agents.sh}"
 GH_BIN="${GH_BIN:-gh}"

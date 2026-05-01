@@ -25,10 +25,13 @@ DISCORD_WEBHOOK="${DISCORD_WEBHOOK:-}"
 NOTIFY_LIB="${NOTIFY_LIB:-/usr/local/bin/notify.sh}"
 [ -f "$NOTIFY_LIB" ] && . "$NOTIFY_LIB"
 
-GOVERNOR_STATE_DIR="${GOVERNOR_STATE_DIR:-/var/run/kick-governor}"
+_HC_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+for _cf in "${_HC_SCRIPT_DIR}/hive-config.sh" /usr/local/bin/hive-config.sh; do
+  if [[ -f "$_cf" ]]; then source "$_cf"; break; fi
+done
 
-if [[ -f "$GOVERNOR_STATE_DIR/paused_${SESSION}" ]]; then
-  printf '[%s] %s is paused — skipping healthcheck\n' "$(date -Is)" "$SESSION"
+if hive_is_paused "$SESSION"; then
+  hive_log "$SESSION is paused — skipping healthcheck"
   exit 0
 fi
 

@@ -163,3 +163,38 @@ if [[ -f "$_HIVE_CONFIG" ]]; then
 else
   HIVE_CONFIG_LOADED=false
 fi
+
+# ─── Shared utility functions ─────────────────────────────────────────────
+# Available to all scripts that source hive-config.sh.
+
+GOVERNOR_STATE_DIR="${GOVERNOR_STATE_DIR:-/var/run/kick-governor}"
+
+# Unified logging — all scripts use the same timestamp format and output style.
+# Scripts needing file output use: hive_log "msg" | tee -a "$LOG_FILE"
+# or: hive_log_to "$LOG_FILE" "msg"
+hive_log() { printf '[%s] %s\n' "$(date -Is)" "$*"; }
+hive_log_to() { local f="$1"; shift; printf '[%s] %s\n' "$(date -Is)" "$*" >> "$f"; }
+
+# Canonical pause state checks — single source of truth for all scripts.
+# An agent is paused if EITHER file exists. Operator pause survives system resume.
+hive_is_paused() {
+  local agent="${1:?agent name required}"
+  [[ -f "${GOVERNOR_STATE_DIR}/paused_${agent}" ]] || \
+  [[ -f "${GOVERNOR_STATE_DIR}/operator_paused_${agent}" ]]
+}
+hive_is_operator_paused() {
+  local agent="${1:?agent name required}"
+  [[ -f "${GOVERNOR_STATE_DIR}/operator_paused_${agent}" ]]
+}
+
+# Send Enter key(s) to a tmux session — consistent count across all callers.
+HIVE_ENTER_COUNT="${HIVE_ENTER_COUNT:-3}"
+hive_send_enter() {
+  local session="${1:?session name required}"
+  local count="${2:-$HIVE_ENTER_COUNT}"
+  local i=0
+  while [ "$i" -lt "$count" ]; do
+    tmux send-keys -t "$session" Enter 2>/dev/null || true
+    i=$((i + 1))
+  done
+}

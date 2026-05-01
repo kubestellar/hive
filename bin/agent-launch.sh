@@ -17,7 +17,10 @@
 
 set -euo pipefail
 
-# Source hive-config.sh to inherit GH_TOKEN from GitHub App (if configured)
+# Source hive-config.sh to make HIVE_GITHUB_TOKEN available for gh wrapper.
+# Do NOT export GH_TOKEN here — Copilot CLI uses GH_TOKEN for its own Copilot
+# API auth, which rejects GitHub App server-to-server tokens. The gh wrapper
+# (/usr/local/bin/gh) injects HIVE_GITHUB_TOKEN on a per-call basis instead.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HIVE_CONFIG="${SCRIPT_DIR}/hive-config.sh"
 if [[ -f "$HIVE_CONFIG" ]]; then
@@ -25,6 +28,7 @@ if [[ -f "$HIVE_CONFIG" ]]; then
 elif [[ -f /usr/local/bin/hive-config.sh ]]; then
   source /usr/local/bin/hive-config.sh
 fi
+unset GH_TOKEN
 
 # Source the centralized backend/model config
 BACKENDS_CONF="${SCRIPT_DIR}/../config/backends.conf"

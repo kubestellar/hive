@@ -57,6 +57,15 @@ for src in "$HIVE_REPO"/bin/*.sh; do
   fi
 done
 
+# gh-wrapper.sh is installed as /usr/local/bin/gh (ahead of /usr/bin/gh in PATH)
+GH_WRAPPER="$HIVE_REPO/bin/gh-wrapper.sh"
+GH_INSTALLED="$INSTALL_DIR/gh"
+if [ -f "$GH_WRAPPER" ] && ! cmp -s "$GH_WRAPPER" "$GH_INSTALLED"; then
+  sudo cp "$GH_WRAPPER" "$GH_INSTALLED"
+  sudo chmod +x "$GH_INSTALLED"
+  SYNCED="$SYNCED gh-wrapper→gh"
+fi
+
 # Restart dashboard if any dashboard/ files changed during pull
 if [ -n "$DASHBOARD_CHANGED" ]; then
   sudo systemctl restart hive-dashboard.service 2>/dev/null && \

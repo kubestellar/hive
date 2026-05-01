@@ -72,25 +72,62 @@ if command -v $GH &>/dev/null; then
     rm -rf "$ip_tmp"
   fi
 
-  # Enrich with issue titles (parallel fetch)
+  # Enrich with issue titles — cached to avoid redundant GH API calls.
+  # Merged-pair titles are immutable; open-pair titles refresh every cycle.
+  TITLE_CACHE_FILE="/var/run/hive-metrics/issue-title-cache.json"
   if [ "$scanner_pairs_json" != "[]" ]; then
-    issue_tmp=$(mktemp -d)
-    # Fetch all unique issue titles in parallel
+    title_cache=$(cat "$TITLE_CACHE_FILE" 2>/dev/null || echo '{}')
+    # Validate JSON — corrupt cache shouldn't break the pipeline
+    echo "$title_cache" | jq . >/dev/null 2>&1 || title_cache='{}'
+
     unique_issues=$(echo "$scanner_pairs_json" | jq -r '.[].issue' | sort -un | grep -v '^0$')
+    merged_issues=$(echo "$scanner_pairs_json" | jq -r '.[] | select(.state == "merged") | .issue' | sort -un | grep -v '^0$')
+
+    # Determine which issues need a fetch: skip merged issues already in cache
+    fetch_issues=""
     for inum in $unique_issues; do
-      ($GH api "repos/${REPO}/issues/${inum}" --jq '{title: .title, state: .state}' > "$issue_tmp/$inum" 2>/dev/null || echo '{"title":"","state":"open"}' > "$issue_tmp/$inum") &
+      cached_title=$(echo "$title_cache" | jq -r --arg k "$inum" '.[$k].title // empty' 2>/dev/null)
+      is_merged=$(echo "$merged_issues" | grep -qx "$inum" && echo "yes" || echo "no")
+      if [ "$is_merged" = "yes" ] && [ -n "$cached_title" ]; then
+        continue
+      fi
+      fetch_issues="$fetch_issues $inum"
     done
-    wait
-    # Build title and state lookup maps
+
+    # Fetch only uncached issues in parallel
     title_map="{}"
     state_map="{}"
+    if [ -n "$fetch_issues" ]; then
+      issue_tmp=$(mktemp -d)
+      for inum in $fetch_issues; do
+        ($GH api "repos/${REPO}/issues/${inum}" --jq '{title: .title, state: .state}' > "$issue_tmp/$inum" 2>/dev/null || echo '{"title":"","state":"open"}' > "$issue_tmp/$inum") &
+      done
+      wait
+      for inum in $fetch_issues; do
+        ititle=$(cat "$issue_tmp/$inum" 2>/dev/null | jq -r '.title // ""')
+        istate=$(cat "$issue_tmp/$inum" 2>/dev/null | jq -r '.state // "open"')
+        title_map=$(echo "$title_map" | jq --arg k "$inum" --arg v "$ititle" '. + {($k): $v}')
+        state_map=$(echo "$state_map" | jq --arg k "$inum" --arg v "$istate" '. + {($k): $v}')
+        # Write to cache (merged titles persist forever; open titles update each cycle)
+        title_cache=$(echo "$title_cache" | jq --arg k "$inum" --arg t "$ititle" --arg s "$istate" '. + {($k): {title: $t, state: $s}}')
+      done
+      rm -rf "$issue_tmp"
+    fi
+
+    # Fill title_map and state_map from cache for issues we didn't fetch
     for inum in $unique_issues; do
-      ititle=$(cat "$issue_tmp/$inum" 2>/dev/null | jq -r '.title // ""')
-      istate=$(cat "$issue_tmp/$inum" 2>/dev/null | jq -r '.state // "open"')
-      title_map=$(echo "$title_map" | jq --arg k "$inum" --arg v "$ititle" '. + {($k): $v}')
-      state_map=$(echo "$state_map" | jq --arg k "$inum" --arg v "$istate" '. + {($k): $v}')
+      existing=$(echo "$title_map" | jq -r --arg k "$inum" '.[$k] // empty' 2>/dev/null)
+      if [ -z "$existing" ]; then
+        ctitle=$(echo "$title_cache" | jq -r --arg k "$inum" '.[$k].title // ""' 2>/dev/null)
+        cstate=$(echo "$title_cache" | jq -r --arg k "$inum" '.[$k].state // "open"' 2>/dev/null)
+        title_map=$(echo "$title_map" | jq --arg k "$inum" --arg v "$ctitle" '. + {($k): $v}')
+        state_map=$(echo "$state_map" | jq --arg k "$inum" --arg v "$cstate" '. + {($k): $v}')
+      fi
     done
-    rm -rf "$issue_tmp"
+
+    # Persist cache
+    echo "$title_cache" > "$TITLE_CACHE_FILE" 2>/dev/null || true
+
     # Merge titles into pairs; drop open PRs where the issue is already closed
     scanner_pairs_json=$(echo "$scanner_pairs_json" | jq --argjson titles "$title_map" --argjson states "$state_map" '[.[] | .issueTitle = ($titles[(.issue|tostring)] // "") | select(.state == "merged" or ($states[(.issue|tostring)] // "open") != "closed")]')
   fi

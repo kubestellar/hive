@@ -593,8 +593,8 @@
         const contribs = m.contributors || 0;
         const adopters = m.adopters || 0;
         const acmm = m.acmm || 0;
-        const awOpen = m.awesomeOpen || 0;
-        const awMerged = m.awesomeMerged || 0;
+        const awOpen = m.outreachOpen || m.awesomeOpen || 0;
+        const awMerged = m.outreachMerged || m.awesomeMerged || 0;
         const starSpark = sparkSvg(dailyAggregate(window._trendData || [], 'stars'), '#e3b341');
         const awOpenSpark = sparkSvg(dailyAggregate(window._trendData || [], 'awesomeOpen'), '#58a6ff');
         const awMergedSpark = sparkSvg(dailyAggregate(window._trendData || [], 'awesomeMerged'), '#3fb950');

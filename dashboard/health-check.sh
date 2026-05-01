@@ -23,8 +23,8 @@ CI_WF="${HEALTH_CI_WORKFLOW:-Build and Deploy KC}"
 REL_WF="${HEALTH_RELEASE_WORKFLOW:-Release}"
 
 # ── CI pass rate (last 10 completed runs) ────────────────────────────────────
-ci=$(gh run list --repo "$REPO" --limit 10 --json conclusion,status \
-  --jq '[.[] | select(.status=="completed")] | if length > 0 then ([.[] | select(.conclusion=="success" or .conclusion=="skipped")] | length) * 100 / length | floor else 0 end' 2>/dev/null || echo 0)
+ci=$(gh run list --repo "$REPO" --status completed --limit 10 --json conclusion \
+  --jq 'if length > 0 then ([.[] | select(.conclusion=="success" or .conclusion=="skipped")] | length) * 100 / length | floor else 0 end' 2>/dev/null || echo 0)
 
 # ── Brew formula freshness ───────────────────────────────────────────────────
 if [ -n "$BREW_TAP" ] && [ -n "$BREW_FORMULA" ]; then
@@ -46,7 +46,7 @@ fi
 # ── Workflow checks (config-driven) ─────────────────────────────────────────
 check_workflow() {
   local result
-  result=$(gh run list --repo "$REPO" --workflow "$1" --limit 1 \
+  result=$(gh run list --repo "$REPO" --workflow "$1" --status completed --limit 1 \
     --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
   [ "$result" = "success" ] && echo 1 || echo 0
 }
@@ -74,11 +74,12 @@ fi
 
 # ── Release workflow — nightly and weekly ────────────────────────────────────
 if [ -n "$REL_WF" ]; then
-  nightly_rel=$(gh run list --repo "$REPO" --workflow "$REL_WF" --event schedule --limit 10 \
-    --json conclusion,createdAt --jq '[.[] | select((.createdAt | strptime("%Y-%m-%dT%H:%M:%SZ") | strftime("%u")) != "7")][0].conclusion // "none"' 2>/dev/null || echo "none")
+  EIGHT_DAYS_AGO=$(date -u -v-8d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '8 days ago' '+%Y-%m-%dT%H:%M:%SZ')
+  nightly_rel=$(gh run list --repo "$REPO" --workflow "$REL_WF" --event schedule --status completed --limit 20 \
+    --json conclusion,createdAt --jq "[.[] | select(.createdAt > \"${EIGHT_DAYS_AGO}\")] | [.[] | select((.createdAt | strptime(\"%Y-%m-%dT%H:%M:%SZ\") | strftime(\"%u\")) != \"7\")][0].conclusion // \"none\"" 2>/dev/null || echo "none")
   nightly_rel_ok=$( [ "$nightly_rel" = "success" ] && echo 1 || echo 0 )
-  weekly_rel=$(gh run list --repo "$REPO" --workflow "$REL_WF" --event schedule --limit 10 \
-    --json conclusion,createdAt --jq '[.[] | select((.createdAt | strptime("%Y-%m-%dT%H:%M:%SZ") | strftime("%u")) == "7")][0].conclusion // "none"' 2>/dev/null || echo "none")
+  weekly_rel=$(gh run list --repo "$REPO" --workflow "$REL_WF" --event schedule --status completed --limit 20 \
+    --json conclusion,createdAt --jq "[.[] | select(.createdAt > \"${EIGHT_DAYS_AGO}\")] | [.[] | select((.createdAt | strptime(\"%Y-%m-%dT%H:%M:%SZ\") | strftime(\"%u\")) == \"7\")][0].conclusion // \"none\"" 2>/dev/null || echo "none")
   weekly_rel_ok=$( [ "$weekly_rel" = "success" ] && echo 1 || echo 0 )
 else
   nightly_rel_ok=-1
@@ -96,12 +97,12 @@ weekly = [w for w in wfs if w.get('type') == 'weekly']
 print(weekly[0]['name'] if weekly else '')
 " 2>/dev/null)
   if [ -n "$weekly_wf" ]; then
-    weekly=$(gh run list --repo "$REPO" --workflow "$weekly_wf" --limit 1 \
+    weekly=$(gh run list --repo "$REPO" --workflow "$weekly_wf" --status completed --limit 1 \
       --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
     weekly_ok=$( [ "$weekly" = "success" ] && echo 1 || echo 0 )
   fi
 else
-  weekly=$(gh run list --repo "$REPO" --workflow "Weekly Coverage Review" --limit 1 \
+  weekly=$(gh run list --repo "$REPO" --workflow "Weekly Coverage Review" --status completed --limit 1 \
     --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
   weekly_ok=$( [ "$weekly" = "success" ] && echo 1 || echo 0 )
 fi
@@ -112,14 +113,14 @@ if [ "$HIVE_CONFIG_LOADED" = "true" ] && command -v python3 &>/dev/null; then
   perf_wfs=$(python3 -c "import json; [print(w) for w in json.loads('${HEALTH_PERF_WORKFLOWS}')]" 2>/dev/null)
   if [ -n "$perf_wfs" ]; then
     while IFS= read -r wf; do
-      result=$(gh run list --repo "$REPO" --workflow "$wf" --limit 1 \
+      result=$(gh run list --repo "$REPO" --workflow "$wf" --status completed --limit 1 \
         --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
       if [ "$result" = "failure" ]; then hourly_worst=0; fi
     done <<< "$perf_wfs"
   fi
 else
   for wf in "Perf — React commits per navigation" "Performance TTFI Gate"; do
-    result=$(gh run list --repo "$REPO" --workflow "$wf" --limit 1 \
+    result=$(gh run list --repo "$REPO" --workflow "$wf" --status completed --limit 1 \
       --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "none")
     if [ "$result" = "failure" ]; then hourly_worst=0; fi
   done

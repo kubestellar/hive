@@ -268,6 +268,10 @@ function persistSnapshot() {
     awesomeOpen: am.outreach?.awesomeOpen || 0,
     awesomeMerged: am.outreach?.awesomeMerged || 0,
     issueToMergeAvg: issueToMergeCache.avg_minutes || 0,
+    stars: am.outreach?.stars || 0,
+    forks: am.outreach?.forks || 0,
+    contributors: am.outreach?.contributors || 0,
+    acmm: am.outreach?.acmm || 0,
   };
   persistentHistory.push(snap);
   if (persistentHistory.length > MAX_PERSISTENT_POINTS) {
@@ -383,6 +387,10 @@ function fetchStatus() {
           adopterPrs: agentMetrics?.outreach?.adopterPending || 0,
           awesomeOpen: agentMetrics?.outreach?.awesomeOpen || 0,
           awesomeMerged: agentMetrics?.outreach?.awesomeMerged || 0,
+          stars: agentMetrics?.outreach?.stars || 0,
+          forks: agentMetrics?.outreach?.forks || 0,
+          contributors: agentMetrics?.outreach?.contributors || 0,
+          acmm: agentMetrics?.outreach?.acmm || 0,
           tokens: {},
           tokenTotal: 0,
           tokenInput: 0,

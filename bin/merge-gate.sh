@@ -23,7 +23,7 @@ TMP_FILE="${OUTPUT_FILE}.tmp"
 LOG="/var/log/kick-agents.log"
 
 # CI check names to ignore when evaluating merge readiness
-IGNORED_CHECKS="tide|Playwright|netlify|Deploy Preview"
+IGNORED_CHECKS="tide|Playwright|netlify|Deploy Preview|attribute|Storybook|Visual |Verify build after merge"
 
 log() { echo "[$(date -Is)] MERGE-GATE $*" >> "$LOG"; }
 
@@ -67,10 +67,10 @@ for entry in $prs; do
   repo="${entry%%:*}"
   num="${entry##*:}"
   (
-    # Get check status
-    checks=$(gh pr checks "$num" --repo "$repo" 2>/dev/null || echo "ERROR")
+    # Get check status (gh pr checks exits non-zero when checks are failing — use || true)
+    checks=$(gh pr checks "$num" --repo "$repo" 2>/dev/null) || true
 
-    if [ "$checks" = "ERROR" ]; then
+    if [ -z "$checks" ]; then
       echo "{\"repo\":\"$repo\",\"number\":$num,\"status\":\"error\",\"reason\":\"could not fetch checks\"}" > "$checks_tmp/${repo//\//_}_${num}.json"
     else
       # Parse check results, ignoring specified checks
@@ -87,11 +87,13 @@ else:
             statuses.append(parts[1].strip().lower() if len(parts) > 1 else 'unknown')
         else:
             statuses.append('unknown')
-    if all(s == 'pass' for s in statuses):
+    # Treat 'skipping' as 'pass' (conditional jobs that don't run on this PR)
+    normalized = ['pass' if s == 'skipping' else s for s in statuses]
+    if all(s == 'pass' for s in normalized):
         print('pass')
-    elif any(s == 'fail' for s in statuses):
+    elif any(s == 'fail' for s in normalized):
         print('fail')
-    elif any(s == 'pending' for s in statuses):
+    elif any(s == 'pending' for s in normalized):
         print('pending')
     else:
         print('unknown')

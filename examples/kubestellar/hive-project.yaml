@@ -177,6 +177,14 @@ pipeline:
       phase: pre-kick
       depends: [enumerator]
 
+    - name: conflict-sweeper
+      category: gate
+      script: conflict-sweeper.sh
+      output: /var/run/hive-metrics/conflict-sweep.json
+      consumers: [scanner]
+      phase: pre-kick
+      depends: [merge-gate]
+
     # --- Phase 3: Monitors (can run in parallel, depend on enumerator) ---
     - name: copilot-comments
       category: monitor

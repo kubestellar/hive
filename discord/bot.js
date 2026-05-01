@@ -6,6 +6,7 @@ const { CommandRouter } = require('./lib/command-router');
 const { agentNames } = require('./lib/agent-identities');
 
 const MSG_QUEUE_INTERVAL_MS = 1200;
+const STATUS_HEARTBEAT_MS = 15 * 60 * 1000; // 15 minutes
 
 const config = loadConfig();
 
@@ -69,11 +70,22 @@ function sendEmbed(embed, target) {
 const bridge = new DashboardBridge(config, sendMessage, sendEmbed);
 const watcher = new PipelineWatcher(config, sendMessage, sendEmbed);
 
+let statusInterval = null;
+
 client.once(Events.ClientReady, (c) => {
   console.log(`Hive bot logged in as ${c.user.tag}`);
   bridge.start();
   watcher.start();
   sendMessage('⚙️ **[pipeline]** Hive Discord bot online');
+
+  statusInterval = setInterval(async () => {
+    try {
+      const status = await router.handle('status', 'heartbeat');
+      sendMessage(`📊 **Status heartbeat**\n${status}`);
+    } catch (err) {
+      console.error('Status heartbeat error:', err.message);
+    }
+  }, STATUS_HEARTBEAT_MS);
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -100,6 +112,7 @@ client.on(Events.MessageCreate, async (message) => {
 
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down');
+  clearInterval(statusInterval);
   bridge.stop();
   watcher.stop();
   client.destroy();
@@ -107,6 +120,7 @@ process.on('SIGTERM', () => {
 });
 
 process.on('SIGINT', () => {
+  clearInterval(statusInterval);
   bridge.stop();
   watcher.stop();
   client.destroy();

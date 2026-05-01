@@ -97,6 +97,13 @@ if [ -n "$DASH_RESTART_NEEDED" ] && [ -z "$DASHBOARD_CHANGED" ]; then
     log "WARN: failed to restart hive-dashboard (drift)"
 fi
 
+# Install Discord bot dependencies if package.json changed or node_modules missing
+if [ -n "$DISCORD_CHANGED" ] || [ ! -d "$HIVE_REPO/discord/node_modules" ]; then
+  (cd "$HIVE_REPO/discord" && npm install --production 2>/dev/null) && \
+    SYNCED="$SYNCED discord(npm-install)" || \
+    log "WARN: failed to npm install in discord/"
+fi
+
 # Restart Discord bot if any discord/ files changed during pull
 if [ -n "$DISCORD_CHANGED" ]; then
   sudo systemctl restart hive-discord.service 2>/dev/null && \

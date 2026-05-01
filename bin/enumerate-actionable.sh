@@ -325,13 +325,38 @@ print('yes' if SHA_PATTERN.search(sys.stdin.read()) else 'no')
 " 2>/dev/null || echo "no")
   if [ "$has_sha" = "yes" ]; then
     gh issue edit "$num" --repo "$repo" --remove-label "hold" --add-label "kind/bug" 2>/dev/null || true
-    rm -f "$marker_file"
+    # Keep marker file — prevents initial check from re-posting the SHA comment
+    echo "resolved=$(date -Is)" > "$marker_file"
     log "SHA-UNHOLD: ${repo}#${num} — SHA found in body/comments, removed hold, restored kind/bug"
   fi
 done
 
-# Use only the kept issues (SHA-verified or internal)
-all_issues=$(echo "$sha_result" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['kept']))" 2>/dev/null || echo "[]")
+# Build resolved set — issues where SHA was found in reporter comments
+resolved_nums=""
+for marker_file in "${SHA_HOLD_MARKER}"_*; do
+  [ -f "$marker_file" ] || continue
+  grep -q "^resolved=" "$marker_file" 2>/dev/null || continue
+  marker_base=$(basename "$marker_file")
+  num="${marker_base##*_}"
+  resolved_nums="${resolved_nums},${num}"
+done
+
+# Use kept issues + any missing_sha issues that have been resolved (SHA in comments)
+all_issues=$(echo "$sha_result" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+resolved = set()
+for n in sys.argv[1].split(','):
+    n = n.strip()
+    if n:
+        try: resolved.add(int(n))
+        except ValueError: pass
+kept = d.get('kept', [])
+for i in d.get('missing_sha', []):
+    if i.get('number') in resolved:
+        kept.append(i)
+print(json.dumps(kept))
+" "$resolved_nums" 2>/dev/null || echo "[]")
 
 # --- Build final output ---
 issue_count=$(echo "$all_issues" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)

@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Centralized GitHub API collector — single script fetches all data, writes to cache.
 # All consumers (governor, dashboard, hive status) read from cache instead of calling
-# the GitHub API independently. Reduces ~340 API calls/hour to ~35.
+# the GitHub API independently.
+#
+# Actionable counts come from enumerate-actionable.sh (REST-based, already cached in
+# actionable.json) — NO additional GraphQL calls needed.
 #
 # Output: /var/run/hive-metrics/github-cache.json
 # Called by: server.js on a 5-minute cycle
@@ -26,8 +29,6 @@ AI_AUTHOR="${PROJECT_AI_AUTHOR:-clubanderson}"
 PROJECT_ORG="${PROJECT_ORG:-kubestellar}"
 PROJECT="${PROJECT_NAME:-KubeStellar}"
 
-EXEMPT_LABEL_REGEX="nightly-tests|LFX|do-not-merge|meta-tracker|auto-qa-tuning-report|hold|adopters|changes-requested|waiting-on-author"
-
 # Use real gh binary — the /usr/local/bin/gh wrapper blocks listing commands
 # (designed for agents) which would break this infrastructure script.
 GH=/usr/bin/gh
@@ -41,28 +42,49 @@ fi
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-# ── Fetch per-repo issue + PR counts (parallel, using gh issue/pr list = GraphQL) ──
+# ── Fetch per-repo issue + PR counts (parallel, REST API — avoids GraphQL rate limits) ──
 for repo in "${REPOS[@]}"; do
   rname="${repo##*/}"
   (
-    issues=$($GH issue list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
-    prs=$($GH pr list --repo "$repo" --state open --json number --jq 'length' 2>/dev/null || echo "-1")
+    issues=$($GH api "repos/${repo}/issues?state=open&per_page=100" --jq '[.[] | select(.pull_request == null)] | length' 2>/dev/null || echo "-1")
+    prs=$($GH api "repos/${repo}/pulls?state=open&per_page=100" --jq 'length' 2>/dev/null || echo "-1")
     echo "${issues} ${prs}" > "$tmpdir/repo_${rname}"
   ) &
 done
 
-# ── Fetch actionable counts (issues excluding exempt labels) ──
-for repo in "${REPOS[@]}"; do
-  rname="${repo##*/}"
-  (
-    # Use gh search which is GraphQL-backed and more reliable than REST /issues
-    actionable_issues=$($GH issue list --repo "$repo" --state open --json "number,labels" \
-      --jq "[.[] | select(.labels | map(.name) | any(test(\"${EXEMPT_LABEL_REGEX}\"; \"i\")) | not)] | length" 2>/dev/null || echo "-1")
-    actionable_prs=$($GH pr list --repo "$repo" --state open --json "number,labels" \
-      --jq "[.[] | select(.labels | map(.name) | any(test(\"${EXEMPT_LABEL_REGEX}\"; \"i\")) | not)] | length" 2>/dev/null || echo "-1")
-    echo "${actionable_issues} ${actionable_prs}" > "$tmpdir/actionable_${rname}"
-  ) &
-done
+# ── Read actionable counts from enumerate-actionable.sh output (REST-based, no extra API calls) ──
+ACTIONABLE_FILE="${CACHE_DIR}/actionable.json"
+if [ -f "$ACTIONABLE_FILE" ]; then
+  python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+items_i = d.get('issues', {}).get('items', [])
+items_p = d.get('prs', {}).get('items', [])
+repos = {}
+for i in items_i:
+    r = i.get('repo', '').split('/')[-1]
+    repos.setdefault(r, [0, 0])
+    repos[r][0] += 1
+for p in items_p:
+    r = p.get('repo', '').split('/')[-1]
+    repos.setdefault(r, [0, 0])
+    repos[r][1] += 1
+for rname, (ai, ap) in repos.items():
+    print(f'{rname} {ai} {ap}')
+" "$ACTIONABLE_FILE" 2>/dev/null | while read -r rname ai ap; do
+    echo "${ai} ${ap}" > "$tmpdir/actionable_${rname}"
+  done
+  # Ensure repos with zero actionable items get a file too
+  for repo in "${REPOS[@]}"; do
+    rname="${repo##*/}"
+    [ -f "$tmpdir/actionable_${rname}" ] || echo "0 0" > "$tmpdir/actionable_${rname}"
+  done
+else
+  for repo in "${REPOS[@]}"; do
+    echo "-1 -1" > "$tmpdir/actionable_${repo##*/}"
+  done
+fi
 
 # ── Fetch primary repo metadata (stars, forks, contributors, adopters) ──
 ($GH api "repos/${PRIMARY_REPO}" --jq '.stargazers_count' > "$tmpdir/stars" 2>/dev/null || echo 0 > "$tmpdir/stars") &

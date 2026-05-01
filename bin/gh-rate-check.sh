@@ -19,8 +19,8 @@ GOVERNOR_FLAG_DIR="/var/run/kick-governor"
 NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
 NTFY_TOPIC="${NTFY_TOPIC:-hive}"
 TMUX_BIN="${TMUX_BIN:-tmux}"
-TTL_SECONDS=3600
-PULLBACK_SECONDS=1800  # 30 minutes
+TTL_SECONDS=900   # 15 minutes — cleared sooner if API shows recovery
+PULLBACK_SECONDS=900  # 15 minutes
 
 mkdir -p "$PULLBACK_STATE_DIR"
 
@@ -115,6 +115,31 @@ alerts = [a for a in data.get('alerts', []) if is_active(a)]
 print(json.dumps(alerts))
 " 2>/dev/null || echo '[]')
 
+# --- Phase 2.5: Recovery check — clear alerts if API rate limit has recovered ---
+# If we have active alerts but the API shows remaining > 0, the limit has reset.
+alert_count=$(echo "$new_alerts" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+if [ "$alert_count" -gt 0 ]; then
+  api_remaining=$($GH_BIN api rate_limit --jq '.rate.remaining' 2>/dev/null || echo "-1")
+  if [ "$api_remaining" -gt 0 ] 2>/dev/null; then
+    log "RECOVERY rate limit recovered (remaining=$api_remaining) — clearing $alert_count alerts"
+    new_alerts="[]"
+    # Also expire any active pullbacks since the limit has reset
+    for pullback_file in "$PULLBACK_STATE_DIR"/pullback_*.json; do
+      [ -f "$pullback_file" ] || continue
+      paused_by_us=$(python3 -c "import json; print(' '.join(json.load(open('$pullback_file')).get('paused_agents', [])))" 2>/dev/null || echo "")
+      cli_name=$(python3 -c "import json; print(json.load(open('$pullback_file')).get('cli', 'unknown'))" 2>/dev/null || echo "unknown")
+      for agent in $paused_by_us; do
+        if [ -f "$GOVERNOR_FLAG_DIR/operator_paused_${agent}" ]; then
+          continue
+        fi
+        rm -f "$GOVERNOR_FLAG_DIR/paused_${agent}"
+      done
+      rm -f "$pullback_file"
+      log "RECOVERY-UNPAUSE cli=$cli_name — resumed: $paused_by_us"
+    done
+  fi
+fi
+
 # --- Phase 3: Scan agent panes for new rate limit hits ---
 for agent in "${!AGENT_SESSIONS[@]}"; do
   session="${AGENT_SESSIONS[$agent]}"
@@ -123,7 +148,7 @@ for agent in "${!AGENT_SESSIONS[@]}"; do
     continue
   fi
 
-  pane_text=$($TMUX_BIN capture-pane -t "$session" -p -S -100 2>/dev/null || true)
+  pane_text=$($TMUX_BIN capture-pane -t "$session" -p -S -20 2>/dev/null || true)
   [ -z "$pane_text" ] && continue
 
   filtered_text=$(echo "$pane_text" | grep -viE "$CLI_EXCLUDE_PATTERNS" || true)

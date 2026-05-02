@@ -143,7 +143,7 @@ while pos < len(raw):
     try:
         obj, end = decoder.raw_decode(raw, pos)
         arrays.extend(obj if isinstance(obj, list) else [obj])
-        pos += end
+        pos = end
     except json.JSONDecodeError:
         break
 
@@ -186,7 +186,7 @@ while pos < len(raw):
     try:
         obj, end = decoder.raw_decode(raw, pos)
         arrays.extend(obj if isinstance(obj, list) else [obj])
-        pos += end
+        pos = end
     except json.JSONDecodeError:
         break
 

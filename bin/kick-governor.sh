@@ -742,7 +742,7 @@ for _fa in scanner reviewer supervisor architect outreach; do
   _is_agent_paused "$_fa" && continue
   tmux has-session -t "$_fa" 2>/dev/null || continue
   _pane_text=$(tmux capture-pane -t "$_fa" -p 2>/dev/null || true)
-  _prompt_line=$(echo "$_pane_text" | grep "❯" | tail -1)
+  _prompt_line=$(echo "$_pane_text" | grep "❯" | tail -1 || true)
   _after=$(echo "$_prompt_line" | sed 's/.*❯[[:space:]]*//')
   if [ -n "$_after" ] && [ ${#_after} -gt 2 ]; then
     log "CLEAR ${_fa} — discarding ${#_after} chars of stale input (C-c + C-u)"

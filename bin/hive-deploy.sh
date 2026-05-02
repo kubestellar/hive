@@ -165,6 +165,12 @@ if echo "$SYNCED" | grep -q '\.service\|\.timer'; then
   sudo systemctl daemon-reload 2>/dev/null || true
 fi
 
+# Ensure snapshot timer is enabled
+if [ -f /etc/systemd/system/hive-snapshot.timer ] && ! systemctl is-enabled --quiet hive-snapshot.timer 2>/dev/null; then
+  sudo systemctl enable --now hive-snapshot.timer 2>/dev/null && \
+    SYNCED="$SYNCED hive-snapshot.timer(enabled)" || true
+fi
+
 # Ensure per-agent watchdog services are enabled and running.
 # Each agent gets its own hive@<name>.service backed by supervisor.sh,
 # which monitors the tmux session and restarts if it dies.

@@ -112,8 +112,10 @@ fi
 
 # ── Fetch outreach PR counts ──
 # Use --cache to avoid secondary rate limits on search API
-(result=$($GH api --cache 300s "search/issues?q=author:${AI_AUTHOR}+type:pr+is:open+${PROJECT}+in:title+-org:${PROJECT_ORG}" --jq '.total_count' 2>"$tmpdir/outreach_open_err") && echo "$result" > "$tmpdir/outreach_open" || { echo 0 > "$tmpdir/outreach_open"; cat "$tmpdir/outreach_open_err" >> "$CACHE_DIR/api-collector.log" 2>/dev/null; }) &
-(result=$($GH api --cache 300s "search/issues?q=author:${AI_AUTHOR}+type:pr+is:merged+${PROJECT}+in:title+-org:${PROJECT_ORG}" --jq '.total_count' 2>"$tmpdir/outreach_merged_err") && echo "$result" > "$tmpdir/outreach_merged" || { echo 0 > "$tmpdir/outreach_merged"; cat "$tmpdir/outreach_merged_err" >> "$CACHE_DIR/api-collector.log" 2>/dev/null; }) &
+# URL-encode project name with %22 (double quotes) to handle spaces
+SEARCH_PROJECT=$(echo "$PROJECT" | sed 's/ /+/g; s/^/%22/; s/$/%22/')
+(result=$($GH api --cache 300s "search/issues?q=author:${AI_AUTHOR}+type:pr+is:open+${SEARCH_PROJECT}+in:title+-org:${PROJECT_ORG}" --jq '.total_count' 2>"$tmpdir/outreach_open_err") && echo "$result" > "$tmpdir/outreach_open" || { echo 0 > "$tmpdir/outreach_open"; cat "$tmpdir/outreach_open_err" >> "$CACHE_DIR/api-collector.log" 2>/dev/null; }) &
+(result=$($GH api --cache 300s "search/issues?q=author:${AI_AUTHOR}+type:pr+is:merged+${SEARCH_PROJECT}+in:title+-org:${PROJECT_ORG}" --jq '.total_count' 2>"$tmpdir/outreach_merged_err") && echo "$result" > "$tmpdir/outreach_merged" || { echo 0 > "$tmpdir/outreach_merged"; cat "$tmpdir/outreach_merged_err" >> "$CACHE_DIR/api-collector.log" 2>/dev/null; }) &
 
 wait
 

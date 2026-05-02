@@ -463,7 +463,7 @@ setInterval(fetchRepoStatus, REPO_REFRESH_MS);
 fetchRepoStatus();
 
 // Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
 // Git version — cached, refreshed every 5 min
 let gitVersionCache = { hash: '?', short: '?', behind: 0, dirty: false, ts: 0 };

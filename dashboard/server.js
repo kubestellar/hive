@@ -1100,6 +1100,329 @@ app.get('/api/summaries', (req, res) => {
   });
 });
 
+// ── Configuration Dialog API ──────────────���──────────────────────────────────
+const GOVERNOR_ENV_PATH = '/etc/hive/governor.env';
+
+function parseEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  const content = fs.readFileSync(filePath, 'utf8');
+  const vars = {};
+  for (const line of content.split('\n')) {
+    const match = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)/);
+    if (match) vars[match[1]] = match[2].replace(/^["']|["']$/g, '');
+  }
+  return vars;
+}
+
+function writeEnvVar(filePath, key, value) {
+  const content = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+  const regex = new RegExp(`^${key}=.*$`, 'm');
+  let updated;
+  if (regex.test(content)) {
+    updated = content.replace(regex, `${key}=${value}`);
+  } else {
+    updated = content.trimEnd() + `\n${key}=${value}\n`;
+  }
+  execSync(`echo '${updated.replace(/'/g, "'\\''")}' | sudo tee ${filePath} > /dev/null`);
+}
+
+function removeEnvVar(filePath, key) {
+  if (!fs.existsSync(filePath)) return;
+  execSync(`sudo sed -i '/^${key}=/d' ${filePath}`);
+}
+
+app.get('/api/config/agent/:name', (req, res) => {
+  const { name } = req.params;
+  if (!ENABLED_AGENTS.includes(name)) {
+    return res.status(404).json({ error: `unknown agent: ${name}` });
+  }
+  try {
+    const agentEnv = parseEnvFile(`${ENV_DIR}/${name}.env`);
+    const govEnv = parseEnvFile(GOVERNOR_ENV_PATH);
+    const upper = name.toUpperCase();
+
+    const general = {
+      launchCmd: agentEnv.AGENT_LAUNCH_CMD || '',
+      cliPinned: agentEnv.AGENT_CLI_PINNED === 'true',
+      cliPinValue: agentEnv.AGENT_CLI_PIN_VALUE || 'claude',
+      staleTimeout: parseInt(agentEnv.AGENT_STALE_TIMEOUT_SEC || '1200', 10),
+      restartStrategy: agentEnv.AGENT_RESTART_STRATEGY || 'immediate',
+    };
+
+    const cadences = {
+      surge: parseInt(govEnv[`CADENCE_${upper}_SURGE_SEC`] || '0', 10),
+      busy: parseInt(govEnv[`CADENCE_${upper}_BUSY_SEC`] || '0', 10),
+      quiet: parseInt(govEnv[`CADENCE_${upper}_QUIET_SEC`] || '0', 10),
+      idle: parseInt(govEnv[`CADENCE_${upper}_IDLE_SEC`] || '0', 10),
+    };
+
+    const models = {
+      surge: govEnv[`MODEL_${upper}_SURGE`] || '',
+      busy: govEnv[`MODEL_${upper}_BUSY`] || '',
+      quiet: govEnv[`MODEL_${upper}_QUIET`] || '',
+      idle: govEnv[`MODEL_${upper}_IDLE`] || '',
+    };
+
+    const pipeline = {};
+    for (const stage of ['resolve-beads', 'track-prs', 'stale-check', 'repo-scan', 'coverage-gate', 'prompt-compose', 'budget-check', 'api-collect', 'final-compose']) {
+      const key = `PIPELINE_SKIP_${stage.replace(/-/g, '_').toUpperCase()}`;
+      pipeline[stage] = agentEnv[key] !== 'true';
+    }
+
+    const hooks = {
+      preKick: agentEnv.PRE_KICK_HOOKS ? agentEnv.PRE_KICK_HOOKS.split(',').filter(Boolean) : [],
+      postIdle: agentEnv.POST_IDLE_HOOKS ? agentEnv.POST_IDLE_HOOKS.split(',').filter(Boolean) : [],
+    };
+
+    const restrictions = agentEnv.AGENT_RESTRICTIONS ? agentEnv.AGENT_RESTRICTIONS.split(',').filter(Boolean) : [];
+
+    let prompt = '';
+    try {
+      const kickScript = fs.readFileSync(path.join(HIVE_REPO_DIR, 'bin', 'kick-agents.sh'), 'utf8');
+      const agentSection = kickScript.match(new RegExp(`${name}\\)([\\s\\S]*?);;`, 'i'));
+      if (agentSection) prompt = agentSection[1].trim().slice(0, 2000);
+    } catch (_) {}
+
+    res.json({ general, cadences, models, pipeline, hooks, restrictions, prompt });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/agent/:name/general', (req, res) => {
+  const { name } = req.params;
+  const envFile = `${ENV_DIR}/${name}.env`;
+  try {
+    const { launchCmd, cliPinned, cliPinValue, staleTimeout, restartStrategy } = req.body;
+    if (launchCmd !== undefined) writeEnvVar(envFile, 'AGENT_LAUNCH_CMD', launchCmd);
+    if (cliPinned !== undefined) writeEnvVar(envFile, 'AGENT_CLI_PINNED', String(cliPinned));
+    if (cliPinValue !== undefined) writeEnvVar(envFile, 'AGENT_CLI_PIN_VALUE', cliPinValue);
+    if (staleTimeout !== undefined) writeEnvVar(envFile, 'AGENT_STALE_TIMEOUT_SEC', String(staleTimeout));
+    if (restartStrategy !== undefined) writeEnvVar(envFile, 'AGENT_RESTART_STRATEGY', restartStrategy);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/agent/:name/cadences', (req, res) => {
+  const { name } = req.params;
+  const upper = name.toUpperCase();
+  try {
+    const { surge, busy, quiet, idle } = req.body;
+    if (surge !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, `CADENCE_${upper}_SURGE_SEC`, String(surge));
+    if (busy !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, `CADENCE_${upper}_BUSY_SEC`, String(busy));
+    if (quiet !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, `CADENCE_${upper}_QUIET_SEC`, String(quiet));
+    if (idle !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, `CADENCE_${upper}_IDLE_SEC`, String(idle));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/agent/:name/models', (req, res) => {
+  const { name } = req.params;
+  const upper = name.toUpperCase();
+  try {
+    const { surge, busy, quiet, idle } = req.body;
+    if (surge !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, `MODEL_${upper}_SURGE`, surge);
+    if (busy !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, `MODEL_${upper}_BUSY`, busy);
+    if (quiet !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, `MODEL_${upper}_QUIET`, quiet);
+    if (idle !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, `MODEL_${upper}_IDLE`, idle);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/agent/:name/pipeline', (req, res) => {
+  const { name } = req.params;
+  const envFile = `${ENV_DIR}/${name}.env`;
+  try {
+    for (const [stage, enabled] of Object.entries(req.body)) {
+      const key = `PIPELINE_SKIP_${stage.replace(/-/g, '_').toUpperCase()}`;
+      if (enabled === false) {
+        writeEnvVar(envFile, key, 'true');
+      } else {
+        removeEnvVar(envFile, key);
+      }
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/agent/:name/hooks', (req, res) => {
+  const { name } = req.params;
+  const envFile = `${ENV_DIR}/${name}.env`;
+  try {
+    const { preKick, postIdle } = req.body;
+    if (preKick !== undefined) writeEnvVar(envFile, 'PRE_KICK_HOOKS', preKick.join(','));
+    if (postIdle !== undefined) writeEnvVar(envFile, 'POST_IDLE_HOOKS', postIdle.join(','));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/agent/:name/restrictions', (req, res) => {
+  const { name } = req.params;
+  const envFile = `${ENV_DIR}/${name}.env`;
+  try {
+    const list = req.body.list || [];
+    writeEnvVar(envFile, 'AGENT_RESTRICTIONS', list.join(','));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/config/agent/:name/prompt', (req, res) => {
+  const { name } = req.params;
+  try {
+    const kickScript = fs.readFileSync(path.join(HIVE_REPO_DIR, 'bin', 'kick-agents.sh'), 'utf8');
+    const agentSection = kickScript.match(new RegExp(`${name}\\)([\\s\\S]*?);;`, 'i'));
+    res.json({ prompt: agentSection ? agentSection[1].trim() : '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/config/governor', (_req, res) => {
+  try {
+    const govEnv = parseEnvFile(GOVERNOR_ENV_PATH);
+    const agents = ENABLED_AGENTS.slice();
+
+    const thresholds = {
+      surge: parseInt(govEnv.SURGE_THRESHOLD || '20', 10),
+      busy: parseInt(govEnv.BUSY_THRESHOLD || '10', 10),
+      quiet: parseInt(govEnv.QUIET_THRESHOLD || '2', 10),
+    };
+
+    const labels = govEnv.EXEMPT_LABELS ? govEnv.EXEMPT_LABELS.split(',').filter(Boolean) : [];
+
+    const budget = {
+      totalTokens: parseInt(govEnv.BUDGET_TOTAL_TOKENS || '0', 10),
+      periodDays: parseInt(govEnv.BUDGET_PERIOD_DAYS || '7', 10),
+      criticalPct: parseInt(govEnv.BUDGET_CRITICAL_PCT || '90', 10),
+    };
+
+    const notifications = {
+      ntfyServer: govEnv.NTFY_SERVER || '',
+      ntfyTopic: govEnv.NTFY_TOPIC || '',
+      discordWebhook: govEnv.DISCORD_WEBHOOK ? '(configured)' : '',
+    };
+
+    const health = {
+      healthcheckInterval: parseInt(govEnv.HEALTHCHECK_INTERVAL_SEC || '300', 10),
+      restartCooldown: parseInt(govEnv.RESTART_COOLDOWN_SEC || '60', 10),
+      modelLock: govEnv.MODEL_LOCK === 'true',
+    };
+
+    res.json({ agents, thresholds, labels, budget, notifications, health });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/governor/thresholds', (req, res) => {
+  try {
+    const { surge, busy, quiet } = req.body;
+    if (surge !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'SURGE_THRESHOLD', String(surge));
+    if (busy !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'BUSY_THRESHOLD', String(busy));
+    if (quiet !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'QUIET_THRESHOLD', String(quiet));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/governor/labels', (req, res) => {
+  try {
+    const list = req.body.list || [];
+    writeEnvVar(GOVERNOR_ENV_PATH, 'EXEMPT_LABELS', list.join(','));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/governor/budget', (req, res) => {
+  try {
+    const { totalTokens, periodDays, criticalPct } = req.body;
+    if (totalTokens !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'BUDGET_TOTAL_TOKENS', String(totalTokens));
+    if (periodDays !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'BUDGET_PERIOD_DAYS', String(periodDays));
+    if (criticalPct !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'BUDGET_CRITICAL_PCT', String(criticalPct));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/governor/notifications', (req, res) => {
+  try {
+    const { ntfyServer, ntfyTopic, discordWebhook } = req.body;
+    if (ntfyServer !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'NTFY_SERVER', ntfyServer);
+    if (ntfyTopic !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'NTFY_TOPIC', ntfyTopic);
+    if (discordWebhook && discordWebhook !== '••••••••') writeEnvVar(GOVERNOR_ENV_PATH, 'DISCORD_WEBHOOK', discordWebhook);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/governor/health', (req, res) => {
+  try {
+    const { healthcheckInterval, restartCooldown, modelLock } = req.body;
+    if (healthcheckInterval !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'HEALTHCHECK_INTERVAL_SEC', String(healthcheckInterval));
+    if (restartCooldown !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'RESTART_COOLDOWN_SEC', String(restartCooldown));
+    if (modelLock !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'MODEL_LOCK', String(modelLock));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/config/governor/agents', (req, res) => {
+  const { name } = req.body;
+  if (!name || !/^[a-z][a-z0-9-]*$/.test(name)) {
+    return res.status(400).json({ error: 'Invalid agent name (lowercase alphanumeric + hyphens)' });
+  }
+  try {
+    const envFile = `${ENV_DIR}/${name}.env`;
+    if (!fs.existsSync(envFile)) {
+      execSync(`echo '# ${name} agent config\nAGENT_LAUNCH_CMD=agent-launch.sh\nAGENT_CLI_PINNED=false' | sudo tee ${envFile} > /dev/null`);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/config/governor/agents/:name', (req, res) => {
+  const { name } = req.params;
+  try {
+    const envFile = `${ENV_DIR}/${name}.env`;
+    if (fs.existsSync(envFile)) {
+      execSync(`sudo rm ${envFile}`);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/config/backends', (_req, res) => {
+  try {
+    const backendsFile = path.join(HIVE_REPO_DIR, 'config', 'backends.conf');
+    const content = fs.existsSync(backendsFile) ? fs.readFileSync(backendsFile, 'utf8') : '';
+    res.json({ raw: content, backends: KNOWN_BACKENDS });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🐝 Hive Dashboard running at http://localhost:${PORT}`);
 });

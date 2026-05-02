@@ -504,10 +504,163 @@
       .kick-prompt { min-width: 0; width: 100%; }
       .burn-context { flex-wrap: wrap; gap: 8px; }
     }
+
+    /* Configuration Dialog */
+    .config-overlay {
+      position: fixed; inset: 0; z-index: 10000;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center;
+      animation: config-fade-in 0.15s ease-out;
+    }
+    .config-overlay.hidden { display: none; }
+    @keyframes config-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .config-modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; width: 700px; max-width: 95vw;
+      max-height: 85vh; display: flex; flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .config-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+    }
+    .config-title { font-size: 1.1rem; font-weight: 600; }
+    .config-close {
+      background: none; border: none; color: var(--muted); font-size: 1.4rem;
+      cursor: pointer; padding: 4px 8px; border-radius: 4px;
+    }
+    .config-close:hover { color: var(--text); background: var(--border); }
+    .config-tabs {
+      display: flex; gap: 0; border-bottom: 1px solid var(--border);
+      overflow-x: auto; padding: 0 20px; flex-shrink: 0;
+    }
+    .config-tab {
+      padding: 10px 14px; font-size: 0.75rem; color: var(--muted);
+      cursor: pointer; border-bottom: 2px solid transparent;
+      white-space: nowrap; transition: color 0.2s, border-color 0.2s;
+    }
+    .config-tab:hover { color: var(--text); }
+    .config-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+    .config-body {
+      flex: 1; overflow-y: auto; padding: 20px;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    .config-footer {
+      display: flex; gap: 8px; justify-content: flex-end;
+      padding: 12px 20px; border-top: 1px solid var(--border);
+    }
+    .config-footer .btn { padding: 6px 16px; font-size: 0.8rem; border-radius: 6px; cursor: pointer; }
+    .config-footer .config-save { background: var(--blue); color: #fff; border: none; font-weight: 600; }
+    .config-footer .config-save:hover { opacity: 0.9; }
+    .config-footer .config-cancel { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .config-footer .config-cancel:hover { color: var(--text); border-color: var(--text); }
+
+    .config-field { margin-bottom: 14px; }
+    .config-field label { display: block; font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .config-field input[type="text"],
+    .config-field input[type="number"],
+    .config-field select {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 10px; border-radius: 6px;
+      font-family: inherit; font-size: 0.8rem;
+    }
+    .config-field input:focus, .config-field select:focus {
+      outline: none; border-color: var(--blue);
+    }
+    .config-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .config-field-row4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+
+    .config-toggle {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+    }
+    .config-toggle-switch {
+      position: relative; width: 36px; height: 20px;
+      background: var(--border); border-radius: 10px; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .config-toggle-switch.on { background: var(--green); }
+    .config-toggle-switch::before {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--text); transition: transform 0.2s;
+    }
+    .config-toggle-switch.on::before { transform: translateX(16px); }
+    .config-toggle-label { font-size: 0.8rem; color: var(--text); }
+
+    .config-list { margin-bottom: 14px; }
+    .config-list-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; margin-bottom: 4px; font-size: 0.8rem;
+    }
+    .config-list-item .remove-item {
+      margin-left: auto; background: none; border: none;
+      color: var(--red); cursor: pointer; font-size: 0.9rem;
+    }
+    .config-list-add {
+      display: flex; gap: 6px; margin-top: 6px;
+    }
+    .config-list-add input { flex: 1; }
+    .config-list-add button {
+      background: var(--border); color: var(--text); border: none;
+      border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 0.75rem;
+    }
+    .config-list-add button:hover { background: var(--blue); }
+
+    .config-pre {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 12px; font-size: 0.75rem;
+      overflow-x: auto; white-space: pre-wrap; color: var(--muted);
+      max-height: 300px; overflow-y: auto;
+    }
+
+    .config-agent-list { list-style: none; }
+    .config-agent-list li {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;
+      margin-bottom: 6px; background: var(--bg);
+    }
+    .config-agent-list li .agent-link {
+      color: var(--blue); cursor: pointer; font-size: 0.85rem; font-weight: 500;
+    }
+    .config-agent-list li .agent-link:hover { text-decoration: underline; }
+    .config-agent-list li .remove-agent {
+      margin-left: auto; background: none; border: none;
+      color: var(--red); cursor: pointer; font-size: 0.9rem;
+    }
+
+    .config-gear {
+      background: none; border: none; cursor: pointer;
+      font-size: 0.9rem; opacity: 0.5; transition: opacity 0.2s;
+      padding: 2px 4px; vertical-align: middle;
+    }
+    .config-gear:hover { opacity: 1; }
+
+    @media (max-width: 600px) {
+      .config-modal { max-width: 100vw; max-height: 100vh; border-radius: 0; height: 100vh; }
+      .config-tabs { padding: 0 10px; }
+      .config-tab { padding: 8px 10px; font-size: 0.7rem; }
+      .config-body { padding: 14px; }
+      .config-field-row, .config-field-row4 { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
 <div id="toast-container"></div>
+<div id="config-overlay" class="config-overlay hidden">
+  <div class="config-modal">
+    <div class="config-header">
+      <h2 class="config-title"></h2>
+      <button class="config-close" onclick="closeConfigDialog()">&times;</button>
+    </div>
+    <nav class="config-tabs" id="config-tabs"></nav>
+    <div class="config-body" id="config-body"></div>
+    <div class="config-footer">
+      <button class="btn config-cancel" onclick="closeConfigDialog()">Cancel</button>
+      <button class="btn config-save" onclick="saveConfig()">Save</button>
+    </div>
+  </div>
+</div>
 <div class="gh-auth-alert" id="gh-auth-alert">GitHub CLI authentication failed (401). Agents cannot use <code>gh</code> commands. Run <code>gh auth login</code> on the dev server to fix.</div>
   <div class="gh-rate-alert" id="gh-rate-alert"></div>
 
@@ -866,7 +1019,7 @@
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}">
           <span class="working-indicator"></span>
-          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a> <button class="restart-btn" onclick="restartAgent('${a.name}')" title="Kill tmux session — supervisor will respawn with fresh context">↻ restart</button></div>
+          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.name} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a> <button class="restart-btn" onclick="restartAgent('${a.name}')" title="Kill tmux session — supervisor will respawn with fresh context">↻ restart</button> <button class="config-gear" onclick="openConfigDialog('agent','${a.name}')" title="Configure ${a.name}">⚙️</button></div>
           <div class="agent-field"><span class="label">cli</span><span class="value">${cliChip(a.cli, a.pinnedBoth || a.pinnedCli, a.name)}${(a.pinnedBoth || a.pinnedCli) ? '' : ` <button class="pin-toggle" onclick="togglePin('${a.name}', 'cli', false)" title="Pin CLI — lock current backend">📌</button>`}</span></div>
           <div class="agent-field"><span class="label">model</span><span class="value">${modelChip(a.model, a.govReason, a.pinnedBoth || a.pinnedModel, a.name)}${(a.pinnedBoth || a.pinnedModel) ? '' : ` <button class="pin-toggle" onclick="togglePin('${a.name}', 'model', false)" title="Pin model — lock current model">📌</button>`}</span></div>
           <div class="agent-field"><span class="label">interval</span><span class="value">${isPaused ? 'paused' : a.cadence}</span></div>
@@ -975,7 +1128,7 @@
       const itmTitle = itmCount > 0 ? `MTTR (Mean Time to Resolution) — median: ${formatFixTime(itmMedian)} | avg: ${formatFixTime(itmAvg)} | p90: ${formatFixTime(itm.p90_minutes)} | fastest: ${formatFixTime(itm.fastest_minutes)} | slowest: ${formatFixTime(itm.slowest_minutes)} | ${itmCount} fixes in last 30d` : 'MTTR — no data yet';
 
       el.innerHTML = `
-        <div class="gov-title">Governor</div>
+        <div class="gov-title">Governor <button class="config-gear" onclick="openConfigDialog('governor')" title="Configure Governor">⚙️</button></div>
         <div class="gov-grid">
           <div class="gov-stat"><div class="label">timer</div><div class="val ${cls}">${gov.active ? '● active' : '⚠ DEAD'}</div></div>
           <div class="gov-stat"><div class="label">mode</div><div class="val" style="color:${modeColor}">${gov.mode}</div></div>
@@ -1673,6 +1826,7 @@ function burnAreaChart() {
 
     // Guard: skip agent re-render while a dropdown is focused/open
     let _dropdownOpen = false;
+    let _configModalOpen = false;
     document.addEventListener('focusin', (e) => { if (e.target.matches('select.backend-select')) _dropdownOpen = true; });
     document.addEventListener('focusout', (e) => { if (e.target.matches('select.backend-select')) _dropdownOpen = false; });
     document.addEventListener('change', (e) => { if (e.target.matches('select.backend-select')) _dropdownOpen = false; });
@@ -1687,7 +1841,7 @@ function burnAreaChart() {
       window._lastAgents = data.agents || [];
       window._lastBudget = data.budget || {};
       renderGhRateLimits(data.ghRateLimits || {});
-      if (!_dropdownOpen) {
+      if (!_dropdownOpen && !_configModalOpen) {
         applyPinOverrides(data.agents || []);
         renderAgents(data.agents || []);
         renderGovernor(data.governor || {}, data.cadenceMatrix || [], data);
@@ -1927,6 +2081,400 @@ function burnAreaChart() {
     fetchTimeline();
     const TIMELINE_REFRESH_MS = 60000;
     setInterval(fetchTimeline, TIMELINE_REFRESH_MS);
+    // ── Configuration Dialog ──────────────────────────────────────────
+    let _configState = { type: null, agent: null, tab: null, data: {}, dirty: {} };
+
+    const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Models', 'Pipeline', 'Hooks', 'Restrictions', 'Prompts'];
+    const GOVERNOR_CONFIG_TABS = ['Agents', 'Thresholds', 'Labels', 'Budget', 'Notifications', 'Health'];
+    const PIPELINE_STAGES = ['resolve-beads', 'track-prs', 'stale-check', 'repo-scan', 'coverage-gate', 'prompt-compose', 'budget-check', 'api-collect', 'final-compose'];
+    const RESTART_STRATEGIES = ['immediate', 'backoff', 'none'];
+
+    function openConfigDialog(type, agentName) {
+      _configModalOpen = true;
+      _configState = { type, agent: agentName || null, tab: null, data: {}, dirty: {} };
+      document.getElementById('config-overlay').classList.remove('hidden');
+      const title = type === 'governor' ? 'Governor Configuration' : `${agentName} Configuration`;
+      document.querySelector('.config-title').textContent = title;
+      const tabs = type === 'governor' ? GOVERNOR_CONFIG_TABS : AGENT_CONFIG_TABS;
+      const tabsEl = document.getElementById('config-tabs');
+      tabsEl.innerHTML = tabs.map((t, i) =>
+        `<div class="config-tab${i === 0 ? ' active' : ''}" data-tab="${t}" onclick="switchConfigTab('${t}')">${t}</div>`
+      ).join('');
+      loadConfigData(type, agentName).then(() => {
+        switchConfigTab(tabs[0]);
+      });
+    }
+
+    function closeConfigDialog() {
+      _configModalOpen = false;
+      _configState = { type: null, agent: null, tab: null, data: {}, dirty: {} };
+      document.getElementById('config-overlay').classList.add('hidden');
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && _configModalOpen) closeConfigDialog();
+    });
+
+    function switchConfigTab(tabId) {
+      _configState.tab = tabId;
+      document.querySelectorAll('.config-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tabId);
+      });
+      renderConfigTab(tabId);
+    }
+
+    async function loadConfigData(type, agentName) {
+      try {
+        const url = type === 'governor' ? '/api/config/governor' : `/api/config/agent/${agentName}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        _configState.data = await res.json();
+      } catch (err) {
+        showToast(`Failed to load config: ${err.message}`, 'error');
+        _configState.data = {};
+      }
+    }
+
+    function renderConfigTab(tabId) {
+      const body = document.getElementById('config-body');
+      if (_configState.type === 'agent') {
+        body.innerHTML = renderAgentTab(tabId);
+      } else {
+        body.innerHTML = renderGovernorTab(tabId);
+      }
+    }
+
+    function renderAgentTab(tab) {
+      const d = _configState.data;
+      switch (tab) {
+        case 'General': return renderAgentGeneral(d.general || {});
+        case 'Cadences': return renderAgentCadences(d.cadences || {});
+        case 'Models': return renderAgentModels(d.models || {});
+        case 'Pipeline': return renderAgentPipeline(d.pipeline || {});
+        case 'Hooks': return renderAgentHooks(d.hooks || {});
+        case 'Restrictions': return renderAgentRestrictions(d.restrictions || []);
+        case 'Prompts': return renderAgentPrompts(d.prompt || '');
+        default: return '';
+      }
+    }
+
+    function renderGovernorTab(tab) {
+      const d = _configState.data;
+      switch (tab) {
+        case 'Agents': return renderGovAgents(d.agents || []);
+        case 'Thresholds': return renderGovThresholds(d.thresholds || {});
+        case 'Labels': return renderGovLabels(d.labels || []);
+        case 'Budget': return renderGovBudget(d.budget || {});
+        case 'Notifications': return renderGovNotifications(d.notifications || {});
+        case 'Health': return renderGovHealth(d.health || {});
+        default: return '';
+      }
+    }
+
+    // ── Agent Tab Renderers ──
+    function renderAgentGeneral(g) {
+      return `
+        <div class="config-field">
+          <label>Launch Command</label>
+          <input type="text" id="cfg-launch-cmd" value="${esc(g.launchCmd || '')}" onchange="markDirty('general','launchCmd',this.value)">
+        </div>
+        <div class="config-toggle">
+          <div class="config-toggle-switch ${g.cliPinned ? 'on' : ''}" id="cfg-cli-pinned" onclick="toggleConfigSwitch(this,'general','cliPinned')"></div>
+          <span class="config-toggle-label">CLI Pinned</span>
+        </div>
+        <div class="config-field">
+          <label>CLI Pin Value</label>
+          <select id="cfg-pin-value" onchange="markDirty('general','cliPinValue',this.value)">
+            ${KNOWN_BACKENDS.map(b => `<option value="${b}" ${g.cliPinValue === b ? 'selected' : ''}>${b}</option>`).join('')}
+          </select>
+        </div>
+        <div class="config-field-row">
+          <div class="config-field">
+            <label>Stale Timeout (sec)</label>
+            <input type="number" id="cfg-stale-timeout" value="${g.staleTimeout || 1200}" onchange="markDirty('general','staleTimeout',this.value)">
+          </div>
+          <div class="config-field">
+            <label>Restart Strategy</label>
+            <select id="cfg-restart-strategy" onchange="markDirty('general','restartStrategy',this.value)">
+              ${RESTART_STRATEGIES.map(s => `<option value="${s}" ${g.restartStrategy === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+        </div>`;
+    }
+
+    function renderAgentCadences(c) {
+      return `
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Seconds between kicks per governor mode. Set to 0 to pause the agent in that mode.</p>
+        <div class="config-field-row4">
+          <div class="config-field"><label>Surge</label><input type="number" value="${c.surge || 0}" onchange="markDirty('cadences','surge',this.value)"></div>
+          <div class="config-field"><label>Busy</label><input type="number" value="${c.busy || 0}" onchange="markDirty('cadences','busy',this.value)"></div>
+          <div class="config-field"><label>Quiet</label><input type="number" value="${c.quiet || 0}" onchange="markDirty('cadences','quiet',this.value)"></div>
+          <div class="config-field"><label>Idle</label><input type="number" value="${c.idle || 0}" onchange="markDirty('cadences','idle',this.value)"></div>
+        </div>`;
+    }
+
+    function renderAgentModels(m) {
+      const opts = (sel) => KNOWN_MODELS.map(mod =>
+        `<option value="${mod.value}" ${sel === mod.value ? 'selected' : ''}>${mod.label}</option>`
+      ).join('');
+      return `
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Model assigned to this agent per governor mode.</p>
+        <div class="config-field-row4">
+          <div class="config-field"><label>Surge</label><select onchange="markDirty('models','surge',this.value)">${opts(m.surge)}</select></div>
+          <div class="config-field"><label>Busy</label><select onchange="markDirty('models','busy',this.value)">${opts(m.busy)}</select></div>
+          <div class="config-field"><label>Quiet</label><select onchange="markDirty('models','quiet',this.value)">${opts(m.quiet)}</select></div>
+          <div class="config-field"><label>Idle</label><select onchange="markDirty('models','idle',this.value)">${opts(m.idle)}</select></div>
+        </div>`;
+    }
+
+    function renderAgentPipeline(p) {
+      return `
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Pre-kick pipeline stages. Disable stages to skip them for this agent.</p>
+        ${PIPELINE_STAGES.map(stage => `
+          <div class="config-toggle">
+            <div class="config-toggle-switch ${p[stage] !== false ? 'on' : ''}" onclick="toggleConfigSwitch(this,'pipeline','${stage}')"></div>
+            <span class="config-toggle-label">${stage}</span>
+          </div>
+        `).join('')}`;
+    }
+
+    function renderAgentHooks(h) {
+      const preList = (h.preKick || []).map((s, i) =>
+        `<div class="config-list-item"><span>${esc(s)}</span><button class="remove-item" onclick="removeListItem('hooks','preKick',${i})">✕</button></div>`
+      ).join('');
+      const postList = (h.postIdle || []).map((s, i) =>
+        `<div class="config-list-item"><span>${esc(s)}</span><button class="remove-item" onclick="removeListItem('hooks','postIdle',${i})">✕</button></div>`
+      ).join('');
+      return `
+        <div class="config-list">
+          <label style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;display:block">Pre-Kick Scripts</label>
+          ${preList || '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">None configured</div>'}
+          <div class="config-list-add">
+            <input type="text" id="cfg-pre-kick-input" placeholder="script path">
+            <button onclick="addListItem('hooks','preKick','cfg-pre-kick-input')">+ Add</button>
+          </div>
+        </div>
+        <div class="config-list">
+          <label style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;display:block">Post-Idle Scripts</label>
+          ${postList || '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">None configured</div>'}
+          <div class="config-list-add">
+            <input type="text" id="cfg-post-idle-input" placeholder="script path">
+            <button onclick="addListItem('hooks','postIdle','cfg-post-idle-input')">+ Add</button>
+          </div>
+        </div>`;
+    }
+
+    function renderAgentRestrictions(restrictions) {
+      const list = restrictions.map((r, i) =>
+        `<div class="config-list-item"><span>${esc(r)}</span><button class="remove-item" onclick="removeListItem('restrictions','list',${i})">✕</button></div>`
+      ).join('');
+      return `
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Commands this agent is not allowed to execute (blacklist).</p>
+        <div class="config-list">
+          ${list || '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">No restrictions configured</div>'}
+          <div class="config-list-add">
+            <input type="text" id="cfg-restriction-input" placeholder="command pattern">
+            <button onclick="addListItem('restrictions','list','cfg-restriction-input')">+ Add</button>
+          </div>
+        </div>`;
+    }
+
+    function renderAgentPrompts(prompt) {
+      return `
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Current kick prompt template (read-only). Edit in kick-agents.sh or hive-project.yaml.</p>
+        <pre class="config-pre">${esc(prompt || 'No prompt data available')}</pre>`;
+    }
+
+    // ── Governor Tab Renderers ──
+    function renderGovAgents(agents) {
+      const list = agents.map(a =>
+        `<li><span class="agent-link" onclick="closeConfigDialog();setTimeout(()=>openConfigDialog('agent','${a}'),100)">${a}</span><button class="remove-agent" onclick="removeAgent('${a}')">✕</button></li>`
+      ).join('');
+      return `
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Managed agents. Click name to configure.</p>
+        <ul class="config-agent-list">${list}</ul>
+        <div class="config-list-add" style="margin-top:12px">
+          <input type="text" id="cfg-new-agent" placeholder="agent name">
+          <button onclick="addAgent()">+ Add Agent</button>
+        </div>`;
+    }
+
+    function renderGovThresholds(t) {
+      return `
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Issue count thresholds that trigger mode changes.</p>
+        <div class="config-field-row">
+          <div class="config-field"><label>Surge Threshold</label><input type="number" value="${t.surge || 20}" onchange="markDirty('thresholds','surge',this.value)"></div>
+          <div class="config-field"><label>Busy Threshold</label><input type="number" value="${t.busy || 10}" onchange="markDirty('thresholds','busy',this.value)"></div>
+        </div>
+        <div class="config-field">
+          <label>Quiet Threshold</label>
+          <input type="number" value="${t.quiet || 2}" onchange="markDirty('thresholds','quiet',this.value)">
+        </div>`;
+    }
+
+    function renderGovLabels(labels) {
+      const list = labels.map((l, i) =>
+        `<div class="config-list-item"><span>${esc(l)}</span><button class="remove-item" onclick="removeListItem('labels','list',${i})">✕</button></div>`
+      ).join('');
+      return `
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Labels that exempt issues from the actionable count.</p>
+        <div class="config-list">
+          ${list || '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">No exempt labels</div>'}
+          <div class="config-list-add">
+            <input type="text" id="cfg-label-input" placeholder="label name">
+            <button onclick="addListItem('labels','list','cfg-label-input')">+ Add</button>
+          </div>
+        </div>`;
+    }
+
+    function renderGovBudget(b) {
+      return `
+        <div class="config-field-row">
+          <div class="config-field"><label>Total Tokens</label><input type="number" value="${b.totalTokens || 0}" onchange="markDirty('budget','totalTokens',this.value)"></div>
+          <div class="config-field"><label>Period (days)</label><input type="number" value="${b.periodDays || 7}" onchange="markDirty('budget','periodDays',this.value)"></div>
+        </div>
+        <div class="config-field">
+          <label>Critical Percent</label>
+          <input type="number" value="${b.criticalPct || 90}" onchange="markDirty('budget','criticalPct',this.value)">
+        </div>`;
+    }
+
+    function renderGovNotifications(n) {
+      return `
+        <div class="config-field">
+          <label>Ntfy Server</label>
+          <input type="text" value="${esc(n.ntfyServer || '')}" onchange="markDirty('notifications','ntfyServer',this.value)">
+        </div>
+        <div class="config-field">
+          <label>Ntfy Topic</label>
+          <input type="text" value="${esc(n.ntfyTopic || '')}" onchange="markDirty('notifications','ntfyTopic',this.value)">
+        </div>
+        <div class="config-field">
+          <label>Discord Webhook</label>
+          <input type="text" value="${n.discordWebhook ? '••••••••' : ''}" onchange="markDirty('notifications','discordWebhook',this.value)" placeholder="https://discord.com/api/webhooks/...">
+        </div>`;
+    }
+
+    function renderGovHealth(h) {
+      return `
+        <div class="config-field-row">
+          <div class="config-field"><label>Healthcheck Interval (sec)</label><input type="number" value="${h.healthcheckInterval || 300}" onchange="markDirty('health','healthcheckInterval',this.value)"></div>
+          <div class="config-field"><label>Restart Cooldown (sec)</label><input type="number" value="${h.restartCooldown || 60}" onchange="markDirty('health','restartCooldown',this.value)"></div>
+        </div>
+        <div class="config-toggle">
+          <div class="config-toggle-switch ${h.modelLock ? 'on' : ''}" onclick="toggleConfigSwitch(this,'health','modelLock')"></div>
+          <span class="config-toggle-label">Model Lock (prevent automatic model changes)</span>
+        </div>`;
+    }
+
+    // ── Config Interaction Helpers ──
+    function markDirty(section, key, value) {
+      if (!_configState.dirty[section]) _configState.dirty[section] = {};
+      _configState.dirty[section][key] = value;
+    }
+
+    function toggleConfigSwitch(el, section, key) {
+      const isOn = el.classList.toggle('on');
+      markDirty(section, key, isOn);
+    }
+
+    function addListItem(section, key, inputId) {
+      const input = document.getElementById(inputId);
+      const val = input.value.trim();
+      if (!val) return;
+      if (section === 'restrictions') {
+        if (!_configState.data.restrictions) _configState.data.restrictions = [];
+        _configState.data.restrictions.push(val);
+        markDirty('restrictions', 'list', _configState.data.restrictions);
+      } else if (section === 'hooks') {
+        if (!_configState.data.hooks) _configState.data.hooks = {};
+        if (!_configState.data.hooks[key]) _configState.data.hooks[key] = [];
+        _configState.data.hooks[key].push(val);
+        markDirty('hooks', key, _configState.data.hooks[key]);
+      } else if (section === 'labels') {
+        if (!_configState.data.labels) _configState.data.labels = [];
+        _configState.data.labels.push(val);
+        markDirty('labels', 'list', _configState.data.labels);
+      }
+      input.value = '';
+      renderConfigTab(_configState.tab);
+    }
+
+    function removeListItem(section, key, index) {
+      if (section === 'restrictions') {
+        _configState.data.restrictions.splice(index, 1);
+        markDirty('restrictions', 'list', _configState.data.restrictions);
+      } else if (section === 'hooks') {
+        _configState.data.hooks[key].splice(index, 1);
+        markDirty('hooks', key, _configState.data.hooks[key]);
+      } else if (section === 'labels') {
+        _configState.data.labels.splice(index, 1);
+        markDirty('labels', 'list', _configState.data.labels);
+      }
+      renderConfigTab(_configState.tab);
+    }
+
+    function addAgent() {
+      const input = document.getElementById('cfg-new-agent');
+      const name = input.value.trim().toLowerCase();
+      if (!name) return;
+      if (_configState.data.agents && _configState.data.agents.includes(name)) {
+        showToast(`Agent "${name}" already exists`, 'error');
+        return;
+      }
+      fetch('/api/config/governor/agents', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then(() => {
+          showToast(`Agent "${name}" added`, 'success');
+          if (!_configState.data.agents) _configState.data.agents = [];
+          _configState.data.agents.push(name);
+          input.value = '';
+          renderConfigTab('Agents');
+        })
+        .catch(err => showToast(`Failed: ${err.message}`, 'error'));
+    }
+
+    function removeAgent(name) {
+      if (!confirm(`Remove agent "${name}"? This will delete its configuration.`)) return;
+      fetch(`/api/config/governor/agents/${name}`, { method: 'DELETE' })
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then(() => {
+          showToast(`Agent "${name}" removed`, 'success');
+          _configState.data.agents = (_configState.data.agents || []).filter(a => a !== name);
+          renderConfigTab('Agents');
+        })
+        .catch(err => showToast(`Failed: ${err.message}`, 'error'));
+    }
+
+    async function saveConfig() {
+      const dirty = _configState.dirty;
+      if (Object.keys(dirty).length === 0) {
+        showToast('No changes to save', 'info');
+        return;
+      }
+      const base = _configState.type === 'governor' ? '/api/config/governor' : `/api/config/agent/${_configState.agent}`;
+      let success = true;
+      for (const [section, values] of Object.entries(dirty)) {
+        try {
+          const res = await fetch(`${base}/${section}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(values)
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (err) {
+          showToast(`Failed to save ${section}: ${err.message}`, 'error');
+          success = false;
+        }
+      }
+      if (success) {
+        showToast('Configuration saved', 'success');
+        _configState.dirty = {};
+      }
+    }
+
     connect();
   </script>
 </body>

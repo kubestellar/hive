@@ -59,6 +59,15 @@ for src in "$HIVE_REPO"/bin/*.sh; do
   fi
 done
 
+# hive.sh is installed as /usr/local/bin/hive (no .sh extension)
+HIVE_CLI="$HIVE_REPO/bin/hive.sh"
+HIVE_INSTALLED="$INSTALL_DIR/hive"
+if [ -f "$HIVE_CLI" ] && ! cmp -s "$HIVE_CLI" "$HIVE_INSTALLED"; then
+  sudo cp "$HIVE_CLI" "$HIVE_INSTALLED"
+  sudo chmod +x "$HIVE_INSTALLED"
+  SYNCED="$SYNCED hive.sh→hive"
+fi
+
 # gh-wrapper.sh is installed as /usr/local/bin/gh (ahead of /usr/bin/gh in PATH)
 GH_WRAPPER="$HIVE_REPO/bin/gh-wrapper.sh"
 GH_INSTALLED="$INSTALL_DIR/gh"

@@ -692,10 +692,17 @@ cmd_status() {
   else
     gov_label="${RED}⚠ DEAD${RST}"
   fi
-  local next
-  next=$(systemctl list-timers kick-governor.timer --no-pager 2>/dev/null \
-       | awk 'NR==2{print $1,$2,$3,$4}' \
-       | xargs -I{} bash -c "TZ=\"$HIVE_TZ\" date -d \"{}\" \"+%-I:%M %p %Z\"" 2>/dev/null || echo "—")
+  local next _txt_timer
+  _txt_timer=$(systemctl list-timers kick-governor.timer --no-pager 2>/dev/null \
+       | awk 'NR==2{print $1,$2,$3,$4}')
+  if [[ "$_txt_timer" == -* || -z "$_txt_timer" ]]; then
+    local _gi=300 _tn _te
+    _tn=$(date +%s)
+    _te=$(( _tn - (_tn % _gi) + _gi ))
+    next=$(TZ="$HIVE_TZ" date -d "@$_te" "+%-I:%M %p %Z" 2>/dev/null || echo "—")
+  else
+    next=$(bash -c "TZ=\"$HIVE_TZ\" date -d \"$_txt_timer\" \"+%-I:%M %p %Z\"" 2>/dev/null || echo "—")
+  fi
   echo -e "  Governor:  ${BLD}$mode${RST} [${gov_label}]  actionable: ${queue}  |  next kick: ${CYN}$next${RST}"
 
   # Per-repo issue + PR counts with trend markers

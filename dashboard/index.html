@@ -517,7 +517,7 @@
     .config-modal {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; width: 700px; max-width: 95vw;
-      max-height: 85vh; display: flex; flex-direction: column;
+      min-height: 500px; max-height: 85vh; display: flex; flex-direction: column;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
     .config-header {
@@ -586,6 +586,23 @@
     }
     .config-toggle-switch.on::before { transform: translateX(16px); }
     .config-toggle-label { font-size: 0.8rem; color: var(--text); }
+
+    .config-info {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--border); color: var(--muted); font-size: 0.55rem;
+      font-weight: 700; cursor: help; margin-left: 4px; position: relative;
+      vertical-align: middle; flex-shrink: 0;
+    }
+    .config-info:hover { background: var(--blue); color: #fff; }
+    .config-info .config-tooltip {
+      display: none; position: absolute; bottom: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%); background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 10px; font-size: 0.7rem; font-weight: 400;
+      color: var(--text); white-space: normal; width: 240px; z-index: 10001;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4); line-height: 1.4;
+    }
+    .config-info:hover .config-tooltip { display: block; }
 
     .config-list { margin-bottom: 14px; }
     .config-list-item {
@@ -2184,17 +2201,17 @@ function burnAreaChart() {
         </div>
         <div class="config-field">
           <label>CLI Pin Value</label>
-          <select id="cfg-pin-value" onchange="markDirty('general','cliPinValue',this.value)">
+          <select id="cfg-pin-value" onchange="markDirty('general','cliPinValue',this.value);updateLaunchCmd(this.value)">
             ${KNOWN_BACKENDS.map(b => `<option value="${b}" ${g.cliPinValue === b ? 'selected' : ''}>${b}</option>`).join('')}
           </select>
         </div>
         <div class="config-field-row">
           <div class="config-field">
-            <label>Stale Timeout (sec)</label>
+            <label>Stale Timeout (sec) <span class="config-info">i<span class="config-tooltip">How long (in seconds) an agent can be idle before the governor considers it stale and triggers a restart. Default is 1200s (20 minutes).</span></span></label>
             <input type="number" id="cfg-stale-timeout" value="${g.staleTimeout || 1200}" onchange="markDirty('general','staleTimeout',this.value)">
           </div>
           <div class="config-field">
-            <label>Restart Strategy</label>
+            <label>Restart Strategy <span class="config-info">i<span class="config-tooltip">immediate: restart right away when stale or crashed. backoff: wait progressively longer between restart attempts (useful for rate-limited agents). none: do not auto-restart — operator must manually intervene.</span></span></label>
             <select id="cfg-restart-strategy" onchange="markDirty('general','restartStrategy',this.value)">
               ${RESTART_STRATEGIES.map(s => `<option value="${s}" ${g.restartStrategy === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
@@ -2376,6 +2393,22 @@ function burnAreaChart() {
     function toggleConfigSwitch(el, section, key) {
       const isOn = el.classList.toggle('on');
       markDirty(section, key, isOn);
+    }
+
+    function updateLaunchCmd(cli) {
+      const input = document.getElementById('cfg-launch-cmd');
+      if (!input) return;
+      const current = input.value;
+      const CLI_PATHS = { copilot: '/usr/bin/copilot', claude: '/usr/bin/claude', aider: '/usr/bin/aider' };
+      const newBin = CLI_PATHS[cli] || `/usr/bin/${cli}`;
+      const updated = current.replace(/\/usr\/bin\/\S+|agent-launch\.sh\s+--backend\s+\S+/, (match) => {
+        if (match.startsWith('agent-launch.sh')) return `agent-launch.sh --backend ${cli}`;
+        return newBin;
+      });
+      if (updated !== current) {
+        input.value = updated;
+        markDirty('general', 'launchCmd', updated);
+      }
     }
 
     function addListItem(section, key, inputId) {

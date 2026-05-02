@@ -1131,6 +1131,13 @@ function removeEnvVar(filePath, key) {
   execSync(`sudo sed -i '/^${key}=/d' ${filePath}`);
 }
 
+function deriveCli(launchCmd) {
+  if (/copilot/i.test(launchCmd)) return 'copilot';
+  if (/claude/i.test(launchCmd)) return 'claude';
+  if (/aider/i.test(launchCmd)) return 'aider';
+  return 'claude';
+}
+
 app.get('/api/config/agent/:name', (req, res) => {
   const { name } = req.params;
   if (!ENABLED_AGENTS.includes(name)) {
@@ -1144,7 +1151,7 @@ app.get('/api/config/agent/:name', (req, res) => {
     const general = {
       launchCmd: agentEnv.AGENT_LAUNCH_CMD || '',
       cliPinned: agentEnv.AGENT_CLI_PINNED === 'true',
-      cliPinValue: agentEnv.AGENT_CLI_PIN_VALUE || 'claude',
+      cliPinValue: agentEnv.AGENT_CLI_PIN_VALUE || deriveCli(agentEnv.AGENT_LAUNCH_CMD || ''),
       staleTimeout: parseInt(agentEnv.AGENT_STALE_TIMEOUT_SEC || '1200', 10),
       restartStrategy: agentEnv.AGENT_RESTART_STRATEGY || 'immediate',
     };

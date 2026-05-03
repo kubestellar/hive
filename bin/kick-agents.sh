@@ -780,6 +780,8 @@ if policy_changed "scanner"; then
 else
   _SCANNER_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
 fi
+_GH_AUTH_INSTR="⚙ GH AUTH: ALWAYS prefix gh commands with: GH_TOKEN=\$(cat /var/run/hive-metrics/gh-app-token.cache) gh ... — this uses the GitHub App token (15k/hr). NEVER use a PAT or hardcode tokens. NEVER set GH_TOKEN from env vars or hosts.yml. The App token file is refreshed automatically."
+
 _CLUSTER_SECTION=""
 if [ -n "$_CLUSTERS_INLINE" ]; then
   _CLUSTER_SECTION="
@@ -787,6 +789,7 @@ CLUSTERS (bundle into 1 agent each):
 ${_CLUSTERS_INLINE}"
 fi
 SCANNER_MSG="[agent:scanner] [KICK] git pull /tmp/hive. ${_SCANNER_POLICY_INSTR}
+${_GH_AUTH_INSTR}
 YOUR WORK LIST (pre-filtered — hold/ADOPTERS/drafts excluded, classified):
 ${_WORK_LIST}${_CLUSTER_SECTION}${_MERGE_INLINE}
 ⛔ NEVER run gh issue list, gh pr list, gh search issues, or gh search prs — the work list above is your ONLY source. You may use gh issue view, gh pr view, gh pr merge, gh pr create on individual items.
@@ -855,6 +858,7 @@ GA4: ${_GA4_SUMMARY}"
   fi
 fi
 REVIEWER_MSG="[agent:reviewer] [KICK] ${_HEALTH_PREAMBLE}git pull /tmp/hive. ${_REVIEWER_POLICY_INSTR}${_GA4_PREAMBLE}${_COPILOT_PREAMBLE}
+${_GH_AUTH_INSTR}
 Fix REDs (NOT Playwright — file issues only, scanner owns Playwright fixes), merge green PRs. Copilot comments and GA4 data above are pre-computed — do NOT re-query. Read /var/run/hive-metrics/copilot-comments.json and /var/run/hive-metrics/ga4-anomalies.json for full details. Beads: ~/reviewer-beads"
 
 if policy_changed "architect"; then
@@ -862,7 +866,9 @@ if policy_changed "architect"; then
 else
   _ARCHITECT_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
 fi
-ARCHITECT_MSG="[agent:architect] [KICK] git pull /tmp/hive. ${_ARCHITECT_POLICY_INSTR} Full architect pass — refactor/perf scan. Beads: ~/architect-beads"
+ARCHITECT_MSG="[agent:architect] [KICK] git pull /tmp/hive. ${_ARCHITECT_POLICY_INSTR}
+${_GH_AUTH_INSTR}
+Full architect pass — refactor/perf scan. Beads: ~/architect-beads"
 
 if policy_changed "outreach"; then
   _OUTREACH_POLICY_INSTR="Read your CLAUDE.md."
@@ -892,6 +898,7 @@ _OUTREACH_SECTION=""
 [ -n "$_OUTREACH_PREAMBLE" ] && _OUTREACH_SECTION="
 ${_OUTREACH_PREAMBLE}"
 OUTREACH_MSG="[agent:outreach] [KICK] git pull /tmp/hive. ${_OUTREACH_POLICY_INSTR}${_OUTREACH_SECTION}
+${_GH_AUTH_INSTR}
 Full outreach pass. PR counts above are pre-computed — do NOT re-query with gh search. Read /var/run/hive-metrics/outreach-prs.json for full details. Check blocked_orgs before opening new PRs. Beads: ~/outreach-beads"
 
 # ── Governor model integration ──────────────────────────────────────
@@ -1075,7 +1082,9 @@ if policy_changed "supervisor"; then
 else
   _SUPERVISOR_POLICY_INSTR="Policy unchanged since last kick — skip CLAUDE.md re-read, continue with standing instructions."
 fi
-SUPERVISOR_MSG="[agent:supervisor] [KICK] MONITORING PASS ${_now_et}. ${_SUPERVISOR_POLICY_INSTR} Check all agent panes, merge green PRs, unstick idle agents. Beads: ~/supervisor-beads"
+SUPERVISOR_MSG="[agent:supervisor] [KICK] MONITORING PASS ${_now_et}. ${_SUPERVISOR_POLICY_INSTR}
+${_GH_AUTH_INSTR}
+Check all agent panes, merge green PRs, unstick idle agents. Beads: ~/supervisor-beads"
 
 case "$TARGET" in
   scanner)

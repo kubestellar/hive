@@ -17,7 +17,7 @@ fi
 # Fallback defaults (kubestellar) when no config loaded
 REPO="${PROJECT_PRIMARY_REPO:-kubestellar/console}"
 BREW_TAP="${HEALTH_BREW_TAP_REPO:-kubestellar/homebrew-tap}"
-BREW_FORMULA="${HEALTH_BREW_FORMULA:-kubestellar-console.rb}"
+BREW_FORMULA="${HEALTH_BREW_FORMULA:-kc-agent.rb}"
 HELM_PATH="${HEALTH_HELM_CHART_PATH:-deploy/helm/kubestellar-console/Chart.yaml}"
 CI_WF="${HEALTH_CI_WORKFLOW:-Build and Deploy KC}"
 REL_WF="${HEALTH_RELEASE_WORKFLOW:-Release}"
@@ -72,19 +72,14 @@ else
   workflow_json="${workflow_json}\"nightlyPlaywright\":$(check_workflow "Playwright Cross-Browser (Nightly)"),"
 fi
 
-# ── Release workflow — nightly and weekly ────────────────────────────────────
-if [ -n "$REL_WF" ]; then
-  EIGHT_DAYS_AGO=$(date -u -v-8d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '8 days ago' '+%Y-%m-%dT%H:%M:%SZ')
-  nightly_rel=$(gh run list --repo "$REPO" --workflow "$REL_WF" --event schedule --status completed --limit 20 \
-    --json conclusion,createdAt --jq "[.[] | select(.createdAt > \"${EIGHT_DAYS_AGO}\")] | [.[] | select((.createdAt | strptime(\"%Y-%m-%dT%H:%M:%SZ\") | strftime(\"%u\")) != \"7\")][0].conclusion // \"none\"" 2>/dev/null || echo "none")
-  nightly_rel_ok=$( [ "$nightly_rel" = "success" ] && echo 1 || echo 0 )
-  weekly_rel=$(gh run list --repo "$REPO" --workflow "$REL_WF" --event schedule --status completed --limit 20 \
-    --json conclusion,createdAt --jq "[.[] | select(.createdAt > \"${EIGHT_DAYS_AGO}\")] | [.[] | select((.createdAt | strptime(\"%Y-%m-%dT%H:%M:%SZ\") | strftime(\"%u\")) == \"7\")][0].conclusion // \"none\"" 2>/dev/null || echo "none")
-  weekly_rel_ok=$( [ "$weekly_rel" = "success" ] && echo 1 || echo 0 )
-else
-  nightly_rel_ok=-1
-  weekly_rel_ok=-1
-fi
+# ── Release freshness — nightly (24h) and weekly (7d) ────────────────────────
+# Check GitHub Releases: nightly = prerelease with -nightly tag in last 24h,
+# weekly/stable = non-prerelease release in last 7 days.
+ONE_DAY_AGO=$(date -u -v-1d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '1 day ago' '+%Y-%m-%dT%H:%M:%SZ')
+SEVEN_DAYS_AGO=$(date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')
+releases=$(gh api "repos/${REPO}/releases?per_page=20" --jq '[.[] | {tag_name, prerelease, draft, created_at}]' 2>/dev/null || echo "[]")
+nightly_rel_ok=$(echo "$releases" | jq -r "[.[] | select(.prerelease == true and .draft == false and (.created_at > \"${ONE_DAY_AGO}\") and (.tag_name | test(\"nightly\")))] | if length > 0 then 1 else 0 end")
+weekly_rel_ok=$(echo "$releases" | jq -r "[.[] | select(.prerelease == false and .draft == false and (.created_at > \"${SEVEN_DAYS_AGO}\") and (.tag_name | test(\"nightly\") | not))] | if length > 0 then 1 else 0 end")
 
 # ── Weekly workflow ──────────────────────────────────────────────────────────
 # Check for a "Weekly" type workflow from config, or fall back to hardcoded

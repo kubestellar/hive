@@ -1370,7 +1370,7 @@ app.get('/api/config/governor', (_req, res) => {
     const notifications = {
       ntfyServer: govEnv.NTFY_SERVER || agentBaseEnv.NTFY_SERVER || '',
       ntfyTopic: govEnv.NTFY_TOPIC || agentBaseEnv.NTFY_TOPIC || '',
-      discordWebhook: (govEnv.DISCORD_WEBHOOK || agentBaseEnv.DISCORD_WEBHOOK) ? '(configured)' : '',
+      discordWebhook: govEnv.DISCORD_WEBHOOK || agentBaseEnv.DISCORD_WEBHOOK || '',
     };
 
     const health = {
@@ -1425,7 +1425,7 @@ app.put('/api/config/governor/notifications', (req, res) => {
     const { ntfyServer, ntfyTopic, discordWebhook } = req.body;
     if (ntfyServer !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'NTFY_SERVER', ntfyServer);
     if (ntfyTopic !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'NTFY_TOPIC', ntfyTopic);
-    if (discordWebhook && discordWebhook !== '••••••••') writeEnvVar(GOVERNOR_ENV_PATH, 'DISCORD_WEBHOOK', discordWebhook);
+    if (discordWebhook !== undefined) writeEnvVar(GOVERNOR_ENV_PATH, 'DISCORD_WEBHOOK', discordWebhook);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

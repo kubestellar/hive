@@ -2500,7 +2500,7 @@ function burnAreaChart() {
         </div>
         <div class="config-field">
           <label>Discord Webhook</label>
-          <input type="text" value="${n.discordWebhook ? '••••••••' : ''}" onchange="markDirty('notifications','discordWebhook',this.value)" placeholder="https://discord.com/api/webhooks/...">
+          <input type="text" value="${esc(n.discordWebhook || '')}" onchange="markDirty('notifications','discordWebhook',this.value)" placeholder="https://discord.com/api/webhooks/...">
         </div>`;
     }
 

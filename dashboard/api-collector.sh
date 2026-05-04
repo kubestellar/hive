@@ -33,10 +33,17 @@ PROJECT="${PROJECT_NAME:-KubeStellar}"
 # (designed for agents) which would break this infrastructure script.
 GH=/usr/bin/gh
 
-# Auth: use HIVE_GITHUB_TOKEN if set
-if [ -n "${HIVE_GITHUB_TOKEN:-}" ]; then
-  unset GITHUB_TOKEN 2>/dev/null || true
+# Auth: use hive GitHub App token — never fall back to personal gh auth
+unset GITHUB_TOKEN 2>/dev/null || true
+GH_APP_TOKEN_CACHE="/var/run/hive-metrics/gh-app-token.cache"
+if [[ -f "$GH_APP_TOKEN_CACHE" ]]; then
+  export GH_TOKEN="$(cat "$GH_APP_TOKEN_CACHE")"
+elif [[ -n "${HIVE_GITHUB_TOKEN:-}" ]]; then
   export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+else
+  echo '{"error":"no hive app token available","repos":[]}' > "$CACHE_FILE"
+  echo "ERROR: no hive app token — cannot collect GitHub data" >&2
+  exit 0
 fi
 
 tmpdir=$(mktemp -d)

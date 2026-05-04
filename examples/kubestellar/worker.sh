@@ -5,6 +5,18 @@
 # The Copilot skill reads the DB and does actual fixes.
 set -euo pipefail
 
+# Use hive GitHub App token — never fall back to personal gh auth
+unset GITHUB_TOKEN 2>/dev/null || true
+GH_APP_TOKEN_CACHE="/var/run/hive-metrics/gh-app-token.cache"
+if [[ -f "$GH_APP_TOKEN_CACHE" ]]; then
+  export GH_TOKEN="$(cat "$GH_APP_TOKEN_CACHE")"
+elif [[ -n "${HIVE_GITHUB_TOKEN:-}" ]]; then
+  export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+else
+  echo "ERROR: no hive app token available" >&2
+  exit 1
+fi
+
 DIR="$HOME/.kubestellar-fix-loop"
 DB="$DIR/state.db"
 LOCKFILE="$DIR/cycle.lock"
@@ -84,12 +96,12 @@ NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 for repo in $REPOS; do
   # Fetch issues
-  ISSUES=$(unset GITHUB_TOKEN && gh issue list --repo "kubestellar/$repo" --state open --limit 200 \
+  ISSUES=$(gh issue list --repo "kubestellar/$repo" --state open --limit 200 \
     --json number,title,author,createdAt 2>/dev/null || echo "[]")
   IC=$(echo "$ISSUES" | jq 'length' 2>/dev/null || echo 0)
 
   # Fetch PRs
-  PRS=$(unset GITHUB_TOKEN && gh pr list --repo "kubestellar/$repo" --state open --limit 100 \
+  PRS=$(gh pr list --repo "kubestellar/$repo" --state open --limit 100 \
     --json number,title,author,createdAt 2>/dev/null || echo "[]")
   PC=$(echo "$PRS" | jq 'length' 2>/dev/null || echo 0)
 

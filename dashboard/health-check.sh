@@ -4,7 +4,18 @@
 # Falls back to hardcoded kubestellar defaults if no config file exists.
 set +e
 unset GITHUB_TOKEN
-[ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+
+# Use hive GitHub App token — never fall back to personal gh auth
+GH_APP_TOKEN_CACHE="/var/run/hive-metrics/gh-app-token.cache"
+if [[ -f "$GH_APP_TOKEN_CACHE" ]]; then
+  export GH_TOKEN="$(cat "$GH_APP_TOKEN_CACHE")"
+elif [[ -n "${HIVE_GITHUB_TOKEN:-}" ]]; then
+  export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+else
+  echo '{"error":"no hive app token available"}' >&2
+  echo '{"ci":0,"brew":-1,"helm":-1,"nightlyRel":-1,"weeklyRel":-1,"weekly":-1,"hourly":-1}'
+  exit 0
+fi
 
 # Load project config
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -29,7 +40,7 @@ ci=$(gh run list --repo "$REPO" --status completed --limit 10 --json conclusion 
 # ── Brew formula freshness ───────────────────────────────────────────────────
 if [ -n "$BREW_TAP" ] && [ -n "$BREW_FORMULA" ]; then
   formula_ver=$(gh api "repos/${BREW_TAP}/contents/Formula/${BREW_FORMULA}" \
-    --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep -oP 'version "\K[^"]+' | sed 's/^v//' || echo "?")
+    --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | grep 'version "' | sed 's/.*version "//;s/".*//' | sed 's/^v//' || echo "?")
   latest_rel=$(gh api "repos/${REPO}/releases/latest" --jq '.tag_name' 2>/dev/null | sed 's/^v//' || echo "?")
   brew_ok=$( [ "$formula_ver" = "$latest_rel" ] && echo 1 || echo 0 )
 else
@@ -126,7 +137,7 @@ hourly_ok=$hourly_worst
 deploy_json=""
 if [ -n "$CI_WF" ]; then
   deploy_run_id=$(gh run list --repo "$REPO" --workflow "$CI_WF" \
-    --event push --branch main --limit 1 \
+    --event push --branch main --status completed --limit 1 \
     --json databaseId --jq '.[0].databaseId' 2>/dev/null || echo "")
 
   if [ -n "$deploy_run_id" ]; then

@@ -633,6 +633,28 @@
     .config-pre-fill {
       max-height: none; flex: 1; min-height: 200px;
     }
+    .thresh-bar-wrap { margin: 10px 0; }
+    .thresh-bar-track {
+      position: relative; height: 28px; border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08); cursor: default;
+    }
+    .thresh-handle {
+      position: absolute; top: -4px; width: 6px; height: 36px;
+      background: #fff; border-radius: 3px; cursor: ew-resize; z-index: 3;
+      box-shadow: 0 0 8px rgba(255,255,255,0.7), 0 0 16px rgba(255,255,255,0.3);
+      transform: translateX(-50%); touch-action: none;
+    }
+    .thresh-handle:hover { background: #e0e0e0; box-shadow: 0 0 12px rgba(255,255,255,0.9); }
+    .thresh-bar-labels {
+      position: relative; margin-top: 6px; height: 1.2em;
+      font-size: 0.75rem; font-weight: 600;
+    }
+    .thresh-bar-labels span { position: absolute; transform: translateX(-50%); }
+    .thresh-zone-labels {
+      position: relative; margin-top: 2px; height: 1em;
+      font-size: 0.6rem;
+    }
+    .thresh-zone-labels span { position: absolute; transform: translateX(-50%); text-transform: uppercase; letter-spacing: 0.5px; }
 
     .config-agent-list { list-style: none; }
     .config-agent-list li {
@@ -1324,6 +1346,9 @@
       { value: 'gpt-5.4', label: 'GPT-5.4' },
       { value: 'gpt-5.2', label: 'GPT-5.2' },
     ];
+
+    function _normalizeModel(m) { return (m || '').replace(/(\d+)\.(\d+)$/, '$1-$2'); }
+    function _modelsEqual(a, b) { return _normalizeModel(a) === _normalizeModel(b); }
 
     function _modelTier(model) {
       const m = (model || '').toLowerCase();
@@ -2105,7 +2130,7 @@ function burnAreaChart() {
     let _configState = { type: null, agent: null, tab: null, data: {}, dirty: {} };
 
     const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Pipeline', 'Hooks', 'Restrictions', 'Prompts'];
-    const GOVERNOR_CONFIG_TABS = ['Agents', 'Thresholds', 'Labels', 'Budget', 'Notifications', 'Health'];
+    const GOVERNOR_CONFIG_TABS = ['Agents', 'Thresholds', 'Labels', 'Repos', 'Budget', 'Notifications', 'Health'];
     const PIPELINE_STAGES = ['resolve-beads', 'track-prs', 'stale-check', 'repo-scan', 'coverage-gate', 'prompt-compose', 'budget-check', 'api-collect', 'final-compose'];
     const RESTART_STRATEGIES = ['immediate', 'backoff', 'none'];
 
@@ -2183,6 +2208,7 @@ function burnAreaChart() {
         case 'Agents': return renderGovAgents(d.agents || []);
         case 'Thresholds': return renderGovThresholds(d.thresholds || {});
         case 'Labels': return renderGovLabels(d.labels || []);
+        case 'Repos': return renderGovRepos(d.repos || []);
         case 'Budget': return renderGovBudget(d.budget || {});
         case 'Notifications': return renderGovNotifications(d.notifications || {});
         case 'Health': return renderGovHealth(d.health || {});
@@ -2223,7 +2249,7 @@ function burnAreaChart() {
           <label>Model</label>
           <select id="cfg-model" onchange="markDirty('general','model',this.value)">
             <option value="">(from launch command)</option>
-            ${KNOWN_MODELS.map(m => `<option value="${m.value}" ${g.model === m.value ? 'selected' : ''}>${m.label}</option>`).join('')}
+            ${KNOWN_MODELS.map(m => `<option value="${m.value}" ${_modelsEqual(g.model, m.value) ? 'selected' : ''}>${m.label}</option>`).join('')}
           </select>
         </div>`;
     }
@@ -2317,17 +2343,107 @@ function burnAreaChart() {
         </div>`;
     }
 
+    const THRESH_BAR_MAX = 40;
+    const THRESH_COLORS = { idle: '#238636', quiet: '#58a6ff', busy: '#d29922', surge: '#f85149' };
+
     function renderGovThresholds(t) {
+      const q = t.quiet || 2, b = t.busy || 10, s = t.surge || 20;
+      const qPct = (q / THRESH_BAR_MAX) * 100;
+      const bPct = (b / THRESH_BAR_MAX) * 100;
+      const sPct = (s / THRESH_BAR_MAX) * 100;
       return `
-        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Issue count thresholds that trigger mode changes.</p>
-        <div class="config-field-row">
-          <div class="config-field"><label>Surge Threshold</label><input type="number" value="${t.surge || 20}" onchange="markDirty('thresholds','surge',this.value)"></div>
-          <div class="config-field"><label>Busy Threshold</label><input type="number" value="${t.busy || 10}" onchange="markDirty('thresholds','busy',this.value)"></div>
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:20px">Drag the handles to set issue-count thresholds for governor mode transitions.</p>
+        <div class="thresh-bar-wrap">
+          <div class="thresh-bar-track" id="thresh-track"
+               style="background:linear-gradient(to right,
+                 ${THRESH_COLORS.idle} 0%,${THRESH_COLORS.idle} ${qPct}%,
+                 ${THRESH_COLORS.quiet} ${qPct}%,${THRESH_COLORS.quiet} ${bPct}%,
+                 ${THRESH_COLORS.busy} ${bPct}%,${THRESH_COLORS.busy} ${sPct}%,
+                 ${THRESH_COLORS.surge} ${sPct}%,${THRESH_COLORS.surge} 100%)">
+            <div class="thresh-handle" id="thresh-quiet" style="left:${qPct}%" data-key="quiet" data-val="${q}"></div>
+            <div class="thresh-handle" id="thresh-busy" style="left:${bPct}%" data-key="busy" data-val="${b}"></div>
+            <div class="thresh-handle" id="thresh-surge" style="left:${sPct}%" data-key="surge" data-val="${s}"></div>
+          </div>
+          <div class="thresh-bar-labels">
+            <span style="left:0;transform:none;color:${THRESH_COLORS.idle}">0</span>
+            <span style="left:${qPct}%;color:${THRESH_COLORS.quiet}" id="thresh-lbl-quiet">${q}</span>
+            <span style="left:${bPct}%;color:${THRESH_COLORS.busy}" id="thresh-lbl-busy">${b}</span>
+            <span style="left:${sPct}%;color:${THRESH_COLORS.surge}" id="thresh-lbl-surge">${s}</span>
+            <span style="right:0;left:auto;transform:none;color:var(--muted)">${THRESH_BAR_MAX}</span>
+          </div>
+          <div class="thresh-zone-labels">
+            <span style="left:${qPct / 2}%;color:${THRESH_COLORS.idle}">idle</span>
+            <span style="left:${(qPct + bPct) / 2}%;color:${THRESH_COLORS.quiet}">quiet</span>
+            <span style="left:${(bPct + sPct) / 2}%;color:${THRESH_COLORS.busy}">busy</span>
+            <span style="left:${(sPct + 100) / 2}%;color:${THRESH_COLORS.surge}">surge</span>
+          </div>
         </div>
-        <div class="config-field">
-          <label>Quiet Threshold</label>
-          <input type="number" value="${t.quiet || 2}" onchange="markDirty('thresholds','quiet',this.value)">
+        <div class="config-field-row" style="margin-top:24px">
+          <div class="config-field"><label>Quiet</label><input type="number" min="1" id="thresh-in-quiet" value="${q}" onchange="setThreshFromInput('quiet',this.value)"></div>
+          <div class="config-field"><label>Busy</label><input type="number" min="1" id="thresh-in-busy" value="${b}" onchange="setThreshFromInput('busy',this.value)"></div>
+          <div class="config-field"><label>Surge</label><input type="number" min="1" id="thresh-in-surge" value="${s}" onchange="setThreshFromInput('surge',this.value)"></div>
         </div>`;
+    }
+
+    function setThreshFromInput(key, val) {
+      const v = Math.max(1, Math.min(THRESH_BAR_MAX, parseInt(val) || 1));
+      markDirty('thresholds', key, v);
+      renderConfigTab('Thresholds');
+    }
+
+    (function initThreshDrag() {
+      let active = null, trackRect = null;
+      document.addEventListener('pointerdown', (e) => {
+        if (!e.target.classList.contains('thresh-handle')) return;
+        active = e.target;
+        trackRect = document.getElementById('thresh-track').getBoundingClientRect();
+        active.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      document.addEventListener('pointermove', (e) => {
+        if (!active || !trackRect) return;
+        const pct = Math.max(0, Math.min(100, ((e.clientX - trackRect.left) / trackRect.width) * 100));
+        const val = Math.round((pct / 100) * THRESH_BAR_MAX);
+        const key = active.dataset.key;
+        const d = _configState.data.thresholds || {};
+        const merged = Object.assign({}, d, _configState.dirty.thresholds || {});
+        let clamped = val;
+        if (key === 'quiet') clamped = Math.max(1, Math.min(clamped, (merged.busy || 10) - 1));
+        if (key === 'busy') clamped = Math.max((merged.quiet || 2) + 1, Math.min(clamped, (merged.surge || 20) - 1));
+        if (key === 'surge') clamped = Math.max((merged.busy || 10) + 1, Math.min(clamped, THRESH_BAR_MAX - 1));
+        active.dataset.val = clamped;
+        active.style.left = ((clamped / THRESH_BAR_MAX) * 100) + '%';
+        const lbl = document.getElementById('thresh-lbl-' + key);
+        if (lbl) { lbl.textContent = clamped; lbl.style.left = ((clamped / THRESH_BAR_MAX) * 100) + '%'; }
+        const inp = document.getElementById('thresh-in-' + key);
+        if (inp) inp.value = clamped;
+        markDirty('thresholds', key, clamped);
+        updateThreshBarGradient();
+      });
+      document.addEventListener('pointerup', () => { active = null; trackRect = null; });
+    })();
+
+    function updateThreshBarGradient() {
+      const track = document.getElementById('thresh-track');
+      if (!track) return;
+      const d = _configState.data.thresholds || {};
+      const m = Object.assign({}, d, _configState.dirty.thresholds || {});
+      const qP = ((m.quiet || 2) / THRESH_BAR_MAX) * 100;
+      const bP = ((m.busy || 10) / THRESH_BAR_MAX) * 100;
+      const sP = ((m.surge || 20) / THRESH_BAR_MAX) * 100;
+      track.style.background = `linear-gradient(to right,
+        ${THRESH_COLORS.idle} 0%,${THRESH_COLORS.idle} ${qP}%,
+        ${THRESH_COLORS.quiet} ${qP}%,${THRESH_COLORS.quiet} ${bP}%,
+        ${THRESH_COLORS.busy} ${bP}%,${THRESH_COLORS.busy} ${sP}%,
+        ${THRESH_COLORS.surge} ${sP}%,${THRESH_COLORS.surge} 100%)`;
+      const zones = track.parentElement.querySelector('.thresh-zone-labels');
+      if (zones) {
+        const spans = zones.querySelectorAll('span');
+        if (spans[0]) spans[0].style.left = (qP / 2) + '%';
+        if (spans[1]) spans[1].style.left = ((qP + bP) / 2) + '%';
+        if (spans[2]) spans[2].style.left = ((bP + sP) / 2) + '%';
+        if (spans[3]) spans[3].style.left = ((sP + 100) / 2) + '%';
+      }
     }
 
     function renderGovLabels(labels) {
@@ -2341,6 +2457,21 @@ function burnAreaChart() {
           <div class="config-list-add">
             <input type="text" id="cfg-label-input" placeholder="label name">
             <button onclick="addListItem('labels','list','cfg-label-input')">+ Add</button>
+          </div>
+        </div>`;
+    }
+
+    function renderGovRepos(repos) {
+      const list = repos.map((r, i) =>
+        `<div class="config-list-item"><span>${esc(r)}</span><button class="remove-item" onclick="removeListItem('repos','list',${i})">✕</button></div>`
+      ).join('');
+      return `
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">GitHub repositories monitored by this hive (org/repo format).</p>
+        <div class="config-list">
+          ${list || '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">No repos configured</div>'}
+          <div class="config-list-add">
+            <input type="text" id="cfg-repo-input" placeholder="org/repo">
+            <button onclick="addListItem('repos','list','cfg-repo-input')">+ Add</button>
           </div>
         </div>`;
     }

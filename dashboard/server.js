@@ -1353,7 +1353,9 @@ app.get('/api/config/governor', (_req, res) => {
       quiet: parseInt(govEnv.QUIET_THRESHOLD || '2', 10),
     };
 
-    const labels = govEnv.EXEMPT_LABELS ? govEnv.EXEMPT_LABELS.split(',').filter(Boolean) : [];
+    const DEFAULT_EXEMPT_LABELS = 'nightly-tests|LFX|do-not-merge|meta-tracker|auto-qa-tuning-report|hold|adopters|changes-requested|waiting-on-author';
+    const rawLabels = govEnv.GOVERNOR_EXEMPT_LABELS || govEnv.EXEMPT_LABELS || DEFAULT_EXEMPT_LABELS;
+    const labels = rawLabels.split(/[|,]/).filter(Boolean);
 
     const budget = {
       totalTokens: parseInt(govEnv.BUDGET_TOTAL_TOKENS || '0', 10),
@@ -1361,10 +1363,11 @@ app.get('/api/config/governor', (_req, res) => {
       criticalPct: parseInt(govEnv.BUDGET_CRITICAL_PCT || '90', 10),
     };
 
+    const agentBaseEnv = parseEnvFile(`${ENV_DIR}/agent.env`);
     const notifications = {
-      ntfyServer: govEnv.NTFY_SERVER || '',
-      ntfyTopic: govEnv.NTFY_TOPIC || '',
-      discordWebhook: govEnv.DISCORD_WEBHOOK ? '(configured)' : '',
+      ntfyServer: govEnv.NTFY_SERVER || agentBaseEnv.NTFY_SERVER || '',
+      ntfyTopic: govEnv.NTFY_TOPIC || agentBaseEnv.NTFY_TOPIC || '',
+      discordWebhook: (govEnv.DISCORD_WEBHOOK || agentBaseEnv.DISCORD_WEBHOOK) ? '(configured)' : '',
     };
 
     const health = {
@@ -1373,7 +1376,8 @@ app.get('/api/config/governor', (_req, res) => {
       modelLock: govEnv.MODEL_LOCK === 'true',
     };
 
-    res.json({ agents, thresholds, labels, budget, notifications, health });
+    const repos = ((projectConfig.project || {}).repos || []).slice();
+    res.json({ agents, thresholds, labels, budget, notifications, health, repos });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1394,7 +1398,7 @@ app.put('/api/config/governor/thresholds', (req, res) => {
 app.put('/api/config/governor/labels', (req, res) => {
   try {
     const list = req.body.list || [];
-    writeEnvVar(GOVERNOR_ENV_PATH, 'EXEMPT_LABELS', list.join(','));
+    writeEnvVar(GOVERNOR_ENV_PATH, 'GOVERNOR_EXEMPT_LABELS', list.join('|'));
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1460,6 +1464,19 @@ app.delete('/api/config/governor/agents/:name', (req, res) => {
     if (fs.existsSync(envFile)) {
       execSync(`sudo rm ${envFile}`);
     }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/config/governor/repos', (req, res) => {
+  try {
+    const list = req.body.list || [];
+    if (!projectConfig.project) projectConfig.project = {};
+    projectConfig.project.repos = list;
+    const dumpYaml = yaml ? yaml.dump(projectConfig) : JSON.stringify(projectConfig, null, 2);
+    execSync(`echo ${JSON.stringify(dumpYaml)} | sudo tee ${CONFIG_PATH} > /dev/null`);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

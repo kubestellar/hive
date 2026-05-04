@@ -1195,27 +1195,7 @@ app.get('/api/config/agent/:name', (req, res) => {
       const promptFile = path.join(METRICS_DIR, `last_prompt_${name}`);
       prompt = fs.readFileSync(promptFile, 'utf8');
     } catch (_) {
-      try {
-        const kickScript = fs.readFileSync(path.join(HIVE_REPO_DIR, 'bin', 'kick-agents.sh'), 'utf8');
-        const msgVar = `${upper}_MSG=`;
-        const msgIdx = kickScript.indexOf(msgVar);
-        if (msgIdx !== -1) {
-          const afterEq = kickScript.indexOf('"', msgIdx);
-          if (afterEq !== -1) {
-            let depth = 0;
-            let end = afterEq + 1;
-            while (end < kickScript.length) {
-              if (kickScript[end] === '\\') { end += 2; continue; }
-              if (kickScript[end] === '"' && depth === 0) break;
-              if (kickScript[end] === '$' && kickScript[end + 1] === '{') depth++;
-              if (kickScript[end] === '}' && depth > 0) depth--;
-              end++;
-            }
-            const raw = kickScript.slice(afterEq + 1, end);
-            prompt = raw.replace(/\$\{[^}]+\}/g, '(…)');
-          }
-        }
-      } catch (_) {}
+      prompt = `(awaiting next kick — the full expanded prompt will appear here after the governor kicks ${name})`;
     }
 
     res.json({ general, cadences, models, pipeline, hooks, restrictions, prompt });

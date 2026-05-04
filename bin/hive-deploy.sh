@@ -20,6 +20,7 @@ fi
 cd "$HIVE_REPO"
 
 BEFORE=$(git rev-parse HEAD)
+git stash --quiet 2>/dev/null || true
 git pull --rebase origin main --quiet 2>/dev/null || {
   log "WARN: git pull failed, skipping deploy"
   exit 0

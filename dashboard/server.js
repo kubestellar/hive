@@ -1150,6 +1150,9 @@ app.get('/api/config/agent/:name', (req, res) => {
     const upper = name.toUpperCase();
 
     const launchCmd = agentEnv.AGENT_LAUNCH_CMD || '';
+    const currentMode = (statusCache && statusCache.governor ? statusCache.governor.mode : 'busy').toUpperCase();
+    const modeModelRaw = govEnv[`MODEL_${currentMode}_${upper}`] || '';
+    const modeModel = modeModelRaw.includes(':') ? modeModelRaw.split(':')[1] : modeModelRaw;
     const modelMatch = launchCmd.match(/--model\s+(\S+)/);
     const general = {
       launchCmd,
@@ -1157,7 +1160,7 @@ app.get('/api/config/agent/:name', (req, res) => {
       cliPinValue: agentEnv.AGENT_CLI_PIN_VALUE || agentEnv.AGENT_CLI || deriveCli(launchCmd),
       staleTimeout: parseInt(agentEnv.AGENT_STALE_TIMEOUT_SEC || agentEnv.AGENT_STALE_MAX_SEC || '1200', 10),
       restartStrategy: agentEnv.AGENT_RESTART_STRATEGY || 'immediate',
-      model: modelMatch ? modelMatch[1] : '',
+      model: modeModel || (modelMatch ? modelMatch[1] : ''),
     };
 
     const cadences = {

@@ -630,6 +630,9 @@
       overflow-x: auto; white-space: pre-wrap; color: var(--muted);
       max-height: 300px; overflow-y: auto;
     }
+    .config-pre-fill {
+      max-height: none; flex: 1; min-height: 200px;
+    }
 
     .config-agent-list { list-style: none; }
     .config-agent-list li {
@@ -2225,14 +2228,18 @@ function burnAreaChart() {
         </div>`;
     }
 
+    const SECONDS_PER_MIN = 60;
+    function cadenceToMin(sec) { return Math.round((sec || 0) / SECONDS_PER_MIN); }
+    function cadenceFromMin(min) { return Math.round((parseFloat(min) || 0) * SECONDS_PER_MIN); }
+
     function renderAgentCadences(c) {
       return `
-        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Seconds between kicks per governor mode. Set to 0 to pause the agent in that mode.</p>
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Minutes between kicks per governor mode. Set to 0 to pause the agent in that mode.</p>
         <div class="config-field-row4">
-          <div class="config-field"><label>Surge</label><input type="number" value="${c.surge || 0}" onchange="markDirty('cadences','surge',this.value)"></div>
-          <div class="config-field"><label>Busy</label><input type="number" value="${c.busy || 0}" onchange="markDirty('cadences','busy',this.value)"></div>
-          <div class="config-field"><label>Quiet</label><input type="number" value="${c.quiet || 0}" onchange="markDirty('cadences','quiet',this.value)"></div>
-          <div class="config-field"><label>Idle</label><input type="number" value="${c.idle || 0}" onchange="markDirty('cadences','idle',this.value)"></div>
+          <div class="config-field"><label>Surge</label><input type="number" min="0" step="1" value="${cadenceToMin(c.surge)}" onchange="markDirty('cadences','surge',cadenceFromMin(this.value))"></div>
+          <div class="config-field"><label>Busy</label><input type="number" min="0" step="1" value="${cadenceToMin(c.busy)}" onchange="markDirty('cadences','busy',cadenceFromMin(this.value))"></div>
+          <div class="config-field"><label>Quiet</label><input type="number" min="0" step="1" value="${cadenceToMin(c.quiet)}" onchange="markDirty('cadences','quiet',cadenceFromMin(this.value))"></div>
+          <div class="config-field"><label>Idle</label><input type="number" min="0" step="1" value="${cadenceToMin(c.idle)}" onchange="markDirty('cadences','idle',cadenceFromMin(this.value))"></div>
         </div>`;
     }
 
@@ -2290,8 +2297,10 @@ function burnAreaChart() {
 
     function renderAgentPrompts(prompt) {
       return `
-        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Current kick prompt template (read-only). Edit in kick-agents.sh or hive-project.yaml.</p>
-        <pre class="config-pre">${esc(prompt || 'No prompt data available')}</pre>`;
+        <div style="display:flex;flex-direction:column;height:100%">
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;flex-shrink:0">Current kick prompt template (read-only). Edit in kick-agents.sh or hive-project.yaml.</p>
+        <pre class="config-pre config-pre-fill">${esc(prompt || 'No prompt data available')}</pre>
+        </div>`;
     }
 
     // ── Governor Tab Renderers ──

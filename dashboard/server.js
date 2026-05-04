@@ -1205,7 +1205,7 @@ app.get('/api/config/agent/:name', (req, res) => {
             end++;
           }
           const raw = kickScript.slice(afterEq + 1, end);
-          prompt = raw.replace(/\$\{[^}]+\}/g, '(…)').slice(0, 4000);
+          prompt = raw.replace(/\$\{[^}]+\}/g, '(…)');
         }
       }
     } catch (_) {}

@@ -251,11 +251,13 @@ INTERNAL_AUTHORS="${PROJECT_AI_AUTHOR:-} copilot-swe-agent[bot] github-actions[b
 SHA_HOLD_MARKER="/var/run/hive-metrics/sha_hold_posted"
 mkdir -p "$(dirname "$SHA_HOLD_MARKER")"
 
+SHA_CHECK_REPO="${PROJECT_PRIMARY_REPO:-kubestellar/console}"
 sha_result=$(echo "$all_issues" | python3 -c "
 import json, sys, re
 
 issues = json.load(sys.stdin)
 internal = set(sys.argv[1].split())
+sha_repo = sys.argv[2]
 
 SHA_PATTERN = re.compile(r'[0-9a-f]{7,40}\b')
 
@@ -263,6 +265,10 @@ missing_sha = []
 kept = []
 
 for i in issues:
+    # SHA detection only applies to the primary repo (console)
+    if i.get('repo', '') != sha_repo:
+        kept.append(i)
+        continue
     author = i.get('author', '')
     author_type = i.get('author_type', 'User')
     if author in internal or author_type == 'Bot':
@@ -275,7 +281,7 @@ for i in issues:
         missing_sha.append(i)
 
 print(json.dumps({'kept': kept, 'missing_sha': missing_sha}))
-" "$INTERNAL_AUTHORS" 2>/dev/null || echo '{"kept":[],"missing_sha":[]}')
+" "$INTERNAL_AUTHORS" "$SHA_CHECK_REPO" 2>/dev/null || echo '{"kept":[],"missing_sha":[]}')
 
 # For issues missing SHA: label hold + post comment (only once per issue)
 missing_sha_issues=$(echo "$sha_result" | python3 -c "
@@ -295,7 +301,9 @@ if [ -n "$missing_sha_issues" ]; then
       gh issue comment "$num" --repo "$repo" --body "$(cat <<COMMENT
 Thanks for filing this issue! To help us reproduce and investigate, could you please include the **commit SHA** of the build you're running.
 
-You can find it by:
+**Easiest way:** Use the bug report feature built into the console — click the 🐛 icon in the top navbar. It automatically includes the SHA, browser info, and other diagnostic details so you don't have to look anything up.
+
+Or find the SHA manually:
 - **Git**: \`git rev-parse HEAD\` in your repo checkout
 - **Git log**: \`git log --oneline -1\`
 - **GitHub CLI**: \`/usr/bin/gh api repos/${repo}/commits/main --jq .sha\`

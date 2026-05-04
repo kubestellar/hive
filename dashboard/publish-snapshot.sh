@@ -12,9 +12,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DASHBOARD_URL="${HIVE_DASHBOARD_URL:-http://localhost:3001}"
 DOCS_REPO="${DOCS_REPO_DIR:-/tmp/kubestellar-docs-snapshot}"
-DOCS_REMOTE="https://github.com/kubestellar/docs.git"
 OUTPUT_DIR="${DOCS_REPO}/public/live/hive"
 BRANCH="main"
+
+GH_APP_TOKEN_FILE="/var/run/hive-metrics/gh-app-token.cache"
+if [ -f "$GH_APP_TOKEN_FILE" ]; then
+  GH_APP_TOKEN=$(cat "$GH_APP_TOKEN_FILE")
+  DOCS_REMOTE="https://x-access-token:${GH_APP_TOKEN}@github.com/kubestellar/docs.git"
+else
+  DOCS_REMOTE="https://github.com/kubestellar/docs.git"
+fi
 
 # Ensure docs repo clone exists
 if [ ! -d "$DOCS_REPO/.git" ]; then
@@ -22,6 +29,7 @@ if [ ! -d "$DOCS_REPO/.git" ]; then
 fi
 
 cd "$DOCS_REPO"
+git remote set-url origin "$DOCS_REMOTE"
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 

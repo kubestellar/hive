@@ -3,7 +3,17 @@
 
 set +e
 unset GITHUB_TOKEN
-[ -n "$HIVE_GITHUB_TOKEN" ] && export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+
+# Use hive GitHub App token — never fall back to personal gh auth
+GH_APP_TOKEN_CACHE="/var/run/hive-metrics/gh-app-token.cache"
+if [[ -f "$GH_APP_TOKEN_CACHE" ]]; then
+  export GH_TOKEN="$(cat "$GH_APP_TOKEN_CACHE")"
+elif [[ -n "${HIVE_GITHUB_TOKEN:-}" ]]; then
+  export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+else
+  echo '{"error":"no hive app token available"}' >&2
+  exit 0
+fi
 
 # Load project config
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

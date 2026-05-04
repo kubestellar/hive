@@ -105,7 +105,39 @@ else:
       title=$(echo "$pr_info" | python3 -c "import json,sys; print(json.load(sys.stdin).get('title',''))" 2>/dev/null || echo "")
       mergeable=$(echo "$pr_info" | python3 -c "import json,sys; print(json.load(sys.stdin).get('mergeable','UNKNOWN'))" 2>/dev/null || echo "UNKNOWN")
 
-      echo "{\"repo\":\"$repo\",\"number\":$num,\"status\":\"$status\",\"author\":\"$author\",\"title\":$(python3 -c "import json; print(json.dumps('$title'[:100]))" 2>/dev/null || echo '""'),\"mergeable\":\"$mergeable\"}" > "$checks_tmp/${repo//\//_}_${num}.json"
+      # --- Test CRUD detection ---
+      pr_files=$(gh api "repos/${repo}/pulls/${num}/files" --jq '.[].filename' 2>/dev/null || echo "")
+
+      test_status=$(echo "$pr_files" | python3 -c "
+import sys, os.path
+
+TEST_PATTERN_SUFFIXES = ('.test.', '.spec.', '_test.')
+TEST_DIR_PATTERNS = ('__tests__/', '/tests/', '/test/')
+CODE_EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.go', '.py', '.rs', '.java'}
+
+files = [l.strip() for l in sys.stdin if l.strip()]
+
+def is_test_file(f):
+    fl = f.lower()
+    return any(p in fl for p in TEST_PATTERN_SUFFIXES) or any(p in fl for p in TEST_DIR_PATTERNS)
+
+def is_code_file(f):
+    _, ext = os.path.splitext(f)
+    return ext.lower() in CODE_EXTENSIONS and not is_test_file(f)
+
+has_test = any(is_test_file(f) for f in files)
+code_files = [f for f in files if is_code_file(f)]
+test_exempt = len(code_files) == 0
+
+if has_test:
+    print('included')
+elif test_exempt:
+    print('exempt')
+else:
+    print('missing')
+" 2>/dev/null || echo "unknown")
+
+      echo "{\"repo\":\"$repo\",\"number\":$num,\"status\":\"$status\",\"author\":\"$author\",\"title\":$(python3 -c "import json; print(json.dumps('$title'[:100]))" 2>/dev/null || echo '""'),\"mergeable\":\"$mergeable\",\"test_status\":\"$test_status\"}" > "$checks_tmp/${repo//\//_}_${num}.json"
     fi
   ) &
 done
@@ -136,7 +168,9 @@ for f in sorted(glob.glob(os.path.join(checks_dir, '*.json'))):
     pr['ai_authored'] = is_ai
     pr['ci_pass'] = ci_pass
 
-    if ci_pass and mergeable and is_ai:
+    test_missing = pr.get('test_status') == 'missing'
+
+    if ci_pass and mergeable and is_ai and not test_missing:
         eligible.append(pr)
     else:
         reasons = []
@@ -146,6 +180,8 @@ for f in sorted(glob.glob(os.path.join(checks_dir, '*.json'))):
             reasons.append(f\"mergeable={pr.get('mergeable','?')}\")
         if not is_ai:
             reasons.append(f\"author={pr.get('author','?')} (not AI)\")
+        if test_missing:
+            reasons.append('missing_test')
         pr['block_reasons'] = reasons
         not_ready.append(pr)
 

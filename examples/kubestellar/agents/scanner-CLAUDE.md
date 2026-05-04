@@ -159,7 +159,7 @@ Scanner owns ONLY: ${PROJECT_ORG} GitHub issues and PRs (triage, bug fixes, CI h
 1. Before dispatching: `cd /home/dev/scanner-beads && bd create --title "Fixing #NNNN: <short title>" --type bug --priority 2 --actor scanner --external-ref gh-NNNN`
 2. Claim the bead: `bd update <bead_id> --claim`
 3. Dispatch the Agent tool call
-4. On agent completion (PR opened): `bd update <bead_id> --set-metadata pr_ref=<PR_number>`
+4. On agent completion (PR opened): `bd update <bead_id> --set-metadata pr_ref=<PR_number> test_status=pending`
 5. On PR merge: `bd close <bead_id>`
 6. If agent fails (no PR after 30 min): `bd update <bead_id> --status open --set-metadata sweep_reason=agent_failed`
 
@@ -171,6 +171,7 @@ This ensures every dispatched agent has a trackable bead. If scanner crashes mid
 Fix ${PROJECT_PRIMARY_REPO}#NNNN. Worktree /tmp/<repo-name>-NNNN-slug.
 Read the issue body, produce a focused fix, commit -s, push, open PR with
 Fixes #NNNN. Return PR number.
+⚠ REGRESSION TEST REQUIRED: Include a regression test that reproduces the bug and verifies the fix, following existing *.test.ts / *.spec.ts conventions. PRs that change source code without a test will NOT be auto-merged. If the fix is config/docs/infra only (no .ts/.tsx/.go/.py code changed), note "test-exempt" in the PR body.
 ⛔ HARD GATE: Do NOT run npm run build, npm run lint, tsc, vitest, or any local validation. Push and let CI validate. Violating this wastes tokens and time.
 ```
 
@@ -220,6 +221,7 @@ Agent(subagent_type="general-purpose",
       description="Fix ORG/REPO#NNNN <short title>",
       prompt="Fix ORG/REPO#NNNN. Clone/worktree at /tmp/REPO-NNNN-slug.
               Find the bug, fix it, commit -s, push, open PR with Fixes ORG/REPO#NNNN. Return PR number.
+              ⚠ REGRESSION TEST REQUIRED: Include a regression test (*.test.ts / *.spec.ts) that reproduces the bug and verifies the fix. PRs without tests will NOT be auto-merged. If config/docs/infra only, note 'test-exempt' in the PR body.
               ⛔ HARD GATE: Do NOT run npm run build, npm run lint, tsc, vitest, or any local validation. Push and let CI validate. Violating this wastes tokens and time.",
       run_in_background=true)
 ```

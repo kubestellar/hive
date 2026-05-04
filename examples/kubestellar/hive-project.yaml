@@ -59,7 +59,7 @@ health_checks:
     - "Performance TTFI Gate"
   brew:
     tap_repo: "kubestellar/homebrew-tap"
-    formula: "kubestellar-console.rb"
+    formula: "kc-agent.rb"
   helm:
     chart_path: "deploy/helm/kubestellar-console/Chart.yaml"
   release_workflow: "Release"

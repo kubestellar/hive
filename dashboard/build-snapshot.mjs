@@ -66,11 +66,19 @@ async function main() {
   const renderFunctions = originalScript.slice(0, connectIdx);
 
   const staticCss = `
-    /* Static snapshot overrides */
+    /* Static snapshot overrides — hide all interactive elements */
     .connection { display: none !important; }
     .agent-actions { display: none !important; }
     .kick-row { display: none !important; }
     .widget-dl { display: none !important; }
+    .btn-toggle { display: none !important; }
+    .restart-btn { display: none !important; }
+    .restart-reset { display: none !important; }
+    .config-gear { display: none !important; }
+    .pin-toggle { display: none !important; }
+    .terminal-link { display: none !important; }
+    .config-overlay { display: none !important; }
+    button[onclick] { pointer-events: none !important; opacity: 0.5 !important; }
     .snapshot-banner {
       background: linear-gradient(135deg, #1a1f2e 0%, #161b22 100%);
       border: 1px solid #30363d; border-radius: 8px;
@@ -127,10 +135,17 @@ async function main() {
         ' ' + d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:true});
     }
 
-    // Disable interactive functions
+    // Disable all interactive functions in snapshot mode
     function kick() {}
     function switchCli() {}
     function switchModel() {}
+    function toggleAgent() {}
+    function restartAgent() {}
+    function resetRestarts() {}
+    function togglePin() {}
+    function openConfigDialog() {}
+    function closeConfigDialog() {}
+    function saveConfig() {}
   `;
 
   const output = [

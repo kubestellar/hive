@@ -75,7 +75,7 @@ PR_URL=$($GH_CLI pr create --repo "$DOCS_REPO_SLUG" \
 PR_NUM=$(echo "$PR_URL" | grep -oE '[0-9]+$')
 
 if [ -n "$PR_NUM" ]; then
-  $GH_CLI pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --admin --squash --delete-branch 2>&1 && \
+  $GH_CLI pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --squash --delete-branch 2>&1 && \
     echo "Snapshot published via PR #$PR_NUM." || \
     echo "WARN: PR #$PR_NUM created but merge failed — manual merge needed."
 else

@@ -71,6 +71,19 @@ mkdir -p "$HANDOFF_DIR" 2>/dev/null || true
 
 log() { echo "[$TIMESTAMP] $*" | tee -a "$LOG"; }
 ntfy() { notify "$1" "$2"; }  # legacy shim — use notify() directly for new code
+# Structured audit log — every kick decision records pause state
+KICK_AUDIT_LOG="/var/log/kick-audit.jsonl"
+audit_kick() {
+  local agent="$1" action="$2" reason="$3" caller="${4:-kick-agents}"
+  local paused_gov=false paused_op=false paused_etc=false
+  [[ -f "$GOVERNOR_FLAG_DIR/paused_${agent}" ]] && paused_gov=true
+  [[ -f "$GOVERNOR_FLAG_DIR/operator_paused_${agent}" ]] && paused_op=true
+  [[ -f "/etc/hive/pause_${agent}" ]] && paused_etc=true
+  printf '{"ts":"%s","agent":"%s","action":"%s","reason":"%s","caller":"%s","paused_governor":%s,"paused_operator":%s,"paused_etc":%s}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" "$agent" "$action" "$reason" "$caller" \
+    "$paused_gov" "$paused_op" "$paused_etc" >> "$KICK_AUDIT_LOG"
+}
+
 
 # ── Backend management ──────────────────────────────────────────────
 # Each agent has a primary and fallback backend. State is tracked in
@@ -514,6 +527,7 @@ kick() {
   # Respect pause state — if agent is paused, skip the kick entirely
   if _is_agent_paused "$agent"; then
     log "SKIP $session — agent is paused"
+    audit_kick "$agent" "SKIP" "paused"
     return
   fi
 
@@ -542,6 +556,7 @@ kick() {
 
   if ! session_exists "$session"; then
     log "SKIP $session — session not found"
+    audit_kick "$agent" "SKIP" "session-not-found"
     ntfy "$agent — not found" "Session $session does not exist. Next try: $(next_run "$agent")"
     return
   fi
@@ -595,6 +610,7 @@ kick() {
       fi
     else
       log "SKIP $session — already working"
+      audit_kick "$agent" "SKIP" "busy"
       ntfy "$agent — busy" "Still working, skipped kick at $ET_NOW. Next: $(next_run "$agent")"
       return
     fi
@@ -641,6 +657,7 @@ kick() {
   fi
 
   log "KICK $session (${#message} chars)"
+  audit_kick "$agent" "KICK" "cadence"
   echo "$message" > "/var/run/hive-metrics/last_prompt_${agent}"
   send_chunked "$session" "$message"
   # Deterministic status heartbeat — refresh timestamp on every kick

@@ -151,6 +151,19 @@ RATE_LIMIT_COOLDOWN="${RATE_LIMIT_COOLDOWN:-1800}"  # 30 min
 # ── Paths ───────────────────────────────────────────────────────────────────
 STATE_DIR="/var/run/kick-governor"
 _is_agent_paused() { hive_is_paused "$1"; }
+
+# Structured audit log — every governor kick decision records pause state
+KICK_AUDIT_LOG="/var/log/kick-audit.jsonl"
+audit_kick() {
+  local agent="$1" action="$2" reason="$3" caller="${4:-governor}"
+  local paused_gov=false paused_op=false paused_etc=false
+  [[ -f "$STATE_DIR/paused_${agent}" ]] && paused_gov=true
+  [[ -f "$STATE_DIR/operator_paused_${agent}" ]] && paused_op=true
+  [[ -f "/etc/hive/pause_${agent}" ]] && paused_etc=true
+  printf '{"ts":"%s","agent":"%s","action":"%s","reason":"%s","caller":"%s","paused_governor":%s,"paused_operator":%s,"paused_etc":%s}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" "$agent" "$action" "$reason" "$caller" \
+    "$paused_gov" "$paused_op" "$paused_etc" >> "$KICK_AUDIT_LOG"
+}
 LOG_FILE="/var/log/kick-governor.log"
 KICK_SCRIPT="${KICK_SCRIPT:-/usr/local/bin/kick-agents.sh}"
 GH_BIN="${GH_BIN:-gh}"
@@ -641,6 +654,7 @@ maybe_kick() {
     # Track that this agent is paused so we can detect unpause next tick
     touch "$STATE_DIR/was_paused_${agent}"
     log "SKIP ${agent} (mode=${mode} — DASHBOARD PAUSED)"
+    audit_kick "$agent" "SKIP" "dashboard-paused" "governor"
     return
   fi
 
@@ -648,6 +662,7 @@ maybe_kick() {
   if [[ -f "$STATE_DIR/was_paused_${agent}" ]]; then
     rm -f "$STATE_DIR/was_paused_${agent}"
     log "UNPAUSE ${agent} — kicking immediately"
+    audit_kick "$agent" "KICK" "unpause-immediate" "governor"
     ntfy "default" "Unpause: ${agent}" "Agent unpaused — sending immediate kick" "arrow_forward"
     if "$KICK_SCRIPT" "$agent" 2>&1 \
         | while IFS= read -r line; do log "  [${agent}] ${line}"; done; then
@@ -658,12 +673,14 @@ maybe_kick() {
 
   if [ "$cadence" -eq 0 ]; then
     log "SKIP ${agent} (mode=${mode} — PAUSED)"
+    audit_kick "$agent" "SKIP" "cadence-zero" "governor"
     return
   fi
 
   if [ "$elapsed" -ge "$cadence" ]; then
     local next_et
     next_et=$(TZ=America/New_York date -d "+${cadence} seconds" '+%H:%M %Z')
+    audit_kick "$agent" "KICK" "mode=${mode}" "governor"
     log "KICK ${agent} (mode=${mode} cadence=$(secs_to_label "$cadence") elapsed=$(secs_to_label "$elapsed") next≈${next_et})"
     ntfy "default" \
       "Kick: ${agent}" \
@@ -679,6 +696,7 @@ maybe_kick() {
     local remaining=$(( cadence - elapsed ))
     [[ "$remaining" -lt 0 ]] && remaining=0
     log "SKIP ${agent} (mode=${mode} next in $(secs_to_label "$remaining"))"
+    audit_kick "$agent" "SKIP" "cadence-not-elapsed" "governor"
   fi
 }
 

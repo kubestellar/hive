@@ -94,11 +94,11 @@ type AgentConfig struct {
 	Model           string `yaml:"model" json:"model,omitempty"`
 	BeadsDir        string `yaml:"beads_dir" json:"beads_dir,omitempty"`
 	Enabled         bool   `yaml:"enabled" json:"enabled,omitempty"`
-	ClearOnKick     bool   `yaml:"clear_on_kick"`
-	CLIPinned       bool   `yaml:"cli_pinned"`
-	StaleTimeout    int    `yaml:"stale_timeout"`
-	RestartStrategy string `yaml:"restart_strategy"`
-	LaunchCmd       string `yaml:"launch_cmd"`
+	ClearOnKick     bool   `yaml:"clear_on_kick" json:"clear_on_kick"`
+	CLIPinned       bool   `yaml:"cli_pinned" json:"cli_pinned,omitempty"`
+	StaleTimeout    int    `yaml:"stale_timeout" json:"stale_timeout,omitempty"`
+	RestartStrategy string `yaml:"restart_strategy" json:"restart_strategy,omitempty"`
+	LaunchCmd       string `yaml:"launch_cmd" json:"launch_cmd,omitempty"`
 	DisplayName     string `yaml:"display_name" json:"display_name,omitempty"`
 	Description     string `yaml:"description" json:"description,omitempty"`
 

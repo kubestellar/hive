@@ -770,6 +770,11 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 	pipeline := s.getAgentPipeline(name)
 	hooks := s.getAgentHooks(name)
 
+	includeRepos := true
+	if agentCfg.IncludeRepos != nil {
+		includeRepos = *agentCfg.IncludeRepos
+	}
+
 	jsonResponse(w, map[string]interface{}{
 		"general": map[string]interface{}{
 			"launchCmd":       launchCmd,
@@ -781,6 +786,16 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 			"restartStrategy": restartStrategy,
 			"model":           model,
 			"clearOnKick":     agentCfg.ClearOnKick,
+			"emoji":           agentCfg.Emoji,
+			"color":           agentCfg.Color,
+			"sortOrder":       agentCfg.SortOrder,
+			"beadRole":        agentCfg.BeadRole,
+			"role":            agentCfg.Role,
+			"kickTemplate":    agentCfg.KickTemplate,
+			"includeRepos":    includeRepos,
+			"laneKeywords":    agentCfg.LaneKeywords,
+			"detectKeywords":  agentCfg.DetectKeywords,
+			"aliases":         agentCfg.Aliases,
 		},
 		"cadences": cadences,
 		"models":   models,
@@ -1028,6 +1043,74 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 	if v, ok := body["cliPinned"]; ok {
 		if b, ok := v.(bool); ok {
 			agentCfg.CLIPinned = b
+		}
+	}
+	if v, ok := body["emoji"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.Emoji = s
+		}
+	}
+	if v, ok := body["color"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.Color = s
+		}
+	}
+	if v, ok := body["sortOrder"]; ok {
+		if f, ok := v.(float64); ok {
+			agentCfg.SortOrder = int(f)
+		}
+	}
+	if v, ok := body["beadRole"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.BeadRole = s
+		}
+	}
+	if v, ok := body["role"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.Role = s
+		}
+	}
+	if v, ok := body["kickTemplate"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.KickTemplate = s
+		}
+	}
+	if v, ok := body["includeRepos"]; ok {
+		if b, ok := v.(bool); ok {
+			agentCfg.IncludeRepos = &b
+		}
+	}
+	if v, ok := body["laneKeywords"]; ok {
+		if arr, ok := v.([]interface{}); ok {
+			kw := make([]string, 0, len(arr))
+			for _, item := range arr {
+				if s, ok := item.(string); ok {
+					kw = append(kw, s)
+				}
+			}
+			agentCfg.LaneKeywords = kw
+		}
+	}
+	if v, ok := body["detectKeywords"]; ok {
+		if arr, ok := v.([]interface{}); ok {
+			kw := make([]string, 0, len(arr))
+			for _, item := range arr {
+				if s, ok := item.(string); ok {
+					kw = append(kw, s)
+				}
+			}
+			agentCfg.DetectKeywords = kw
+		}
+	}
+	if v, ok := body["aliases"]; ok {
+		if arr, ok := v.([]interface{}); ok {
+			a := make([]string, 0, len(arr))
+			for _, item := range arr {
+				if s, ok := item.(string); ok {
+					a = append(a, s)
+				}
+			}
+			agentCfg.Aliases = a
 		}
 	}
 	s.deps.Config.Agents[name] = agentCfg

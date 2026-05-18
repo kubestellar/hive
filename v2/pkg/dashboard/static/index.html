@@ -1475,66 +1475,7 @@
     </div>
   </div>
 </div>
-<div id="add-agent-overlay" class="config-overlay hidden">
-  <div class="config-modal" style="max-width:520px">
-    <div class="config-header">
-      <h2 class="config-title">Add Agent</h2>
-      <button class="config-close" onclick="closeAddAgentDialog()">&times;</button>
-    </div>
-    <div class="config-body" style="padding:16px 24px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div style="grid-column:1/-1">
-          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Name <span style="color:#dc2626">*</span></label>
-          <input type="text" id="add-agent-name" placeholder="e.g. docs-writer" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
-          <div style="font-size:0.65rem;color:var(--muted);margin-top:2px">Lowercase, hyphens allowed. Used as the agent ID.</div>
-        </div>
-        <div style="grid-column:1/-1">
-          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Display Name</label>
-          <input type="text" id="add-agent-display" placeholder="e.g. Docs Writer" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
-        </div>
-        <div>
-          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Backend</label>
-          <select id="add-agent-backend" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg)">
-            <option value="copilot">copilot</option>
-            <option value="claude">claude</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Model</label>
-          <input type="text" id="add-agent-model" placeholder="claude-sonnet-4-6" value="claude-sonnet-4-6" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
-        </div>
-        <div>
-          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Emoji</label>
-          <input type="text" id="add-agent-emoji" placeholder="🤖" value="🤖" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
-        </div>
-        <div>
-          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Color</label>
-          <input type="color" id="add-agent-color" value="#3498db" style="width:100%;height:38px;border:1px solid var(--border);border-radius:6px;background:var(--bg);cursor:pointer" />
-        </div>
-        <div>
-          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Sort Order</label>
-          <input type="number" id="add-agent-sort" placeholder="50" value="50" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
-          <div style="font-size:0.65rem;color:var(--muted);margin-top:2px">Lower = higher in sidebar</div>
-        </div>
-        <div>
-          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Bead Role</label>
-          <select id="add-agent-bead-role" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg)">
-            <option value="worker">worker</option>
-            <option value="supervisor">supervisor</option>
-          </select>
-        </div>
-        <div style="grid-column:1/-1">
-          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Description</label>
-          <input type="text" id="add-agent-desc" placeholder="What this agent does" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
-        </div>
-      </div>
-      <div id="add-agent-error" style="color:#dc2626;font-size:0.8rem;margin-top:12px;display:none"></div>
-    </div>
-    <div class="config-footer">
-      <button class="btn config-cancel" onclick="closeAddAgentDialog()">Cancel</button>
-      <button class="btn config-save" onclick="submitAddAgent()">Create Agent</button>
-    </div>
-  </div>
+<!-- Add Agent dialog removed — create mode now uses the config dialog -->
 </div>
 <div id="acmm-overlay" class="config-overlay hidden">
   <div class="config-modal" style="max-width:800px;max-height:85vh">
@@ -2173,7 +2114,8 @@
       const isActive = _ocSelectedAgent === a.name ? ' active' : '';
       const agentDesc = a.description || AGENT_DESCRIPTIONS[a.name] || '';
       const label = a.displayName || a.name;
-      return `<a class="oc-nav-item${isActive}" data-agent-nav="${esc(a.name)}" draggable="true" data-action="ocSelectAgent" data-agent="${esc(a.name)}" title="${esc(agentDesc)}"><span class="oc-agent-dot ${dotCls}"></span> ${esc(label)}<span class="oc-nav-actions"><button data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure">⚙</button><button class="oc-nav-delete" data-action="deleteAgentFromConfig" data-agent="${esc(a.name)}" title="Delete">✕</button></span></a>`;
+      const emojiPrefix = a.emoji ? a.emoji + ' ' : '';
+      return `<a class="oc-nav-item${isActive}" data-agent-nav="${esc(a.name)}" draggable="true" data-action="ocSelectAgent" data-agent="${esc(a.name)}" title="${esc(agentDesc)}"><span class="oc-agent-dot ${dotCls}"></span> ${emojiPrefix}${esc(label)}<span class="oc-nav-actions"><button data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure">⚙</button><button class="oc-nav-delete" data-action="deleteAgentFromConfig" data-agent="${esc(a.name)}" title="Delete">✕</button></span></a>`;
     }
 
     function _sidebarBuildGroups(agents) {
@@ -2880,7 +2822,7 @@
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}" data-agent="${esc(a.name)}">
           <span class="working-indicator"></span>
-          <div class="agent-name"><span class="dot ${dotCls}"></span>${esc(a.displayName || a.name)} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a> <button class="restart-btn" data-action="restartAgent" data-agent="${esc(a.name)}" title="Kill tmux session — supervisor will respawn with fresh context">↻ restart</button> <button class="config-gear" data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure ${esc(a.displayName || a.name)}">⚙️</button></div>
+          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.emoji ? a.emoji + ' ' : ''}${esc(a.displayName || a.name)} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a> <button class="restart-btn" data-action="restartAgent" data-agent="${esc(a.name)}" title="Kill tmux session — supervisor will respawn with fresh context">↻ restart</button> <button class="config-gear" data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure ${esc(a.displayName || a.name)}">⚙️</button></div>
           <div class="agent-field"><span class="label" title="The CLI backend running this agent (e.g. claude, copilot). Pin to prevent governor from switching it.">cli</span><span class="value">${cliChip(a.cli, a.pinnedBoth || a.pinnedCli, a.name)}${(a.pinnedBoth || a.pinnedCli) ? '' : ` <button class="pin-toggle" data-action="togglePin" data-agent="${esc(a.name)}" data-pin-type="cli" data-unpin="false" title="Pin CLI — lock current backend so governor cannot change it">📌</button>`}</span></div>
           <div class="agent-field"><span class="label" title="The LLM model powering this agent. Governor may change it based on budget or mode. Pin to lock.">model</span><span class="value">${modelChip(a.model, a.govReason, a.pinnedBoth || a.pinnedModel, a.name)}${(a.pinnedBoth || a.pinnedModel) ? '' : ` <button class="pin-toggle" data-action="togglePin" data-agent="${esc(a.name)}" data-pin-type="model" data-unpin="false" title="Pin model — lock current model so governor cannot downgrade it">📌</button>`}</span></div>
           <div class="agent-field"><span class="label" title="Time between governor kicks for this agent in the current mode. Configured per governor mode (idle/quiet/busy/surge).">interval</span><span class="value">${isPaused ? 'paused' : isOff ? 'off' : a.cadence}</span></div>
@@ -6088,6 +6030,7 @@ function burnAreaChart() {
     let _configState = { type: null, agent: null, tab: null, data: {}, dirty: {} };
 
     const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Pipeline', 'Hooks', 'Restrictions', 'Stats', 'Prompt Template', 'Last Prompt'];
+    const AGENT_CREATE_TABS = ['General', 'Cadences'];
     const GOVERNOR_CONFIG_TABS = ['General', 'Agents', 'Thresholds', 'Labels', 'Repos', 'Budget', 'Notifications', 'Health', 'Sensing', 'Logging'];
     const PIPELINE_STAGES = ['resolve-beads', 'track-prs', 'stale-check', 'repo-scan', 'coverage-gate', 'prompt-compose', 'budget-check', 'api-collect', 'final-compose'];
     const PIPELINE_STAGE_TIPS = {
@@ -6104,29 +6047,33 @@ function burnAreaChart() {
     const RESTART_STRATEGIES = ['immediate', 'backoff', 'none'];
 
     function openConfigDialog(type, agentName) {
-      if (type === 'agent' && !agentName) {
-        openAddAgentDialog();
-        return;
-      }
+      const isCreate = type === 'agent' && !agentName;
       _configModalOpen = true;
-      _configState = { type, agent: agentName || null, tab: null, data: {}, dirty: {} };
+      _configState = { type, agent: agentName || null, tab: null, data: {}, dirty: {}, isCreate };
       document.getElementById('config-overlay').classList.remove('hidden');
-      const title = type === 'governor' ? 'Governor Configuration' : `${agentName || 'New Agent'} Configuration`;
+      const title = type === 'governor' ? 'Governor Configuration' : isCreate ? 'Create Agent' : `${agentName || 'Agent'} Configuration`;
       document.querySelector('.config-title').textContent = title;
-      const tabs = type === 'governor' ? GOVERNOR_CONFIG_TABS : AGENT_CONFIG_TABS;
+      const tabs = type === 'governor' ? GOVERNOR_CONFIG_TABS : (isCreate ? AGENT_CREATE_TABS : AGENT_CONFIG_TABS);
       const tabsEl = document.getElementById('config-tabs');
       tabsEl.innerHTML = tabs.map((t, i) =>
         `<div class="config-tab${i === 0 ? ' active' : ''}" data-tab="${t}" data-action="switchConfigTab">${t}</div>`
       ).join('');
-      switchConfigTab(tabs[0]);
-      loadConfigData(type, agentName).finally(() => {
-        if (!_configModalOpen) return;
-        const dn = (_configState.data.general || {}).displayName;
-        if (dn && type !== 'governor') {
-          document.querySelector('.config-title').textContent = `${dn} Configuration`;
-        }
-        switchConfigTab(_configState.tab || tabs[0]);
-      });
+      const saveBtn = document.querySelector('.config-save');
+      if (saveBtn) saveBtn.textContent = isCreate ? 'Create Agent' : 'Save';
+      if (isCreate) {
+        _configState.data = { general: { clearOnKick: true, restartStrategy: 'immediate', staleTimeout: 1200 }, cadences: {} };
+        switchConfigTab(tabs[0]);
+      } else {
+        switchConfigTab(tabs[0]);
+        loadConfigData(type, agentName).finally(() => {
+          if (!_configModalOpen) return;
+          const dn = (_configState.data.general || {}).displayName;
+          if (dn && type !== 'governor') {
+            document.querySelector('.config-title').textContent = `${dn} Configuration`;
+          }
+          switchConfigTab(_configState.tab || tabs[0]);
+        });
+      }
     }
 
     function closeConfigDialog() {
@@ -6137,70 +6084,11 @@ function burnAreaChart() {
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && _configModalOpen) closeConfigDialog();
-      if (e.key === 'Escape' && _addAgentOpen) closeAddAgentDialog();
       if (e.key === 'Escape' && _acmmOpen) closeACMMDialog();
     });
 
-    let _addAgentOpen = false;
     function openAddAgentDialog() {
-      _addAgentOpen = true;
-      document.getElementById('add-agent-overlay').classList.remove('hidden');
-      document.getElementById('add-agent-name').value = '';
-      document.getElementById('add-agent-display').value = '';
-      document.getElementById('add-agent-model').value = 'claude-sonnet-4-6';
-      document.getElementById('add-agent-emoji').value = '🤖';
-      document.getElementById('add-agent-color').value = '#3498db';
-      document.getElementById('add-agent-sort').value = '50';
-      document.getElementById('add-agent-desc').value = '';
-      document.getElementById('add-agent-error').style.display = 'none';
-      setTimeout(() => document.getElementById('add-agent-name').focus(), 100);
-    }
-
-    function closeAddAgentDialog() {
-      _addAgentOpen = false;
-      document.getElementById('add-agent-overlay').classList.add('hidden');
-    }
-
-    async function submitAddAgent() {
-      const name = (document.getElementById('add-agent-name').value || '').trim().toLowerCase().replace(/\s+/g, '-');
-      const errEl = document.getElementById('add-agent-error');
-      if (!name) {
-        errEl.textContent = 'Name is required';
-        errEl.style.display = 'block';
-        return;
-      }
-      if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
-        errEl.textContent = 'Name must be lowercase letters, numbers, and hyphens';
-        errEl.style.display = 'block';
-        return;
-      }
-      const body = {
-        name,
-        agent: {
-          backend: document.getElementById('add-agent-backend').value,
-          model: document.getElementById('add-agent-model').value,
-          enabled: true,
-          display_name: document.getElementById('add-agent-display').value || '',
-          description: document.getElementById('add-agent-desc').value || '',
-          emoji: document.getElementById('add-agent-emoji').value || '🤖',
-          color: document.getElementById('add-agent-color').value || '#3498db',
-          sort_order: parseInt(document.getElementById('add-agent-sort').value, 10) || 50,
-          bead_role: document.getElementById('add-agent-bead-role').value || 'worker',
-        }
-      };
-      try {
-        const res = await fetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        const data = await res.json();
-        if (!res.ok) {
-          errEl.textContent = data.error || 'Failed to create agent';
-          errEl.style.display = 'block';
-          return;
-        }
-        closeAddAgentDialog();
-      } catch (err) {
-        errEl.textContent = 'Network error: ' + err.message;
-        errEl.style.display = 'block';
-      }
+      openConfigDialog('agent', null);
     }
 
     // ── ACMM Level Selector ──
@@ -6380,14 +6268,57 @@ function burnAreaChart() {
     // ── Agent Tab Renderers ──
     function renderAgentGeneral(g) {
       const agentName = _configState.agent || '';
-      return `
+      const isCreate = _configState.isCreate === true;
+      let html = '';
+      if (isCreate) {
+        html += `
+        <div class="config-field">
+          <label>Name <span style="color:#dc2626">*</span> <span class="config-info">i<span class="config-tooltip">The agent's internal name used as its ID, config file name, and tmux session. Lowercase, hyphens allowed.</span></span></label>
+          <input type="text" id="cfg-create-name" value="" placeholder="e.g. docs-writer, sec-scanner" onchange="markDirty('_create','name',this.value)">
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:2px">Lowercase, hyphens allowed. Used as the agent ID.</div>
+        </div>`;
+      }
+      html += `
         <div class="config-field">
           <label>Display Name <span class="config-info">i<span class="config-tooltip">The friendly name shown on the agent card and sidebar. Does not affect the agent's internal ID or tmux session name.</span></span></label>
-          <input type="text" id="cfg-agent-name" value="${esc(g.displayName || agentName)}" placeholder="e.g. Scanner, Code Reviewer" onchange="updateConfigAgentName(this.value);markDirty('general','displayName',this.value)">
+          <input type="text" id="cfg-agent-name" value="${esc(g.displayName || (isCreate ? '' : agentName))}" placeholder="e.g. Scanner, Code Reviewer" onchange="updateConfigAgentName(this.value);markDirty('general','displayName',this.value)">
         </div>
         <div class="config-field">
           <label>Description <span class="config-info">i<span class="config-tooltip">A short description of what this agent is responsible for. Shown as hover text on the sidebar agent list. Helps operators and collaborators understand each agent's role at a glance.</span></span></label>
-          <textarea id="cfg-agent-desc" rows="2" style="width:100%;resize:vertical;font-size:0.75rem" placeholder="e.g. Triages GitHub issues and dispatches fix agents" onchange="markDirty('general','description',this.value)">${esc(g.description || AGENT_DESCRIPTIONS[agentName] || '')}</textarea>
+          <textarea id="cfg-agent-desc" rows="2" style="width:100%;resize:vertical;font-size:0.75rem" placeholder="e.g. Triages GitHub issues and dispatches fix agents" onchange="markDirty('general','description',this.value)">${esc(g.description || (isCreate ? '' : AGENT_DESCRIPTIONS[agentName]) || '')}</textarea>
+        </div>
+        <div class="config-field-row">
+          <div class="config-field">
+            <label>Emoji <span class="config-info">i<span class="config-tooltip">Emoji shown next to the agent name in the sidebar and agent cards.</span></span></label>
+            <input type="text" id="cfg-agent-emoji" value="${esc(g.emoji || '')}" placeholder="🤖" onchange="markDirty('general','emoji',this.value)">
+          </div>
+          <div class="config-field">
+            <label>Color <span class="config-info">i<span class="config-tooltip">Agent color used in the dashboard for visual distinction.</span></span></label>
+            <input type="color" id="cfg-agent-color" value="${esc(g.color || '#3498db')}" style="height:34px" onchange="markDirty('general','color',this.value)">
+          </div>
+        </div>
+        <div class="config-field-row">
+          <div class="config-field">
+            <label>Sort Order <span class="config-info">i<span class="config-tooltip">Controls position in sidebar and agent grid. Lower numbers appear first.</span></span></label>
+            <input type="number" id="cfg-agent-sort" value="${g.sortOrder || 50}" onchange="markDirty('general','sortOrder',parseInt(this.value,10))">
+          </div>
+          <div class="config-field">
+            <label>Bead Role <span class="config-info">i<span class="config-tooltip">Worker agents do tasks. Supervisor monitors other agents.</span></span></label>
+            <select id="cfg-agent-bead-role" onchange="markDirty('general','beadRole',this.value)">
+              <option value="worker" ${(g.beadRole || 'worker') === 'worker' ? 'selected' : ''}>worker</option>
+              <option value="supervisor" ${g.beadRole === 'supervisor' ? 'selected' : ''}>supervisor</option>
+            </select>
+          </div>
+        </div>
+        <div class="config-field-row">
+          <div class="config-field">
+            <label>Role <span class="config-info">i<span class="config-tooltip">Semantic role for behavioral dispatch (e.g. scanner, reviewer, architect). Used by lane routing and kick templates.</span></span></label>
+            <input type="text" id="cfg-agent-role" value="${esc(g.role || '')}" placeholder="e.g. scanner, reviewer" onchange="markDirty('general','role',this.value)">
+          </div>
+          <div class="config-field">
+            <label>Kick Template <span class="config-info">i<span class="config-tooltip">Prompt template file used when the governor kicks this agent. Located in the prompts directory.</span></span></label>
+            <input type="text" id="cfg-agent-kick-tpl" value="${esc(g.kickTemplate || '')}" placeholder="e.g. scanner-CLAUDE.md" onchange="markDirty('general','kickTemplate',this.value)">
+          </div>
         </div>
         <div class="config-field">
           <label>Launch Command <span class="config-info">i<span class="config-tooltip">The shell command used to start this agent's CLI process. Typically uses agent-launch.sh with a --backend flag. Changing the CLI Pin Value will auto-update the binary path here.</span></span></label>
@@ -6396,6 +6327,10 @@ function burnAreaChart() {
         <div class="config-toggle">
           <div class="config-toggle-switch ${g.clearOnKick !== false ? 'on' : ''}" id="cfg-clear-on-kick" data-action="toggleConfigSwitch" data-section="general" data-key="clearOnKick"></div>
           <span class="config-toggle-label">Clear on Kick <span class="config-info">i<span class="config-tooltip">Send /clear before each governor kick to reset conversation context. Prevents stale context buildup across runs. On by default for all agents.</span></span></span>
+        </div>
+        <div class="config-toggle">
+          <div class="config-toggle-switch ${g.includeRepos !== false ? 'on' : ''}" id="cfg-include-repos" data-action="toggleConfigSwitch" data-section="general" data-key="includeRepos"></div>
+          <span class="config-toggle-label">Include Repos in Kicks <span class="config-info">i<span class="config-tooltip">Append monitored repo information to the kick prompt. Disable for agents that don't need repo context (e.g. outreach).</span></span></span>
         </div>
         <div class="config-toggle">
           <div class="config-toggle-switch ${g.cliPinned ? 'on' : ''}" id="cfg-cli-pinned" data-action="toggleConfigSwitch" data-section="general" data-key="cliPinned"></div>
@@ -6426,11 +6361,23 @@ function burnAreaChart() {
             ${KNOWN_MODELS.map(m => `<option value="${m.value}" ${_modelsEqual(g.model, m.value) ? 'selected' : ''}>${m.label}</option>`).join('')}
           </select>
         </div>
-        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #fecaca">
+        <div class="config-field">
+          <label>Lane Keywords <span class="config-info">i<span class="config-tooltip">Comma-separated keywords for issue classification routing. Issues matching these keywords are routed to this agent.</span></span></label>
+          <input type="text" id="cfg-agent-lane-kw" value="${esc((g.laneKeywords || []).join(', '))}" placeholder="e.g. bug, triage, security" onchange="markDirty('general','laneKeywords',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+        </div>
+        <div class="config-field">
+          <label>Detect Keywords <span class="config-info">i<span class="config-tooltip">Comma-separated keywords for token session detection. Used to identify which agent produced a given session.</span></span></label>
+          <input type="text" id="cfg-agent-detect-kw" value="${esc((g.detectKeywords || []).join(', '))}" placeholder="e.g. scanner, triage, issue" onchange="markDirty('general','detectKeywords',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+        </div>
+        <div class="config-field">
+          <label>Aliases <span class="config-info">i<span class="config-tooltip">Comma-separated short aliases for Discord commands.</span></span></label>
+          <input type="text" id="cfg-agent-aliases" value="${esc((g.aliases || []).join(', '))}" placeholder="e.g. sc, scan" onchange="markDirty('general','aliases',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+        </div>
+        ${isCreate ? '' : `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #fecaca">
           <label style="color:#b91c1c;font-weight:600;font-size:0.75rem;margin-bottom:8px;display:block">Danger Zone</label>
           <button data-action="deleteAgentFromConfig" data-agent="${esc(agentName)}" style="background:#dc2626;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:0.75rem;cursor:pointer;font-weight:600" title="Permanently remove this agent from the hive. Deletes its config file, env file, and sidebar entry. Cannot be undone.">Delete Agent</button>
           <span style="color:#9ca3af;font-size:0.65rem;margin-left:8px">Removes agent config, env file, and sidebar entry</span>
-        </div>`;
+        </div>`}`;
     }
 
     function updateConfigAgentName(name) {
@@ -7184,6 +7131,62 @@ function burnAreaChart() {
 
     async function saveConfig() {
       const dirty = _configState.dirty;
+
+      if (_configState.isCreate) {
+        const createData = dirty._create || {};
+        const generalData = dirty.general || {};
+        const cadenceData = dirty.cadences || {};
+        const name = (createData.name || '').trim().toLowerCase().replace(/\s+/g, '-');
+        if (!name) {
+          showToast('Agent name is required', 'error');
+          return;
+        }
+        if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+          showToast('Name must be lowercase letters, numbers, and hyphens', 'error');
+          return;
+        }
+        const agent = {
+          backend: generalData.cliPinValue || 'copilot',
+          model: generalData.model || '',
+          enabled: true,
+          display_name: generalData.displayName || '',
+          description: generalData.description || '',
+          emoji: generalData.emoji || '',
+          color: generalData.color || '#3498db',
+          sort_order: generalData.sortOrder || 50,
+          bead_role: generalData.beadRole || 'worker',
+          role: generalData.role || '',
+          kick_template: generalData.kickTemplate || '',
+          launch_cmd: generalData.launchCmd || '',
+          restart_strategy: generalData.restartStrategy || 'immediate',
+          stale_timeout: generalData.staleTimeout || 0,
+          clear_on_kick: generalData.clearOnKick !== false,
+          include_repos: generalData.includeRepos !== false,
+          lane_keywords: generalData.laneKeywords || [],
+          detect_keywords: generalData.detectKeywords || [],
+          aliases: generalData.aliases || [],
+        };
+        try {
+          const res = await fetch('/api/agents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, agent })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showToast(data.error || 'Failed to create agent', 'error');
+            return;
+          }
+          showToast(`Agent "${name}" created`, 'success');
+          _configState.dirty = {};
+          closeConfigDialog();
+          fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
+        } catch (err) {
+          showToast('Network error: ' + err.message, 'error');
+        }
+        return;
+      }
+
       if (Object.keys(dirty).length === 0) {
         showToast('No changes to save', 'info');
         return;
@@ -7192,7 +7195,6 @@ function burnAreaChart() {
       let success = true;
       for (const [section, values] of Object.entries(dirty)) {
         try {
-          // Governor "General" tab stores hive-id via its own endpoint
           if (_configState.type === 'governor' && section === 'general' && values.hiveId !== undefined) {
             const idRes = await fetch('/api/hive-id', {
               method: 'PUT',

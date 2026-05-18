@@ -133,8 +133,8 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.deps.Config.ACMMLevel = &body.Level
-	s.refreshAndPersist()
+	level := body.Level
+	s.deps.Config.ACMMLevel = &level
 
 	s.logger.Info("ACMM level set explicitly", "level", body.Level)
 	jsonResponse(w, map[string]interface{}{

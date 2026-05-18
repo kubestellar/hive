@@ -104,7 +104,7 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 		s.refreshAndPersist()
 	}
 
-	s.deps.Config.ACMMLevel = level
+	s.deps.Config.ACMMLevel = &level
 	s.logger.Info("ACMM pack applied", "level", level, "name", pack.Name, "created", len(created), "skipped", len(skipped))
 
 	jsonResponse(w, map[string]interface{}{
@@ -117,14 +117,16 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// detectCurrentLevel infers the current ACMM level from the configured level
-// or by matching the agent set against known pack definitions.
 func (s *Server) detectCurrentLevel() int {
-	if s.deps.Config.ACMMLevel > 0 {
-		return s.deps.Config.ACMMLevel
+	return detectACMMLevel(s.deps.Config)
+}
+
+func detectACMMLevel(cfg *config.Config) int {
+	if cfg.ACMMLevel != nil {
+		return *cfg.ACMMLevel
 	}
 
-	agentCount := len(s.deps.Config.Agents)
+	agentCount := len(cfg.Agents)
 	switch {
 	case agentCount == 0:
 		return 0

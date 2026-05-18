@@ -81,7 +81,7 @@ func BuildFrontendStatus(
 		AgentMetrics: agentMetrics,
 		Hold:         buildHold(actionable),
 		IssueToMerge: issueToMerge,
-		ACMMLevel:    cfg.ACMMLevel,
+		ACMMLevel:    detectACMMLevel(cfg),
 	}
 	return payload
 }

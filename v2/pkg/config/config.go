@@ -496,7 +496,7 @@ func (c *Config) applyDefaults() {
 		c.Data.CopilotSessionsDir = "/data/home/.copilot/session-state"
 	}
 	if c.Data.AgentsDir == "" {
-		c.Data.AgentsDir = "/data/agents"
+		c.Data.AgentsDir = "/data/agent-configs"
 	}
 	for name, agent := range c.Agents {
 		agent.name = name

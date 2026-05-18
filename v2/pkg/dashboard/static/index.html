@@ -1475,6 +1475,67 @@
     </div>
   </div>
 </div>
+<div id="add-agent-overlay" class="config-overlay hidden">
+  <div class="config-modal" style="max-width:520px">
+    <div class="config-header">
+      <h2 class="config-title">Add Agent</h2>
+      <button class="config-close" onclick="closeAddAgentDialog()">&times;</button>
+    </div>
+    <div class="config-body" style="padding:16px 24px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="grid-column:1/-1">
+          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Name <span style="color:#dc2626">*</span></label>
+          <input type="text" id="add-agent-name" placeholder="e.g. docs-writer" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:2px">Lowercase, hyphens allowed. Used as the agent ID.</div>
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Display Name</label>
+          <input type="text" id="add-agent-display" placeholder="e.g. Docs Writer" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
+        </div>
+        <div>
+          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Backend</label>
+          <select id="add-agent-backend" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg)">
+            <option value="copilot">copilot</option>
+            <option value="claude">claude</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Model</label>
+          <input type="text" id="add-agent-model" placeholder="claude-sonnet-4-6" value="claude-sonnet-4-6" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
+        </div>
+        <div>
+          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Emoji</label>
+          <input type="text" id="add-agent-emoji" placeholder="🤖" value="🤖" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
+        </div>
+        <div>
+          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Color</label>
+          <input type="color" id="add-agent-color" value="#3498db" style="width:100%;height:38px;border:1px solid var(--border);border-radius:6px;background:var(--bg);cursor:pointer" />
+        </div>
+        <div>
+          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Sort Order</label>
+          <input type="number" id="add-agent-sort" placeholder="50" value="50" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:2px">Lower = higher in sidebar</div>
+        </div>
+        <div>
+          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Bead Role</label>
+          <select id="add-agent-bead-role" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg)">
+            <option value="worker">worker</option>
+            <option value="supervisor">supervisor</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Description</label>
+          <input type="text" id="add-agent-desc" placeholder="What this agent does" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);box-sizing:border-box" />
+        </div>
+      </div>
+      <div id="add-agent-error" style="color:#dc2626;font-size:0.8rem;margin-top:12px;display:none"></div>
+    </div>
+    <div class="config-footer">
+      <button class="btn config-cancel" onclick="closeAddAgentDialog()">Cancel</button>
+      <button class="btn config-save" onclick="submitAddAgent()">Create Agent</button>
+    </div>
+  </div>
+</div>
 <div class="gh-auth-alert" id="gh-auth-alert">GitHub API authentication failed. Check GitHub App key or token configuration.</div>
   <div class="gh-rate-alert" id="gh-rate-alert"></div>
 
@@ -2365,7 +2426,7 @@
       html += `<div><span id="nous-sb-scope" style="font-weight:600"></span> · <span id="nous-sb-mode"></span></div>`;
       html += `<div id="nous-sb-phase" style="opacity:0.8"></div></div>`;
       html += `<div style="display:flex;gap:4px;margin:4px 10px">`;
-      html += `<a class="oc-nav-item" style="color:#6b7280;font-style:italic;flex:1" onclick="openConfigDialog('agent')">+ agent</a>`;
+      html += `<a class="oc-nav-item" style="color:#6b7280;font-style:italic;flex:1" onclick="openAddAgentDialog()">+ agent</a>`;
       html += `<a class="oc-nav-item" style="color:#6b7280;font-style:italic;flex:1" onclick="ocAddSidebarGroup()">+ group</a>`;
       html += `</div>`;
 
@@ -6023,7 +6084,8 @@ function burnAreaChart() {
 
     function openConfigDialog(type, agentName) {
       if (type === 'agent' && !agentName) {
-        type = 'governor';
+        openAddAgentDialog();
+        return;
       }
       _configModalOpen = true;
       _configState = { type, agent: agentName || null, tab: null, data: {}, dirty: {} };
@@ -6054,7 +6116,70 @@ function burnAreaChart() {
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && _configModalOpen) closeConfigDialog();
+      if (e.key === 'Escape' && _addAgentOpen) closeAddAgentDialog();
     });
+
+    let _addAgentOpen = false;
+    function openAddAgentDialog() {
+      _addAgentOpen = true;
+      document.getElementById('add-agent-overlay').classList.remove('hidden');
+      document.getElementById('add-agent-name').value = '';
+      document.getElementById('add-agent-display').value = '';
+      document.getElementById('add-agent-model').value = 'claude-sonnet-4-6';
+      document.getElementById('add-agent-emoji').value = '🤖';
+      document.getElementById('add-agent-color').value = '#3498db';
+      document.getElementById('add-agent-sort').value = '50';
+      document.getElementById('add-agent-desc').value = '';
+      document.getElementById('add-agent-error').style.display = 'none';
+      setTimeout(() => document.getElementById('add-agent-name').focus(), 100);
+    }
+
+    function closeAddAgentDialog() {
+      _addAgentOpen = false;
+      document.getElementById('add-agent-overlay').classList.add('hidden');
+    }
+
+    async function submitAddAgent() {
+      const name = (document.getElementById('add-agent-name').value || '').trim().toLowerCase().replace(/\s+/g, '-');
+      const errEl = document.getElementById('add-agent-error');
+      if (!name) {
+        errEl.textContent = 'Name is required';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+        errEl.textContent = 'Name must be lowercase letters, numbers, and hyphens';
+        errEl.style.display = 'block';
+        return;
+      }
+      const body = {
+        name,
+        agent: {
+          backend: document.getElementById('add-agent-backend').value,
+          model: document.getElementById('add-agent-model').value,
+          enabled: true,
+          display_name: document.getElementById('add-agent-display').value || '',
+          description: document.getElementById('add-agent-desc').value || '',
+          emoji: document.getElementById('add-agent-emoji').value || '🤖',
+          color: document.getElementById('add-agent-color').value || '#3498db',
+          sort_order: parseInt(document.getElementById('add-agent-sort').value, 10) || 50,
+          bead_role: document.getElementById('add-agent-bead-role').value || 'worker',
+        }
+      };
+      try {
+        const res = await fetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Failed to create agent';
+          errEl.style.display = 'block';
+          return;
+        }
+        closeAddAgentDialog();
+      } catch (err) {
+        errEl.textContent = 'Network error: ' + err.message;
+        errEl.style.display = 'block';
+      }
+    }
 
     function switchConfigTab(tabId) {
       _configState.tab = tabId;

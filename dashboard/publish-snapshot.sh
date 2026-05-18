@@ -40,6 +40,14 @@ git fetch origin main
 git checkout main 2>/dev/null || git checkout -b main origin/main
 git reset --hard origin/main
 
+# Close any still-open snapshot PRs to prevent merge conflicts
+echo "Closing stale snapshot PRs..."
+open_prs=$(gh pr list --repo "$DOCS_REPO_SLUG" --author "app/kubestellar-hive" --search "chore: hive dashboard snapshot" --state open --json number --jq ".[].number" 2>/dev/null || true)
+for pr in $open_prs; do
+  echo "  Closing stale PR #${pr}"
+  gh pr close "$pr" --repo "$DOCS_REPO_SLUG" --delete-branch 2>/dev/null || true
+done
+
 # Build all three snapshots from the same API data
 mkdir -p public/live/hive/light public/live/hive/classic
 
@@ -54,6 +62,13 @@ if git diff --quiet -- public/live/hive/; then
 fi
 
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+
+# Re-fetch and rebase onto latest main so the PR won't conflict
+git stash --include-untracked
+git fetch origin main
+git reset --hard origin/main
+git stash pop
+
 SNAPSHOT_BRANCH="chore/hive-snapshot-$(date -u '+%Y%m%d-%H%M%S')"
 
 git checkout -b "$SNAPSHOT_BRANCH"

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -114,6 +115,31 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 		"name":    pack.Name,
 		"created": created,
 		"skipped": skipped,
+	})
+}
+
+func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Level int `json:"level"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	const maxACMMLevel = 6
+	if body.Level < 0 || body.Level > maxACMMLevel {
+		jsonError(w, "level must be 0-6", http.StatusBadRequest)
+		return
+	}
+
+	s.deps.Config.ACMMLevel = &body.Level
+	s.refreshAndPersist()
+
+	s.logger.Info("ACMM level set explicitly", "level", body.Level)
+	jsonResponse(w, map[string]interface{}{
+		"ok":    true,
+		"level": body.Level,
 	})
 }
 

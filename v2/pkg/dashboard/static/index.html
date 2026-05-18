@@ -6156,6 +6156,7 @@ function burnAreaChart() {
             <div style="text-align:right;min-width:80px">
               <div style="font-size:0.7rem;color:var(--muted)">${p.agentCount} agent${p.agentCount !== 1 ? 's' : ''}</div>
               ${!isCurrent && p.level > 0 ? '<button onclick="applyACMMPack(' + p.level + ')" style="margin-top:4px;padding:6px 14px;background:' + color + ';color:#fff;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer">Apply</button>' : ''}
+              ${!isCurrent && p.level > 0 ? '<button onclick="setACMMLevel(' + p.level + ')" style="margin-top:4px;padding:5px 10px;background:transparent;color:' + color + ';border:1px solid ' + color + ';border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer" title="Set level without creating agents">Set Level</button>' : ''}
               ${p.level === 0 ? '<div style="font-size:0.65rem;color:var(--muted);margin-top:4px">Baseline</div>' : ''}
             </div>
           </div>
@@ -6187,6 +6188,31 @@ function burnAreaChart() {
         const created = (data.created || []).length;
         const skipped = (data.skipped || []).length;
         showToast(`Level ${level} applied: ${created} created, ${skipped} skipped`, 'success');
+        _acmmPacks = null;
+        closeACMMDialog();
+      } catch (err) {
+        errEl.textContent = 'Network error: ' + err.message;
+        errEl.style.display = 'block';
+      }
+    }
+
+    async function setACMMLevel(level) {
+      const errEl = document.getElementById('acmm-apply-error');
+      errEl.style.display = 'none';
+
+      const levelNames = ['Unaware', 'Idea', 'Development', 'CI/CD', 'Full Automation', 'Guarded Autonomy', 'Full Autonomy'];
+      const name = levelNames[level] || 'Level ' + level;
+      if (!confirm(`Set ACMM level to L${level} (${name})?\n\nThis only changes the displayed level — no agents will be created or removed.`)) return;
+
+      try {
+        const res = await fetch('/api/packs/level', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Failed to set level';
+          errEl.style.display = 'block';
+          return;
+        }
+        showToast(`ACMM level set to L${level} (${name})`, 'success');
         _acmmPacks = null;
         closeACMMDialog();
       } catch (err) {

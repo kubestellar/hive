@@ -6404,6 +6404,7 @@ function burnAreaChart() {
           <button data-action="deleteAgentFromConfig" data-agent="${esc(agentName)}" style="background:#dc2626;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:0.75rem;cursor:pointer;font-weight:600" title="Permanently remove this agent from the hive. Deletes its config file, env file, and sidebar entry. Cannot be undone.">Delete Agent</button>
           <span style="color:#9ca3af;font-size:0.65rem;margin-left:8px">Removes agent config, env file, and sidebar entry</span>
         </div>`}`;
+      return html;
     }
 
     function updateConfigAgentName(name) {

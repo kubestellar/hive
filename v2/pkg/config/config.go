@@ -116,6 +116,9 @@ type AgentConfig struct {
 	StatsDisplay     []StatsDisplayEntry `yaml:"stats_display"`
 	ACMMLevels       []int             `yaml:"acmm_levels"`
 
+	// Managed is true for agents loaded from the overlay directory (not base config).
+	Managed bool `yaml:"-" json:"managed"`
+
 	// clearOnKickSet tracks whether YAML explicitly set clear_on_kick to false
 	clearOnKickSet bool
 	// name is the YAML map key, set during config load
@@ -295,6 +298,7 @@ type DataConfig struct {
 	LogsDir             string `yaml:"logs_dir"`
 	ClaudeSessionsDir   string `yaml:"claude_sessions_dir"`
 	CopilotSessionsDir  string `yaml:"copilot_sessions_dir"`
+	AgentsDir           string `yaml:"agents_dir"`
 }
 
 var envVarPattern = regexp.MustCompile(`\$\{([^}]+)\}`)
@@ -333,6 +337,19 @@ func LoadWithOverrides(path, envPath string) (*Config, error) {
 	}
 
 	cfg.applyDefaults()
+
+	// Merge per-agent overlay files from the agents directory.
+	if cfg.Data.AgentsDir != "" {
+		overlays, err := LoadAgentOverrides(cfg.Data.AgentsDir)
+		if err != nil {
+			return nil, fmt.Errorf("loading agent overlays: %w", err)
+		}
+		cfg.MergeAgentOverrides(overlays)
+		// Re-apply defaults for overlay agents.
+		for name := range overlays {
+			cfg.ApplyAgentDefaults(name)
+		}
+	}
 
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
@@ -477,6 +494,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Data.CopilotSessionsDir == "" {
 		c.Data.CopilotSessionsDir = "/data/home/.copilot/session-state"
+	}
+	if c.Data.AgentsDir == "" {
+		c.Data.AgentsDir = "/data/agents"
 	}
 	for name, agent := range c.Agents {
 		agent.name = name

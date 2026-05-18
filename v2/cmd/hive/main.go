@@ -406,6 +406,9 @@ func main() {
 		PersistFunc: func() {
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 		},
+		ReInitFunc: func() {
+			initAgentConfigDrivenSystems(cfg)
+		},
 	})
 
 	if cfg.Policies.Repo != "" {

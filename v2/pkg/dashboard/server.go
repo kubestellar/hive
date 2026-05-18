@@ -72,6 +72,7 @@ type FrontendAgent struct {
 	Emoji            string `json:"emoji,omitempty"`
 	Color            string `json:"color,omitempty"`
 	BeadRole         string `json:"beadRole,omitempty"`
+	Managed          bool   `json:"managed,omitempty"`
 	Session          string `json:"session"`
 	State            string `json:"state"`
 	Busy             string `json:"busy"`

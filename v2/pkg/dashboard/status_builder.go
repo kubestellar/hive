@@ -161,6 +161,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			Emoji:         agentCfg.Emoji,
 			Color:         agentCfg.Color,
 			BeadRole:      agentCfg.GetBeadRole(),
+			Managed:       agentCfg.Managed,
 			Session:       name,
 			State:         string(proc.State),
 			Busy:          busy,

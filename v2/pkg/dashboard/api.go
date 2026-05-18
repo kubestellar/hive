@@ -74,6 +74,9 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("POST /api/agents", s.handleAgentCreate)
 	s.mux.HandleFunc("DELETE /api/agents/{name}", s.handleAgentDelete)
 
+	s.mux.HandleFunc("GET /api/packs", s.handlePacksList)
+	s.mux.HandleFunc("POST /api/packs/{level}/apply", s.handlePackApply)
+
 	s.mux.HandleFunc("GET /api/config/sidebar", s.handleSidebarGet)
 	s.mux.HandleFunc("PUT /api/config/sidebar", s.handleSidebarSet)
 	s.mux.HandleFunc("GET /api/config/backends", s.handleBackends)

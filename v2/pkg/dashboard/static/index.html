@@ -1536,6 +1536,22 @@
     </div>
   </div>
 </div>
+<div id="acmm-overlay" class="config-overlay hidden">
+  <div class="config-modal" style="max-width:800px;max-height:85vh">
+    <div class="config-header">
+      <h2 class="config-title">ACMM Maturity Level</h2>
+      <button class="config-close" onclick="closeACMMDialog()">&times;</button>
+    </div>
+    <div class="config-body" style="padding:16px 24px;overflow-y:auto;max-height:calc(85vh - 120px)">
+      <p style="font-size:0.82rem;color:var(--muted);margin:0 0 16px">
+        Select your AI-native Continuous Maturity Model (ACMM) level. Each level provides a curated set of agents
+        with increasing autonomy. Agents are additive — higher levels build on lower ones.
+      </p>
+      <div id="acmm-packs-list" style="display:flex;flex-direction:column;gap:12px"></div>
+      <div id="acmm-apply-error" style="color:#dc2626;font-size:0.8rem;margin-top:12px;display:none"></div>
+    </div>
+  </div>
+</div>
 <div class="gh-auth-alert" id="gh-auth-alert">GitHub API authentication failed. Check GitHub App key or token configuration.</div>
   <div class="gh-rate-alert" id="gh-rate-alert"></div>
 
@@ -1547,6 +1563,9 @@
         <div class="oc-logo-title">HIVE</div>
         <div class="oc-logo-sub">GATEWAY DASHBOARD</div>
       </div>
+    </div>
+    <div style="padding:4px 16px 8px;text-align:center">
+      <span id="acmm-sidebar-badge" title="ACMM Maturity Level — click to change" style="cursor:pointer;display:inline-block;padding:4px 12px;border-radius:12px;font-size:0.7rem;font-weight:700;background:linear-gradient(135deg,#3498db,#2ecc71);color:#fff;letter-spacing:0.5px" onclick="openACMMDialog()"></span>
     </div>
     <div class="oc-nav-group">
       <div class="oc-nav-label">Control</div>
@@ -1599,6 +1618,7 @@
   <h1><span class="bee">🐝</span> KubeStellar Hive Dashboard&nbsp;<span id="project-name">for KubeStellar/Console</span> <span class="timestamp" id="ts"></span>
     <span class="git-version" id="git-version"></span>
     <span class="git-version" id="hive-id-badge" title="Hive Instance ID" style="cursor:pointer;border:1px solid var(--border);padding:2px 8px;border-radius:4px" onclick="openConfigDialog('governor')"></span>
+    <span class="git-version" id="acmm-badge" title="ACMM Maturity Level — click to change" style="cursor:pointer;border:1px solid var(--border);padding:2px 8px;border-radius:4px;background:linear-gradient(135deg,#3498db,#2ecc71);color:#fff;font-weight:600" onclick="openACMMDialog()"></span>
     <button class="layout-toggle" id="layout-toggle" onclick="toggleLayout()" title="Switch between Light layout (sidebar + detail panel) and Classic layout (dark theme grid). Your preference is saved in the browser.">☰ Classic</button>
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
@@ -5464,6 +5484,7 @@ function burnAreaChart() {
       if (hiveIdBadge) hiveIdBadge.textContent = hiveId;
       const ocHiveId = document.getElementById('oc-hive-id');
       if (ocHiveId) ocHiveId.textContent = hiveId;
+      updateACMMBadge(data.acmmLevel || 0);
       // Update Light health badge with hover detail
       const ocHealth = document.getElementById('oc-health');
       if (ocHealth) {
@@ -6117,6 +6138,7 @@ function burnAreaChart() {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && _configModalOpen) closeConfigDialog();
       if (e.key === 'Escape' && _addAgentOpen) closeAddAgentDialog();
+      if (e.key === 'Escape' && _acmmOpen) closeACMMDialog();
     });
 
     let _addAgentOpen = false;
@@ -6179,6 +6201,119 @@ function burnAreaChart() {
         errEl.textContent = 'Network error: ' + err.message;
         errEl.style.display = 'block';
       }
+    }
+
+    // ── ACMM Level Selector ──
+    let _acmmOpen = false;
+    let _acmmPacks = null;
+
+    async function openACMMDialog() {
+      _acmmOpen = true;
+      document.getElementById('acmm-overlay').classList.remove('hidden');
+      document.getElementById('acmm-apply-error').style.display = 'none';
+
+      if (!_acmmPacks) {
+        try {
+          const res = await fetch('/api/packs');
+          _acmmPacks = await res.json();
+        } catch (err) {
+          document.getElementById('acmm-packs-list').innerHTML = '<div style="color:var(--muted)">Failed to load packs</div>';
+          return;
+        }
+      }
+      renderACMMPacks();
+    }
+
+    function closeACMMDialog() {
+      _acmmOpen = false;
+      document.getElementById('acmm-overlay').classList.add('hidden');
+    }
+
+    function renderACMMPacks() {
+      const container = document.getElementById('acmm-packs-list');
+      const currentLevel = window._lastStatus ? (window._lastStatus.acmmLevel || 0) : 0;
+
+      const levelColors = ['#95a5a6', '#8e44ad', '#2980b9', '#27ae60', '#e67e22', '#e74c3c', '#c0392b'];
+
+      container.innerHTML = (_acmmPacks || []).map(p => {
+        const isCurrent = p.current || p.level === currentLevel;
+        const color = levelColors[p.level] || '#3498db';
+        const agentList = (p.agents || []).map(a =>
+          `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:0.75rem">
+            <span style="font-size:1rem">${esc(a.emoji || '🤖')}</span>
+            <span style="font-weight:600;color:${esc(a.color || '#999')}">${esc(a.displayName || a.name)}</span>
+            <span style="color:var(--muted);flex:1">${esc(a.description || '').substring(0, 80)}${(a.description || '').length > 80 ? '…' : ''}</span>
+          </div>`
+        ).join('');
+
+        const knowledgeNotes = (p.agents || []).filter(a => a.knowledgeUse).map(a =>
+          `<div style="font-size:0.7rem;color:var(--muted);padding:2px 0">
+            <span style="font-weight:600">${esc(a.emoji || '')} ${esc(a.displayName || a.name)}</span>: ${esc(a.knowledgeUse || '').substring(0, 120)}${(a.knowledgeUse || '').length > 120 ? '…' : ''}
+          </div>`
+        ).join('');
+
+        const interactionNotes = (p.agents || []).filter(a => a.interactions).map(a =>
+          `<div style="font-size:0.7rem;color:var(--muted);padding:2px 0">
+            <span style="font-weight:600">${esc(a.emoji || '')} ${esc(a.displayName || a.name)}</span>: ${esc(a.interactions || '')}
+          </div>`
+        ).join('');
+
+        return `<div style="border:2px solid ${isCurrent ? color : 'var(--border)'};border-radius:10px;padding:16px;${isCurrent ? 'background:var(--surface);box-shadow:0 0 12px ' + color + '40' : ''}">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <span style="font-size:1.5rem;font-weight:800;color:${color};min-width:32px">L${p.level}</span>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:0.9rem">${esc(p.name)} ${isCurrent ? '<span style="font-size:0.7rem;background:' + color + ';color:#fff;padding:2px 8px;border-radius:8px;margin-left:6px">CURRENT</span>' : ''}</div>
+              <div style="font-size:0.78rem;color:var(--muted);margin-top:2px">${esc(p.description || '')}</div>
+            </div>
+            <div style="text-align:right;min-width:80px">
+              <div style="font-size:0.7rem;color:var(--muted)">${p.agentCount} agent${p.agentCount !== 1 ? 's' : ''}</div>
+              ${!isCurrent && p.level > 0 ? '<button onclick="applyACMMPack(' + p.level + ')" style="margin-top:4px;padding:6px 14px;background:' + color + ';color:#fff;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer">Apply</button>' : ''}
+              ${p.level === 0 ? '<div style="font-size:0.65rem;color:var(--muted);margin-top:4px">Baseline</div>' : ''}
+            </div>
+          </div>
+          ${p.governor ? '<div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px"><span style="font-weight:600">Governor:</span> ' + esc(p.governor.modes || 'none') + ' · <span style="font-weight:600">Merge:</span> ' + esc(p.governor.mergePolicy || 'manual') + '</div>' : ''}
+          ${agentList ? '<details style="margin-top:6px"><summary style="font-size:0.75rem;font-weight:600;cursor:pointer;color:var(--fg)">Agents (' + p.agentCount + ')</summary><div style="margin-top:6px;padding-left:4px">' + agentList + '</div></details>' : ''}
+          ${interactionNotes ? '<details style="margin-top:4px"><summary style="font-size:0.72rem;font-weight:600;cursor:pointer;color:var(--muted)">Agent Interactions</summary><div style="margin-top:4px;padding-left:4px">' + interactionNotes + '</div></details>' : ''}
+          ${knowledgeNotes ? '<details style="margin-top:4px"><summary style="font-size:0.72rem;font-weight:600;cursor:pointer;color:var(--muted)">Knowledge Base Usage</summary><div style="margin-top:4px;padding-left:4px">' + knowledgeNotes + '</div></details>' : ''}
+        </div>`;
+      }).join('');
+    }
+
+    async function applyACMMPack(level) {
+      const errEl = document.getElementById('acmm-apply-error');
+      errEl.style.display = 'none';
+
+      const pack = (_acmmPacks || []).find(p => p.level === level);
+      if (!pack) return;
+
+      if (!confirm(`Apply ACMM Level ${level} (${pack.name})?\n\nThis will create ${pack.agentCount} agent(s). Existing agents with the same name will be skipped.`)) return;
+
+      try {
+        const res = await fetch(`/api/packs/${level}/apply`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Failed to apply pack';
+          errEl.style.display = 'block';
+          return;
+        }
+        const created = (data.created || []).length;
+        const skipped = (data.skipped || []).length;
+        showToast(`Level ${level} applied: ${created} created, ${skipped} skipped`, 'success');
+        _acmmPacks = null;
+        closeACMMDialog();
+      } catch (err) {
+        errEl.textContent = 'Network error: ' + err.message;
+        errEl.style.display = 'block';
+      }
+    }
+
+    function updateACMMBadge(level) {
+      const levelNames = ['L0 Unaware', 'L1 Idea', 'L2 Dev', 'L3 CI/CD', 'L4 Auto', 'L5 Guarded', 'L6 Full Auto'];
+      const text = levelNames[level] || 'L' + level;
+      const badge = document.getElementById('acmm-badge');
+      if (badge) badge.textContent = 'ACMM ' + text;
+      const sbBadge = document.getElementById('acmm-sidebar-badge');
+      if (sbBadge) sbBadge.textContent = 'ACMM ' + text;
     }
 
     function switchConfigTab(tabId) {

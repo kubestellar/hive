@@ -22,6 +22,7 @@ type Config struct {
 	Data          DataConfig                   `yaml:"data"`
 	Knowledge     KnowledgeConfig              `yaml:"knowledge"`
 	HiveID        string                       `yaml:"hive_id"`
+	ACMMLevel     int                          `yaml:"acmm_level" json:"acmm_level,omitempty"`
 }
 
 type KnowledgeConfig struct {

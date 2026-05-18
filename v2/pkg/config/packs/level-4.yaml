@@ -1,0 +1,176 @@
+level: 4
+name: Full Automation
+description: >
+  24/7 agents with dynamic scaling, full TDD enforcement, and community
+  outreach. Governor active in all modes (SURGE/BUSY/QUIET/IDLE). Coverage
+  gate at 90%+ with ratcheting. This is the standard production level.
+governor:
+  modes: SURGE, BUSY, QUIET, IDLE
+  merge_policy: CI + coverage gate (90%+)
+agents:
+  - name: supervisor
+    display_name: Supervisor
+    role: supervisor
+    description: >
+      Agent health monitoring, sweep analysis, and escalation. Watches all
+      other agents for stalls, rate limits, and anomalies.
+    emoji: "👑"
+    color: "#e74c3c"
+    sort_order: 10
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: supervisor
+    kick_template: supervisor-CLAUDE.md
+    include_repos: true
+    interactions: >
+      Monitors all agents. Escalates issues to human operators. Coordinates
+      agent restarts and health checks.
+    knowledge_use: >
+      Reads agent health history and operational patterns. Produces sweep
+      reports and health assessments.
+  - name: scanner
+    display_name: Scanner
+    role: scanner
+    description: >
+      Full triage and fix capability. Parallel dispatch with 30-minute SLA
+      on issue response.
+    emoji: "🔍"
+    color: "#3498db"
+    sort_order: 20
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: scanner-CLAUDE.md
+    include_repos: true
+    lane_keywords: [bug, triage, fix, issue]
+    interactions: >
+      Creates PRs that tester validates. Transfers complex issues to architect.
+      Reports to supervisor.
+    knowledge_use: >
+      Reads full project history, known regressions, and fix patterns. Produces
+      fix records and triage decisions.
+  - name: ci-maintainer
+    display_name: CI Maintainer
+    role: ci-maintainer
+    description: >
+      Full CI pipeline ownership. Nightly E2E monitoring. Dependency updates
+      and workflow optimization.
+    emoji: "🔧"
+    color: "#2ecc71"
+    sort_order: 30
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: ci-maintainer-CLAUDE.md
+    include_repos: true
+    lane_keywords: [ci, build, pipeline, workflow, dependency]
+    interactions: >
+      Coordinates with tester on coverage gates. Reports pipeline health
+      to supervisor.
+    knowledge_use: >
+      Reads CI history and optimization patterns. Produces workflow health
+      reports.
+  - name: tester
+    display_name: Tester
+    role: tester
+    description: >
+      Full TDD enforcement with coverage ratcheting. Generates tests for new
+      code and validates scanner PRs.
+    emoji: "🧪"
+    color: "#3498db"
+    sort_order: 35
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: tester-CLAUDE.md
+    include_repos: true
+    lane_keywords: [test, coverage, tdd, quality]
+    interactions: >
+      Reviews scanner PRs for test coverage. Coordinates with ci-maintainer
+      on test infrastructure.
+    knowledge_use: >
+      Reads test patterns and coverage history. Produces coverage reports
+      and test strategy insights.
+  - name: architect
+    display_name: Architect
+    role: architect
+    description: >
+      Active architecture agent. RFCs, refactors, and new features. Proactively
+      identifies improvement areas.
+    emoji: "🏗"
+    color: "#9b59b6"
+    sort_order: 40
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: architect-CLAUDE.md
+    include_repos: true
+    lane_keywords: [refactor, architecture, rfc, design, feature]
+    interactions: >
+      Receives complex issues from scanner. Produces RFCs that all agents
+      reference.
+    knowledge_use: >
+      Heavy consumer and producer of architecture decisions, patterns, and
+      design records.
+  - name: outreach
+    display_name: Outreach
+    role: outreach
+    description: >
+      Community engagement, ADOPTERS tracking, and ecosystem missions.
+      Monitors adoption metrics and files issues on partner projects.
+    emoji: "🌐"
+    color: "#e67e22"
+    sort_order: 50
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: outreach-CLAUDE.md
+    include_repos: false
+    lane_keywords: [community, adopters, outreach, ecosystem]
+    interactions: >
+      Independent agent. Reports adoption metrics to supervisor.
+    knowledge_use: >
+      Reads community patterns and adoption history. Produces outreach
+      reports and engagement insights.
+  - name: sec-check
+    display_name: Security
+    role: sec-check
+    description: >
+      Security scanning, dependency audit, and vulnerability monitoring.
+      CVE tracking and security gate enforcement.
+    emoji: "🛡"
+    color: "#1abc9c"
+    sort_order: 60
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: sec-check-CLAUDE.md
+    include_repos: true
+    lane_keywords: [security, cve, vulnerability, audit]
+    interactions: >
+      Reports critical findings to supervisor for escalation. Coordinates
+      with ci-maintainer on security gates.
+    knowledge_use: >
+      Reads vulnerability databases and past security fixes. Produces
+      security audit reports.
+  - name: strategist
+    display_name: Strategist
+    role: strategist
+    description: >
+      Strategic planning, roadmap alignment, and cross-agent coordination.
+      Analyzes trends across all agents.
+    emoji: "🧠"
+    color: "#f39c12"
+    sort_order: 70
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: strategist-CLAUDE.md
+    include_repos: false
+    lane_keywords: [strategy, roadmap, planning]
+    interactions: >
+      Reads all agent outputs. Produces strategic insights and priority
+      recommendations.
+    knowledge_use: >
+      Heavy consumer of all agent knowledge. Produces strategic summaries
+      and priority recommendations.

@@ -324,6 +324,11 @@ for marker_file in "${SHA_HOLD_MARKER}"_*; do
 done > "$sha_recheck_tmp"
 
 SHA_RECHECK_PARALLELISM=8
+GH_APP_TOKEN_CACHE="/var/run/hive-metrics/gh-app-token.cache"
+if [ -f "$GH_APP_TOKEN_CACHE" ]; then
+  export GH_TOKEN
+  GH_TOKEN=$(cat "$GH_APP_TOKEN_CACHE")
+fi
 if [ -s "$sha_recheck_tmp" ]; then
   cat "$sha_recheck_tmp" | xargs -P "$SHA_RECHECK_PARALLELISM" -I {} bash -c '
     entry="$1"

@@ -530,6 +530,20 @@ func runEvalCycle(
 		_ = os.WriteFile("/data/last-actionable.json", data, 0o644)
 	}
 
+	shaResult, shaErr := ghClient.EnforceSHAHold(ctx, github.SHAHoldConfig{
+		PrimaryRepo: cfg.Project.PrimaryRepo,
+		AIAuthor:    cfg.Project.AIAuthor,
+	})
+	if shaErr != nil {
+		logger.Warn("SHA hold enforcement failed", "error", shaErr)
+	} else {
+		logger.Info("SHA hold enforcement complete",
+			"held", shaResult.Held,
+			"unheld", shaResult.Unheld,
+			"skipped", shaResult.Skipped,
+		)
+	}
+
 	agentsDue := gov.Evaluate(
 		actionable.Issues.Count,
 		actionable.PRs.Count,

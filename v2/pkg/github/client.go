@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -486,3 +487,121 @@ func (c *Client) SearchOutreachPRCount(ctx context.Context, author, org, project
 }
 
 const perPage = 100
+
+var shaPattern = regexp.MustCompile(`[0-9a-f]{7,40}\b`)
+
+const shaHoldComment = "Thanks for filing this issue! To help us reproduce and investigate, " +
+	"could you please include the **commit SHA** of the build you're running?\n\n" +
+	"You can find it by running:\n```\ngit rev-parse --short HEAD\n```\n\n" +
+	"Or check the bottom of the console UI for the version string.\n\n" +
+	"_This issue will be on hold until a SHA is provided. " +
+	"Simply add a comment with the SHA and the hold will be automatically removed._"
+
+type SHAHoldConfig struct {
+	PrimaryRepo     string
+	AIAuthor        string
+	InternalAuthors []string
+}
+
+type SHAHoldResult struct {
+	Held    int `json:"held"`
+	Unheld  int `json:"unheld"`
+	Skipped int `json:"skipped"`
+}
+
+func (c *Client) EnforceSHAHold(ctx context.Context, cfg SHAHoldConfig) (*SHAHoldResult, error) {
+	result := &SHAHoldResult{}
+	owner := c.org
+	repo := cfg.PrimaryRepo
+
+	opts := &gh.IssueListByRepoOptions{
+		State:       "open",
+		Labels:      []string{"kind/bug"},
+		ListOptions: gh.ListOptions{PerPage: 100},
+	}
+
+	issues, _, err := c.client.Issues.ListByRepo(ctx, owner, repo, opts)
+	if err != nil {
+		return nil, fmt.Errorf("listing kind/bug issues for %s/%s: %w", owner, repo, err)
+	}
+
+	for _, issue := range issues {
+		if issue.IsPullRequest() {
+			continue
+		}
+
+		author := issue.GetUser().GetLogin()
+		if author == cfg.AIAuthor || isInternalAuthor(author, cfg.InternalAuthors) {
+			result.Skipped++
+			continue
+		}
+
+		labels := extractLabels(issue.Labels)
+		held := isHeld(labels)
+		hasSHA := shaPattern.MatchString(issue.GetBody())
+
+		if !hasSHA {
+			hasSHA = c.checkCommentsForSHA(ctx, owner, repo, issue.GetNumber(), author)
+		}
+
+		if hasSHA && held {
+			c.unhold(ctx, owner, repo, issue.GetNumber())
+			result.Unheld++
+			c.logger.Info("SHA-UNHOLD", "repo", repo, "issue", issue.GetNumber(), "author", author)
+		} else if !hasSHA && !held {
+			c.hold(ctx, owner, repo, issue.GetNumber())
+			result.Held++
+			c.logger.Info("SHA-HOLD", "repo", repo, "issue", issue.GetNumber(), "author", author)
+		} else {
+			result.Skipped++
+		}
+	}
+
+	return result, nil
+}
+
+func (c *Client) checkCommentsForSHA(ctx context.Context, owner, repo string, number int, reporter string) bool {
+	opts := &gh.IssueListCommentsOptions{
+		ListOptions: gh.ListOptions{PerPage: 100},
+	}
+	comments, _, err := c.client.Issues.ListComments(ctx, owner, repo, number, opts)
+	if err != nil {
+		c.logger.Warn("failed to list comments for SHA check", "repo", repo, "issue", number, "error", err)
+		return false
+	}
+	for _, comment := range comments {
+		if comment.GetUser().GetLogin() == reporter && shaPattern.MatchString(comment.GetBody()) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Client) hold(ctx context.Context, owner, repo string, number int) {
+	_, _, err := c.client.Issues.AddLabelsToIssue(ctx, owner, repo, number, []string{"hold"})
+	if err != nil {
+		c.logger.Warn("failed to add hold label", "repo", repo, "issue", number, "error", err)
+	}
+
+	comment := &gh.IssueComment{Body: gh.Ptr(shaHoldComment)}
+	_, _, err = c.client.Issues.CreateComment(ctx, owner, repo, number, comment)
+	if err != nil {
+		c.logger.Warn("failed to post SHA hold comment", "repo", repo, "issue", number, "error", err)
+	}
+}
+
+func (c *Client) unhold(ctx context.Context, owner, repo string, number int) {
+	_, err := c.client.Issues.RemoveLabelForIssue(ctx, owner, repo, number, "hold")
+	if err != nil {
+		c.logger.Warn("failed to remove hold label", "repo", repo, "issue", number, "error", err)
+	}
+}
+
+func isInternalAuthor(author string, internalAuthors []string) bool {
+	for _, ia := range internalAuthors {
+		if strings.EqualFold(author, ia) {
+			return true
+		}
+	}
+	return false
+}

@@ -5455,7 +5455,7 @@ function burnAreaChart() {
       if (hiveIdBadge) hiveIdBadge.textContent = hiveId;
       const ocHiveId = document.getElementById('oc-hive-id');
       if (ocHiveId) ocHiveId.textContent = hiveId;
-      updateACMMBadge(data.acmmLevel || 0);
+      updateACMMBadge(data.acmmLevel || 0, data.acmmPackAgents || null);
       // Update Light health badge with hover detail
       const ocHealth = document.getElementById('oc-health');
       if (ocHealth) {
@@ -6251,17 +6251,17 @@ function burnAreaChart() {
       }
     }
 
-    function updateACMMBadge(level) {
+    function updateACMMBadge(level, packAgents) {
       const levelNames = ['L0 Unaware', 'L1 Idea', 'L2 Dev', 'L3 CI/CD', 'L4 Auto', 'L5 Guarded', 'L6 Full Auto'];
       const text = levelNames[level] || 'L' + level;
       const badge = document.getElementById('acmm-badge');
       if (badge) badge.textContent = 'ACMM ' + text;
       const sbBadge = document.getElementById('acmm-sidebar-badge');
       if (sbBadge) sbBadge.textContent = 'ACMM ' + text;
-      applyACMMVisibility(level);
+      applyACMMVisibility(level, packAgents);
     }
 
-    function applyACMMVisibility(level) {
+    function applyACMMVisibility(level, packAgents) {
       const isL0 = level === 0;
       const hide = el => { if (el) el.style.display = 'none'; };
       const show = (el, d) => { if (el) el.style.display = d || ''; };
@@ -6342,6 +6342,18 @@ function burnAreaChart() {
           if (section === 'beads-section' && level < ACMM_BEADS_MIN_LEVEL) hide(item);
           if (section === 'nous-section' && level < ACMM_NOUS_MIN_LEVEL) hide(item);
         });
+
+        if (packAgents && packAgents.length > 0) {
+          const packSet = new Set(packAgents);
+          document.querySelectorAll('[data-agent-nav]').forEach(navItem => {
+            const name = navItem.getAttribute('data-agent-nav');
+            if (name && !packSet.has(name)) hide(navItem);
+          });
+          document.querySelectorAll('.agent-card[data-agent]').forEach(card => {
+            const name = card.getAttribute('data-agent');
+            if (name && !packSet.has(name)) hide(card);
+          });
+        }
       }
     }
 

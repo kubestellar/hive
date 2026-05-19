@@ -135,13 +135,47 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 
 	level := body.Level
 	s.deps.Config.ACMMLevel = &level
+
+	paused, resumed := s.syncAgentVisibility(level)
+
 	s.refreshAndPersistSync()
 
-	s.logger.Info("ACMM level set explicitly", "level", body.Level)
+	s.logger.Info("ACMM level set explicitly", "level", body.Level, "paused", len(paused), "resumed", len(resumed))
 	jsonResponse(w, map[string]interface{}{
-		"ok":    true,
-		"level": body.Level,
+		"ok":      true,
+		"level":   body.Level,
+		"paused":  paused,
+		"resumed": resumed,
 	})
+}
+
+func (s *Server) syncAgentVisibility(level int) (paused, resumed []string) {
+	pack, err := config.ACMMPackByLevel(level)
+	if err != nil {
+		return nil, nil
+	}
+
+	packAgents := make(map[string]bool, len(pack.Agents))
+	for _, a := range pack.Agents {
+		packAgents[a.Name] = true
+	}
+
+	for name := range s.deps.Config.Agents {
+		if packAgents[name] {
+			if s.deps.AgentMgr.IsPaused(name) {
+				if err := s.deps.AgentMgr.Resume(s.deps.Ctx, name); err == nil {
+					resumed = append(resumed, name)
+				}
+			}
+		} else {
+			if !s.deps.AgentMgr.IsPaused(name) {
+				if err := s.deps.AgentMgr.Pause(name); err == nil {
+					paused = append(paused, name)
+				}
+			}
+		}
+	}
+	return paused, resumed
 }
 
 func (s *Server) detectCurrentLevel() int {

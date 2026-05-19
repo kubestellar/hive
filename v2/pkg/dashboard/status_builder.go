@@ -81,7 +81,8 @@ func BuildFrontendStatus(
 		AgentMetrics: agentMetrics,
 		Hold:         buildHold(actionable),
 		IssueToMerge: issueToMerge,
-		ACMMLevel:    detectACMMLevel(cfg),
+		ACMMLevel:      detectACMMLevel(cfg),
+		ACMMPackAgents: buildACMMPackAgents(cfg),
 	}
 	return payload
 }
@@ -851,4 +852,17 @@ func buildIssueToMerge(mc *MetricsCollector) map[string]any {
 		"updated_at":      mttr.UpdatedAt,
 		"history":         history,
 	}
+}
+
+func buildACMMPackAgents(cfg *config.Config) []string {
+	level := detectACMMLevel(cfg)
+	pack, err := config.ACMMPackByLevel(level)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(pack.Agents))
+	for _, a := range pack.Agents {
+		names = append(names, a.Name)
+	}
+	return names
 }

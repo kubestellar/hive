@@ -6185,7 +6185,7 @@ function burnAreaChart() {
             <div style="text-align:right;min-width:80px">
               <div style="font-size:0.7rem;color:var(--muted)">${p.agentCount} agent${p.agentCount !== 1 ? 's' : ''}</div>
               ${!isCurrent && p.level > 0 ? '<button onclick="applyACMMPack(' + p.level + ')" style="margin-top:4px;padding:6px 14px;background:' + color + ';color:#fff;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer">Apply</button>' : ''}
-              ${!isCurrent ? '<button onclick="setACMMLevel(' + p.level + ')" style="margin-top:4px;padding:5px 10px;background:transparent;color:' + color + ';border:1px solid ' + color + ';border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer" title="Set level without creating agents">Set Level</button>' : ''}
+              ${!isCurrent ? '<button onclick="setACMMLevel(' + p.level + ')" style="margin-top:4px;padding:5px 10px;background:transparent;color:' + color + ';border:1px solid ' + color + ';border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer" title="Preview this level — changes the display without affecting running agents">Preview</button>' : ''}
             </div>
           </div>
           ${p.governor ? '<div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px"><span style="font-weight:600">Governor:</span> ' + esc(p.governor.modes || 'none') + ' · <span style="font-weight:600">Merge:</span> ' + esc(p.governor.mergePolicy || 'manual') + '</div>' : ''}
@@ -6203,7 +6203,7 @@ function burnAreaChart() {
       const pack = (_acmmPacks || []).find(p => p.level === level);
       if (!pack) return;
 
-      if (!confirm(`Apply ACMM Level ${level} (${pack.name})?\n\nThis will create ${pack.agentCount} agent(s). Existing agents with the same name will be skipped.`)) return;
+      if (!confirm(`Apply ACMM Level ${level} (${pack.name})?\n\nThis will:\n• Create ${pack.agentCount} agent(s) (existing agents with the same name are skipped)\n• Pause agents not in this level's pack\n• Resume agents that are in this level's pack`)) return;
 
       try {
         const res = await fetch(`/api/packs/${level}/apply`, { method: 'POST' });
@@ -6231,7 +6231,7 @@ function burnAreaChart() {
 
       const levelNames = ['Unaware', 'Idea', 'Development', 'CI/CD', 'Full Automation', 'Guarded Autonomy', 'Full Autonomy'];
       const name = levelNames[level] || 'Level ' + level;
-      if (!confirm(`Set ACMM level to L${level} (${name})?\n\nThis only changes the displayed level — no agents will be created or removed.`)) return;
+      if (!confirm(`Preview ACMM Level ${level} (${name})?\n\nThis changes the dashboard display to show what this level looks like. Running agents are not affected — use Apply to create agents and change their state.`)) return;
 
       try {
         const res = await fetch('/api/packs/level', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) });

@@ -105,8 +105,11 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 	if len(created) > 0 {
 		s.reInitSubsystems()
 	}
+
+	paused, resumed := s.syncAgentVisibility(level)
+
 	s.refreshAndPersistSync()
-	s.logger.Info("ACMM pack applied", "level", level, "name", pack.Name, "created", len(created), "skipped", len(skipped))
+	s.logger.Info("ACMM pack applied", "level", level, "name", pack.Name, "created", len(created), "skipped", len(skipped), "paused", len(paused), "resumed", len(resumed))
 
 	jsonResponse(w, map[string]interface{}{
 		"ok":      true,
@@ -115,6 +118,8 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 		"name":    pack.Name,
 		"created": created,
 		"skipped": skipped,
+		"paused":  paused,
+		"resumed": resumed,
 	})
 }
 
@@ -135,17 +140,12 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 
 	level := body.Level
 	s.deps.Config.ACMMLevel = &level
-
-	paused, resumed := s.syncAgentVisibility(level)
-
 	s.refreshAndPersistSync()
 
-	s.logger.Info("ACMM level set explicitly", "level", body.Level, "paused", len(paused), "resumed", len(resumed))
+	s.logger.Info("ACMM level preview set", "level", body.Level)
 	jsonResponse(w, map[string]interface{}{
-		"ok":      true,
-		"level":   body.Level,
-		"paused":  paused,
-		"resumed": resumed,
+		"ok":    true,
+		"level": body.Level,
 	})
 }
 

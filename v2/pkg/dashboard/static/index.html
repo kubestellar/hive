@@ -991,24 +991,29 @@
       animation: config-fade-in 0.15s ease-out;
     }
     .hive-dialog {
-      background: var(--surface); border: 1px solid var(--border);
+      background: #1a1a2e; border: 1px solid #2d2d3d;
       border-radius: 10px; width: 460px; max-width: 92vw;
       box-shadow: 0 16px 48px rgba(0,0,0,0.5);
       padding: 24px;
     }
-    .hive-dialog-title { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 12px; }
-    .hive-dialog-body { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; margin-bottom: 20px; }
+    body.light-mode .hive-dialog { background: #fff; border-color: #e0e0e0; }
+    .hive-dialog-title { font-size: 1rem; font-weight: 600; color: #c9d1d9; margin-bottom: 12px; }
+    body.light-mode .hive-dialog-title { color: #1a1a2e; }
+    .hive-dialog-body { font-size: 0.9rem; color: #8b949e; line-height: 1.5; white-space: pre-wrap; margin-bottom: 20px; }
+    body.light-mode .hive-dialog-body { color: #555; }
     .hive-dialog-buttons { display: flex; gap: 10px; justify-content: flex-end; }
     .hive-dialog-btn {
       padding: 8px 20px; border-radius: 6px; border: 1px solid var(--border);
       font-size: 0.85rem; font-weight: 500; cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
     }
-    .hive-dialog-btn:hover { border-color: var(--accent); }
-    .hive-dialog-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .hive-dialog-btn.primary:hover { opacity: 0.9; }
-    .hive-dialog-btn.cancel { background: transparent; color: var(--text-secondary); }
-    .hive-dialog-btn.cancel:hover { background: var(--surface-hover, rgba(255,255,255,0.05)); }
+    .hive-dialog-btn:hover { border-color: #58a6ff; }
+    .hive-dialog-btn.primary { background: #58a6ff; color: #fff; border-color: #58a6ff; }
+    .hive-dialog-btn.primary:hover { background: #4a90e0; }
+    .hive-dialog-btn.cancel { background: #2d2d3d; color: #8b949e; border-color: #3d3d4d; }
+    .hive-dialog-btn.cancel:hover { background: #3d3d4d; }
+    body.light-mode .hive-dialog-btn.cancel { background: #f0f0f0; color: #555; border-color: #ddd; }
+    body.light-mode .hive-dialog-btn.cancel:hover { background: #e0e0e0; }
     .config-modal {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; width: 900px; max-width: 95vw;

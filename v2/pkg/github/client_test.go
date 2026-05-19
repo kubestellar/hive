@@ -719,6 +719,288 @@ func TestEnumerateActionable_NoSLAViolationsWhenAllFresh(t *testing.T) {
 	}
 }
 
+// --------------------------------------------------------------------------
+// SHA Hold Enforcement Tests
+// --------------------------------------------------------------------------
+
+type wireComment struct {
+	User wireUser `json:"user"`
+	Body string   `json:"body"`
+}
+
+func buildSHAHoldMux(t *testing.T, org, repo string, issues []wireIssue, commentsByIssue map[int][]wireComment) *http.ServeMux {
+	t.Helper()
+	mux := http.NewServeMux()
+
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/issues", org, repo), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(mustMarshal(t, issues))
+		}
+	})
+
+	for num, comments := range commentsByIssue {
+		n := num
+		c := comments
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/issues/%d/comments", org, repo, n), func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "GET" {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write(mustMarshal(t, c))
+				return
+			}
+			if r.Method == "POST" {
+				w.WriteHeader(http.StatusCreated)
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"id":1}`))
+			}
+		})
+	}
+
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/issues/", org, repo), func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == "POST" {
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"id":1}`))
+			return
+		}
+		w.Write([]byte(`{}`))
+	})
+
+	return mux
+}
+
+func TestEnforceSHAHold_UnholdWhenSHAInComment(t *testing.T) {
+	org, repo := "testorg", "console"
+	issues := []wireIssue{
+		{
+			Number:    14391,
+			Title:     "Bug: something broken",
+			User:      wireUser{"external-user"},
+			Labels:    []wireLabel{{Name: "kind/bug"}, {Name: "hold"}},
+			CreatedAt: hoursAgo(2),
+		},
+	}
+	comments := map[int][]wireComment{
+		14391: {
+			{User: wireUser{"external-user"}, Body: "Here is the SHA: abc1234def"},
+		},
+	}
+
+	var removedLabel string
+	mux := buildSHAHoldMux(t, org, repo, issues, comments)
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/issues/14391/labels/hold", org, repo), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "DELETE" {
+			removedLabel = "hold"
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+		}
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	c := newTestClient(t, server, org, []string{repo})
+	result, err := c.EnforceSHAHold(context.Background(), SHAHoldConfig{
+		PrimaryRepo: repo,
+		AIAuthor:    "hive-bot",
+	})
+	if err != nil {
+		t.Fatalf("EnforceSHAHold: %v", err)
+	}
+
+	if result.Unheld != 1 {
+		t.Errorf("Unheld = %d, want 1", result.Unheld)
+	}
+	if result.Held != 0 {
+		t.Errorf("Held = %d, want 0", result.Held)
+	}
+	if removedLabel != "hold" {
+		t.Errorf("hold label was not removed (DELETE not called)")
+	}
+}
+
+func TestEnforceSHAHold_HoldWhenNoSHA(t *testing.T) {
+	org, repo := "testorg", "console"
+	issues := []wireIssue{
+		{
+			Number:    100,
+			Title:     "Bug: crash on startup",
+			User:      wireUser{"external-user"},
+			Labels:    []wireLabel{{Name: "kind/bug"}},
+			CreatedAt: hoursAgo(1),
+		},
+	}
+
+	var addedLabels []string
+	var commentPosted bool
+	mux := http.NewServeMux()
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/issues", org, repo), func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(mustMarshal(t, issues))
+	})
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/issues/100/labels", org, repo), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			addedLabels = append(addedLabels, "hold")
+			w.WriteHeader(http.StatusOK)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[{"name":"hold"}]`))
+		}
+	})
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/issues/100/comments", org, repo), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			commentPosted = true
+			w.WriteHeader(http.StatusCreated)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"id":1}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[]`))
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	c := newTestClient(t, server, org, []string{repo})
+	result, err := c.EnforceSHAHold(context.Background(), SHAHoldConfig{
+		PrimaryRepo: repo,
+		AIAuthor:    "hive-bot",
+	})
+	if err != nil {
+		t.Fatalf("EnforceSHAHold: %v", err)
+	}
+
+	if result.Held != 1 {
+		t.Errorf("Held = %d, want 1", result.Held)
+	}
+	if len(addedLabels) == 0 {
+		t.Error("hold label was not added")
+	}
+	if !commentPosted {
+		t.Error("SHA hold comment was not posted")
+	}
+}
+
+func TestEnforceSHAHold_SkipsInternalAuthors(t *testing.T) {
+	org, repo := "testorg", "console"
+	issues := []wireIssue{
+		{
+			Number:    200,
+			Title:     "Bug from AI",
+			User:      wireUser{"hive-bot"},
+			Labels:    []wireLabel{{Name: "kind/bug"}},
+			CreatedAt: hoursAgo(1),
+		},
+		{
+			Number:    201,
+			Title:     "Bug from maintainer",
+			User:      wireUser{"clubanderson"},
+			Labels:    []wireLabel{{Name: "kind/bug"}},
+			CreatedAt: hoursAgo(1),
+		},
+	}
+
+	mux := buildSHAHoldMux(t, org, repo, issues, nil)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	c := newTestClient(t, server, org, []string{repo})
+	result, err := c.EnforceSHAHold(context.Background(), SHAHoldConfig{
+		PrimaryRepo:     repo,
+		AIAuthor:        "hive-bot",
+		InternalAuthors: []string{"clubanderson"},
+	})
+	if err != nil {
+		t.Fatalf("EnforceSHAHold: %v", err)
+	}
+
+	if result.Skipped != 2 {
+		t.Errorf("Skipped = %d, want 2 (AI + internal)", result.Skipped)
+	}
+	if result.Held != 0 {
+		t.Errorf("Held = %d, want 0", result.Held)
+	}
+}
+
+func TestEnforceSHAHold_AlreadyHeldNoSHA_Skips(t *testing.T) {
+	org, repo := "testorg", "console"
+	issues := []wireIssue{
+		{
+			Number:    300,
+			Title:     "Bug already held, no SHA yet",
+			User:      wireUser{"external-user"},
+			Labels:    []wireLabel{{Name: "kind/bug"}, {Name: "hold"}},
+			CreatedAt: hoursAgo(1),
+		},
+	}
+	comments := map[int][]wireComment{
+		300: {{User: wireUser{"external-user"}, Body: "still working on getting the SHA"}},
+	}
+
+	mux := buildSHAHoldMux(t, org, repo, issues, comments)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	c := newTestClient(t, server, org, []string{repo})
+	result, err := c.EnforceSHAHold(context.Background(), SHAHoldConfig{
+		PrimaryRepo: repo,
+		AIAuthor:    "hive-bot",
+	})
+	if err != nil {
+		t.Fatalf("EnforceSHAHold: %v", err)
+	}
+	if result.Skipped != 1 {
+		t.Errorf("Skipped = %d, want 1 (already held, no SHA → no-op)", result.Skipped)
+	}
+	if result.Held != 0 {
+		t.Errorf("Held = %d, want 0", result.Held)
+	}
+	if result.Unheld != 0 {
+		t.Errorf("Unheld = %d, want 0", result.Unheld)
+	}
+}
+
+func TestSHAPattern(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"abc1234", true},
+		{"abc1234def5678901234567890123456789012", true},
+		{"Running on commit abc1234 on main", true},
+		{"SHA: deadbeef", true},
+		{"no sha here", false},
+		{"ABCDEF1", false},
+		{"12345", false},
+		{"1234567", true},
+	}
+	for _, tt := range tests {
+		got := shaPattern.MatchString(tt.input)
+		if got != tt.want {
+			t.Errorf("shaPattern.MatchString(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestIsInternalAuthor(t *testing.T) {
+	internal := []string{"alice", "Bob"}
+	if !isInternalAuthor("alice", internal) {
+		t.Error("alice should be internal")
+	}
+	if !isInternalAuthor("ALICE", internal) {
+		t.Error("ALICE should match alice (case-insensitive)")
+	}
+	if !isInternalAuthor("bob", internal) {
+		t.Error("bob should match Bob")
+	}
+	if isInternalAuthor("charlie", internal) {
+		t.Error("charlie should not be internal")
+	}
+	if isInternalAuthor("alice", nil) {
+		t.Error("nil list should not match")
+	}
+}
+
 func init() {
 	_ = rfc3339Ago // suppress unused-constant warning
 }

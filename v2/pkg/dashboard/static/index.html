@@ -984,6 +984,31 @@
     }
     .config-overlay.hidden { display: none; }
     @keyframes config-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .hive-dialog-overlay {
+      position: fixed; inset: 0; z-index: 20000;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center;
+      animation: config-fade-in 0.15s ease-out;
+    }
+    .hive-dialog {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; width: 460px; max-width: 92vw;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      padding: 24px;
+    }
+    .hive-dialog-title { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+    .hive-dialog-body { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; margin-bottom: 20px; }
+    .hive-dialog-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+    .hive-dialog-btn {
+      padding: 8px 20px; border-radius: 6px; border: 1px solid var(--border);
+      font-size: 0.85rem; font-weight: 500; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .hive-dialog-btn:hover { border-color: var(--accent); }
+    .hive-dialog-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .hive-dialog-btn.primary:hover { opacity: 0.9; }
+    .hive-dialog-btn.cancel { background: transparent; color: var(--text-secondary); }
+    .hive-dialog-btn.cancel:hover { background: var(--surface-hover, rgba(255,255,255,0.05)); }
     .config-modal {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; width: 900px; max-width: 95vw;
@@ -4026,7 +4051,7 @@ function burnAreaChart() {
       const modeOrder = { observe: 0, suggest: 1, evolve: 2 };
       let force = false;
       if (modeOrder[mode] < modeOrder[current]) {
-        if (!confirm(`Switch from ${current} to ${mode}? This will stop any active experiment.`)) return;
+        if (!(await hiveConfirm(`Switch from ${current} to ${mode}? This will stop any active experiment.`))) return;
         force = true;
       }
       try {
@@ -4059,7 +4084,7 @@ function burnAreaChart() {
     }
 
     async function nousReject() {
-      if (!confirm('Reject this experiment proposal?')) return;
+      if (!(await hiveConfirm('Reject this experiment proposal?'))) return;
       try {
         await fetch('/api/nous/abort', { method: 'POST' });
         showToast('Proposal rejected', 'success');
@@ -4068,7 +4093,7 @@ function burnAreaChart() {
     }
 
     async function nousAbort() {
-      if (!confirm('Abort the active experiment? This will revert governor to default behavior.')) return;
+      if (!(await hiveConfirm('Abort the active experiment? This will revert governor to default behavior.'))) return;
       try {
         const r = await fetch('/api/nous/abort', { method: 'POST' });
         const j = await r.json();
@@ -4288,7 +4313,7 @@ function burnAreaChart() {
     }
 
     async function deleteNousPrinciple(id) {
-      if (!confirm('Invalidate this principle? It will be removed from the store.')) return;
+      if (!(await hiveConfirm('Invalidate this principle? It will be removed from the store.'))) return;
       try {
         const r = await fetch('/api/nous/principles/' + encodeURIComponent(id), { method: 'DELETE' });
         const j = await r.json();
@@ -4703,17 +4728,17 @@ function burnAreaChart() {
     async function kbSetupConnectVault() {
       const path = document.getElementById('kb-setup-vault-path')?.value?.trim();
       const name = document.getElementById('kb-setup-vault-name')?.value?.trim();
-      if (!path) { alert('Path is required'); return; }
+      if (!path) { await hiveAlert('Path is required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/vaults', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path, name: name || '' }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to connect vault'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to connect vault'); return; }
         _kbSetupView = 'none';
         await fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     function renderKnowledge() {
@@ -4989,18 +5014,18 @@ function burnAreaChart() {
       const tagsRaw = document.getElementById('kb-create-tags')?.value || '';
       const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
 
-      if (!title || !body) { alert('Title and body are required'); return; }
+      if (!title || !body) { await hiveAlert('Title and body are required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/create', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, body, layer, type, confidence: conf, tags }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to create'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to create'); return; }
         kbCloseModal();
         fetchKnowledgeStats();
         kbSearch();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     function kbOpenEdit() {
@@ -5065,24 +5090,24 @@ function burnAreaChart() {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, body, type, status, confidence: conf, tags }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to update'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to update'); return; }
         kbCloseModal();
         kbReadFact(f.slug, f.layer);
         kbSearch();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbDelete(slug, layer) {
-      if (!confirm('Delete fact "' + slug + '" from ' + layer + '?')) return;
+      if (!(await hiveConfirm('Delete fact "' + slug + '" from ' + layer + '?'))) return;
       try {
         const r = await fetch('/api/knowledge/' + encodeURIComponent(layer) + '/' + encodeURIComponent(slug), { method: 'DELETE' });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to delete'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to delete'); return; }
         _kbSelectedFact = null;
         const detail = document.getElementById('kb-fact-detail');
         if (detail) detail.innerHTML = '';
         fetchKnowledgeStats();
         kbSearch();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbPromote(slug, fromLayer, toLayer) {
@@ -5093,10 +5118,10 @@ function burnAreaChart() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug, from_layer: fromLayer, to_layer: toLayer, reason, promoter: 'dashboard' }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to promote'); return; }
-        alert('Fact promoted to ' + toLayer);
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to promote'); return; }
+        await hiveAlert('Fact promoted to ' + toLayer);
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     function kbOpenImport() {
@@ -5157,7 +5182,7 @@ function burnAreaChart() {
       const layer = document.getElementById('kb-import-layer')?.value;
       const format = document.getElementById('kb-import-format')?.value;
 
-      if (!content) { alert('Content is required'); return; }
+      if (!content) { await hiveAlert('Content is required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/import', {
@@ -5165,12 +5190,12 @@ function burnAreaChart() {
           body: JSON.stringify({ content, layer, format }),
         });
         const data = await r.json();
-        if (!r.ok) { alert(data.error || 'Failed to import'); return; }
+        if (!r.ok) { await hiveAlert(data.error || 'Failed to import'); return; }
         kbCloseModal();
-        alert('Imported ' + (data.imported || 0) + ' facts to ' + layer);
+        await hiveAlert('Imported ' + (data.imported || 0) + ' facts to ' + layer);
         fetchKnowledgeStats();
         kbSearch();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     function kbOpenSubscriptions() {
@@ -5227,30 +5252,30 @@ function burnAreaChart() {
       const name = document.getElementById('kb-sub-name')?.value?.trim();
       const layer = document.getElementById('kb-sub-layer')?.value;
 
-      if (!url) { alert('URL is required'); return; }
+      if (!url) { await hiveAlert('URL is required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/subscriptions', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url, name: name || url, layer }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to add'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to add'); return; }
         kbLoadSubscriptions();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbRemoveSub(url) {
-      if (!confirm('Remove subscription to ' + url + '?')) return;
+      if (!(await hiveConfirm('Remove subscription to ' + url + '?'))) return;
       try {
         const r = await fetch('/api/knowledge/subscriptions', {
           method: 'DELETE', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to remove'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to remove'); return; }
         kbLoadSubscriptions();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
 
@@ -5385,30 +5410,30 @@ function burnAreaChart() {
     async function kbConnectVault() {
       const path = document.getElementById('kb-vault-path')?.value?.trim();
       const name = document.getElementById('kb-vault-name')?.value?.trim();
-      if (!path) { alert('Path is required'); return; }
+      if (!path) { await hiveAlert('Path is required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/vaults', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path, name: name || '' }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to connect vault'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to connect vault'); return; }
         kbLoadVaults();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbDisconnectVault(path) {
-      if (!confirm('Disconnect vault at ' + path + '?')) return;
+      if (!(await hiveConfirm('Disconnect vault at ' + path + '?'))) return;
       try {
         const r = await fetch('/api/knowledge/vaults', {
           method: 'DELETE', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to disconnect'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to disconnect'); return; }
         kbLoadVaults();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbReindexVault(path) {
@@ -5417,10 +5442,10 @@ function burnAreaChart() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to reindex'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to reindex'); return; }
         kbLoadVaults();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbSearchVault(name) {
@@ -5766,6 +5791,45 @@ function burnAreaChart() {
 
     const TOAST_DURATION_MS = 3000;
     const TOAST_PROGRESS_MAX_MS = 60000;
+    function hiveConfirm(message, title) {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'hive-dialog-overlay';
+        const parts = message.split('\n\n');
+        const heading = title || parts.length > 1 ? (title || parts[0]) : 'Confirm';
+        const body = title ? message : (parts.length > 1 ? parts.slice(1).join('\n\n') : message);
+        overlay.innerHTML = `<div class="hive-dialog">
+          <div class="hive-dialog-title">${heading.replace(/</g,'&lt;')}</div>
+          <div class="hive-dialog-body">${body.replace(/</g,'&lt;')}</div>
+          <div class="hive-dialog-buttons">
+            <button class="hive-dialog-btn cancel">Cancel</button>
+            <button class="hive-dialog-btn primary">OK</button>
+          </div></div>`;
+        document.body.appendChild(overlay);
+        const close = (val) => { overlay.remove(); resolve(val); };
+        overlay.querySelector('.cancel').onclick = () => close(false);
+        overlay.querySelector('.primary').onclick = () => close(true);
+        overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+        overlay.querySelector('.primary').focus();
+      });
+    }
+    function hiveAlert(message, title) {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'hive-dialog-overlay';
+        overlay.innerHTML = `<div class="hive-dialog">
+          <div class="hive-dialog-title">${(title || 'Notice').replace(/</g,'&lt;')}</div>
+          <div class="hive-dialog-body">${String(message).replace(/</g,'&lt;')}</div>
+          <div class="hive-dialog-buttons">
+            <button class="hive-dialog-btn primary">OK</button>
+          </div></div>`;
+        document.body.appendChild(overlay);
+        const close = () => { overlay.remove(); resolve(); };
+        overlay.querySelector('.primary').onclick = close;
+        overlay.onclick = (e) => { if (e.target === overlay) close(); };
+        overlay.querySelector('.primary').focus();
+      });
+    }
     function showToast(msg, type = 'info', persistent = false) {
       const container = document.getElementById('toast-container');
       const el = document.createElement('div');
@@ -5847,7 +5911,7 @@ function burnAreaChart() {
     }
 
     async function restartAgent(agent) {
-      if (!confirm(`Restart ${agent}? This will kill the current session and start fresh.`)) return;
+      if (!(await hiveConfirm(`Restart ${agent}? This will kill the current session and start fresh.`))) return;
       const toast = showToast(`Restarting ${agent}...`, 'info', true);
       const res = await fetch(`/api/restart/${agent}`, { method: 'POST' });
       const data = await res.json();
@@ -6211,7 +6275,7 @@ function burnAreaChart() {
       const pack = (_acmmPacks || []).find(p => p.level === level);
       if (!pack) return;
 
-      if (!confirm(`Apply ACMM Level ${level} (${pack.name})?\n\nThis will:\n• Create ${pack.agentCount} agent(s) (existing agents with the same name are skipped)\n• Pause agents not in this level's pack\n• Resume agents that are in this level's pack`)) return;
+      if (!(await hiveConfirm(`Apply ACMM Level ${level} (${pack.name})?\n\nThis will:\n• Create ${pack.agentCount} agent(s) (existing agents with the same name are skipped)\n• Pause agents not in this level's pack\n• Resume agents that are in this level's pack`))) return;
 
       try {
         const res = await fetch(`/api/packs/${level}/apply`, { method: 'POST' });
@@ -6239,7 +6303,7 @@ function burnAreaChart() {
 
       const levelNames = ['Unaware', 'Idea', 'Development', 'CI/CD', 'Full Automation', 'Guarded Autonomy', 'Full Autonomy'];
       const name = levelNames[level] || 'Level ' + level;
-      if (!confirm(`Preview ACMM Level ${level} (${name})?\n\nThis changes the dashboard display to show what this level looks like. Running agents are not affected — use Apply to create agents and change their state.`)) return;
+      if (!(await hiveConfirm(`Preview ACMM Level ${level} (${name})?\n\nThis changes the dashboard display to show what this level looks like. Running agents are not affected — use Apply to create agents and change their state.`))) return;
 
       try {
         const res = await fetch('/api/packs/level', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) });
@@ -7257,8 +7321,8 @@ function burnAreaChart() {
         .catch(err => showToast(`Failed: ${err.message}`, 'error'));
     }
 
-    function deleteAgentFromConfig(name) {
-      if (!confirm(`Delete agent "${name}"?\n\nThis will remove its env file, governor config, and sidebar entry. The tmux session (if running) will NOT be killed.`)) return;
+    async function deleteAgentFromConfig(name) {
+      if (!(await hiveConfirm(`Delete agent "${name}"?\n\nThis will remove its env file, governor config, and sidebar entry. The tmux session (if running) will NOT be killed.`))) return;
       fetch(`/api/config/governor/agents/${name}`, { method: 'DELETE' })
         .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then(() => {
@@ -7279,8 +7343,8 @@ function burnAreaChart() {
         .catch(err => showToast(`Failed: ${err.message}`, 'error'));
     }
 
-    function removeAgent(name) {
-      if (!confirm(`Remove agent "${name}"? This will delete its configuration.`)) return;
+    async function removeAgent(name) {
+      if (!(await hiveConfirm(`Remove agent "${name}"? This will delete its configuration.`))) return;
       fetch(`/api/config/governor/agents/${name}`, { method: 'DELETE' })
         .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then(() => {

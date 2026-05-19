@@ -330,7 +330,7 @@ if [ -f "$GH_APP_TOKEN_CACHE" ]; then
   GH_TOKEN=$(cat "$GH_APP_TOKEN_CACHE")
 fi
 if [ -s "$sha_recheck_tmp" ]; then
-  cat "$sha_recheck_tmp" | xargs -P "$SHA_RECHECK_PARALLELISM" -I {} bash -c '
+  cat "$sha_recheck_tmp" | xargs -P "$SHA_RECHECK_PARALLELISM" -I ENTRY bash -c '
     entry="$1"
     repo="${entry%%:*}"
     rest="${entry#*:}"
@@ -368,7 +368,7 @@ SHA_RE = re.compile(r\"[0-9a-f]{7,40}\\b\")
 print(\"has_sha\" if SHA_RE.search(reporter_text) else \"no_sha\")
 " 2>/dev/null || echo "skip")
     echo "${repo}:${num}:${marker_file}:${state}"
-  ' _ {} >> "$sha_recheck_results"
+  ' _ ENTRY >> "$sha_recheck_results"
 fi
 
 while IFS=: read -r repo num marker_file state; do

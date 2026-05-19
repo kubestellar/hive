@@ -6185,8 +6185,7 @@ function burnAreaChart() {
             <div style="text-align:right;min-width:80px">
               <div style="font-size:0.7rem;color:var(--muted)">${p.agentCount} agent${p.agentCount !== 1 ? 's' : ''}</div>
               ${!isCurrent && p.level > 0 ? '<button onclick="applyACMMPack(' + p.level + ')" style="margin-top:4px;padding:6px 14px;background:' + color + ';color:#fff;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer">Apply</button>' : ''}
-              ${!isCurrent && p.level > 0 ? '<button onclick="setACMMLevel(' + p.level + ')" style="margin-top:4px;padding:5px 10px;background:transparent;color:' + color + ';border:1px solid ' + color + ';border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer" title="Set level without creating agents">Set Level</button>' : ''}
-              ${p.level === 0 ? '<div style="font-size:0.65rem;color:var(--muted);margin-top:4px">Baseline</div>' : ''}
+              ${!isCurrent ? '<button onclick="setACMMLevel(' + p.level + ')" style="margin-top:4px;padding:5px 10px;background:transparent;color:' + color + ';border:1px solid ' + color + ';border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer" title="Set level without creating agents">Set Level</button>' : ''}
             </div>
           </div>
           ${p.governor ? '<div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px"><span style="font-weight:600">Governor:</span> ' + esc(p.governor.modes || 'none') + ' · <span style="font-weight:600">Merge:</span> ' + esc(p.governor.mergePolicy || 'manual') + '</div>' : ''}

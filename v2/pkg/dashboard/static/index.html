@@ -6274,8 +6274,12 @@ function burnAreaChart() {
       const debugSection = document.getElementById('debug-section');
       const logsSection = document.getElementById('logs-section');
 
-      const sidebarControl = document.querySelector('.oc-nav-group .oc-nav-label');
       const sidebarGroups = document.querySelectorAll('.oc-nav-group');
+      const sidebarItems = document.querySelectorAll('.oc-nav-item');
+
+      const infoSidebar = document.getElementById('hive-info-sidebar');
+      const agentCards = document.getElementById('agents');
+      const agentDetail = document.getElementById('oc-agent-detail');
 
       if (isL0) {
         show(welcome, 'block');
@@ -6286,10 +6290,19 @@ function burnAreaChart() {
         hide(nousSection);
         hide(debugSection);
         hide(logsSection);
+        hide(infoSidebar);
+        hide(agentCards);
+        hide(agentDetail);
         sidebarGroups.forEach(g => {
           const label = g.querySelector('.oc-nav-label, .oc-tree-toggle');
           const text = label ? label.textContent.trim() : '';
           if (text === 'Control' || text.includes('Agent')) hide(g);
+        });
+        sidebarItems.forEach(item => {
+          const section = item.getAttribute('data-section') || '';
+          if (section === 'repos-section' || section === 'beads-section' || section === 'nous-section') {
+            hide(item);
+          }
         });
       } else {
         hide(welcome);
@@ -6300,7 +6313,11 @@ function burnAreaChart() {
         show(nousSection, '');
         show(debugSection, '');
         show(logsSection, '');
+        show(infoSidebar, '');
+        show(agentCards, '');
+        show(agentDetail, '');
         sidebarGroups.forEach(g => show(g, ''));
+        sidebarItems.forEach(item => show(item, ''));
       }
     }
 

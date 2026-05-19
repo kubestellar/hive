@@ -25,6 +25,7 @@ type PersistedState struct {
 	KickHistory      []GovKickEntry                   `json:"kick_history,omitempty"`
 	IssueCosts       map[string]int64                 `json:"issue_costs,omitempty"`
 	LastEval         time.Time                        `json:"last_eval,omitempty"`
+	ACMMLevel        *int                             `json:"acmm_level,omitempty"`
 }
 
 type AgentState struct {

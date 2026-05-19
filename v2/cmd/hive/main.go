@@ -260,6 +260,10 @@ func main() {
 		if !saved.LastEval.IsZero() {
 			gov.SeedLastEval(saved.LastEval)
 		}
+		if saved.ACMMLevel != nil {
+			cfg.ACMMLevel = saved.ACMMLevel
+			logger.Info("ACMM level restored", "level", *saved.ACMMLevel)
+		}
 	}
 
 	if gov.GetBudget().WeeklyLimit == 0 && cfg.Governor.Budget.TotalTokens > 0 {
@@ -844,6 +848,7 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 		KickHistory:      kickEntries,
 		IssueCosts:       issueCosts,
 		LastEval:         govState.LastEval,
+		ACMMLevel:        cfg.ACMMLevel,
 	}
 
 	if err := snapshot.SaveState(path, state, logger); err != nil {

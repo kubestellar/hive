@@ -111,15 +111,21 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 	s.refreshAndPersistSync()
 	s.logger.Info("ACMM pack applied", "level", level, "name", pack.Name, "created", len(created), "skipped", len(skipped), "paused", len(paused), "resumed", len(resumed))
 
+	var packAgentNames []string
+	for _, a := range pack.Agents {
+		packAgentNames = append(packAgentNames, a.Name)
+	}
+
 	jsonResponse(w, map[string]interface{}{
-		"ok":      true,
-		"status":  "applied",
-		"level":   level,
-		"name":    pack.Name,
-		"created": created,
-		"skipped": skipped,
-		"paused":  paused,
-		"resumed": resumed,
+		"ok":         true,
+		"status":     "applied",
+		"level":      level,
+		"name":       pack.Name,
+		"created":    created,
+		"skipped":    skipped,
+		"paused":     paused,
+		"resumed":    resumed,
+		"packAgents": packAgentNames,
 	})
 }
 
@@ -142,10 +148,19 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 	s.deps.Config.ACMMLevel = &level
 	s.refreshAndPersistSync()
 
+	pack, packErr := config.ACMMPackByLevel(level)
+	var packAgentNames []string
+	if packErr == nil {
+		for _, a := range pack.Agents {
+			packAgentNames = append(packAgentNames, a.Name)
+		}
+	}
+
 	s.logger.Info("ACMM level preview set", "level", body.Level)
 	jsonResponse(w, map[string]interface{}{
-		"ok":    true,
-		"level": body.Level,
+		"ok":         true,
+		"level":      body.Level,
+		"packAgents": packAgentNames,
 	})
 }
 

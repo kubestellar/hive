@@ -6295,7 +6295,11 @@ function burnAreaChart() {
         showToast(`Level ${level} applied: ${created} created, ${skipped} skipped`, 'success');
         _acmmPacks = null;
         closeACMMDialog();
-        fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
+        if (window._lastStatus) {
+          window._lastStatus.acmmLevel = level;
+          window._lastStatus.acmmPackAgents = data.packAgents || [];
+          render(window._lastStatus);
+        }
       } catch (err) {
         errEl.textContent = 'Network error: ' + err.message;
         errEl.style.display = 'block';
@@ -6321,7 +6325,11 @@ function burnAreaChart() {
         showToast(`ACMM level set to L${level} (${name})`, 'success');
         _acmmPacks = null;
         closeACMMDialog();
-        fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
+        if (window._lastStatus) {
+          window._lastStatus.acmmLevel = level;
+          window._lastStatus.acmmPackAgents = data.packAgents || [];
+          render(window._lastStatus);
+        }
       } catch (err) {
         errEl.textContent = 'Network error: ' + err.message;
         errEl.style.display = 'block';

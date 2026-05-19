@@ -6343,7 +6343,7 @@ function burnAreaChart() {
           if (section === 'nous-section' && level < ACMM_NOUS_MIN_LEVEL) hide(item);
         });
 
-        if (packAgents && packAgents.length > 0) {
+        if (Array.isArray(packAgents)) {
           const packSet = new Set(packAgents);
           document.querySelectorAll('[data-agent-nav]').forEach(navItem => {
             const name = navItem.getAttribute('data-agent-nav');

@@ -61,7 +61,7 @@ type StatusPayload struct {
 	Hold          FrontendHold        `json:"hold"`
 	IssueToMerge  map[string]any      `json:"issueToMerge"`
 	ACMMLevel      int                 `json:"acmmLevel"`
-	ACMMPackAgents []string            `json:"acmmPackAgents,omitempty"`
+	ACMMPackAgents []string            `json:"acmmPackAgents"`
 }
 
 type FrontendAgent struct {

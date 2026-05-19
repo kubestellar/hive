@@ -5455,7 +5455,6 @@ function burnAreaChart() {
       if (hiveIdBadge) hiveIdBadge.textContent = hiveId;
       const ocHiveId = document.getElementById('oc-hive-id');
       if (ocHiveId) ocHiveId.textContent = hiveId;
-      updateACMMBadge(data.acmmLevel || 0, data.acmmPackAgents || null);
       // Update Light health badge with hover detail
       const ocHealth = document.getElementById('oc-health');
       if (ocHealth) {
@@ -5505,6 +5504,7 @@ function burnAreaChart() {
       ocUpdateSidebarAgents();
       if (_ocSelectedAgent) { ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll(); }
       renderDebugSection();
+      updateACMMBadge(data.acmmLevel || 0, data.acmmPackAgents || null);
       window.scrollTo(0, scrollY);
     }
 

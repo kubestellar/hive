@@ -108,7 +108,8 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 
 	paused, resumed := s.syncAgentVisibility(level)
 
-	s.refreshAndPersistSync()
+	s.persistOnly()
+	go s.refreshAsync()
 	s.logger.Info("ACMM pack applied", "level", level, "name", pack.Name, "created", len(created), "skipped", len(skipped), "paused", len(paused), "resumed", len(resumed))
 
 	var packAgentNames []string
@@ -146,7 +147,8 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 
 	level := body.Level
 	s.deps.Config.ACMMLevel = &level
-	s.refreshAndPersistSync()
+	s.persistOnly()
+	go s.refreshAsync()
 
 	pack, packErr := config.ACMMPackByLevel(level)
 	var packAgentNames []string

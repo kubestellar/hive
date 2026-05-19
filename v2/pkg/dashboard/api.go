@@ -198,6 +198,18 @@ func (s *Server) refreshAndPersistSync() {
 	}
 }
 
+func (s *Server) persistOnly() {
+	if s.deps != nil && s.deps.PersistFunc != nil {
+		s.deps.PersistFunc()
+	}
+}
+
+func (s *Server) refreshAsync() {
+	if s.deps != nil && s.deps.RefreshFunc != nil {
+		s.deps.RefreshFunc()
+	}
+}
+
 func decodeBody(r *http.Request, v interface{}) error {
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(v)

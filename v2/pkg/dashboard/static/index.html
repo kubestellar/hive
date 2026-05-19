@@ -6282,6 +6282,14 @@ function burnAreaChart() {
       const agentCards = document.getElementById('agents');
       const agentDetail = document.getElementById('oc-agent-detail');
 
+      const ACMM_GOVERNOR_MIN_LEVEL = 3;
+      const ACMM_TOKENS_MIN_LEVEL = 3;
+      const ACMM_BEADS_MIN_LEVEL = 3;
+      const ACMM_REPOS_MIN_LEVEL = 2;
+      const ACMM_NOUS_MIN_LEVEL = 2;
+      const ACMM_DEBUG_MIN_LEVEL = 3;
+      const ACMM_LOGS_MIN_LEVEL = 3;
+
       if (isL0) {
         show(welcome, 'block');
         hide(governor);
@@ -6307,18 +6315,33 @@ function burnAreaChart() {
         });
       } else {
         hide(welcome);
-        show(governor, '');
-        show(tokenPanel, '');
-        show(reposSection, '');
-        show(beadsSection, '');
-        show(nousSection, '');
-        show(debugSection, '');
-        show(logsSection, '');
-        show(infoSidebar, '');
         show(agentCards, '');
         show(agentDetail, '');
+        show(infoSidebar, '');
         sidebarGroups.forEach(g => show(g, ''));
         sidebarItems.forEach(item => show(item, ''));
+
+        level >= ACMM_GOVERNOR_MIN_LEVEL ? show(governor, '') : hide(governor);
+        level >= ACMM_TOKENS_MIN_LEVEL ? show(tokenPanel, '') : hide(tokenPanel);
+        level >= ACMM_BEADS_MIN_LEVEL ? show(beadsSection, '') : hide(beadsSection);
+        level >= ACMM_REPOS_MIN_LEVEL ? show(reposSection, '') : hide(reposSection);
+        level >= ACMM_NOUS_MIN_LEVEL ? show(nousSection, '') : hide(nousSection);
+        level >= ACMM_DEBUG_MIN_LEVEL ? show(debugSection, '') : hide(debugSection);
+        level >= ACMM_LOGS_MIN_LEVEL ? show(logsSection, '') : hide(logsSection);
+
+        if (level < ACMM_GOVERNOR_MIN_LEVEL) {
+          sidebarGroups.forEach(g => {
+            const label = g.querySelector('.oc-nav-label, .oc-tree-toggle');
+            const text = label ? label.textContent.trim() : '';
+            if (text === 'Control') hide(g);
+          });
+        }
+        sidebarItems.forEach(item => {
+          const section = item.getAttribute('data-section') || '';
+          if (section === 'repos-section' && level < ACMM_REPOS_MIN_LEVEL) hide(item);
+          if (section === 'beads-section' && level < ACMM_BEADS_MIN_LEVEL) hide(item);
+          if (section === 'nous-section' && level < ACMM_NOUS_MIN_LEVEL) hide(item);
+        });
       }
     }
 

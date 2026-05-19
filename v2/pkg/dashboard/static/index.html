@@ -6223,6 +6223,31 @@ function burnAreaChart() {
       document.getElementById('acmm-overlay').classList.add('hidden');
     }
 
+    function showACMMLoading(message) {
+      let el = document.getElementById('acmm-loading-overlay');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'acmm-loading-overlay';
+        el.style.cssText = 'position:absolute;inset:0;z-index:100;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;border-radius:12px';
+        const inner = document.createElement('div');
+        inner.style.cssText = 'text-align:center;color:#fff';
+        inner.innerHTML = '<div style="font-size:2rem;margin-bottom:12px;animation:spin 1s linear infinite">&#9881;</div><div id="acmm-loading-text" style="font-size:0.9rem;font-weight:600"></div>';
+        el.appendChild(inner);
+        const style = document.createElement('style');
+        style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+        el.appendChild(style);
+        document.querySelector('#acmm-overlay .config-modal').style.position = 'relative';
+        document.querySelector('#acmm-overlay .config-modal').appendChild(el);
+      }
+      document.getElementById('acmm-loading-text').textContent = message || 'Switching level…';
+      el.style.display = 'flex';
+    }
+
+    function hideACMMLoading() {
+      const el = document.getElementById('acmm-loading-overlay');
+      if (el) el.style.display = 'none';
+    }
+
     function renderACMMPacks() {
       const container = document.getElementById('acmm-packs-list');
       const currentLevel = window._lastStatus ? (window._lastStatus.acmmLevel || 0) : 0;
@@ -6230,7 +6255,7 @@ function burnAreaChart() {
       const levelColors = ['#95a5a6', '#8e44ad', '#2980b9', '#27ae60', '#e67e22', '#e74c3c', '#c0392b'];
 
       container.innerHTML = (_acmmPacks || []).map(p => {
-        const isCurrent = p.current || p.level === currentLevel;
+        const isCurrent = p.level === currentLevel;
         const color = levelColors[p.level] || '#3498db';
         const agentList = (p.agents || []).map(a =>
           `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:0.75rem">
@@ -6282,9 +6307,11 @@ function burnAreaChart() {
 
       if (!(await hiveConfirm(`Apply ACMM Level ${level} (${pack.name})?\n\nThis will:\n• Create ${pack.agentCount} agent(s) (existing agents with the same name are skipped)\n• Pause agents not in this level's pack\n• Resume agents that are in this level's pack`))) return;
 
+      showACMMLoading('Applying Level ' + level + '…');
       try {
         const res = await fetch(`/api/packs/${level}/apply`, { method: 'POST' });
         const data = await res.json();
+        hideACMMLoading();
         if (!res.ok) {
           errEl.textContent = data.error || 'Failed to apply pack';
           errEl.style.display = 'block';
@@ -6292,15 +6319,16 @@ function burnAreaChart() {
         }
         const created = (data.created || []).length;
         const skipped = (data.skipped || []).length;
-        showToast(`Level ${level} applied: ${created} created, ${skipped} skipped`, 'success');
-        _acmmPacks = null;
         closeACMMDialog();
         if (window._lastStatus) {
           window._lastStatus.acmmLevel = level;
           window._lastStatus.acmmPackAgents = data.packAgents || [];
           render(window._lastStatus);
         }
+        showToast(`Level ${level} applied: ${created} created, ${skipped} skipped`, 'success');
+        _acmmPacks = null;
       } catch (err) {
+        hideACMMLoading();
         errEl.textContent = 'Network error: ' + err.message;
         errEl.style.display = 'block';
       }
@@ -6314,23 +6342,26 @@ function burnAreaChart() {
       const name = levelNames[level] || 'Level ' + level;
       if (!(await hiveConfirm(`Preview ACMM Level ${level} (${name})?\n\nThis changes the dashboard display to show what this level looks like. Running agents are not affected — use Apply to create agents and change their state.`))) return;
 
+      showACMMLoading('Switching to Level ' + level + '…');
       try {
         const res = await fetch('/api/packs/level', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) });
         const data = await res.json();
+        hideACMMLoading();
         if (!res.ok) {
           errEl.textContent = data.error || 'Failed to set level';
           errEl.style.display = 'block';
           return;
         }
-        showToast(`ACMM level set to L${level} (${name})`, 'success');
-        _acmmPacks = null;
         closeACMMDialog();
         if (window._lastStatus) {
           window._lastStatus.acmmLevel = level;
           window._lastStatus.acmmPackAgents = data.packAgents || [];
           render(window._lastStatus);
         }
+        showToast(`ACMM level set to L${level} (${name})`, 'success');
+        _acmmPacks = null;
       } catch (err) {
+        hideACMMLoading();
         errEl.textContent = 'Network error: ' + err.message;
         errEl.style.display = 'block';
       }

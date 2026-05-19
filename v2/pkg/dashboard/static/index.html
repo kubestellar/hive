@@ -1589,6 +1589,34 @@
     <div id="knowledge-panel"></div>
   </div>
 
+  <div id="acmm-welcome" style="display:none; text-align:center; padding:60px 40px; max-width:720px; margin:40px auto;">
+    <div style="font-size:3rem; margin-bottom:16px;">📚</div>
+    <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:12px; color:var(--text);">Welcome to Hive</h2>
+    <p style="font-size:0.95rem; color:var(--muted); line-height:1.6; margin-bottom:24px;">
+      You're at <strong>ACMM Level 0 — Unaware</strong>. This is your starting point before introducing any AI agents.
+      Begin by building your project's knowledge base so that when you're ready, your agents will have the context they need.
+    </p>
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:28px; text-align:left; margin-bottom:24px;">
+      <h3 style="font-size:1rem; font-weight:600; margin-bottom:12px;">Get started with the Knowledge Base</h3>
+      <p style="font-size:0.85rem; color:var(--muted); line-height:1.6; margin-bottom:16px;">
+        The <strong>llm-wiki</strong> is how your future agents will understand your project — architecture decisions,
+        coding patterns, known gotchas, team conventions. Start capturing knowledge now so it's ready when you level up.
+      </p>
+      <ol style="font-size:0.85rem; color:var(--text); line-height:1.8; padding-left:20px; margin-bottom:16px;">
+        <li>Open the <strong>Knowledge</strong> section in the sidebar</li>
+        <li>Connect your Obsidian vault or Git-based wiki</li>
+        <li>Add notes about your project's architecture, patterns, and decisions</li>
+        <li>When you're ready, move to <strong>L1 Idea</strong> to add your first interactive advisor</li>
+      </ol>
+      <button onclick="ocNavigate('knowledge-section')" style="padding:10px 24px; background:linear-gradient(135deg,#3498db,#2ecc71); color:#fff; border:none; border-radius:8px; font-size:0.88rem; font-weight:600; cursor:pointer;">
+        Open Knowledge Base
+      </button>
+    </div>
+    <p style="font-size:0.78rem; color:var(--muted);">
+      Click the <strong>ACMM badge</strong> above to explore higher maturity levels and add agents when you're ready.
+    </p>
+  </div>
+
   <div id="debug-section" style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 12px;">🔍 System Diagnostics</h2>
     <div id="debug-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;"></div>
@@ -6228,6 +6256,51 @@ function burnAreaChart() {
       if (badge) badge.textContent = 'ACMM ' + text;
       const sbBadge = document.getElementById('acmm-sidebar-badge');
       if (sbBadge) sbBadge.textContent = 'ACMM ' + text;
+      applyACMMVisibility(level);
+    }
+
+    function applyACMMVisibility(level) {
+      const isL0 = level === 0;
+      const hide = el => { if (el) el.style.display = 'none'; };
+      const show = (el, d) => { if (el) el.style.display = d || ''; };
+
+      const welcome = document.getElementById('acmm-welcome');
+      const governor = document.getElementById('governor');
+      const tokenPanel = document.getElementById('token-panel');
+      const reposSection = document.getElementById('repos-section');
+      const beadsSection = document.getElementById('beads-section');
+      const nousSection = document.getElementById('nous-section');
+      const debugSection = document.getElementById('debug-section');
+      const logsSection = document.getElementById('logs-section');
+
+      const sidebarControl = document.querySelector('.oc-nav-group .oc-nav-label');
+      const sidebarGroups = document.querySelectorAll('.oc-nav-group');
+
+      if (isL0) {
+        show(welcome, 'block');
+        hide(governor);
+        hide(tokenPanel);
+        hide(reposSection);
+        hide(beadsSection);
+        hide(nousSection);
+        hide(debugSection);
+        hide(logsSection);
+        sidebarGroups.forEach(g => {
+          const label = g.querySelector('.oc-nav-label, .oc-tree-toggle');
+          const text = label ? label.textContent.trim() : '';
+          if (text === 'Control' || text.includes('Agent')) hide(g);
+        });
+      } else {
+        hide(welcome);
+        show(governor, '');
+        show(tokenPanel, '');
+        show(reposSection, '');
+        show(beadsSection, '');
+        show(nousSection, '');
+        show(debugSection, '');
+        show(logsSection, '');
+        sidebarGroups.forEach(g => show(g, ''));
+      }
     }
 
     function switchConfigTab(tabId) {

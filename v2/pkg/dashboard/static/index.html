@@ -2131,6 +2131,8 @@
         renderGovernor(lastData.governor, lastData.cadenceMatrix || [], lastData);
       }
       renderDebugSection();
+      const _lvl2 = (lastData.acmmLevel != null) ? lastData.acmmLevel : 0;
+      applyACMMVisibility(_lvl2, lastData.acmmPackAgents || null);
     }
 
     function _sidebarRenderAgent(a) {
@@ -6005,6 +6007,9 @@ function burnAreaChart() {
             applyPinOverrides(lastData.agents);
             renderAgents(lastData.agents);
           }
+          const _lvl = (lastData.acmmLevel != null) ? lastData.acmmLevel : 0;
+          const _pa = lastData.acmmPackAgents || null;
+          applyACMMVisibility(_lvl, _pa);
         } catch (err) {
           console.error('SSE agent-status parse error:', err);
         }

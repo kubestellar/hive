@@ -105,7 +105,7 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 	if len(created) > 0 {
 		s.reInitSubsystems()
 	}
-	s.refreshAndPersist()
+	s.refreshAndPersistSync()
 	s.logger.Info("ACMM pack applied", "level", level, "name", pack.Name, "created", len(created), "skipped", len(skipped))
 
 	jsonResponse(w, map[string]interface{}{
@@ -135,7 +135,7 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 
 	level := body.Level
 	s.deps.Config.ACMMLevel = &level
-	s.refreshAndPersist()
+	s.refreshAndPersistSync()
 
 	s.logger.Info("ACMM level set explicitly", "level", body.Level)
 	jsonResponse(w, map[string]interface{}{

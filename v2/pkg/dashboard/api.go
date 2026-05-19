@@ -189,6 +189,15 @@ func (s *Server) refreshAndPersist() {
 	s.persistAfterMutation()
 }
 
+func (s *Server) refreshAndPersistSync() {
+	if s.deps != nil && s.deps.RefreshFunc != nil {
+		s.deps.RefreshFunc()
+	}
+	if s.deps != nil && s.deps.PersistFunc != nil {
+		s.deps.PersistFunc()
+	}
+}
+
 func decodeBody(r *http.Request, v interface{}) error {
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(v)

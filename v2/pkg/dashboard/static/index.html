@@ -3043,7 +3043,8 @@
         const modelPinned = agentData && (agentData.pinnedBoth || agentData.pinnedModel);
         const cChip = agentData && agentData.cli ? cliChip(agentData.cli, cliPinned, aname) : '?';
         const mChip = agentData && agentData.model ? modelChip(agentData.model, agentData.govReason, modelPinned, aname) : '';
-        return `<tr><td>${nameDot}${aname}${pauseBadge}</td>${cells}<td>${cChip}</td><td>${mChip}</td></tr>`;
+        const displayLabel = (agentData && agentData.displayName) || aname;
+        return `<tr><td>${nameDot}${displayLabel}${pauseBadge}</td>${cells}<td>${cChip}</td><td>${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
         const isActive = m === currentMode;

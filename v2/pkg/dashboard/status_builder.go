@@ -862,7 +862,9 @@ func buildACMMPackAgents(cfg *config.Config) []string {
 	}
 	names := make([]string, 0, len(pack.Agents))
 	for _, a := range pack.Agents {
-		names = append(names, a.Name)
+		if !a.Hidden {
+			names = append(names, a.Name)
+		}
 	}
 	return names
 }

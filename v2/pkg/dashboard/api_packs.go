@@ -114,7 +114,9 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 
 	var packAgentNames []string
 	for _, a := range pack.Agents {
-		packAgentNames = append(packAgentNames, a.Name)
+		if !a.Hidden {
+			packAgentNames = append(packAgentNames, a.Name)
+		}
 	}
 
 	jsonResponse(w, map[string]interface{}{
@@ -154,7 +156,9 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 	var packAgentNames []string
 	if packErr == nil {
 		for _, a := range pack.Agents {
-			packAgentNames = append(packAgentNames, a.Name)
+			if !a.Hidden {
+				packAgentNames = append(packAgentNames, a.Name)
+			}
 		}
 	}
 
@@ -174,7 +178,9 @@ func (s *Server) syncAgentVisibility(level int) (paused, resumed []string) {
 
 	packAgents := make(map[string]bool, len(pack.Agents))
 	for _, a := range pack.Agents {
-		packAgents[a.Name] = true
+		if !a.Hidden {
+			packAgents[a.Name] = true
+		}
 	}
 
 	for name := range s.deps.Config.Agents {

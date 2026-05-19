@@ -38,6 +38,7 @@ type PackAgent struct {
 	LaneKeywords []string `json:"laneKeywords" yaml:"lane_keywords"`
 	Interactions string   `json:"interactions" yaml:"interactions"`
 	KnowledgeUse string   `json:"knowledgeUse" yaml:"knowledge_use"`
+	Hidden       bool     `json:"hidden,omitempty" yaml:"hidden"`
 }
 
 // PackGovernor describes the governor configuration recommended for a level.

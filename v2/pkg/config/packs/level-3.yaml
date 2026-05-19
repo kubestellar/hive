@@ -92,3 +92,18 @@ agents:
     knowledge_use: >
       Reads test patterns, coverage rules, regressions. Produces test coverage
       reports and quality gate records.
+  - name: guide
+    display_name: Guide
+    role: guide
+    description: >
+      Enhanced advisor that reviews PRs on request, flags code without tests,
+      and suggests patterns from the knowledge base.
+    emoji: "🧭"
+    color: "#8e44ad"
+    sort_order: 5
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: guide-CLAUDE.md
+    include_repos: false
+    hidden: true

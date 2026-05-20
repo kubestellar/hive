@@ -22,6 +22,7 @@ type Config struct {
 	Data          DataConfig                   `yaml:"data"`
 	Knowledge     KnowledgeConfig              `yaml:"knowledge"`
 	HiveID        string                       `yaml:"hive_id"`
+	ACMMLevel     *int                         `yaml:"acmm_level,omitempty" json:"acmm_level"`
 }
 
 type KnowledgeConfig struct {
@@ -88,33 +89,36 @@ type StatsDisplayEntry struct {
 }
 
 type AgentConfig struct {
-	ID              string `yaml:"id"`
-	Backend         string `yaml:"backend"`
-	Model           string `yaml:"model"`
-	BeadsDir        string `yaml:"beads_dir"`
-	Enabled         bool   `yaml:"enabled"`
-	ClearOnKick     bool   `yaml:"clear_on_kick"`
-	CLIPinned       bool   `yaml:"cli_pinned"`
-	StaleTimeout    int    `yaml:"stale_timeout"`
-	RestartStrategy string `yaml:"restart_strategy"`
-	LaunchCmd       string `yaml:"launch_cmd"`
-	DisplayName     string `yaml:"display_name"`
-	Description     string `yaml:"description"`
+	ID              string `yaml:"id" json:"id,omitempty"`
+	Backend         string `yaml:"backend" json:"backend,omitempty"`
+	Model           string `yaml:"model" json:"model,omitempty"`
+	BeadsDir        string `yaml:"beads_dir" json:"beads_dir,omitempty"`
+	Enabled         bool   `yaml:"enabled" json:"enabled,omitempty"`
+	ClearOnKick     bool   `yaml:"clear_on_kick" json:"clear_on_kick"`
+	CLIPinned       bool   `yaml:"cli_pinned" json:"cli_pinned,omitempty"`
+	StaleTimeout    int    `yaml:"stale_timeout" json:"stale_timeout,omitempty"`
+	RestartStrategy string `yaml:"restart_strategy" json:"restart_strategy,omitempty"`
+	LaunchCmd       string `yaml:"launch_cmd" json:"launch_cmd,omitempty"`
+	DisplayName     string `yaml:"display_name" json:"display_name,omitempty"`
+	Description     string `yaml:"description" json:"description,omitempty"`
 
 	// Phase 2: config-driven agent behavior fields
-	Role             string            `yaml:"role"`
-	SortOrder        int               `yaml:"sort_order"`
-	Emoji            string            `yaml:"emoji"`
-	Color            string            `yaml:"color"`
-	Aliases          []string          `yaml:"aliases"`
-	LaneKeywords     []string          `yaml:"lane_keywords"`
-	DetectKeywords   []string          `yaml:"detect_keywords"`
-	KickTemplate     string            `yaml:"kick_template"`
-	IncludeRepos     *bool             `yaml:"include_repos"`
-	MetricsCollector string            `yaml:"metrics_collector"`
-	BeadRole         string            `yaml:"bead_role"`
-	StatsDisplay     []StatsDisplayEntry `yaml:"stats_display"`
-	ACMMLevels       []int             `yaml:"acmm_levels"`
+	Role             string            `yaml:"role" json:"role,omitempty"`
+	SortOrder        int               `yaml:"sort_order" json:"sort_order,omitempty"`
+	Emoji            string            `yaml:"emoji" json:"emoji,omitempty"`
+	Color            string            `yaml:"color" json:"color,omitempty"`
+	Aliases          []string          `yaml:"aliases" json:"aliases,omitempty"`
+	LaneKeywords     []string          `yaml:"lane_keywords" json:"lane_keywords,omitempty"`
+	DetectKeywords   []string          `yaml:"detect_keywords" json:"detect_keywords,omitempty"`
+	KickTemplate     string            `yaml:"kick_template" json:"kick_template,omitempty"`
+	IncludeRepos     *bool             `yaml:"include_repos" json:"include_repos,omitempty"`
+	MetricsCollector string            `yaml:"metrics_collector" json:"metrics_collector,omitempty"`
+	BeadRole         string            `yaml:"bead_role" json:"bead_role,omitempty"`
+	StatsDisplay     []StatsDisplayEntry `yaml:"stats_display" json:"stats_display,omitempty"`
+	ACMMLevels       []int             `yaml:"acmm_levels" json:"acmm_levels,omitempty"`
+
+	// Managed is true for agents loaded from the overlay directory (not base config).
+	Managed bool `yaml:"-" json:"managed"`
 
 	// clearOnKickSet tracks whether YAML explicitly set clear_on_kick to false
 	clearOnKickSet bool
@@ -295,6 +299,7 @@ type DataConfig struct {
 	LogsDir             string `yaml:"logs_dir"`
 	ClaudeSessionsDir   string `yaml:"claude_sessions_dir"`
 	CopilotSessionsDir  string `yaml:"copilot_sessions_dir"`
+	AgentsDir           string `yaml:"agents_dir"`
 }
 
 var envVarPattern = regexp.MustCompile(`\$\{([^}]+)\}`)
@@ -333,6 +338,19 @@ func LoadWithOverrides(path, envPath string) (*Config, error) {
 	}
 
 	cfg.applyDefaults()
+
+	// Merge per-agent overlay files from the agents directory.
+	if cfg.Data.AgentsDir != "" {
+		overlays, err := LoadAgentOverrides(cfg.Data.AgentsDir)
+		if err != nil {
+			return nil, fmt.Errorf("loading agent overlays: %w", err)
+		}
+		cfg.MergeAgentOverrides(overlays)
+		// Re-apply defaults for overlay agents.
+		for name := range overlays {
+			cfg.ApplyAgentDefaults(name)
+		}
+	}
 
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
@@ -477,6 +495,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Data.CopilotSessionsDir == "" {
 		c.Data.CopilotSessionsDir = "/data/home/.copilot/session-state"
+	}
+	if c.Data.AgentsDir == "" {
+		c.Data.AgentsDir = "/data/agent-configs"
 	}
 	for name, agent := range c.Agents {
 		agent.name = name

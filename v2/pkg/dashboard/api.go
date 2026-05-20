@@ -70,6 +70,14 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("DELETE /api/config/governor/agents/{name}", s.handleGovernorRemoveAgent)
 	s.mux.HandleFunc("PUT /api/config/governor/repos", s.handleGovernorRepos)
 
+	s.mux.HandleFunc("GET /api/agents", s.handleAgentsList)
+	s.mux.HandleFunc("POST /api/agents", s.handleAgentCreate)
+	s.mux.HandleFunc("DELETE /api/agents/{name}", s.handleAgentDelete)
+
+	s.mux.HandleFunc("GET /api/packs", s.handlePacksList)
+	s.mux.HandleFunc("POST /api/packs/{level}/apply", s.handlePackApply)
+	s.mux.HandleFunc("PUT /api/packs/level", s.handlePackSetLevel)
+
 	s.mux.HandleFunc("GET /api/config/sidebar", s.handleSidebarGet)
 	s.mux.HandleFunc("PUT /api/config/sidebar", s.handleSidebarSet)
 	s.mux.HandleFunc("GET /api/config/backends", s.handleBackends)
@@ -179,6 +187,27 @@ func (s *Server) persistAfterMutation() {
 func (s *Server) refreshAndPersist() {
 	s.refreshAfterMutation()
 	s.persistAfterMutation()
+}
+
+func (s *Server) refreshAndPersistSync() {
+	if s.deps != nil && s.deps.RefreshFunc != nil {
+		s.deps.RefreshFunc()
+	}
+	if s.deps != nil && s.deps.PersistFunc != nil {
+		s.deps.PersistFunc()
+	}
+}
+
+func (s *Server) persistOnly() {
+	if s.deps != nil && s.deps.PersistFunc != nil {
+		s.deps.PersistFunc()
+	}
+}
+
+func (s *Server) refreshAsync() {
+	if s.deps != nil && s.deps.RefreshFunc != nil {
+		s.deps.RefreshFunc()
+	}
 }
 
 func decodeBody(r *http.Request, v interface{}) error {
@@ -763,6 +792,11 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 	pipeline := s.getAgentPipeline(name)
 	hooks := s.getAgentHooks(name)
 
+	includeRepos := true
+	if agentCfg.IncludeRepos != nil {
+		includeRepos = *agentCfg.IncludeRepos
+	}
+
 	jsonResponse(w, map[string]interface{}{
 		"general": map[string]interface{}{
 			"launchCmd":       launchCmd,
@@ -774,6 +808,16 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 			"restartStrategy": restartStrategy,
 			"model":           model,
 			"clearOnKick":     agentCfg.ClearOnKick,
+			"emoji":           agentCfg.Emoji,
+			"color":           agentCfg.Color,
+			"sortOrder":       agentCfg.SortOrder,
+			"beadRole":        agentCfg.BeadRole,
+			"role":            agentCfg.Role,
+			"kickTemplate":    agentCfg.KickTemplate,
+			"includeRepos":    includeRepos,
+			"laneKeywords":    agentCfg.LaneKeywords,
+			"detectKeywords":  agentCfg.DetectKeywords,
+			"aliases":         agentCfg.Aliases,
 		},
 		"cadences": cadences,
 		"models":   models,
@@ -1021,6 +1065,74 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 	if v, ok := body["cliPinned"]; ok {
 		if b, ok := v.(bool); ok {
 			agentCfg.CLIPinned = b
+		}
+	}
+	if v, ok := body["emoji"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.Emoji = s
+		}
+	}
+	if v, ok := body["color"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.Color = s
+		}
+	}
+	if v, ok := body["sortOrder"]; ok {
+		if f, ok := v.(float64); ok {
+			agentCfg.SortOrder = int(f)
+		}
+	}
+	if v, ok := body["beadRole"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.BeadRole = s
+		}
+	}
+	if v, ok := body["role"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.Role = s
+		}
+	}
+	if v, ok := body["kickTemplate"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.KickTemplate = s
+		}
+	}
+	if v, ok := body["includeRepos"]; ok {
+		if b, ok := v.(bool); ok {
+			agentCfg.IncludeRepos = &b
+		}
+	}
+	if v, ok := body["laneKeywords"]; ok {
+		if arr, ok := v.([]interface{}); ok {
+			kw := make([]string, 0, len(arr))
+			for _, item := range arr {
+				if s, ok := item.(string); ok {
+					kw = append(kw, s)
+				}
+			}
+			agentCfg.LaneKeywords = kw
+		}
+	}
+	if v, ok := body["detectKeywords"]; ok {
+		if arr, ok := v.([]interface{}); ok {
+			kw := make([]string, 0, len(arr))
+			for _, item := range arr {
+				if s, ok := item.(string); ok {
+					kw = append(kw, s)
+				}
+			}
+			agentCfg.DetectKeywords = kw
+		}
+	}
+	if v, ok := body["aliases"]; ok {
+		if arr, ok := v.([]interface{}); ok {
+			a := make([]string, 0, len(arr))
+			for _, item := range arr {
+				if s, ok := item.(string); ok {
+					a = append(a, s)
+				}
+			}
+			agentCfg.Aliases = a
 		}
 	}
 	s.deps.Config.Agents[name] = agentCfg

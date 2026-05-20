@@ -1,0 +1,9 @@
+level: 0
+name: Unaware
+description: >
+  No AI tooling. Manual everything. This is your baseline for comparison
+  as you adopt higher levels of AI-assisted development.
+governor:
+  modes: none
+  merge_policy: manual
+agents: []

@@ -81,6 +81,8 @@ func BuildFrontendStatus(
 		AgentMetrics: agentMetrics,
 		Hold:         buildHold(actionable),
 		IssueToMerge: issueToMerge,
+		ACMMLevel:      detectACMMLevel(cfg),
+		ACMMPackAgents: buildACMMPackAgents(cfg),
 	}
 	return payload
 }
@@ -161,6 +163,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			Emoji:         agentCfg.Emoji,
 			Color:         agentCfg.Color,
 			BeadRole:      agentCfg.GetBeadRole(),
+			Managed:       agentCfg.Managed,
 			Session:       name,
 			State:         string(proc.State),
 			Busy:          busy,
@@ -849,4 +852,19 @@ func buildIssueToMerge(mc *MetricsCollector) map[string]any {
 		"updated_at":      mttr.UpdatedAt,
 		"history":         history,
 	}
+}
+
+func buildACMMPackAgents(cfg *config.Config) []string {
+	level := detectACMMLevel(cfg)
+	pack, err := config.ACMMPackByLevel(level)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(pack.Agents))
+	for _, a := range pack.Agents {
+		if !a.Hidden {
+			names = append(names, a.Name)
+		}
+	}
+	return names
 }

@@ -1,0 +1,29 @@
+level: 1
+name: Idea
+description: >
+  Project conception and scaffolding. A single interactive advisor helps with
+  repo setup, test stubs, and early architecture decisions. All actions require
+  human approval. The knowledge base is your primary asset at this level.
+governor:
+  modes: none
+  merge_policy: manual
+agents:
+  - name: guide
+    display_name: Guide
+    role: guide
+    description: >
+      Interactive advisor that queries the community knowledge base for
+      scaffolding patterns. Helps create repos, initial structure, and test
+      stubs. No autonomous actions — everything is conversational.
+    emoji: "🧭"
+    color: "#8e44ad"
+    sort_order: 10
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: guide-CLAUDE.md
+    include_repos: false
+    interactions: "Standalone. Responds to user queries only."
+    knowledge_use: >
+      Heavy consumer — reads community wiki, project patterns, and scaffolding
+      templates. Does not produce knowledge entries at this level.

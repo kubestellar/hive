@@ -30,6 +30,7 @@ type Dependencies struct {
 	Ctx              context.Context
 	RefreshFunc      func()
 	PersistFunc      func()
+	ReInitFunc       func()
 }
 
 type NousState struct {

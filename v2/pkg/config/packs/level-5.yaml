@@ -1,0 +1,174 @@
+level: 5
+name: Guarded Autonomy
+description: >
+  Same agents as Level 4 but with hold-gated merges. All agent-created PRs
+  get a 'hold' label automatically. Humans batch-review and approve. Ideal
+  for regulated industries, compliance requirements, or teams building trust
+  in their AI pipeline.
+governor:
+  modes: SURGE, BUSY, QUIET, IDLE
+  merge_policy: >
+    Hold-gated — all agent PRs get 'hold' label. Human batch-approves.
+    merge-gate.sh blocks agent merges. batch-approve.sh for human review.
+agents:
+  - name: supervisor
+    display_name: Supervisor
+    role: supervisor
+    description: >
+      Agent health monitoring and sweep analysis. Same as L4.
+    emoji: "👑"
+    color: "#e74c3c"
+    sort_order: 10
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: supervisor
+    kick_template: supervisor-CLAUDE.md
+    include_repos: true
+    interactions: >
+      Monitors all agents. Escalates issues to human operators.
+    knowledge_use: >
+      Reads agent health history. Produces sweep reports.
+  - name: scanner
+    display_name: Scanner
+    role: scanner
+    description: >
+      Opens issues and PRs but does NOT merge. All PRs get 'hold' label
+      automatically. Human reviews in batches.
+    emoji: "🔍"
+    color: "#3498db"
+    sort_order: 20
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: scanner-guarded-CLAUDE.md
+    include_repos: true
+    lane_keywords: [bug, triage, fix, issue]
+    interactions: >
+      Creates hold-gated PRs. Tester validates but does not approve.
+    knowledge_use: >
+      Same as L4. Full project history access.
+  - name: ci-maintainer
+    display_name: CI Maintainer
+    role: ci-maintainer
+    description: >
+      Same as L4. CI changes are low-risk and don't need hold gating.
+    emoji: "🔧"
+    color: "#2ecc71"
+    sort_order: 30
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: ci-maintainer-CLAUDE.md
+    include_repos: true
+    lane_keywords: [ci, build, pipeline, workflow, dependency]
+    interactions: >
+      Same as L4.
+    knowledge_use: >
+      Same as L4.
+  - name: tester
+    display_name: Tester
+    role: tester
+    description: >
+      Same as L4. Tests and validates but does not approve merges.
+    emoji: "🧪"
+    color: "#3498db"
+    sort_order: 35
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: tester-CLAUDE.md
+    include_repos: true
+    lane_keywords: [test, coverage, tdd, quality]
+    interactions: >
+      Reviews PRs for coverage. Adds /lgtm but does NOT /approve.
+    knowledge_use: >
+      Same as L4.
+  - name: architect
+    display_name: Architect
+    role: architect
+    description: >
+      Same as L4. RFCs are advisory by nature and don't need hold gating.
+    emoji: "🏗"
+    color: "#9b59b6"
+    sort_order: 40
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: architect-CLAUDE.md
+    include_repos: true
+    lane_keywords: [refactor, architecture, rfc, design, feature]
+    interactions: >
+      Same as L4.
+    knowledge_use: >
+      Same as L4.
+  - name: outreach
+    display_name: Outreach
+    role: outreach
+    description: >
+      Proposes outreach but does NOT file external issues/PRs without
+      human approval.
+    emoji: "🌐"
+    color: "#e67e22"
+    sort_order: 50
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: outreach-guarded-CLAUDE.md
+    include_repos: false
+    lane_keywords: [community, adopters, outreach, ecosystem]
+    interactions: >
+      Drafts outreach actions for human review before execution.
+    knowledge_use: >
+      Same as L4.
+  - name: sec-check
+    display_name: Security
+    role: sec-check
+    description: >
+      Enhanced security scanning with CVE monitoring. Critical findings
+      escalate to supervisor immediately.
+    emoji: "🛡"
+    color: "#1abc9c"
+    sort_order: 60
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: sec-check-CLAUDE.md
+    include_repos: true
+    lane_keywords: [security, cve, vulnerability, audit]
+    interactions: >
+      Same as L4 plus immediate escalation for critical CVEs.
+    knowledge_use: >
+      Same as L4.
+  - name: strategist
+    display_name: Strategist
+    role: strategist
+    description: >
+      Same as L4.
+    emoji: "🧠"
+    color: "#f39c12"
+    sort_order: 70
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: strategist-CLAUDE.md
+    include_repos: false
+    lane_keywords: [strategy, roadmap, planning]
+    interactions: >
+      Same as L4.
+    knowledge_use: >
+      Same as L4.
+  - name: guide
+    display_name: Guide
+    role: guide
+    description: >
+      Enhanced advisor that reviews PRs on request, flags code without tests,
+      and suggests patterns from the knowledge base.
+    emoji: "🧭"
+    color: "#8e44ad"
+    sort_order: 5
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: guide-CLAUDE.md
+    include_repos: false
+    hidden: true

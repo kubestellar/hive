@@ -97,28 +97,30 @@ docker run -d \
     --health-cmd "curl -sf http://localhost:3001/api/health" \
     --health-interval 10s \
     --health-timeout 5s \
-    --health-retries 3 \
-    --health-start-period 120s \
+    --health-retries 5 \
+    --health-start-period 180s \
     "$IMAGE"
 
 # ── 4. Wait for hive-next to become healthy ─────────────────────────
+# Probe the endpoint directly via docker exec instead of waiting for
+# Docker's health status (which delays behind health-start-period).
 log "Waiting for hive-next to become healthy..."
 elapsed=0
 while [ "$elapsed" -lt "$HEALTH_TIMEOUT_S" ]; do
-    HEALTH=$(docker inspect hive-next --format '{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
-    if [ "$HEALTH" = "healthy" ]; then
+    if docker exec hive-next curl -sf http://localhost:3001/api/health >/dev/null 2>&1; then
         log "hive-next is healthy!"
         break
     fi
-    if [ "$HEALTH" = "unhealthy" ]; then
-        log "ERROR: hive-next is unhealthy. Aborting deploy."
+    RUNNING=$(docker inspect hive-next --format '{{.State.Running}}' 2>/dev/null || echo "false")
+    if [ "$RUNNING" != "true" ]; then
+        log "ERROR: hive-next stopped unexpectedly."
         docker logs hive-next --tail 20
         docker rm -f hive-next 2>/dev/null || true
         exit 1
     fi
     sleep "$HEALTH_INTERVAL_S"
     elapsed=$((elapsed + HEALTH_INTERVAL_S))
-    log "Waiting... (${elapsed}s / ${HEALTH_TIMEOUT_S}s) status=${HEALTH}"
+    log "Waiting... (${elapsed}s / ${HEALTH_TIMEOUT_S}s)"
 done
 
 if [ "$elapsed" -ge "$HEALTH_TIMEOUT_S" ]; then

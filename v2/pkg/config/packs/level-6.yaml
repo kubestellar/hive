@@ -1,0 +1,176 @@
+level: 6
+name: Full Autonomy
+description: >
+  Agents open AND merge PRs. Self-healing on deploy failures. Minimal human
+  oversight — monitoring shifts from pre-merge approval to post-merge
+  dashboards and alerts. Auto-deploy with rollback on failure.
+governor:
+  modes: SURGE, BUSY, QUIET, IDLE
+  merge_policy: >
+    Auto-merge on green CI. No hold label. auto-deploy.sh active.
+    rollback.sh for self-healing on deploy failure.
+agents:
+  - name: supervisor
+    display_name: Supervisor
+    role: supervisor
+    description: >
+      Full autonomous oversight. Self-healing: restarts stalled agents,
+      triggers rollbacks on deploy failures.
+    emoji: "👑"
+    color: "#e74c3c"
+    sort_order: 10
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: supervisor
+    kick_template: supervisor-CLAUDE.md
+    include_repos: true
+    interactions: >
+      Full autonomous oversight of all agents. Triggers rollbacks and
+      self-healing actions without human intervention.
+    knowledge_use: >
+      Reads agent health history. Produces sweep reports and self-healing
+      action logs.
+  - name: scanner
+    display_name: Scanner
+    role: scanner
+    description: >
+      Merges PRs when CI passes. No hold. Full SLA enforcement with
+      30-minute response time.
+    emoji: "🔍"
+    color: "#3498db"
+    sort_order: 20
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: scanner-CLAUDE.md
+    include_repos: true
+    lane_keywords: [bug, triage, fix, issue]
+    interactions: >
+      Creates and merges PRs autonomously. Tester validates before merge.
+    knowledge_use: >
+      Full access to all project knowledge.
+  - name: ci-maintainer
+    display_name: CI Maintainer
+    role: ci-maintainer
+    description: >
+      Full CI pipeline ownership with auto-deploy integration.
+    emoji: "🔧"
+    color: "#2ecc71"
+    sort_order: 30
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: ci-maintainer-CLAUDE.md
+    include_repos: true
+    lane_keywords: [ci, build, pipeline, workflow, dependency, deploy]
+    interactions: >
+      Owns deploy pipeline. Coordinates rollbacks with supervisor.
+    knowledge_use: >
+      Full CI history. Produces deploy reports and rollback records.
+  - name: tester
+    display_name: Tester
+    role: tester
+    description: >
+      Full TDD with auto-approve when coverage gates pass.
+    emoji: "🧪"
+    color: "#3498db"
+    sort_order: 35
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: tester-CLAUDE.md
+    include_repos: true
+    lane_keywords: [test, coverage, tdd, quality]
+    interactions: >
+      Auto-approves PRs when coverage + CI gates pass.
+    knowledge_use: >
+      Full test history access.
+  - name: architect
+    display_name: Architect
+    role: architect
+    description: >
+      Full autonomous architecture. Implements RFCs without waiting for
+      human approval.
+    emoji: "🏗"
+    color: "#9b59b6"
+    sort_order: 40
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: architect-CLAUDE.md
+    include_repos: true
+    lane_keywords: [refactor, architecture, rfc, design, feature]
+    interactions: >
+      Full autonomous design and implementation.
+    knowledge_use: >
+      Full architecture knowledge access.
+  - name: outreach
+    display_name: Outreach
+    role: outreach
+    description: >
+      Full autonomous outreach. Files issues on partner projects and
+      manages community engagement.
+    emoji: "🌐"
+    color: "#e67e22"
+    sort_order: 50
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: outreach-CLAUDE.md
+    include_repos: false
+    lane_keywords: [community, adopters, outreach, ecosystem]
+    interactions: >
+      Fully autonomous community engagement.
+    knowledge_use: >
+      Full community knowledge access.
+  - name: sec-check
+    display_name: Security
+    role: sec-check
+    description: >
+      Full autonomous security scanning with auto-patch for known CVEs.
+    emoji: "🛡"
+    color: "#1abc9c"
+    sort_order: 60
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: sec-check-CLAUDE.md
+    include_repos: true
+    lane_keywords: [security, cve, vulnerability, audit]
+    interactions: >
+      Auto-patches known CVEs. Escalates unknowns to supervisor.
+    knowledge_use: >
+      Full security knowledge access.
+  - name: strategist
+    display_name: Strategist
+    role: strategist
+    description: >
+      Full autonomous strategic planning with roadmap execution.
+    emoji: "🧠"
+    color: "#f39c12"
+    sort_order: 70
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: strategist-CLAUDE.md
+    include_repos: false
+    lane_keywords: [strategy, roadmap, planning]
+    interactions: >
+      Full autonomous strategic planning and priority setting.
+    knowledge_use: >
+      Full cross-agent knowledge synthesis.
+  - name: guide
+    display_name: Guide
+    role: guide
+    description: >
+      Enhanced advisor that reviews PRs on request, flags code without tests,
+      and suggests patterns from the knowledge base.
+    emoji: "🧭"
+    color: "#8e44ad"
+    sort_order: 5
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: guide-CLAUDE.md
+    include_repos: false
+    hidden: true

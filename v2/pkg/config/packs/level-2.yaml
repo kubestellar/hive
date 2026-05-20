@@ -1,0 +1,65 @@
+level: 2
+name: Development
+description: >
+  Code exists, PRs are manual, knowledge is accumulating. An enhanced advisor
+  reviews PRs on request. An advisory scanner suggests fixes but does not
+  create PRs or issues. Agents start building your knowledge base.
+governor:
+  modes: none
+  merge_policy: manual
+agents:
+  - name: guide
+    display_name: Guide
+    role: guide
+    description: >
+      Enhanced advisor that reviews PRs on request, flags code without tests,
+      and suggests patterns from the knowledge base.
+    emoji: "🧭"
+    color: "#8e44ad"
+    sort_order: 10
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: guide-CLAUDE.md
+    include_repos: false
+    interactions: "Works alongside scanner. Reviews scanner's suggestions when asked."
+    knowledge_use: >
+      Reads community wiki and project patterns. Starts contributing review
+      insights as knowledge entries.
+  - name: scanner
+    display_name: Scanner (Advisory)
+    role: scanner
+    description: >
+      Scans code for issues and suggests fixes, but does NOT create PRs or
+      issues. Reports findings to the user for manual action.
+    emoji: "🔍"
+    color: "#3498db"
+    sort_order: 20
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: scanner-advisory-CLAUDE.md
+    include_repos: true
+    lane_keywords: [bug, triage, fix]
+    interactions: "Produces findings that guide can review. No autonomous actions."
+    knowledge_use: >
+      Reads project patterns and known issues. Produces findings as knowledge
+      entries for the team to review.
+  - name: tester
+    display_name: Quality
+    role: tester
+    description: >
+      Generates test cases for existing code. Focuses on coverage gaps and
+      edge cases. All tests require human review before merging.
+    emoji: "🧪"
+    color: "#e67e22"
+    sort_order: 25
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    kick_template: tester-CLAUDE.md
+    include_repos: true
+    interactions: "Complements scanner findings with targeted tests. Guide reviews test quality."
+    knowledge_use: >
+      Reads test patterns, coverage rules, and known regressions from the
+      knowledge base to prioritize which code needs tests most.

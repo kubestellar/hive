@@ -984,6 +984,36 @@
     }
     .config-overlay.hidden { display: none; }
     @keyframes config-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .hive-dialog-overlay {
+      position: fixed; inset: 0; z-index: 20000;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center;
+      animation: config-fade-in 0.15s ease-out;
+    }
+    .hive-dialog {
+      background: #1a1a2e; border: 1px solid #2d2d3d;
+      border-radius: 10px; width: 460px; max-width: 92vw;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      padding: 24px;
+    }
+    body.light-mode .hive-dialog { background: #fff; border-color: #e0e0e0; }
+    .hive-dialog-title { font-size: 1rem; font-weight: 600; color: #c9d1d9; margin-bottom: 12px; }
+    body.light-mode .hive-dialog-title { color: #1a1a2e; }
+    .hive-dialog-body { font-size: 0.9rem; color: #8b949e; line-height: 1.5; white-space: pre-wrap; margin-bottom: 20px; }
+    body.light-mode .hive-dialog-body { color: #555; }
+    .hive-dialog-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+    .hive-dialog-btn {
+      padding: 8px 20px; border-radius: 6px; border: 1px solid var(--border);
+      font-size: 0.85rem; font-weight: 500; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .hive-dialog-btn:hover { border-color: #58a6ff; }
+    .hive-dialog-btn.primary { background: #58a6ff; color: #fff; border-color: #58a6ff; }
+    .hive-dialog-btn.primary:hover { background: #4a90e0; }
+    .hive-dialog-btn.cancel { background: #2d2d3d; color: #8b949e; border-color: #3d3d4d; }
+    .hive-dialog-btn.cancel:hover { background: #3d3d4d; }
+    body.light-mode .hive-dialog-btn.cancel { background: #f0f0f0; color: #555; border-color: #ddd; }
+    body.light-mode .hive-dialog-btn.cancel:hover { background: #e0e0e0; }
     .config-modal {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; width: 900px; max-width: 95vw;
@@ -1475,6 +1505,24 @@
     </div>
   </div>
 </div>
+<!-- Add Agent dialog removed — create mode now uses the config dialog -->
+</div>
+<div id="acmm-overlay" class="config-overlay hidden">
+  <div class="config-modal" style="max-width:800px;max-height:85vh">
+    <div class="config-header">
+      <h2 class="config-title">ACMM Maturity Level</h2>
+      <button class="config-close" onclick="closeACMMDialog()">&times;</button>
+    </div>
+    <div class="config-body" style="padding:16px 24px;overflow-y:auto;max-height:calc(85vh - 120px)">
+      <p style="font-size:0.82rem;color:var(--muted);margin:0 0 16px">
+        Select your AI-native Continuous Maturity Model (ACMM) level. Each level provides a curated set of agents
+        with increasing autonomy. Agents are additive — higher levels build on lower ones.
+      </p>
+      <div id="acmm-packs-list" style="display:flex;flex-direction:column;gap:12px"></div>
+      <div id="acmm-apply-error" style="color:#dc2626;font-size:0.8rem;margin-top:12px;display:none"></div>
+    </div>
+  </div>
+</div>
 <div class="gh-auth-alert" id="gh-auth-alert">GitHub API authentication failed. Check GitHub App key or token configuration.</div>
   <div class="gh-rate-alert" id="gh-rate-alert"></div>
 
@@ -1486,6 +1534,9 @@
         <div class="oc-logo-title">HIVE</div>
         <div class="oc-logo-sub">GATEWAY DASHBOARD</div>
       </div>
+    </div>
+    <div style="padding:4px 16px 8px;text-align:center">
+      <span id="acmm-sidebar-badge" title="ACMM Maturity Level — click to change" style="cursor:pointer;display:inline-block;padding:4px 12px;border-radius:12px;font-size:0.7rem;font-weight:700;background:linear-gradient(135deg,#3498db,#2ecc71);color:#fff;letter-spacing:0.5px" onclick="openACMMDialog()"></span>
     </div>
     <div class="oc-nav-group">
       <div class="oc-nav-label">Control</div>
@@ -1538,6 +1589,7 @@
   <h1><span class="bee">🐝</span> KubeStellar Hive Dashboard&nbsp;<span id="project-name">for KubeStellar/Console</span> <span class="timestamp" id="ts"></span>
     <span class="git-version" id="git-version"></span>
     <span class="git-version" id="hive-id-badge" title="Hive Instance ID" style="cursor:pointer;border:1px solid var(--border);padding:2px 8px;border-radius:4px" onclick="openConfigDialog('governor')"></span>
+    <span class="git-version" id="acmm-badge" title="ACMM Maturity Level — click to change" style="cursor:pointer;border:1px solid var(--border);padding:2px 8px;border-radius:4px;background:linear-gradient(135deg,#3498db,#2ecc71);color:#fff;font-weight:600" onclick="openACMMDialog()"></span>
     <button class="layout-toggle" id="layout-toggle" onclick="toggleLayout()" title="Switch between Light layout (sidebar + detail panel) and Classic layout (dark theme grid). Your preference is saved in the browser.">☰ Classic</button>
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
@@ -1565,6 +1617,34 @@
   <div id="knowledge-section" style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">📚 Knowledge Base <span id="kb-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span></h2>
     <div id="knowledge-panel"></div>
+  </div>
+
+  <div id="acmm-welcome" style="display:none; text-align:center; padding:60px 40px; max-width:720px; margin:40px auto;">
+    <div style="font-size:3rem; margin-bottom:16px;">📚</div>
+    <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:12px; color:var(--text);">Welcome to Hive</h2>
+    <p style="font-size:0.95rem; color:var(--muted); line-height:1.6; margin-bottom:24px;">
+      You're at <strong>ACMM Level 0 — Unaware</strong>. This is your starting point before introducing any AI agents.
+      Begin by building your project's knowledge base so that when you're ready, your agents will have the context they need.
+    </p>
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:28px; text-align:left; margin-bottom:24px;">
+      <h3 style="font-size:1rem; font-weight:600; margin-bottom:12px;">Get started with the Knowledge Base</h3>
+      <p style="font-size:0.85rem; color:var(--muted); line-height:1.6; margin-bottom:16px;">
+        The <strong>llm-wiki</strong> is how your future agents will understand your project — architecture decisions,
+        coding patterns, known gotchas, team conventions. Start capturing knowledge now so it's ready when you level up.
+      </p>
+      <ol style="font-size:0.85rem; color:var(--text); line-height:1.8; padding-left:20px; margin-bottom:16px;">
+        <li>Open the <strong>Knowledge</strong> section in the sidebar</li>
+        <li>Connect your Obsidian vault or Git-based wiki</li>
+        <li>Add notes about your project's architecture, patterns, and decisions</li>
+        <li>When you're ready, move to <strong>L1 Idea</strong> to add your first interactive advisor</li>
+      </ol>
+      <button onclick="ocNavigate('knowledge-section')" style="padding:10px 24px; background:linear-gradient(135deg,#3498db,#2ecc71); color:#fff; border:none; border-radius:8px; font-size:0.88rem; font-weight:600; cursor:pointer;">
+        Open Knowledge Base
+      </button>
+    </div>
+    <p style="font-size:0.78rem; color:var(--muted);">
+      Click the <strong>ACMM badge</strong> above to explore higher maturity levels and add agents when you're ready.
+    </p>
   </div>
 
   <div id="debug-section" style="margin-top: 16px; margin-bottom: 24px;">
@@ -1604,11 +1684,14 @@
       <li><strong style="color:#c9d1d9;">Supervisor</strong> &mdash; monitors all agents, detects stalls, reports status</li>
     </ul>
     <ul class="sidebar-links">
-      <li><a href="https://arxiv.org/abs/2504.07459" target="_blank" rel="noopener">&#128196; ACMM Paper</a></li>
+      <li><a href="https://arxiv.org/abs/2604.09388" target="_blank" rel="noopener">&#128196; ACMM Paper</a></li>
       <li><a href="https://console.kubestellar.io" target="_blank" rel="noopener">&#128421; Console Live Demo</a></li>
       <li><a href="https://github.com/kubestellar/hive" target="_blank" rel="noopener">&#128230; Source Code</a></li>
       <li><a href="https://kubestellar.io/en/acmm-leaderboard" target="_blank" rel="noopener">&#128202; ACMM Leaderboard</a></li>
       <li><a href="https://kubestellar.io/en/leaderboard" target="_blank" rel="noopener">&#127942; Contributor Leaderboard</a></li>
+      <li><a href="https://kubestellar.medium.com/plaque-the-silent-killer-of-ai-agent-reliability-f5c5318c4e9c" target="_blank" rel="noopener">&#128221; Blog: Plaque — Silent Killer</a></li>
+      <li><a href="https://kubestellar.medium.com/intentional-amnesia-why-i-wipe-my-ai-agents-memories-every-15-minutes-1c27e9dcbf0a" target="_blank" rel="noopener">&#128221; Blog: Intentional Amnesia</a></li>
+      <li><a href="https://medium.com/p/b9381a7e9773" target="_blank" rel="noopener">&#128221; Blog: ACMM Framework</a></li>
     </ul>
   </aside>
 
@@ -2081,6 +2164,8 @@
         renderGovernor(lastData.governor, lastData.cadenceMatrix || [], lastData);
       }
       renderDebugSection();
+      const _lvl2 = (lastData.acmmLevel != null) ? lastData.acmmLevel : 0;
+      applyACMMVisibility(_lvl2, lastData.acmmPackAgents || null);
     }
 
     function _sidebarRenderAgent(a) {
@@ -2092,7 +2177,8 @@
       const isActive = _ocSelectedAgent === a.name ? ' active' : '';
       const agentDesc = a.description || AGENT_DESCRIPTIONS[a.name] || '';
       const label = a.displayName || a.name;
-      return `<a class="oc-nav-item${isActive}" data-agent-nav="${esc(a.name)}" draggable="true" data-action="ocSelectAgent" data-agent="${esc(a.name)}" title="${esc(agentDesc)}"><span class="oc-agent-dot ${dotCls}"></span> ${esc(label)}<span class="oc-nav-actions"><button data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure">⚙</button><button class="oc-nav-delete" data-action="deleteAgentFromConfig" data-agent="${esc(a.name)}" title="Delete">✕</button></span></a>`;
+      const emojiPrefix = a.emoji ? a.emoji + ' ' : '';
+      return `<a class="oc-nav-item${isActive}" data-agent-nav="${esc(a.name)}" draggable="true" data-action="ocSelectAgent" data-agent="${esc(a.name)}" title="${esc(agentDesc)}"><span class="oc-agent-dot ${dotCls}"></span> ${emojiPrefix}${esc(label)}<span class="oc-nav-actions"><button data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure">⚙</button><button class="oc-nav-delete" data-action="deleteAgentFromConfig" data-agent="${esc(a.name)}" title="Delete">✕</button></span></a>`;
     }
 
     function _sidebarBuildGroups(agents) {
@@ -2365,7 +2451,7 @@
       html += `<div><span id="nous-sb-scope" style="font-weight:600"></span> · <span id="nous-sb-mode"></span></div>`;
       html += `<div id="nous-sb-phase" style="opacity:0.8"></div></div>`;
       html += `<div style="display:flex;gap:4px;margin:4px 10px">`;
-      html += `<a class="oc-nav-item" style="color:#6b7280;font-style:italic;flex:1" onclick="openConfigDialog('agent')">+ agent</a>`;
+      html += `<a class="oc-nav-item" style="color:#6b7280;font-style:italic;flex:1" onclick="openAddAgentDialog()">+ agent</a>`;
       html += `<a class="oc-nav-item" style="color:#6b7280;font-style:italic;flex:1" onclick="ocAddSidebarGroup()">+ group</a>`;
       html += `</div>`;
 
@@ -2799,7 +2885,7 @@
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}" data-agent="${esc(a.name)}">
           <span class="working-indicator"></span>
-          <div class="agent-name"><span class="dot ${dotCls}"></span>${esc(a.displayName || a.name)} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a> <button class="restart-btn" data-action="restartAgent" data-agent="${esc(a.name)}" title="Kill tmux session — supervisor will respawn with fresh context">↻ restart</button> <button class="config-gear" data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure ${esc(a.displayName || a.name)}">⚙️</button></div>
+          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.emoji ? a.emoji + ' ' : ''}${esc(a.displayName || a.name)} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a> <button class="restart-btn" data-action="restartAgent" data-agent="${esc(a.name)}" title="Kill tmux session — supervisor will respawn with fresh context">↻ restart</button> <button class="config-gear" data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure ${esc(a.displayName || a.name)}">⚙️</button></div>
           <div class="agent-field"><span class="label" title="The CLI backend running this agent (e.g. claude, copilot). Pin to prevent governor from switching it.">cli</span><span class="value">${cliChip(a.cli, a.pinnedBoth || a.pinnedCli, a.name)}${(a.pinnedBoth || a.pinnedCli) ? '' : ` <button class="pin-toggle" data-action="togglePin" data-agent="${esc(a.name)}" data-pin-type="cli" data-unpin="false" title="Pin CLI — lock current backend so governor cannot change it">📌</button>`}</span></div>
           <div class="agent-field"><span class="label" title="The LLM model powering this agent. Governor may change it based on budget or mode. Pin to lock.">model</span><span class="value">${modelChip(a.model, a.govReason, a.pinnedBoth || a.pinnedModel, a.name)}${(a.pinnedBoth || a.pinnedModel) ? '' : ` <button class="pin-toggle" data-action="togglePin" data-agent="${esc(a.name)}" data-pin-type="model" data-unpin="false" title="Pin model — lock current model so governor cannot downgrade it">📌</button>`}</span></div>
           <div class="agent-field"><span class="label" title="Time between governor kicks for this agent in the current mode. Configured per governor mode (idle/quiet/busy/surge).">interval</span><span class="value">${isPaused ? 'paused' : isOff ? 'off' : a.cadence}</span></div>
@@ -2992,7 +3078,8 @@
         const modelPinned = agentData && (agentData.pinnedBoth || agentData.pinnedModel);
         const cChip = agentData && agentData.cli ? cliChip(agentData.cli, cliPinned, aname) : '?';
         const mChip = agentData && agentData.model ? modelChip(agentData.model, agentData.govReason, modelPinned, aname) : '';
-        return `<tr><td>${nameDot}${aname}${pauseBadge}</td>${cells}<td>${cChip}</td><td>${mChip}</td></tr>`;
+        const displayLabel = (agentData && agentData.displayName) || aname;
+        return `<tr><td>${nameDot}${displayLabel}${pauseBadge}</td>${cells}<td>${cChip}</td><td>${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
         const isActive = m === currentMode;
@@ -3969,7 +4056,7 @@ function burnAreaChart() {
       const modeOrder = { observe: 0, suggest: 1, evolve: 2 };
       let force = false;
       if (modeOrder[mode] < modeOrder[current]) {
-        if (!confirm(`Switch from ${current} to ${mode}? This will stop any active experiment.`)) return;
+        if (!(await hiveConfirm(`Switch from ${current} to ${mode}? This will stop any active experiment.`))) return;
         force = true;
       }
       try {
@@ -4002,7 +4089,7 @@ function burnAreaChart() {
     }
 
     async function nousReject() {
-      if (!confirm('Reject this experiment proposal?')) return;
+      if (!(await hiveConfirm('Reject this experiment proposal?'))) return;
       try {
         await fetch('/api/nous/abort', { method: 'POST' });
         showToast('Proposal rejected', 'success');
@@ -4011,7 +4098,7 @@ function burnAreaChart() {
     }
 
     async function nousAbort() {
-      if (!confirm('Abort the active experiment? This will revert governor to default behavior.')) return;
+      if (!(await hiveConfirm('Abort the active experiment? This will revert governor to default behavior.'))) return;
       try {
         const r = await fetch('/api/nous/abort', { method: 'POST' });
         const j = await r.json();
@@ -4231,7 +4318,7 @@ function burnAreaChart() {
     }
 
     async function deleteNousPrinciple(id) {
-      if (!confirm('Invalidate this principle? It will be removed from the store.')) return;
+      if (!(await hiveConfirm('Invalidate this principle? It will be removed from the store.'))) return;
       try {
         const r = await fetch('/api/nous/principles/' + encodeURIComponent(id), { method: 'DELETE' });
         const j = await r.json();
@@ -4646,17 +4733,17 @@ function burnAreaChart() {
     async function kbSetupConnectVault() {
       const path = document.getElementById('kb-setup-vault-path')?.value?.trim();
       const name = document.getElementById('kb-setup-vault-name')?.value?.trim();
-      if (!path) { alert('Path is required'); return; }
+      if (!path) { await hiveAlert('Path is required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/vaults', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path, name: name || '' }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to connect vault'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to connect vault'); return; }
         _kbSetupView = 'none';
         await fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     function renderKnowledge() {
@@ -4932,18 +5019,18 @@ function burnAreaChart() {
       const tagsRaw = document.getElementById('kb-create-tags')?.value || '';
       const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
 
-      if (!title || !body) { alert('Title and body are required'); return; }
+      if (!title || !body) { await hiveAlert('Title and body are required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/create', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, body, layer, type, confidence: conf, tags }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to create'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to create'); return; }
         kbCloseModal();
         fetchKnowledgeStats();
         kbSearch();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     function kbOpenEdit() {
@@ -5008,24 +5095,24 @@ function burnAreaChart() {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, body, type, status, confidence: conf, tags }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to update'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to update'); return; }
         kbCloseModal();
         kbReadFact(f.slug, f.layer);
         kbSearch();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbDelete(slug, layer) {
-      if (!confirm('Delete fact "' + slug + '" from ' + layer + '?')) return;
+      if (!(await hiveConfirm('Delete fact "' + slug + '" from ' + layer + '?'))) return;
       try {
         const r = await fetch('/api/knowledge/' + encodeURIComponent(layer) + '/' + encodeURIComponent(slug), { method: 'DELETE' });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to delete'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to delete'); return; }
         _kbSelectedFact = null;
         const detail = document.getElementById('kb-fact-detail');
         if (detail) detail.innerHTML = '';
         fetchKnowledgeStats();
         kbSearch();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbPromote(slug, fromLayer, toLayer) {
@@ -5036,10 +5123,10 @@ function burnAreaChart() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug, from_layer: fromLayer, to_layer: toLayer, reason, promoter: 'dashboard' }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to promote'); return; }
-        alert('Fact promoted to ' + toLayer);
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to promote'); return; }
+        await hiveAlert('Fact promoted to ' + toLayer);
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     function kbOpenImport() {
@@ -5100,7 +5187,7 @@ function burnAreaChart() {
       const layer = document.getElementById('kb-import-layer')?.value;
       const format = document.getElementById('kb-import-format')?.value;
 
-      if (!content) { alert('Content is required'); return; }
+      if (!content) { await hiveAlert('Content is required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/import', {
@@ -5108,12 +5195,12 @@ function burnAreaChart() {
           body: JSON.stringify({ content, layer, format }),
         });
         const data = await r.json();
-        if (!r.ok) { alert(data.error || 'Failed to import'); return; }
+        if (!r.ok) { await hiveAlert(data.error || 'Failed to import'); return; }
         kbCloseModal();
-        alert('Imported ' + (data.imported || 0) + ' facts to ' + layer);
+        await hiveAlert('Imported ' + (data.imported || 0) + ' facts to ' + layer);
         fetchKnowledgeStats();
         kbSearch();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     function kbOpenSubscriptions() {
@@ -5170,30 +5257,30 @@ function burnAreaChart() {
       const name = document.getElementById('kb-sub-name')?.value?.trim();
       const layer = document.getElementById('kb-sub-layer')?.value;
 
-      if (!url) { alert('URL is required'); return; }
+      if (!url) { await hiveAlert('URL is required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/subscriptions', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url, name: name || url, layer }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to add'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to add'); return; }
         kbLoadSubscriptions();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbRemoveSub(url) {
-      if (!confirm('Remove subscription to ' + url + '?')) return;
+      if (!(await hiveConfirm('Remove subscription to ' + url + '?'))) return;
       try {
         const r = await fetch('/api/knowledge/subscriptions', {
           method: 'DELETE', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to remove'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to remove'); return; }
         kbLoadSubscriptions();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
 
@@ -5328,30 +5415,30 @@ function burnAreaChart() {
     async function kbConnectVault() {
       const path = document.getElementById('kb-vault-path')?.value?.trim();
       const name = document.getElementById('kb-vault-name')?.value?.trim();
-      if (!path) { alert('Path is required'); return; }
+      if (!path) { await hiveAlert('Path is required'); return; }
 
       try {
         const r = await fetch('/api/knowledge/vaults', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path, name: name || '' }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to connect vault'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to connect vault'); return; }
         kbLoadVaults();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbDisconnectVault(path) {
-      if (!confirm('Disconnect vault at ' + path + '?')) return;
+      if (!(await hiveConfirm('Disconnect vault at ' + path + '?'))) return;
       try {
         const r = await fetch('/api/knowledge/vaults', {
           method: 'DELETE', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to disconnect'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to disconnect'); return; }
         kbLoadVaults();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbReindexVault(path) {
@@ -5360,10 +5447,10 @@ function burnAreaChart() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path }),
         });
-        if (!r.ok) { const e = await r.json(); alert(e.error || 'Failed to reindex'); return; }
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to reindex'); return; }
         kbLoadVaults();
         fetchKnowledgeStats();
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbSearchVault(name) {
@@ -5395,6 +5482,14 @@ function burnAreaChart() {
       window._tokensByAgent = (data.tokens || {}).byAgent || {};
       window._lastAgents = data.agents || [];
       window._lastStatus = data;
+      if (window._acmmOverride) {
+        if (data.acmmLevel === window._acmmOverride.level) {
+          window._acmmOverride = null;
+        } else {
+          window._lastStatus.acmmLevel = window._acmmOverride.level;
+          window._lastStatus.acmmPackAgents = window._acmmOverride.packAgents;
+        }
+      }
       window._lastBudget = data.budget || {};
       if (data.agents) injectAgentStyles(data.agents);
       // Display the Hive ID in header badges
@@ -5452,6 +5547,7 @@ function burnAreaChart() {
       ocUpdateSidebarAgents();
       if (_ocSelectedAgent) { ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll(); }
       renderDebugSection();
+      updateACMMBadge(data.acmmLevel || 0, data.acmmPackAgents || null);
       window.scrollTo(0, scrollY);
     }
 
@@ -5708,6 +5804,45 @@ function burnAreaChart() {
 
     const TOAST_DURATION_MS = 3000;
     const TOAST_PROGRESS_MAX_MS = 60000;
+    function hiveConfirm(message, title) {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'hive-dialog-overlay';
+        const parts = message.split('\n\n');
+        const heading = title || parts.length > 1 ? (title || parts[0]) : 'Confirm';
+        const body = title ? message : (parts.length > 1 ? parts.slice(1).join('\n\n') : message);
+        overlay.innerHTML = `<div class="hive-dialog">
+          <div class="hive-dialog-title">${heading.replace(/</g,'&lt;')}</div>
+          <div class="hive-dialog-body">${body.replace(/</g,'&lt;')}</div>
+          <div class="hive-dialog-buttons">
+            <button class="hive-dialog-btn cancel">Cancel</button>
+            <button class="hive-dialog-btn primary">OK</button>
+          </div></div>`;
+        document.body.appendChild(overlay);
+        const close = (val) => { overlay.remove(); resolve(val); };
+        overlay.querySelector('.cancel').onclick = () => close(false);
+        overlay.querySelector('.primary').onclick = () => close(true);
+        overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+        overlay.querySelector('.primary').focus();
+      });
+    }
+    function hiveAlert(message, title) {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'hive-dialog-overlay';
+        overlay.innerHTML = `<div class="hive-dialog">
+          <div class="hive-dialog-title">${(title || 'Notice').replace(/</g,'&lt;')}</div>
+          <div class="hive-dialog-body">${String(message).replace(/</g,'&lt;')}</div>
+          <div class="hive-dialog-buttons">
+            <button class="hive-dialog-btn primary">OK</button>
+          </div></div>`;
+        document.body.appendChild(overlay);
+        const close = () => { overlay.remove(); resolve(); };
+        overlay.querySelector('.primary').onclick = close;
+        overlay.onclick = (e) => { if (e.target === overlay) close(); };
+        overlay.querySelector('.primary').focus();
+      });
+    }
     function showToast(msg, type = 'info', persistent = false) {
       const container = document.getElementById('toast-container');
       const el = document.createElement('div');
@@ -5789,7 +5924,7 @@ function burnAreaChart() {
     }
 
     async function restartAgent(agent) {
-      if (!confirm(`Restart ${agent}? This will kill the current session and start fresh.`)) return;
+      if (!(await hiveConfirm(`Restart ${agent}? This will kill the current session and start fresh.`))) return;
       const toast = showToast(`Restarting ${agent}...`, 'info', true);
       const res = await fetch(`/api/restart/${agent}`, { method: 'POST' });
       const data = await res.json();
@@ -5952,6 +6087,9 @@ function burnAreaChart() {
             applyPinOverrides(lastData.agents);
             renderAgents(lastData.agents);
           }
+          const _lvl = (lastData.acmmLevel != null) ? lastData.acmmLevel : 0;
+          const _pa = lastData.acmmPackAgents || null;
+          applyACMMVisibility(_lvl, _pa);
         } catch (err) {
           console.error('SSE agent-status parse error:', err);
         }
@@ -6006,6 +6144,7 @@ function burnAreaChart() {
     let _configState = { type: null, agent: null, tab: null, data: {}, dirty: {} };
 
     const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Pipeline', 'Hooks', 'Restrictions', 'Stats', 'Prompt Template', 'Last Prompt'];
+    const AGENT_CREATE_TABS = ['General', 'Cadences'];
     const GOVERNOR_CONFIG_TABS = ['General', 'Agents', 'Thresholds', 'Labels', 'Repos', 'Budget', 'Notifications', 'Health', 'Sensing', 'Logging'];
     const PIPELINE_STAGES = ['resolve-beads', 'track-prs', 'stale-check', 'repo-scan', 'coverage-gate', 'prompt-compose', 'budget-check', 'api-collect', 'final-compose'];
     const PIPELINE_STAGE_TIPS = {
@@ -6022,28 +6161,33 @@ function burnAreaChart() {
     const RESTART_STRATEGIES = ['immediate', 'backoff', 'none'];
 
     function openConfigDialog(type, agentName) {
-      if (type === 'agent' && !agentName) {
-        type = 'governor';
-      }
+      const isCreate = type === 'agent' && !agentName;
       _configModalOpen = true;
-      _configState = { type, agent: agentName || null, tab: null, data: {}, dirty: {} };
+      _configState = { type, agent: agentName || null, tab: null, data: {}, dirty: {}, isCreate };
       document.getElementById('config-overlay').classList.remove('hidden');
-      const title = type === 'governor' ? 'Governor Configuration' : `${agentName || 'New Agent'} Configuration`;
+      const title = type === 'governor' ? 'Governor Configuration' : isCreate ? 'Create Agent' : `${agentName || 'Agent'} Configuration`;
       document.querySelector('.config-title').textContent = title;
-      const tabs = type === 'governor' ? GOVERNOR_CONFIG_TABS : AGENT_CONFIG_TABS;
+      const tabs = type === 'governor' ? GOVERNOR_CONFIG_TABS : (isCreate ? AGENT_CREATE_TABS : AGENT_CONFIG_TABS);
       const tabsEl = document.getElementById('config-tabs');
       tabsEl.innerHTML = tabs.map((t, i) =>
         `<div class="config-tab${i === 0 ? ' active' : ''}" data-tab="${t}" data-action="switchConfigTab">${t}</div>`
       ).join('');
-      switchConfigTab(tabs[0]);
-      loadConfigData(type, agentName).finally(() => {
-        if (!_configModalOpen) return;
-        const dn = (_configState.data.general || {}).displayName;
-        if (dn && type !== 'governor') {
-          document.querySelector('.config-title').textContent = `${dn} Configuration`;
-        }
-        switchConfigTab(_configState.tab || tabs[0]);
-      });
+      const saveBtn = document.querySelector('.config-save');
+      if (saveBtn) saveBtn.textContent = isCreate ? 'Create Agent' : 'Save';
+      if (isCreate) {
+        _configState.data = { general: { clearOnKick: true, restartStrategy: 'immediate', staleTimeout: 1200 }, cadences: {} };
+        switchConfigTab(tabs[0]);
+      } else {
+        switchConfigTab(tabs[0]);
+        loadConfigData(type, agentName).finally(() => {
+          if (!_configModalOpen) return;
+          const dn = (_configState.data.general || {}).displayName;
+          if (dn && type !== 'governor') {
+            document.querySelector('.config-title').textContent = `${dn} Configuration`;
+          }
+          switchConfigTab(_configState.tab || tabs[0]);
+        });
+      }
     }
 
     function closeConfigDialog() {
@@ -6054,7 +6198,290 @@ function burnAreaChart() {
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && _configModalOpen) closeConfigDialog();
+      if (e.key === 'Escape' && _acmmOpen) closeACMMDialog();
     });
+
+    function openAddAgentDialog() {
+      openConfigDialog('agent', null);
+    }
+
+    // ── ACMM Level Selector ──
+    let _acmmOpen = false;
+    let _acmmPacks = null;
+
+    async function openACMMDialog() {
+      _acmmOpen = true;
+      document.getElementById('acmm-overlay').classList.remove('hidden');
+      document.getElementById('acmm-apply-error').style.display = 'none';
+
+      if (!_acmmPacks) {
+        try {
+          const res = await fetch('/api/packs');
+          _acmmPacks = await res.json();
+        } catch (err) {
+          document.getElementById('acmm-packs-list').innerHTML = '<div style="color:var(--muted)">Failed to load packs</div>';
+          return;
+        }
+      }
+      renderACMMPacks();
+    }
+
+    function closeACMMDialog() {
+      _acmmOpen = false;
+      document.getElementById('acmm-overlay').classList.add('hidden');
+    }
+
+    function showACMMLoading(message) {
+      let el = document.getElementById('acmm-loading-overlay');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'acmm-loading-overlay';
+        el.style.cssText = 'position:absolute;inset:0;z-index:100;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;border-radius:12px';
+        const inner = document.createElement('div');
+        inner.style.cssText = 'text-align:center;color:#fff';
+        inner.innerHTML = '<div style="font-size:2rem;margin-bottom:12px;animation:spin 1s linear infinite">&#9881;</div><div id="acmm-loading-text" style="font-size:0.9rem;font-weight:600"></div>';
+        el.appendChild(inner);
+        const style = document.createElement('style');
+        style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+        el.appendChild(style);
+        document.querySelector('#acmm-overlay .config-modal').style.position = 'relative';
+        document.querySelector('#acmm-overlay .config-modal').appendChild(el);
+      }
+      document.getElementById('acmm-loading-text').textContent = message || 'Switching level…';
+      el.style.display = 'flex';
+    }
+
+    function hideACMMLoading() {
+      const el = document.getElementById('acmm-loading-overlay');
+      if (el) el.style.display = 'none';
+    }
+
+    function renderACMMPacks() {
+      const container = document.getElementById('acmm-packs-list');
+      const currentLevel = window._lastStatus ? (window._lastStatus.acmmLevel || 0) : 0;
+
+      const levelColors = ['#95a5a6', '#8e44ad', '#2980b9', '#27ae60', '#e67e22', '#e74c3c', '#c0392b'];
+
+      container.innerHTML = (_acmmPacks || []).map(p => {
+        const isCurrent = p.level === currentLevel;
+        const color = levelColors[p.level] || '#3498db';
+        const agentList = (p.agents || []).map(a =>
+          `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:0.75rem">
+            <span style="font-size:1rem">${esc(a.emoji || '🤖')}</span>
+            <span style="font-weight:600;color:${esc(a.color || '#999')}">${esc(a.displayName || a.name)}</span>
+            <span style="color:var(--muted);flex:1">${esc(a.description || '').substring(0, 80)}${(a.description || '').length > 80 ? '…' : ''}</span>
+          </div>`
+        ).join('');
+
+        const knowledgeNotes = (p.agents || []).filter(a => a.knowledgeUse).map(a =>
+          `<div style="font-size:0.7rem;color:var(--muted);padding:2px 0">
+            <span style="font-weight:600">${esc(a.emoji || '')} ${esc(a.displayName || a.name)}</span>: ${esc(a.knowledgeUse || '').substring(0, 120)}${(a.knowledgeUse || '').length > 120 ? '…' : ''}
+          </div>`
+        ).join('');
+
+        const interactionNotes = (p.agents || []).filter(a => a.interactions).map(a =>
+          `<div style="font-size:0.7rem;color:var(--muted);padding:2px 0">
+            <span style="font-weight:600">${esc(a.emoji || '')} ${esc(a.displayName || a.name)}</span>: ${esc(a.interactions || '')}
+          </div>`
+        ).join('');
+
+        return `<div style="border:2px solid ${isCurrent ? color : 'var(--border)'};border-radius:10px;padding:16px;${isCurrent ? 'background:var(--surface);box-shadow:0 0 12px ' + color + '40' : ''}">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <span style="font-size:1.5rem;font-weight:800;color:${color};min-width:32px">L${p.level}</span>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:0.9rem">${esc(p.name)} ${isCurrent ? '<span style="font-size:0.7rem;background:' + color + ';color:#fff;padding:2px 8px;border-radius:8px;margin-left:6px">CURRENT</span>' : ''}</div>
+              <div style="font-size:0.78rem;color:var(--muted);margin-top:2px">${esc(p.description || '')}</div>
+            </div>
+            <div style="text-align:right;min-width:80px">
+              <div style="font-size:0.7rem;color:var(--muted)">${p.agentCount} agent${p.agentCount !== 1 ? 's' : ''}</div>
+              ${!isCurrent && p.level > 0 ? '<button onclick="applyACMMPack(' + p.level + ')" style="margin-top:4px;padding:6px 14px;background:' + color + ';color:#fff;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer">Apply</button>' : ''}
+              ${!isCurrent ? '<button onclick="setACMMLevel(' + p.level + ')" style="margin-top:4px;padding:5px 10px;background:transparent;color:' + color + ';border:1px solid ' + color + ';border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer" title="Preview this level — changes the display without affecting running agents">Preview</button>' : ''}
+            </div>
+          </div>
+          ${p.governor ? '<div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px"><span style="font-weight:600">Governor:</span> ' + esc(p.governor.modes || 'none') + ' · <span style="font-weight:600">Merge:</span> ' + esc(p.governor.mergePolicy || 'manual') + '</div>' : ''}
+          ${agentList ? '<details style="margin-top:6px"><summary style="font-size:0.75rem;font-weight:600;cursor:pointer;color:var(--fg)">Agents (' + p.agentCount + ')</summary><div style="margin-top:6px;padding-left:4px">' + agentList + '</div></details>' : ''}
+          ${interactionNotes ? '<details style="margin-top:4px"><summary style="font-size:0.72rem;font-weight:600;cursor:pointer;color:var(--muted)">Agent Interactions</summary><div style="margin-top:4px;padding-left:4px">' + interactionNotes + '</div></details>' : ''}
+          ${knowledgeNotes ? '<details style="margin-top:4px"><summary style="font-size:0.72rem;font-weight:600;cursor:pointer;color:var(--muted)">Knowledge Base Usage</summary><div style="margin-top:4px;padding-left:4px">' + knowledgeNotes + '</div></details>' : ''}
+        </div>`;
+      }).join('');
+    }
+
+    async function applyACMMPack(level) {
+      const errEl = document.getElementById('acmm-apply-error');
+      errEl.style.display = 'none';
+
+      const pack = (_acmmPacks || []).find(p => p.level === level);
+      if (!pack) return;
+
+      if (!(await hiveConfirm(`Apply ACMM Level ${level} (${pack.name})?\n\nThis will:\n• Create ${pack.agentCount} agent(s) (existing agents with the same name are skipped)\n• Pause agents not in this level's pack\n• Resume agents that are in this level's pack`))) return;
+
+      showACMMLoading('Applying Level ' + level + '…');
+      try {
+        const res = await fetch(`/api/packs/${level}/apply`, { method: 'POST' });
+        const data = await res.json();
+        hideACMMLoading();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Failed to apply pack';
+          errEl.style.display = 'block';
+          return;
+        }
+        const created = (data.created || []).length;
+        const skipped = (data.skipped || []).length;
+        closeACMMDialog();
+        window._acmmOverride = { level: level, packAgents: data.packAgents || [] };
+        if (window._lastStatus) {
+          window._lastStatus.acmmLevel = level;
+          window._lastStatus.acmmPackAgents = data.packAgents || [];
+          render(window._lastStatus);
+        }
+        showToast(`Level ${level} applied: ${created} created, ${skipped} skipped`, 'success');
+        _acmmPacks = null;
+      } catch (err) {
+        hideACMMLoading();
+        errEl.textContent = 'Network error: ' + err.message;
+        errEl.style.display = 'block';
+      }
+    }
+
+    async function setACMMLevel(level) {
+      const errEl = document.getElementById('acmm-apply-error');
+      errEl.style.display = 'none';
+
+      const levelNames = ['Unaware', 'Idea', 'Development', 'CI/CD', 'Full Automation', 'Guarded Autonomy', 'Full Autonomy'];
+      const name = levelNames[level] || 'Level ' + level;
+      if (!(await hiveConfirm(`Preview ACMM Level ${level} (${name})?\n\nThis changes the dashboard display to show what this level looks like. Running agents are not affected — use Apply to create agents and change their state.`))) return;
+
+      showACMMLoading('Switching to Level ' + level + '…');
+      try {
+        const res = await fetch('/api/packs/level', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) });
+        const data = await res.json();
+        hideACMMLoading();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Failed to set level';
+          errEl.style.display = 'block';
+          return;
+        }
+        closeACMMDialog();
+        window._acmmOverride = { level: level, packAgents: data.packAgents || [] };
+        if (window._lastStatus) {
+          window._lastStatus.acmmLevel = level;
+          window._lastStatus.acmmPackAgents = data.packAgents || [];
+          render(window._lastStatus);
+        }
+        showToast(`ACMM level set to L${level} (${name})`, 'success');
+        _acmmPacks = null;
+      } catch (err) {
+        hideACMMLoading();
+        errEl.textContent = 'Network error: ' + err.message;
+        errEl.style.display = 'block';
+      }
+    }
+
+    function updateACMMBadge(level, packAgents) {
+      const levelNames = ['L0 Unaware', 'L1 Idea', 'L2 Dev', 'L3 CI/CD', 'L4 Auto', 'L5 Guarded', 'L6 Full Auto'];
+      const text = levelNames[level] || 'L' + level;
+      const badge = document.getElementById('acmm-badge');
+      if (badge) badge.textContent = 'ACMM ' + text;
+      const sbBadge = document.getElementById('acmm-sidebar-badge');
+      if (sbBadge) sbBadge.textContent = 'ACMM ' + text;
+      applyACMMVisibility(level, packAgents);
+    }
+
+    function applyACMMVisibility(level, packAgents) {
+      const isL0 = level === 0;
+      const hide = el => { if (el) el.style.display = 'none'; };
+      const show = (el, d) => { if (el) el.style.display = d || ''; };
+
+      const welcome = document.getElementById('acmm-welcome');
+      const governor = document.getElementById('governor');
+      const tokenPanel = document.getElementById('token-panel');
+      const reposSection = document.getElementById('repos-section');
+      const beadsSection = document.getElementById('beads-section');
+      const nousSection = document.getElementById('nous-section');
+      const debugSection = document.getElementById('debug-section');
+      const logsSection = document.getElementById('logs-section');
+
+      const sidebarGroups = document.querySelectorAll('.oc-nav-group');
+      const sidebarItems = document.querySelectorAll('.oc-nav-item');
+
+      const infoSidebar = document.getElementById('hive-info-sidebar');
+      const agentCards = document.getElementById('agents');
+      const agentDetail = document.getElementById('oc-agent-detail');
+
+      const ACMM_GOVERNOR_MIN_LEVEL = 3;
+      const ACMM_TOKENS_MIN_LEVEL = 3;
+      const ACMM_BEADS_MIN_LEVEL = 3;
+      const ACMM_REPOS_MIN_LEVEL = 2;
+      const ACMM_NOUS_MIN_LEVEL = 2;
+      const ACMM_DEBUG_MIN_LEVEL = 3;
+      const ACMM_LOGS_MIN_LEVEL = 3;
+
+      if (isL0) {
+        show(welcome, 'block');
+        hide(governor);
+        hide(tokenPanel);
+        hide(reposSection);
+        hide(beadsSection);
+        hide(nousSection);
+        hide(debugSection);
+        hide(logsSection);
+        hide(infoSidebar);
+        hide(agentCards);
+        hide(agentDetail);
+        sidebarGroups.forEach(g => {
+          const label = g.querySelector('.oc-nav-label, .oc-tree-toggle');
+          const text = label ? label.textContent.trim() : '';
+          if (text === 'Control' || text.includes('Agent')) hide(g);
+        });
+        sidebarItems.forEach(item => {
+          const section = item.getAttribute('data-section') || '';
+          if (section === 'repos-section' || section === 'beads-section' || section === 'nous-section') {
+            hide(item);
+          }
+        });
+      } else {
+        hide(welcome);
+        show(agentCards, '');
+        show(agentDetail, '');
+        show(infoSidebar, '');
+        sidebarGroups.forEach(g => show(g, ''));
+        sidebarItems.forEach(item => show(item, ''));
+
+        level >= ACMM_GOVERNOR_MIN_LEVEL ? show(governor, '') : hide(governor);
+        level >= ACMM_TOKENS_MIN_LEVEL ? show(tokenPanel, '') : hide(tokenPanel);
+        level >= ACMM_BEADS_MIN_LEVEL ? show(beadsSection, '') : hide(beadsSection);
+        level >= ACMM_REPOS_MIN_LEVEL ? show(reposSection, '') : hide(reposSection);
+        level >= ACMM_NOUS_MIN_LEVEL ? show(nousSection, '') : hide(nousSection);
+        level >= ACMM_DEBUG_MIN_LEVEL ? show(debugSection, '') : hide(debugSection);
+        level >= ACMM_LOGS_MIN_LEVEL ? show(logsSection, '') : hide(logsSection);
+
+        if (level < ACMM_GOVERNOR_MIN_LEVEL) {
+          sidebarGroups.forEach(g => {
+            const label = g.querySelector('.oc-nav-label, .oc-tree-toggle');
+            const text = label ? label.textContent.trim() : '';
+            if (text === 'Control') hide(g);
+          });
+        }
+        sidebarItems.forEach(item => {
+          const section = item.getAttribute('data-section') || '';
+          if (section === 'repos-section' && level < ACMM_REPOS_MIN_LEVEL) hide(item);
+          if (section === 'beads-section' && level < ACMM_BEADS_MIN_LEVEL) hide(item);
+          if (section === 'nous-section' && level < ACMM_NOUS_MIN_LEVEL) hide(item);
+        });
+
+        if (Array.isArray(packAgents)) {
+          const packSet = new Set(packAgents);
+          document.querySelectorAll('[data-agent-nav]').forEach(navItem => {
+            const name = navItem.getAttribute('data-agent-nav');
+            if (name && !packSet.has(name)) hide(navItem);
+          });
+          document.querySelectorAll('.agent-card[data-agent]').forEach(card => {
+            const name = card.getAttribute('data-agent');
+            if (name && !packSet.has(name)) hide(card);
+          });
+        }
+      }
+    }
 
     function switchConfigTab(tabId) {
       _configState.tab = tabId;
@@ -6120,14 +6547,57 @@ function burnAreaChart() {
     // ── Agent Tab Renderers ──
     function renderAgentGeneral(g) {
       const agentName = _configState.agent || '';
-      return `
+      const isCreate = _configState.isCreate === true;
+      let html = '';
+      if (isCreate) {
+        html += `
+        <div class="config-field">
+          <label>Name <span style="color:#dc2626">*</span> <span class="config-info">i<span class="config-tooltip">The agent's internal name used as its ID, config file name, and tmux session. Lowercase, hyphens allowed.</span></span></label>
+          <input type="text" id="cfg-create-name" value="" placeholder="e.g. docs-writer, sec-scanner" onchange="markDirty('_create','name',this.value)">
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:2px">Lowercase, hyphens allowed. Used as the agent ID.</div>
+        </div>`;
+      }
+      html += `
         <div class="config-field">
           <label>Display Name <span class="config-info">i<span class="config-tooltip">The friendly name shown on the agent card and sidebar. Does not affect the agent's internal ID or tmux session name.</span></span></label>
-          <input type="text" id="cfg-agent-name" value="${esc(g.displayName || agentName)}" placeholder="e.g. Scanner, Code Reviewer" onchange="updateConfigAgentName(this.value);markDirty('general','displayName',this.value)">
+          <input type="text" id="cfg-agent-name" value="${esc(g.displayName || (isCreate ? '' : agentName))}" placeholder="e.g. Scanner, Code Reviewer" onchange="updateConfigAgentName(this.value);markDirty('general','displayName',this.value)">
         </div>
         <div class="config-field">
           <label>Description <span class="config-info">i<span class="config-tooltip">A short description of what this agent is responsible for. Shown as hover text on the sidebar agent list. Helps operators and collaborators understand each agent's role at a glance.</span></span></label>
-          <textarea id="cfg-agent-desc" rows="2" style="width:100%;resize:vertical;font-size:0.75rem" placeholder="e.g. Triages GitHub issues and dispatches fix agents" onchange="markDirty('general','description',this.value)">${esc(g.description || AGENT_DESCRIPTIONS[agentName] || '')}</textarea>
+          <textarea id="cfg-agent-desc" rows="2" style="width:100%;resize:vertical;font-size:0.75rem" placeholder="e.g. Triages GitHub issues and dispatches fix agents" onchange="markDirty('general','description',this.value)">${esc(g.description || (isCreate ? '' : AGENT_DESCRIPTIONS[agentName]) || '')}</textarea>
+        </div>
+        <div class="config-field-row">
+          <div class="config-field">
+            <label>Emoji <span class="config-info">i<span class="config-tooltip">Emoji shown next to the agent name in the sidebar and agent cards.</span></span></label>
+            <input type="text" id="cfg-agent-emoji" value="${esc(g.emoji || '')}" placeholder="🤖" onchange="markDirty('general','emoji',this.value)">
+          </div>
+          <div class="config-field">
+            <label>Color <span class="config-info">i<span class="config-tooltip">Agent color used in the dashboard for visual distinction.</span></span></label>
+            <input type="color" id="cfg-agent-color" value="${esc(g.color || '#3498db')}" style="height:34px" onchange="markDirty('general','color',this.value)">
+          </div>
+        </div>
+        <div class="config-field-row">
+          <div class="config-field">
+            <label>Sort Order <span class="config-info">i<span class="config-tooltip">Controls position in sidebar and agent grid. Lower numbers appear first.</span></span></label>
+            <input type="number" id="cfg-agent-sort" value="${g.sortOrder || 50}" onchange="markDirty('general','sortOrder',parseInt(this.value,10))">
+          </div>
+          <div class="config-field">
+            <label>Bead Role <span class="config-info">i<span class="config-tooltip">Worker agents do tasks. Supervisor monitors other agents.</span></span></label>
+            <select id="cfg-agent-bead-role" onchange="markDirty('general','beadRole',this.value)">
+              <option value="worker" ${(g.beadRole || 'worker') === 'worker' ? 'selected' : ''}>worker</option>
+              <option value="supervisor" ${g.beadRole === 'supervisor' ? 'selected' : ''}>supervisor</option>
+            </select>
+          </div>
+        </div>
+        <div class="config-field-row">
+          <div class="config-field">
+            <label>Role <span class="config-info">i<span class="config-tooltip">Semantic role for behavioral dispatch (e.g. scanner, reviewer, architect). Used by lane routing and kick templates.</span></span></label>
+            <input type="text" id="cfg-agent-role" value="${esc(g.role || '')}" placeholder="e.g. scanner, reviewer" onchange="markDirty('general','role',this.value)">
+          </div>
+          <div class="config-field">
+            <label>Kick Template <span class="config-info">i<span class="config-tooltip">Prompt template file used when the governor kicks this agent. Located in the prompts directory.</span></span></label>
+            <input type="text" id="cfg-agent-kick-tpl" value="${esc(g.kickTemplate || '')}" placeholder="e.g. scanner-CLAUDE.md" onchange="markDirty('general','kickTemplate',this.value)">
+          </div>
         </div>
         <div class="config-field">
           <label>Launch Command <span class="config-info">i<span class="config-tooltip">The shell command used to start this agent's CLI process. Typically uses agent-launch.sh with a --backend flag. Changing the CLI Pin Value will auto-update the binary path here.</span></span></label>
@@ -6136,6 +6606,10 @@ function burnAreaChart() {
         <div class="config-toggle">
           <div class="config-toggle-switch ${g.clearOnKick !== false ? 'on' : ''}" id="cfg-clear-on-kick" data-action="toggleConfigSwitch" data-section="general" data-key="clearOnKick"></div>
           <span class="config-toggle-label">Clear on Kick <span class="config-info">i<span class="config-tooltip">Send /clear before each governor kick to reset conversation context. Prevents stale context buildup across runs. On by default for all agents.</span></span></span>
+        </div>
+        <div class="config-toggle">
+          <div class="config-toggle-switch ${g.includeRepos !== false ? 'on' : ''}" id="cfg-include-repos" data-action="toggleConfigSwitch" data-section="general" data-key="includeRepos"></div>
+          <span class="config-toggle-label">Include Repos in Kicks <span class="config-info">i<span class="config-tooltip">Append monitored repo information to the kick prompt. Disable for agents that don't need repo context (e.g. outreach).</span></span></span>
         </div>
         <div class="config-toggle">
           <div class="config-toggle-switch ${g.cliPinned ? 'on' : ''}" id="cfg-cli-pinned" data-action="toggleConfigSwitch" data-section="general" data-key="cliPinned"></div>
@@ -6166,11 +6640,24 @@ function burnAreaChart() {
             ${KNOWN_MODELS.map(m => `<option value="${m.value}" ${_modelsEqual(g.model, m.value) ? 'selected' : ''}>${m.label}</option>`).join('')}
           </select>
         </div>
-        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #fecaca">
+        <div class="config-field">
+          <label>Lane Keywords <span class="config-info">i<span class="config-tooltip">Comma-separated keywords for issue classification routing. Issues matching these keywords are routed to this agent.</span></span></label>
+          <input type="text" id="cfg-agent-lane-kw" value="${esc((g.laneKeywords || []).join(', '))}" placeholder="e.g. bug, triage, security" onchange="markDirty('general','laneKeywords',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+        </div>
+        <div class="config-field">
+          <label>Detect Keywords <span class="config-info">i<span class="config-tooltip">Comma-separated keywords for token session detection. Used to identify which agent produced a given session.</span></span></label>
+          <input type="text" id="cfg-agent-detect-kw" value="${esc((g.detectKeywords || []).join(', '))}" placeholder="e.g. scanner, triage, issue" onchange="markDirty('general','detectKeywords',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+        </div>
+        <div class="config-field">
+          <label>Aliases <span class="config-info">i<span class="config-tooltip">Comma-separated short aliases for Discord commands.</span></span></label>
+          <input type="text" id="cfg-agent-aliases" value="${esc((g.aliases || []).join(', '))}" placeholder="e.g. sc, scan" onchange="markDirty('general','aliases',this.value.split(',').map(s=>s.trim()).filter(Boolean))">
+        </div>
+        ${isCreate ? '' : `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #fecaca">
           <label style="color:#b91c1c;font-weight:600;font-size:0.75rem;margin-bottom:8px;display:block">Danger Zone</label>
           <button data-action="deleteAgentFromConfig" data-agent="${esc(agentName)}" style="background:#dc2626;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:0.75rem;cursor:pointer;font-weight:600" title="Permanently remove this agent from the hive. Deletes its config file, env file, and sidebar entry. Cannot be undone.">Delete Agent</button>
           <span style="color:#9ca3af;font-size:0.65rem;margin-left:8px">Removes agent config, env file, and sidebar entry</span>
-        </div>`;
+        </div>`}`;
+      return html;
     }
 
     function updateConfigAgentName(name) {
@@ -6888,8 +7375,8 @@ function burnAreaChart() {
         .catch(err => showToast(`Failed: ${err.message}`, 'error'));
     }
 
-    function deleteAgentFromConfig(name) {
-      if (!confirm(`Delete agent "${name}"?\n\nThis will remove its env file, governor config, and sidebar entry. The tmux session (if running) will NOT be killed.`)) return;
+    async function deleteAgentFromConfig(name) {
+      if (!(await hiveConfirm(`Delete agent "${name}"?\n\nThis will remove its env file, governor config, and sidebar entry. The tmux session (if running) will NOT be killed.`))) return;
       fetch(`/api/config/governor/agents/${name}`, { method: 'DELETE' })
         .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then(() => {
@@ -6910,8 +7397,8 @@ function burnAreaChart() {
         .catch(err => showToast(`Failed: ${err.message}`, 'error'));
     }
 
-    function removeAgent(name) {
-      if (!confirm(`Remove agent "${name}"? This will delete its configuration.`)) return;
+    async function removeAgent(name) {
+      if (!(await hiveConfirm(`Remove agent "${name}"? This will delete its configuration.`))) return;
       fetch(`/api/config/governor/agents/${name}`, { method: 'DELETE' })
         .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then(() => {
@@ -6924,6 +7411,62 @@ function burnAreaChart() {
 
     async function saveConfig() {
       const dirty = _configState.dirty;
+
+      if (_configState.isCreate) {
+        const createData = dirty._create || {};
+        const generalData = dirty.general || {};
+        const cadenceData = dirty.cadences || {};
+        const name = (createData.name || '').trim().toLowerCase().replace(/\s+/g, '-');
+        if (!name) {
+          showToast('Agent name is required', 'error');
+          return;
+        }
+        if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+          showToast('Name must be lowercase letters, numbers, and hyphens', 'error');
+          return;
+        }
+        const agent = {
+          backend: generalData.cliPinValue || 'copilot',
+          model: generalData.model || '',
+          enabled: true,
+          display_name: generalData.displayName || '',
+          description: generalData.description || '',
+          emoji: generalData.emoji || '',
+          color: generalData.color || '#3498db',
+          sort_order: generalData.sortOrder || 50,
+          bead_role: generalData.beadRole || 'worker',
+          role: generalData.role || '',
+          kick_template: generalData.kickTemplate || '',
+          launch_cmd: generalData.launchCmd || '',
+          restart_strategy: generalData.restartStrategy || 'immediate',
+          stale_timeout: generalData.staleTimeout || 0,
+          clear_on_kick: generalData.clearOnKick !== false,
+          include_repos: generalData.includeRepos !== false,
+          lane_keywords: generalData.laneKeywords || [],
+          detect_keywords: generalData.detectKeywords || [],
+          aliases: generalData.aliases || [],
+        };
+        try {
+          const res = await fetch('/api/agents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, agent })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            showToast(data.error || 'Failed to create agent', 'error');
+            return;
+          }
+          showToast(`Agent "${name}" created`, 'success');
+          _configState.dirty = {};
+          closeConfigDialog();
+          fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
+        } catch (err) {
+          showToast('Network error: ' + err.message, 'error');
+        }
+        return;
+      }
+
       if (Object.keys(dirty).length === 0) {
         showToast('No changes to save', 'info');
         return;
@@ -6932,7 +7475,6 @@ function burnAreaChart() {
       let success = true;
       for (const [section, values] of Object.entries(dirty)) {
         try {
-          // Governor "General" tab stores hive-id via its own endpoint
           if (_configState.type === 'governor' && section === 'general' && values.hiveId !== undefined) {
             const idRes = await fetch('/api/hive-id', {
               method: 'PUT',

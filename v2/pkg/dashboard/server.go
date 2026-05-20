@@ -60,6 +60,8 @@ type StatusPayload struct {
 	AgentMetrics  map[string]any      `json:"agentMetrics"`
 	Hold          FrontendHold        `json:"hold"`
 	IssueToMerge  map[string]any      `json:"issueToMerge"`
+	ACMMLevel      int                 `json:"acmmLevel"`
+	ACMMPackAgents []string            `json:"acmmPackAgents"`
 }
 
 type FrontendAgent struct {
@@ -72,6 +74,7 @@ type FrontendAgent struct {
 	Emoji            string `json:"emoji,omitempty"`
 	Color            string `json:"color,omitempty"`
 	BeadRole         string `json:"beadRole,omitempty"`
+	Managed          bool   `json:"managed,omitempty"`
 	Session          string `json:"session"`
 	State            string `json:"state"`
 	Busy             string `json:"busy"`
@@ -291,6 +294,10 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) UpdateStatus(status *StatusPayload) {
+	if s.deps != nil && s.deps.Config != nil {
+		status.ACMMLevel = detectACMMLevel(s.deps.Config)
+		status.ACMMPackAgents = buildACMMPackAgents(s.deps.Config)
+	}
 	s.statusMu.Lock()
 	status.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	s.status = status

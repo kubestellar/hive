@@ -357,15 +357,13 @@ if not issue:
     print(\"skip\"); sys.exit()
 if issue.get(\"state\") == \"CLOSED\":
     print(\"closed\"); sys.exit()
-reporter = (issue.get(\"author\") or {}).get(\"login\",\"\")
 body = issue.get(\"body\",\"\") or \"\"
 comments = issue.get(\"comments\",{}).get(\"nodes\",[])
-reporter_text = body + \" \" + \" \".join(
+all_text = body + \" \" + \" \".join(
     (c.get(\"body\",\"\") or \"\") for c in comments
-    if (c.get(\"author\") or {}).get(\"login\",\"\") == reporter
 )
 SHA_RE = re.compile(r\"[0-9a-f]{7,40}\\b\")
-print(\"has_sha\" if SHA_RE.search(reporter_text) else \"no_sha\")
+print(\"has_sha\" if SHA_RE.search(all_text) else \"no_sha\")
 " 2>/dev/null || echo "skip")
     echo "${repo}:${num}:${marker_file}:${state}"
   ' _ ENTRY >> "$sha_recheck_results"

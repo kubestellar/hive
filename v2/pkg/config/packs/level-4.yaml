@@ -9,7 +9,7 @@ governor:
   merge_policy: CI + coverage gate (90%+)
 agents:
   - name: supervisor
-    display_name: Supervisor
+    display_name: supervisor
     role: supervisor
     description: >
       Agent health monitoring, sweep analysis, and escalation. Watches all
@@ -29,7 +29,7 @@ agents:
       Reads agent health history and operational patterns. Produces sweep
       reports and health assessments.
   - name: scanner
-    display_name: Scanner
+    display_name: scanner
     role: scanner
     description: >
       Full triage and fix capability. Parallel dispatch with 30-minute SLA
@@ -50,7 +50,7 @@ agents:
       Reads full project history, known regressions, and fix patterns. Produces
       fix records and triage decisions.
   - name: ci-maintainer
-    display_name: CI Maintainer
+    display_name: ci-maintainer
     role: ci-maintainer
     description: >
       Full CI pipeline ownership. Nightly E2E monitoring. Dependency updates
@@ -71,7 +71,7 @@ agents:
       Reads CI history and optimization patterns. Produces workflow health
       reports.
   - name: quality
-    display_name: Tester
+    display_name: quality
     role: quality
     description: >
       Full TDD enforcement with coverage ratcheting. Generates tests for new
@@ -92,7 +92,7 @@ agents:
       Reads test patterns and coverage history. Produces coverage reports
       and test strategy insights.
   - name: architect
-    display_name: Architect
+    display_name: architect
     role: architect
     description: >
       Active architecture agent. RFCs, refactors, and new features. Proactively
@@ -113,7 +113,7 @@ agents:
       Heavy consumer and producer of architecture decisions, patterns, and
       design records.
   - name: outreach
-    display_name: Outreach
+    display_name: outreach
     role: outreach
     description: >
       Community engagement, ADOPTERS tracking, and ecosystem missions.
@@ -133,7 +133,7 @@ agents:
       Reads community patterns and adoption history. Produces outreach
       reports and engagement insights.
   - name: sec-check
-    display_name: Security
+    display_name: security
     role: sec-check
     description: >
       Security scanning, dependency audit, and vulnerability monitoring.
@@ -154,7 +154,7 @@ agents:
       Reads vulnerability databases and past security fixes. Produces
       security audit reports.
   - name: strategist
-    display_name: Strategist
+    display_name: strategist
     role: strategist
     description: >
       Strategic planning, roadmap alignment, and cross-agent coordination.
@@ -175,7 +175,7 @@ agents:
       Heavy consumer of all agent knowledge. Produces strategic summaries
       and priority recommendations.
   - name: guide
-    display_name: Guide
+    display_name: guide
     role: guide
     description: >
       Enhanced advisor that reviews PRs on request, flags code without tests,

@@ -11,7 +11,7 @@ governor:
     rollback.sh for self-healing on deploy failure.
 agents:
   - name: supervisor
-    display_name: Supervisor
+    display_name: supervisor
     role: supervisor
     description: >
       Full autonomous oversight. Self-healing: restarts stalled agents,
@@ -31,7 +31,7 @@ agents:
       Reads agent health history. Produces sweep reports and self-healing
       action logs.
   - name: scanner
-    display_name: Scanner
+    display_name: scanner
     role: scanner
     description: >
       Merges PRs when CI passes. No hold. Full SLA enforcement with
@@ -50,7 +50,7 @@ agents:
     knowledge_use: >
       Full access to all project knowledge.
   - name: ci-maintainer
-    display_name: CI Maintainer
+    display_name: ci-maintainer
     role: ci-maintainer
     description: >
       Full CI pipeline ownership with auto-deploy integration.
@@ -68,7 +68,7 @@ agents:
     knowledge_use: >
       Full CI history. Produces deploy reports and rollback records.
   - name: quality
-    display_name: Tester
+    display_name: quality
     role: quality
     description: >
       Full TDD with auto-approve when coverage gates pass.
@@ -86,7 +86,7 @@ agents:
     knowledge_use: >
       Full test history access.
   - name: architect
-    display_name: Architect
+    display_name: architect
     role: architect
     description: >
       Full autonomous architecture. Implements RFCs without waiting for
@@ -105,7 +105,7 @@ agents:
     knowledge_use: >
       Full architecture knowledge access.
   - name: outreach
-    display_name: Outreach
+    display_name: outreach
     role: outreach
     description: >
       Full autonomous outreach. Files issues on partner projects and
@@ -124,7 +124,7 @@ agents:
     knowledge_use: >
       Full community knowledge access.
   - name: sec-check
-    display_name: Security
+    display_name: security
     role: sec-check
     description: >
       Full autonomous security scanning with auto-patch for known CVEs.
@@ -142,7 +142,7 @@ agents:
     knowledge_use: >
       Full security knowledge access.
   - name: strategist
-    display_name: Strategist
+    display_name: strategist
     role: strategist
     description: >
       Full autonomous strategic planning with roadmap execution.
@@ -160,7 +160,7 @@ agents:
     knowledge_use: >
       Full cross-agent knowledge synthesis.
   - name: guide
-    display_name: Guide
+    display_name: guide
     role: guide
     description: >
       Enhanced advisor that reviews PRs on request, flags code without tests,

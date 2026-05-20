@@ -9,7 +9,7 @@ governor:
   merge_policy: manual
 agents:
   - name: guide
-    display_name: Guide
+    display_name: guide
     role: guide
     description: >
       Interactive advisor that queries the community knowledge base for

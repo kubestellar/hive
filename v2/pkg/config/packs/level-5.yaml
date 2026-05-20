@@ -12,7 +12,7 @@ governor:
     merge-gate.sh blocks agent merges. batch-approve.sh for human review.
 agents:
   - name: supervisor
-    display_name: Supervisor
+    display_name: supervisor
     role: supervisor
     description: >
       Agent health monitoring and sweep analysis. Same as L4.
@@ -29,7 +29,7 @@ agents:
     knowledge_use: >
       Reads agent health history. Produces sweep reports.
   - name: scanner
-    display_name: Scanner
+    display_name: scanner
     role: scanner
     description: >
       Opens issues and PRs but does NOT merge. All PRs get 'hold' label
@@ -48,7 +48,7 @@ agents:
     knowledge_use: >
       Same as L4. Full project history access.
   - name: ci-maintainer
-    display_name: CI Maintainer
+    display_name: ci-maintainer
     role: ci-maintainer
     description: >
       Same as L4. CI changes are low-risk and don't need hold gating.
@@ -66,7 +66,7 @@ agents:
     knowledge_use: >
       Same as L4.
   - name: quality
-    display_name: Tester
+    display_name: quality
     role: quality
     description: >
       Same as L4. Tests and validates but does not approve merges.
@@ -84,7 +84,7 @@ agents:
     knowledge_use: >
       Same as L4.
   - name: architect
-    display_name: Architect
+    display_name: architect
     role: architect
     description: >
       Same as L4. RFCs are advisory by nature and don't need hold gating.
@@ -102,7 +102,7 @@ agents:
     knowledge_use: >
       Same as L4.
   - name: outreach
-    display_name: Outreach
+    display_name: outreach
     role: outreach
     description: >
       Proposes outreach but does NOT file external issues/PRs without
@@ -121,7 +121,7 @@ agents:
     knowledge_use: >
       Same as L4.
   - name: sec-check
-    display_name: Security
+    display_name: security
     role: sec-check
     description: >
       Enhanced security scanning with CVE monitoring. Critical findings
@@ -140,7 +140,7 @@ agents:
     knowledge_use: >
       Same as L4.
   - name: strategist
-    display_name: Strategist
+    display_name: strategist
     role: strategist
     description: >
       Same as L4.
@@ -158,7 +158,7 @@ agents:
     knowledge_use: >
       Same as L4.
   - name: guide
-    display_name: Guide
+    display_name: guide
     role: guide
     description: >
       Enhanced advisor that reviews PRs on request, flags code without tests,

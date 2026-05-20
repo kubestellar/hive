@@ -1619,32 +1619,6 @@
     <div id="knowledge-panel"></div>
   </div>
 
-  <div id="acmm-welcome" style="display:none; text-align:center; padding:60px 40px; max-width:720px; margin:40px auto;">
-    <div style="font-size:3rem; margin-bottom:16px;">📚</div>
-    <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:12px; color:var(--text);">Welcome to Hive</h2>
-    <p style="font-size:0.95rem; color:var(--muted); line-height:1.6; margin-bottom:24px;">
-      You're at <strong>ACMM Level 0 — Unaware</strong>. This is your starting point before introducing any AI agents.
-      Begin by building your project's knowledge base so that when you're ready, your agents will have the context they need.
-    </p>
-    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:28px; text-align:left; margin-bottom:24px;">
-      <h3 style="font-size:1rem; font-weight:600; margin-bottom:12px;">Get started with the Knowledge Base</h3>
-      <p style="font-size:0.85rem; color:var(--muted); line-height:1.6; margin-bottom:16px;">
-        The <strong>llm-wiki</strong> is how your future agents will understand your project — architecture decisions,
-        coding patterns, known gotchas, team conventions. Start capturing knowledge now so it's ready when you level up.
-      </p>
-      <ol style="font-size:0.85rem; color:var(--text); line-height:1.8; padding-left:20px; margin-bottom:16px;">
-        <li>Open the <strong>Knowledge</strong> section in the sidebar</li>
-        <li>Connect your Obsidian vault or Git-based wiki</li>
-        <li>Add notes about your project's architecture, patterns, and decisions</li>
-        <li>When you're ready, move to <strong>L1 Idea</strong> to add your first interactive advisor</li>
-      </ol>
-      <button onclick="ocNavigate('knowledge-section')" style="padding:10px 24px; background:linear-gradient(135deg,#3498db,#2ecc71); color:#fff; border:none; border-radius:8px; font-size:0.88rem; font-weight:600; cursor:pointer;">
-        Open Knowledge Base
-      </button>
-    </div>
-    <p style="font-size:0.78rem; color:var(--muted);">
-      Click the <strong>ACMM badge</strong> above to explore higher maturity levels and add agents when you're ready.
-    </p>
   </div>
 
   <div id="debug-section" style="margin-top: 16px; margin-bottom: 24px;">
@@ -6295,6 +6269,7 @@ function burnAreaChart() {
             <div style="text-align:right;min-width:80px">
               <div style="font-size:0.7rem;color:var(--muted)">${p.agentCount} agent${p.agentCount !== 1 ? 's' : ''}</div>
               ${!isCurrent && p.level > 0 ? '<button onclick="applyACMMPack(' + p.level + ')" style="margin-top:4px;padding:6px 14px;background:' + color + ';color:#fff;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer">Apply</button>' : ''}
+              ${!isCurrent ? '<button onclick="setACMMLevel(' + p.level + ')" style="margin-top:4px;padding:5px 10px;background:transparent;color:' + color + ';border:1px solid ' + color + ';border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer" title="Preview this level — changes the display without affecting running agents">Preview</button>' : ''}
             </div>
           </div>
           ${p.governor ? '<div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px"><span style="font-weight:600">Governor:</span> ' + esc(p.governor.modes || 'none') + ' · <span style="font-weight:600">Merge:</span> ' + esc(p.governor.mergePolicy || 'manual') + '</div>' : ''}
@@ -6342,9 +6317,42 @@ function burnAreaChart() {
       }
     }
 
+    async function setACMMLevel(level) {
+      const errEl = document.getElementById('acmm-apply-error');
+      errEl.style.display = 'none';
+
+      const levelNames = ['', 'Idea', 'Development', 'CI/CD', 'Managed', 'Guarded Autonomy', 'Full Autonomy'];
+      const name = levelNames[level] || 'Level ' + level;
+      if (!(await hiveConfirm(`Preview ACMM Level ${level} (${name})?\n\nThis changes the dashboard display to show what this level looks like. Running agents are not affected — use Apply to create agents and change their state.`))) return;
+
+      showACMMLoading('Switching to Level ' + level + '…');
+      try {
+        const res = await fetch('/api/packs/level', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) });
+        const data = await res.json();
+        hideACMMLoading();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Failed to set level';
+          errEl.style.display = 'block';
+          return;
+        }
+        closeACMMDialog();
+        window._acmmOverride = { level: level, packAgents: data.packAgents || [] };
+        if (window._lastStatus) {
+          window._lastStatus.acmmLevel = level;
+          window._lastStatus.acmmPackAgents = data.packAgents || [];
+          render(window._lastStatus);
+        }
+        showToast(`ACMM level set to L${level} (${name})`, 'success');
+        _acmmPacks = null;
+      } catch (err) {
+        hideACMMLoading();
+        errEl.textContent = 'Network error: ' + err.message;
+        errEl.style.display = 'block';
+      }
+    }
 
     function updateACMMBadge(level, packAgents) {
-      const levelNames = ['L0 Unaware', 'L1 Idea', 'L2 Dev', 'L3 CI/CD', 'L4 Auto', 'L5 Guarded', 'L6 Full Auto'];
+      const levelNames = ['', 'L1 Idea', 'L2 Dev', 'L3 CI/CD', 'L4 Managed', 'L5 Guarded', 'L6 Full Auto'];
       const text = levelNames[level] || 'L' + level;
       const badge = document.getElementById('acmm-badge');
       if (badge) badge.textContent = 'ACMM ' + text;
@@ -6354,11 +6362,9 @@ function burnAreaChart() {
     }
 
     function applyACMMVisibility(level, packAgents) {
-      const isL0 = level === 0;
       const hide = el => { if (el) el.style.display = 'none'; };
       const show = (el, d) => { if (el) el.style.display = d || ''; };
 
-      const welcome = document.getElementById('acmm-welcome');
       const governor = document.getElementById('governor');
       const tokenPanel = document.getElementById('token-panel');
       const reposSection = document.getElementById('repos-section');
@@ -6382,31 +6388,6 @@ function burnAreaChart() {
       const ACMM_DEBUG_MIN_LEVEL = 3;
       const ACMM_LOGS_MIN_LEVEL = 3;
 
-      if (isL0) {
-        show(welcome, 'block');
-        hide(governor);
-        hide(tokenPanel);
-        hide(reposSection);
-        hide(beadsSection);
-        hide(nousSection);
-        hide(debugSection);
-        hide(logsSection);
-        hide(infoSidebar);
-        hide(agentCards);
-        hide(agentDetail);
-        sidebarGroups.forEach(g => {
-          const label = g.querySelector('.oc-nav-label, .oc-tree-toggle');
-          const text = label ? label.textContent.trim() : '';
-          if (text === 'Control' || text.includes('Agent')) hide(g);
-        });
-        sidebarItems.forEach(item => {
-          const section = item.getAttribute('data-section') || '';
-          if (section === 'repos-section' || section === 'beads-section' || section === 'nous-section') {
-            hide(item);
-          }
-        });
-      } else {
-        hide(welcome);
         show(agentCards, '');
         show(agentDetail, '');
         show(infoSidebar, '');

@@ -183,7 +183,7 @@ Hive guides (not does) the work at lower levels, progressively increasing autono
   - Regression patterns accumulate: "changing webhook port breaks envtest — update `testenv.Environment.WebhookInstallOptions`"
 - **Agents**: Scanner + reviewer. Governor in QUIET/IDLE. Architect opportunistic.
 
-### Level 4 — Full Automation (5 agents, 24/7, self-healing)
+### Level 4 — Managed (5 agents, 24/7, self-healing)
 
 **What Hive does**: Governor scales dynamically, all agents active.
 

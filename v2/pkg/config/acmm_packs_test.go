@@ -4,13 +4,13 @@ import "testing"
 
 func TestACMMPacksLoad(t *testing.T) {
 	packs := ACMMPacks()
-	if len(packs) != 7 {
-		t.Fatalf("expected 7 packs (L0-L6), got %d", len(packs))
+	if len(packs) != 6 {
+		t.Fatalf("expected 6 packs (L1-L6), got %d", len(packs))
 	}
 
 	for i, p := range packs {
-		if p.Level != i {
-			t.Errorf("pack %d: level = %d, want %d", i, p.Level, i)
+		if p.Level != i+1 {
+			t.Errorf("pack %d: level = %d, want %d", i, p.Level, i+1)
 		}
 		if p.Name == "" {
 			t.Errorf("pack %d: name is empty", i)
@@ -25,7 +25,7 @@ func TestACMMPacksAgentCounts(t *testing.T) {
 	packs := ACMMPacks()
 
 	expected := map[int]int{
-		0: 0, 1: 1, 2: 2, 3: 3, 4: 8, 5: 8, 6: 8,
+		1: 1, 2: 3, 3: 5, 4: 9, 5: 9, 6: 9,
 	}
 	for _, p := range packs {
 		want, ok := expected[p.Level]
@@ -66,8 +66,8 @@ func TestACMMPackByLevel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if p.Name != "Full Automation" {
-		t.Errorf("L4 name = %q, want 'Full Automation'", p.Name)
+	if p.Name != "Managed" {
+		t.Errorf("L4 name = %q, want 'Managed'", p.Name)
 	}
 
 	_, err = ACMMPackByLevel(99)

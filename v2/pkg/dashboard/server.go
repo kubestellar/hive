@@ -294,6 +294,10 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) UpdateStatus(status *StatusPayload) {
+	if s.deps != nil && s.deps.Config != nil {
+		status.ACMMLevel = detectACMMLevel(s.deps.Config)
+		status.ACMMPackAgents = buildACMMPackAgents(s.deps.Config)
+	}
 	s.statusMu.Lock()
 	status.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	s.status = status

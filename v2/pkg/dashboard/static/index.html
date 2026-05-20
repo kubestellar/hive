@@ -1761,6 +1761,7 @@
         const d = await r.json();
         const el = document.getElementById('oc-summary-scroll');
         if (!el || !d.lines) return;
+        while (d.lines.length > 0 && d.lines[d.lines.length - 1].trim() === '') d.lines.pop();
         const txt = d.lines.join('\n');
         if (el.textContent === txt) return;
         const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
@@ -5684,6 +5685,7 @@ function burnAreaChart() {
         lines = _logsData[selected] || ['(no output)'];
       }
 
+      while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
       output.textContent = lines.join('\n').replace(/\x1b\[[0-9;]*m/g, '');
       if (follow && follow.checked) {
         output.scrollTop = output.scrollHeight;
@@ -6384,7 +6386,7 @@ function burnAreaChart() {
       const ACMM_TOKENS_MIN_LEVEL = 3;
       const ACMM_BEADS_MIN_LEVEL = 3;
       const ACMM_REPOS_MIN_LEVEL = 2;
-      const ACMM_NOUS_MIN_LEVEL = 2;
+      const ACMM_NOUS_MIN_LEVEL = 4;
       const ACMM_DEBUG_MIN_LEVEL = 3;
       const ACMM_LOGS_MIN_LEVEL = 3;
 

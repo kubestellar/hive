@@ -2893,15 +2893,17 @@
           </div>
         </div>`;
       });
-      el.innerHTML = cards.join('');
-      // Restore saved input values and focus
-      for (const [id, val] of Object.entries(savedInputs)) {
-        const inp = document.getElementById(id);
-        if (inp) inp.value = val;
-      }
-      if (focusedId) {
-        const prev = document.getElementById(focusedId);
-        if (prev) prev.focus();
+      const html = cards.join('');
+      if (el.innerHTML !== html) {
+        el.innerHTML = html;
+        for (const [id, val] of Object.entries(savedInputs)) {
+          const inp = document.getElementById(id);
+          if (inp) inp.value = val;
+        }
+        if (focusedId) {
+          const prev = document.getElementById(focusedId);
+          if (prev) prev.focus();
+        }
       }
     }
 

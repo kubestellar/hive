@@ -195,6 +195,10 @@ func main() {
 	} else if saved != nil {
 		savedIssueCosts = saved.IssueCosts
 		for name, as := range saved.Agents {
+			if _, inConfig := cfg.Agents[name]; !inConfig {
+				logger.Info("skipping saved state for agent not in config", "agent", name)
+				continue
+			}
 			if as.Paused {
 				_ = agentMgr.Pause(name)
 			}

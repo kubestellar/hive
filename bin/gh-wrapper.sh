@@ -93,7 +93,11 @@ ADVISORY_ISSUE="${HIVE_ADVISORY_ISSUE:-}"
 if [ "$ACMM_LEVEL" -gt 0 ] && [ "$ACMM_LEVEL" -lt 3 ]; then
   if [ "$subcmd" = "issue" ] && [ "$action" = "create" ]; then
     echo "⛔ BLOCKED: gh issue create is not allowed at ACMM L${ACMM_LEVEL}." >&2
-    echo "L1/L2 agents are advisory-only. Findings go to the advisory issue or dashboard." >&2
+    echo "L1/L2 agents are advisory-only." >&2
+    if [ -n "$ADVISORY_ISSUE" ]; then
+      echo "Post findings as a comment on the advisory issue instead:" >&2
+      echo "  gh issue comment ${ADVISORY_ISSUE} --body 'your findings here'" >&2
+    fi
     exit 1
   fi
   if [ "$subcmd" = "pr" ] && { [ "$action" = "create" ] || [ "$action" = "merge" ]; }; then

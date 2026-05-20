@@ -87,8 +87,8 @@ func TestBuildKickMessages_Tester(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(msgs))
 	}
-	if !strings.Contains(msgs[0].Message, "[agent:tester]") {
-		t.Error("expected tester header")
+	if !strings.Contains(msgs[0].Message, "[agent:quality]") {
+		t.Error("expected quality header")
 	}
 	if !strings.Contains(msgs[0].Message, "COVERAGE TARGET") {
 		t.Error("expected coverage target")

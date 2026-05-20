@@ -25,7 +25,7 @@
 #   L2: supervisor scanner reviewer (analysis + issue filing, NO PRs)
 #   L3: supervisor scanner reviewer architect (opens PRs)
 #   L4: supervisor scanner reviewer architect outreach sec-check (full autonomy)
-#   L5+: supervisor scanner reviewer architect outreach sec-check strategist tester
+#   L5+: supervisor scanner reviewer architect outreach sec-check strategist quality
 
 set -euo pipefail
 
@@ -75,7 +75,7 @@ if [[ -z "$AGENTS" ]]; then
     2) AGENTS="supervisor scanner reviewer" ;;
     3) AGENTS="supervisor scanner reviewer architect" ;;
     4) AGENTS="supervisor scanner reviewer architect outreach sec-check" ;;
-    *) AGENTS="supervisor scanner reviewer architect outreach sec-check strategist tester" ;;
+    *) AGENTS="supervisor scanner reviewer architect outreach sec-check strategist quality" ;;
   esac
 fi
 

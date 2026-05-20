@@ -30,8 +30,14 @@ fi
 # Build the full command string for pattern matching
 FULL_CMD="gh $*"
 
-# Check per-agent restrictions
+# Resolve agent identity: env var > tmux session name > "unknown"
 AGENT_ID="${HIVE_AGENT_ID:-}"
+if [[ -z "$AGENT_ID" || "$AGENT_ID" == "unknown" || "$AGENT_ID" == "supervisor" ]]; then
+  TMUX_SESSION="$(tmux display-message -p '#{session_name}' 2>/dev/null || true)"
+  if [[ -n "$TMUX_SESSION" && "$TMUX_SESSION" != "supervisor" ]]; then
+    AGENT_ID="$TMUX_SESSION"
+  fi
+fi
 if [[ -n "$AGENT_ID" ]]; then
   RESTRICTION_FILE="${RESTRICTIONS_DIR}/${AGENT_ID}.json"
   if [[ -f "$RESTRICTION_FILE" ]]; then
@@ -162,8 +168,12 @@ fi
 # Auto-label issues and PRs with agent identity + hive instance ID.
 # HIVE_AGENT is set by the Go binary (e.g. "scanner").
 # HIVE_ID is the unique hive instance ID (e.g. "hive-bold-fox").
+# Fallback: derive from /etc/hive/instance-id or hostname.
 AGENT_NAME="${HIVE_AGENT:-$AGENT_ID}"
 HIVE_INSTANCE_ID="${HIVE_ID:-}"
+if [[ -z "$HIVE_INSTANCE_ID" ]]; then
+  HIVE_INSTANCE_ID="$(cat /etc/hive/instance-id 2>/dev/null || hostname -s 2>/dev/null || echo "")"
+fi
 
 if [[ -n "$AGENT_NAME" ]]; then
   LABELS_CSV="agent/${AGENT_NAME}"

@@ -764,8 +764,13 @@ func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 	if agent.BackendOverride != "" {
 		backend = agent.BackendOverride
 	}
+	displayName := agent.Config.DisplayName
+	if displayName == "" {
+		displayName = agent.Name
+	}
 	vars := []string{
 		fmt.Sprintf("HIVE_AGENT=%s", agent.Name),
+		fmt.Sprintf("HIVE_AGENT_DISPLAY_NAME=%s", displayName),
 		fmt.Sprintf("HIVE_BACKEND=%s", backend),
 		fmt.Sprintf("HIVE_MODEL=%s", model),
 	}

@@ -37,8 +37,9 @@ func (c *Client) EnsureAdvisoryIssue(ctx context.Context, repo string) (int, err
 		Description: gh.Ptr(advisoryLabelDesc),
 		Color:       gh.Ptr(advisoryLabelClr),
 	})
-	if labelErr != nil && !strings.Contains(labelErr.Error(), "already_exists") {
-		c.logger.Warn("could not create advisory label", slog.String("error", labelErr.Error()))
+	labelExists := labelErr == nil || strings.Contains(labelErr.Error(), "already_exists")
+	if !labelExists {
+		c.logger.Warn("could not create advisory label, issue will be created without it", slog.String("error", labelErr.Error()))
 	}
 
 	body := "This issue collects advisory findings from Hive agents.\n\n" +
@@ -46,11 +47,14 @@ func (c *Client) EnsureAdvisoryIssue(ctx context.Context, repo string) (int, err
 		"Instead, the governor posts periodic digest comments here summarizing what agents found.\n\n" +
 		"**Do not close this issue.** It is a living document."
 
-	issue, _, err := c.client.Issues.Create(ctx, owner, repo, &gh.IssueRequest{
-		Title:  gh.Ptr(advisoryTitle),
-		Body:   gh.Ptr(body),
-		Labels: &[]string{advisoryLabelName},
-	})
+	req := &gh.IssueRequest{
+		Title: gh.Ptr(advisoryTitle),
+		Body:  gh.Ptr(body),
+	}
+	if labelExists {
+		req.Labels = &[]string{advisoryLabelName}
+	}
+	issue, _, err := c.client.Issues.Create(ctx, owner, repo, req)
 	if err != nil {
 		return 0, fmt.Errorf("creating advisory issue: %w", err)
 	}
@@ -78,6 +82,21 @@ func (c *Client) findAdvisoryIssue(ctx context.Context, owner, repo string) (int
 		ListOptions: gh.ListOptions{PerPage: 5},
 	}
 	issues, _, err := c.client.Issues.ListByRepo(ctx, owner, repo, opts)
+	if err == nil {
+		for _, issue := range issues {
+			if issue.GetTitle() == advisoryTitle {
+				return issue.GetNumber(), nil
+			}
+		}
+	}
+
+	// Fallback: search by title if label-based search failed or found nothing
+	// (label may not exist if we don't have permission to create it)
+	titleOpts := &gh.IssueListByRepoOptions{
+		State:       "open",
+		ListOptions: gh.ListOptions{PerPage: 20},
+	}
+	issues, _, err = c.client.Issues.ListByRepo(ctx, owner, repo, titleOpts)
 	if err != nil {
 		return 0, err
 	}

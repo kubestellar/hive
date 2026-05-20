@@ -34,6 +34,13 @@ unset GH_TOKEN
 # AGENT_SESSION_NAME is set by the supervisor from the agent's .env file.
 export HIVE_AGENT_ID="${AGENT_SESSION_NAME:-unknown}"
 
+# Re-export HIVE_ env vars so child processes (gh, etc.) inherit them.
+# These are set as inline prefixes by the Go binary (e.g. HIVE_ACMM_LEVEL=2 agent-launch.sh ...)
+# and need to be exported for gh-wrapper ACMM enforcement to work.
+for var in HIVE_AGENT HIVE_AGENT_DISPLAY_NAME HIVE_ACMM_LEVEL HIVE_ID HIVE_SHA HIVE_ADVISORY_ISSUE HIVE_GITHUB_TOKEN; do
+  [[ -n "${!var:-}" ]] && export "$var"
+done
+
 # Source the centralized backend/model config
 BACKENDS_CONF="${SCRIPT_DIR}/../config/backends.conf"
 if [[ -f "$BACKENDS_CONF" ]]; then

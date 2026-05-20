@@ -84,6 +84,33 @@ if { [ "$subcmd" = "issue" ] || [ "$subcmd" = "pr" ]; } && [ "$action" = "list" 
   exit 1
 fi
 
+# ── ACMM level enforcement ──
+# At L1/L2: block issue create, pr create, pr merge.
+# Exception: commenting on the advisory issue is always allowed.
+ACMM_LEVEL="${HIVE_ACMM_LEVEL:-0}"
+ADVISORY_ISSUE="${HIVE_ADVISORY_ISSUE:-}"
+
+if [ "$ACMM_LEVEL" -gt 0 ] && [ "$ACMM_LEVEL" -lt 3 ]; then
+  if [ "$subcmd" = "issue" ] && [ "$action" = "create" ]; then
+    echo "⛔ BLOCKED: gh issue create is not allowed at ACMM L${ACMM_LEVEL}." >&2
+    echo "L1/L2 agents are advisory-only. Findings go to the advisory issue or dashboard." >&2
+    exit 1
+  fi
+  if [ "$subcmd" = "pr" ] && { [ "$action" = "create" ] || [ "$action" = "merge" ]; }; then
+    echo "⛔ BLOCKED: gh pr ${action} is not allowed at ACMM L${ACMM_LEVEL}." >&2
+    echo "L1/L2 agents are advisory-only. No PRs allowed." >&2
+    exit 1
+  fi
+fi
+# At L3: block pr merge (issues and PRs allowed, merging is manual)
+if [ "$ACMM_LEVEL" -eq 3 ]; then
+  if [ "$subcmd" = "pr" ] && [ "$action" = "merge" ]; then
+    echo "⛔ BLOCKED: gh pr merge is not allowed at ACMM L3." >&2
+    echo "L3 agents can create PRs but merging requires human approval." >&2
+    exit 1
+  fi
+fi
+
 # Enforce merge gate — only PRs in merge-eligible.json can be merged
 MERGE_ELIGIBLE_FILE="/var/run/hive-metrics/merge-eligible.json"
 if [ "$subcmd" = "pr" ] && [ "$action" = "merge" ]; then
@@ -164,6 +191,47 @@ fi
 # HIVE_ID is the unique hive instance ID (e.g. "hive-bold-fox").
 AGENT_NAME="${HIVE_AGENT:-$AGENT_ID}"
 HIVE_INSTANCE_ID="${HIVE_ID:-}"
+HIVE_SHA="${HIVE_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')}"
+
+# Build identity footer for injection into issue/comment bodies.
+_identity_footer() {
+  local parts="---\n🐝 **Hive Agent**:"
+  [[ -n "$AGENT_NAME" ]] && parts="${parts} \`${AGENT_NAME}\`"
+  [[ -n "$HIVE_INSTANCE_ID" ]] && parts="${parts} | **Instance:** \`${HIVE_INSTANCE_ID}\`"
+  parts="${parts} | **SHA:** \`${HIVE_SHA}\`"
+  echo -e "$parts"
+}
+
+# Inject identity footer into --body argument if present, otherwise append --body.
+_inject_identity() {
+  local footer
+  footer="$(_identity_footer)"
+  local new_args=()
+  local body_found=false
+  local i=0
+  while [ $i -lt ${#args[@]} ]; do
+    if [ "${args[$i]}" = "--body" ] && [ $((i+1)) -lt ${#args[@]} ]; then
+      new_args+=("--body")
+      new_args+=("${args[$((i+1))]}
+${footer}")
+      body_found=true
+      i=$((i+2))
+    elif [[ "${args[$i]}" == --body=* ]]; then
+      local body_val="${args[$i]#--body=}"
+      new_args+=("--body=${body_val}
+${footer}")
+      body_found=true
+      i=$((i+1))
+    else
+      new_args+=("${args[$i]}")
+      i=$((i+1))
+    fi
+  done
+  if ! $body_found; then
+    new_args+=("--body" "${footer}")
+  fi
+  args=("${new_args[@]}")
+}
 
 if [[ -n "$AGENT_NAME" ]]; then
   LABELS_CSV="agent/${AGENT_NAME}"
@@ -211,7 +279,8 @@ if [[ -n "$AGENT_NAME" ]]; then
   case "$subcmd/$action" in
     issue/create|pr/create)
       _ensure_labels
-      exec "$REAL_GH" "$@" --label "$LABELS_CSV"
+      _inject_identity
+      exec "$REAL_GH" "${args[@]}" --label "$LABELS_CSV"
       ;;
     issue/edit|pr/edit)
       _ensure_labels
@@ -229,8 +298,9 @@ if [[ -n "$AGENT_NAME" ]]; then
       ;;
     issue/comment|pr/comment|pr/review)
       _ensure_labels
+      _inject_identity
       _extract_item
-      "$REAL_GH" "$@"
+      "$REAL_GH" "${args[@]}"
       exit_code=$?
       if [[ $exit_code -eq 0 && -n "$item_num" ]]; then
         local_repo=""

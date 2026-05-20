@@ -194,13 +194,14 @@ fi
 # HIVE_AGENT is set by the Go binary (e.g. "scanner").
 # HIVE_ID is the unique hive instance ID (e.g. "hive-bold-fox").
 AGENT_NAME="${HIVE_AGENT:-$AGENT_ID}"
+AGENT_DISPLAY_NAME="${HIVE_AGENT_DISPLAY_NAME:-$AGENT_NAME}"
 HIVE_INSTANCE_ID="${HIVE_ID:-}"
 HIVE_SHA="${HIVE_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')}"
 
 # Build identity footer for injection into issue/comment bodies.
 _identity_footer() {
   local parts="---\n🐝 **Hive Agent**:"
-  [[ -n "$AGENT_NAME" ]] && parts="${parts} \`${AGENT_NAME}\`"
+  [[ -n "$AGENT_DISPLAY_NAME" ]] && parts="${parts} \`${AGENT_DISPLAY_NAME}\`"
   [[ -n "$HIVE_INSTANCE_ID" ]] && parts="${parts} | **Instance:** \`${HIVE_INSTANCE_ID}\`"
   parts="${parts} | **SHA:** \`${HIVE_SHA}\`"
   echo -e "$parts"
@@ -238,7 +239,7 @@ ${footer}")
 }
 
 if [[ -n "$AGENT_NAME" ]]; then
-  LABELS_CSV="agent/${AGENT_NAME}"
+  LABELS_CSV="agent/${AGENT_DISPLAY_NAME}"
   [[ -n "$HIVE_INSTANCE_ID" ]] && LABELS_CSV="${LABELS_CSV},hive/${HIVE_INSTANCE_ID}"
 
   # Ensure labels exist on the repo (cached per-session to avoid repeated API calls).
@@ -256,7 +257,7 @@ if [[ -n "$AGENT_NAME" ]]; then
     [[ "$repo_flag" = "next" ]] && repo_flag=""
     local rf=""
     [[ -n "$repo_flag" ]] && rf="--repo $repo_flag"
-    "$REAL_GH" label create "agent/${AGENT_NAME}" --description "Work by the ${AGENT_NAME} agent" --color 6f42c1 $rf 2>/dev/null || true
+    "$REAL_GH" label create "agent/${AGENT_DISPLAY_NAME}" --description "Work by the ${AGENT_DISPLAY_NAME} agent" --color 6f42c1 $rf 2>/dev/null || true
     if [[ -n "$HIVE_INSTANCE_ID" ]]; then
       "$REAL_GH" label create "hive/${HIVE_INSTANCE_ID}" --description "Hive instance ${HIVE_INSTANCE_ID}" --color 1d76db $rf 2>/dev/null || true
     fi

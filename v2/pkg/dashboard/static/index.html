@@ -6295,7 +6295,6 @@ function burnAreaChart() {
             <div style="text-align:right;min-width:80px">
               <div style="font-size:0.7rem;color:var(--muted)">${p.agentCount} agent${p.agentCount !== 1 ? 's' : ''}</div>
               ${!isCurrent && p.level > 0 ? '<button onclick="applyACMMPack(' + p.level + ')" style="margin-top:4px;padding:6px 14px;background:' + color + ';color:#fff;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer">Apply</button>' : ''}
-              ${!isCurrent ? '<button onclick="setACMMLevel(' + p.level + ')" style="margin-top:4px;padding:5px 10px;background:transparent;color:' + color + ';border:1px solid ' + color + ';border-radius:6px;font-size:0.68rem;font-weight:600;cursor:pointer" title="Preview this level — changes the display without affecting running agents">Preview</button>' : ''}
             </div>
           </div>
           ${p.governor ? '<div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px"><span style="font-weight:600">Governor:</span> ' + esc(p.governor.modes || 'none') + ' · <span style="font-weight:600">Merge:</span> ' + esc(p.governor.mergePolicy || 'manual') + '</div>' : ''}
@@ -6343,39 +6342,6 @@ function burnAreaChart() {
       }
     }
 
-    async function setACMMLevel(level) {
-      const errEl = document.getElementById('acmm-apply-error');
-      errEl.style.display = 'none';
-
-      const levelNames = ['Unaware', 'Idea', 'Development', 'CI/CD', 'Full Automation', 'Guarded Autonomy', 'Full Autonomy'];
-      const name = levelNames[level] || 'Level ' + level;
-      if (!(await hiveConfirm(`Preview ACMM Level ${level} (${name})?\n\nThis changes the dashboard display to show what this level looks like. Running agents are not affected — use Apply to create agents and change their state.`))) return;
-
-      showACMMLoading('Switching to Level ' + level + '…');
-      try {
-        const res = await fetch('/api/packs/level', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) });
-        const data = await res.json();
-        hideACMMLoading();
-        if (!res.ok) {
-          errEl.textContent = data.error || 'Failed to set level';
-          errEl.style.display = 'block';
-          return;
-        }
-        closeACMMDialog();
-        window._acmmOverride = { level: level, packAgents: data.packAgents || [] };
-        if (window._lastStatus) {
-          window._lastStatus.acmmLevel = level;
-          window._lastStatus.acmmPackAgents = data.packAgents || [];
-          render(window._lastStatus);
-        }
-        showToast(`ACMM level set to L${level} (${name})`, 'success');
-        _acmmPacks = null;
-      } catch (err) {
-        hideACMMLoading();
-        errEl.textContent = 'Network error: ' + err.message;
-        errEl.style.display = 'block';
-      }
-    }
 
     function updateACMMBadge(level, packAgents) {
       const levelNames = ['L0 Unaware', 'L1 Idea', 'L2 Dev', 'L3 CI/CD', 'L4 Auto', 'L5 Guarded', 'L6 Full Auto'];

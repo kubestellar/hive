@@ -277,8 +277,12 @@ for i in issues:
         pass
     missing_sha.append(i)
 
+import sys as _dbg
+for _m in missing_sha:
+    _dbg.stderr.write(f"SHA-CLASSIFY-MISSING: #{_m.get('number')} author={_m.get('author')} type={_m.get('author_type')}\n")
+_dbg.stderr.write(f"SHA-SUMMARY: {len(kept)} kept, {len(missing_sha)} missing\n")
 print(json.dumps({'kept': kept, 'missing_sha': missing_sha}))
-" "$INTERNAL_AUTHORS" "$SHA_CHECK_REPO" "$SHA_HOLD_MARKER" 2>/dev/null || echo '{"kept":[],"missing_sha":[]}')
+" "$INTERNAL_AUTHORS" "$SHA_CHECK_REPO" "$SHA_HOLD_MARKER" 2>>"$LOG" || echo '{"kept":[],"missing_sha":[]}')
 
 # For issues missing SHA: label hold + post comment (only once per issue)
 missing_sha_issues=$(echo "$sha_result" | python3 -c "
@@ -288,6 +292,7 @@ for i in d.get('missing_sha', []):
     print(f\"{i['repo']}:{i['number']}\")
 " 2>/dev/null)
 
+log "SHA-DEBUG: missing_sha_issues='${missing_sha_issues}'"
 if [ -n "$missing_sha_issues" ]; then
   for entry in $missing_sha_issues; do
     repo="${entry%%:*}"

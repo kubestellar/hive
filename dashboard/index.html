@@ -1832,7 +1832,7 @@
       return `<a class="oc-nav-item${isActive}" data-agent-nav="${a.name}" draggable="true" onclick="ocSelectAgent('${a.name}')" title="${agentDesc}"><span class="oc-agent-dot ${dotCls}"></span> ${label}</a>`;
     }
 
-    const DEFAULT_SIDEBAR_ORDER = ['supervisor', 'sec-check', 'scanner', 'ci-maintainer', 'architect', 'tester', 'outreach'];
+    const DEFAULT_SIDEBAR_ORDER = ['supervisor', 'sec-check', 'scanner', 'ci-maintainer', 'architect', 'quality', 'outreach'];
     function _sidebarBuildGroups(agents) {
       if (!_sidebarLayout || !_sidebarLayout.groups) {
         const knownSet = new Set(agents.map(a => a.name));

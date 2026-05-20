@@ -46,7 +46,7 @@ project:
 
 ## Agents
 
-Seven agents ship as defaults (scanner, ci-maintainer, tester, architect, supervisor, outreach, sec-check). Enable or disable each in config:
+Seven agents ship as defaults (scanner, ci-maintainer, quality, architect, supervisor, outreach, sec-check). Enable or disable each in config:
 
 ```yaml
 agents:

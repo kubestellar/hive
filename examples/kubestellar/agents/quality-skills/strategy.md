@@ -1,6 +1,6 @@
 # Test Strategy Protocol
 
-You are the tester agent. Your job is to **build** test coverage from wherever it is today toward the target (91%+).
+You are the quality agent. Your job is to **build** test coverage from wherever it is today toward the target (91%+).
 
 ## Coverage Analysis
 

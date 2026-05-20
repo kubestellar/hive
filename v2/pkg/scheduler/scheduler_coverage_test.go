@@ -349,16 +349,16 @@ func TestBuildAgentMessage_UsesTemplate(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// buildTesterMessage — additional branch coverage
+// buildQualityMessage — additional branch coverage
 // ---------------------------------------------------------------------------
 
-func TestBuildTesterMessage_NoIssues(t *testing.T) {
+func TestBuildQualityMessage_NoIssues(t *testing.T) {
 	s := newScheduler()
 	actionable := &github.ActionableResult{}
-	msg := s.buildTesterMessage(nil, actionable)
+	msg := s.buildQualityMessage(nil, actionable)
 
-	if !strings.Contains(msg, "[agent:tester] [KICK]") {
-		t.Error("expected tester header")
+	if !strings.Contains(msg, "[agent:quality] [KICK]") {
+		t.Error("expected quality header")
 	}
 	if strings.Contains(msg, "TEST-RELATED ISSUES") {
 		t.Error("should not have issues section when none exist")
@@ -368,7 +368,7 @@ func TestBuildTesterMessage_NoIssues(t *testing.T) {
 	}
 }
 
-func TestBuildTesterMessage_WithIssues(t *testing.T) {
+func TestBuildQualityMessage_WithIssues(t *testing.T) {
 	s := newScheduler()
 	issues := []github.Issue{
 		{Repo: "r", Number: 1, Title: "test gap", Lane: "quality", Labels: []string{"test"}},
@@ -376,13 +376,13 @@ func TestBuildTesterMessage_WithIssues(t *testing.T) {
 	actionable := &github.ActionableResult{
 		Issues: github.IssueResult{Count: 1, Items: issues},
 	}
-	msg := s.buildTesterMessage(issues, actionable)
+	msg := s.buildQualityMessage(issues, actionable)
 	if !strings.Contains(msg, "TEST-RELATED ISSUES (1)") {
 		t.Error("expected issues section")
 	}
 }
 
-func TestBuildTesterMessage_TruncatesTitle(t *testing.T) {
+func TestBuildQualityMessage_TruncatesTitle(t *testing.T) {
 	s := newScheduler()
 	longTitle := strings.Repeat("z", 80)
 	issues := []github.Issue{
@@ -391,7 +391,7 @@ func TestBuildTesterMessage_TruncatesTitle(t *testing.T) {
 	actionable := &github.ActionableResult{
 		Issues: github.IssueResult{Count: 1, Items: issues},
 	}
-	msg := s.buildTesterMessage(issues, actionable)
+	msg := s.buildQualityMessage(issues, actionable)
 	if strings.Contains(msg, longTitle) {
 		t.Error("expected title to be truncated")
 	}

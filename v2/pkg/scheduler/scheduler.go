@@ -259,7 +259,7 @@ func (s *Scheduler) buildAgentMessage(agentName string, issues []github.Issue, a
 	case "supervisor":
 		return s.buildSupervisorMessage(actionable)
 	case "quality":
-		return s.buildTesterMessage(issues, actionable)
+		return s.buildQualityMessage(issues, actionable)
 	case "architect":
 		return s.buildArchitectMessage(issues, actionable)
 	case "outreach":
@@ -407,19 +407,19 @@ func (s *Scheduler) buildGenericMessage(agentName string, issues []github.Issue,
 
 const defaultCoverageTargetPct = 91.0
 
-func (s *Scheduler) buildTesterMessage(issues []github.Issue, actionable *github.ActionableResult) string {
+func (s *Scheduler) buildQualityMessage(issues []github.Issue, actionable *github.ActionableResult) string {
 	var b strings.Builder
 
-	b.WriteString("[agent:tester] [KICK]\n")
+	b.WriteString("[agent:quality] [KICK]\n")
 	b.WriteString("TEST STRATEGIST — build test coverage from current level toward target.\n\n")
 
 	b.WriteString(fmt.Sprintf("COVERAGE TARGET: %.0f%%\n", defaultCoverageTargetPct))
 
-	testerIssues := filterByLane(issues, "quality")
-	if len(testerIssues) > 0 {
-		b.WriteString(fmt.Sprintf("\nTEST-RELATED ISSUES (%d):\n", len(testerIssues)))
+	qualityIssues := filterByLane(issues, "quality")
+	if len(qualityIssues) > 0 {
+		b.WriteString(fmt.Sprintf("\nTEST-RELATED ISSUES (%d):\n", len(qualityIssues)))
 		shown := 0
-		for _, issue := range testerIssues {
+		for _, issue := range qualityIssues {
 			if shown >= maxIssuesPerKick {
 				break
 			}
@@ -450,7 +450,7 @@ func (s *Scheduler) buildTesterMessage(issues []github.Issue, actionable *github
 	b.WriteString("    - Create regression tests for recent bug fixes missing them.\n")
 	b.WriteString("    - Enforce test-first for new features.\n")
 
-	if knowledgeSection := s.primeKnowledge(testerIssues); knowledgeSection != "" {
+	if knowledgeSection := s.primeKnowledge(qualityIssues); knowledgeSection != "" {
 		b.WriteString("\n")
 		b.WriteString(knowledgeSection)
 	}

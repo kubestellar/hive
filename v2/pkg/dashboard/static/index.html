@@ -2862,7 +2862,7 @@
               ageBadge = `<span class="summary-age ${ageCls}">${ageStr}</span>`;
             }
           }
-          summaryEl = `<div class="doing">${ageBadge}${escBlock(a.liveSummary)}</div>`;
+          summaryEl = `<div class="doing">${ageBadge}${escPreserveNewlines(a.liveSummary)}</div>`;
         }
         const indEl = agentIndicators(a.name);
         return `<div class="agent-card ${cls}" data-agent="${esc(a.name)}">
@@ -5760,6 +5760,19 @@ function burnAreaChart() {
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '')
         .replace(/\n/g, '<br>');
+    }
+
+    function escPreserveNewlines(s) {
+      if (typeof s !== 'string') return '';
+      return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/`/g, '&#96;')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '');
     }
 
     // ── Event delegation for actions with user-controlled data ──

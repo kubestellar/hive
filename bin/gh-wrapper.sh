@@ -100,11 +100,41 @@ ADVISORY_ISSUE="${HIVE_ADVISORY_ISSUE:-}"
 
 if [ "$ACMM_LEVEL" -gt 0 ] && [ "$ACMM_LEVEL" -lt 3 ]; then
   if [ "$subcmd" = "issue" ] && [ "$action" = "create" ]; then
+    # Extract --title and --body from args to save as advisory finding
+    _adv_title="" _adv_body="" _next_is_title=false _next_is_body=false
+    for arg in "${args[@]}"; do
+      if $_next_is_title; then _adv_title="$arg"; _next_is_title=false; continue; fi
+      if $_next_is_body;  then _adv_body="$arg";  _next_is_body=false;  continue; fi
+      case "$arg" in
+        --title)   _next_is_title=true ;;
+        --title=*) _adv_title="${arg#--title=}" ;;
+        --body)    _next_is_body=true ;;
+        --body=*)  _adv_body="${arg#--body=}" ;;
+        -t)        _next_is_title=true ;;
+        -b)        _next_is_body=true ;;
+      esac
+    done
+    # Write advisory finding to JSONL for governor digest
+    ADVISORY_DIR="/data/advisory"
+    mkdir -p "$ADVISORY_DIR"
+    AGENT_NAME="${HIVE_AGENT:-unknown}"
+    python3 -c "
+import json, datetime, sys
+f = {
+    'agent': '${AGENT_NAME}',
+    'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
+    'type': 'issue',
+    'severity': 'medium',
+    'title': sys.argv[1],
+    'detail': sys.argv[2][:500] if len(sys.argv[2]) > 500 else sys.argv[2]
+}
+with open('${ADVISORY_DIR}/${AGENT_NAME}.jsonl', 'a') as fh:
+    fh.write(json.dumps(f) + '\n')
+" "${_adv_title:-untitled}" "${_adv_body:-}" 2>/dev/null || true
     echo "⛔ BLOCKED: gh issue create is not allowed at ACMM L${ACMM_LEVEL}." >&2
-    echo "L1/L2 agents are advisory-only." >&2
+    echo "L1/L2 agents are advisory-only. Finding saved to advisory digest." >&2
     if [ -n "$ADVISORY_ISSUE" ]; then
-      echo "Post findings as a comment on the advisory issue instead:" >&2
-      echo "  gh issue comment ${ADVISORY_ISSUE} --body 'your findings here'" >&2
+      echo "Finding will appear in advisory issue #${ADVISORY_ISSUE} at next governor cycle." >&2
     fi
     exit 1
   fi

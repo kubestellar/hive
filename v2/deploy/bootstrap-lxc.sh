@@ -1,24 +1,43 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bootstrap script for hive-v2 architect LXC on Proxmox
-# Run this INSIDE the LXC after creation.
+# bootstrap-lxc.sh — Bootstrap a Proxmox LXC for Hive v2 (Docker-based).
+#
+# Run this INSIDE the LXC after creation with create-lxc.sh.
+#
+# What it does:
+#   1. Installs Docker Engine + Compose plugin
+#   2. Clones the hive repo (v2 branch)
+#   3. Builds the hive Docker image
+#   4. Creates a template .env file for tokens
 #
 # Prerequisites:
-#   - Ubuntu 24.04 LXC created on Proxmox
-#   - Network configured (DHCP)
-#   - This script copied into the LXC
+#   - Ubuntu 24.04 LXC created with create-lxc.sh
+#   - LXC config includes: lxc.apparmor.profile: unconfined
+#     (create-lxc.sh does this automatically)
+#   - curl installed (create-lxc.sh instructions include this)
 #
 # Usage:
-#   bash bootstrap-lxc.sh
+#   apt-get update -qq && apt-get install -y -qq curl
+#   curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/v2/v2/deploy/bootstrap-lxc.sh | bash
+#
+# After bootstrap, edit /opt/hive/.env and run:
+#   cd /opt/hive/v2/deploy && docker compose -f docker-compose.yaml --env-file /opt/hive/.env up -d
 
 HIVE_DIR=/opt/hive
 ENV_FILE="${HIVE_DIR}/.env"
 
-echo "=== Installing Docker ==="
-apt-get update -qq
-apt-get install -y -qq ca-certificates curl gnupg lsb-release git
+# Fix locale warnings (common in LXC containers)
+export DEBIAN_FRONTEND=noninteractive
+locale-gen en_US.UTF-8 2>/dev/null || true
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 
+echo "=== Phase 1: System packages ==="
+apt-get update -qq
+apt-get install -y -qq ca-certificates curl gnupg lsb-release git jq
+
+echo "=== Phase 2: Docker Engine ==="
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 chmod a+r /etc/apt/keyrings/docker.asc
@@ -30,42 +49,65 @@ echo \
 apt-get update -qq
 apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-echo "=== Cloning hive repo ==="
-git clone --branch v2 --single-branch https://github.com/kubestellar/hive.git "${HIVE_DIR}"
+echo "=== Phase 3: Clone hive repo ==="
+if [ -d "${HIVE_DIR}/.git" ]; then
+  echo "Hive repo already exists at ${HIVE_DIR}, pulling latest..."
+  cd "${HIVE_DIR}" && git pull --rebase origin v2
+else
+  git clone --branch v2 --single-branch https://github.com/kubestellar/hive.git "${HIVE_DIR}"
+fi
 
-echo "=== Creating .env file ==="
+echo "=== Phase 4: Build Docker image ==="
+cd "${HIVE_DIR}"
+docker compose -f v2/docker-compose.yaml build
+
+echo "=== Phase 5: Create .env template ==="
 if [ ! -f "${ENV_FILE}" ]; then
   cat > "${ENV_FILE}" <<'ENVEOF'
-# Fill in these values before running docker compose up
+# Hive v2 environment — fill in before running docker compose up
+#
+# HIVE_GITHUB_TOKEN: GitHub PAT or App token with repo access
+#   - For public repos: fine-grained PAT with "Public Repositories (read-only)"
+#   - For org repos: classic PAT with repo scope, or use GitHub App auth
 HIVE_GITHUB_TOKEN=
+
+# HIVE_DASHBOARD_TOKEN: protects the dashboard API (generate: openssl rand -hex 32)
 HIVE_DASHBOARD_TOKEN=
+
+# ANTHROPIC_API_KEY: for Claude Code CLI inside container (optional if using Copilot backend)
 ANTHROPIC_API_KEY=
+
+# NTFY_SERVER: self-hosted ntfy URL for push notifications (optional)
+NTFY_SERVER=
+
+# NTFY_TOPIC: notification topic name (e.g., hive-myproject)
+NTFY_TOPIC=
 ENVEOF
   echo ">>> EDIT ${ENV_FILE} with your tokens before starting <<<"
 else
   echo ".env already exists, skipping"
 fi
 
-echo "=== Building Docker image ==="
-cd "${HIVE_DIR}"
-docker compose -f v2/deploy/docker-compose.architect.yaml build
-
 echo ""
-echo "=== Setup complete ==="
+echo "============================================="
+echo "  Hive v2 bootstrap complete"
+echo "============================================="
 echo ""
 echo "Next steps:"
-echo "  1. Edit ${ENV_FILE} with your tokens:"
-echo "     - HIVE_GITHUB_TOKEN  (same as 4.56 hive server)"
-echo "     - HIVE_DASHBOARD_TOKEN  (generate with: openssl rand -hex 32)"
-echo "     - ANTHROPIC_API_KEY  (for Claude Code CLI inside container)"
 echo ""
-echo "  2. Start hive:"
-echo "     cd ${HIVE_DIR} && docker compose --env-file .env -f v2/deploy/docker-compose.architect.yaml up -d"
+echo "  1. Edit ${ENV_FILE} with your tokens"
 echo ""
-echo "  3. Check logs:"
-echo "     docker logs -f hive-architect"
+echo "  2. (Optional) Create a project-specific hive.yaml:"
+echo "     cp ${HIVE_DIR}/v2/deploy/hive.yaml ${HIVE_DIR}/v2/deploy/hive-myproject.yaml"
+echo "     # Edit org, repos, agents, governor thresholds"
 echo ""
-echo "  4. Dashboard: http://<this-lxc-ip>:3001"
+echo "  3. Start hive:"
+echo "     cd ${HIVE_DIR}/v2/deploy"
+echo "     docker compose -f docker-compose.yaml --env-file ${ENV_FILE} up -d"
 echo ""
-echo "  5. Pause architect on 4.56:"
-echo "     ssh dev@192.168.4.56 'touch /etc/hive/pause_architect'"
+echo "  4. Check health:"
+echo "     curl -sf http://localhost:3001/api/health"
+echo "     docker logs -f hive"
+echo ""
+echo "  5. Dashboard: http://<this-lxc-ip>:3001"
+echo ""

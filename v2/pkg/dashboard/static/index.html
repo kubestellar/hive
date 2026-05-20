@@ -3025,9 +3025,11 @@
     function renderCadenceMatrix(matrix, currentMode, modes) {
       if (!matrix || !matrix.length) return '';
       const agents = window._lastAgents || [];
+      const packAgentNames = (window._lastStatus && window._lastStatus.acmmPackAgents) || null;
+      const packSet = packAgentNames ? new Set(packAgentNames) : null;
       const { sorted: sortedAgents } = _sortAgentsBySidebar(agents);
       const sidebarOrder = sortedAgents.map(a => a.name);
-      const matrixNames = matrix.map(r => r.agent);
+      const matrixNames = matrix.map(r => r.agent).filter(n => !packSet || packSet.has(n));
       const agentOrder = sidebarOrder.filter(n => matrixNames.includes(n));
       for (const n of matrixNames) { if (!agentOrder.includes(n)) agentOrder.push(n); }
       const rows = agentOrder.map(aname => {
@@ -6415,6 +6417,7 @@ function burnAreaChart() {
         }
         sidebarItems.forEach(item => {
           const section = item.getAttribute('data-section') || '';
+          if (section === 'token-panel' && level < ACMM_TOKENS_MIN_LEVEL) hide(item);
           if (section === 'repos-section' && level < ACMM_REPOS_MIN_LEVEL) hide(item);
           if (section === 'beads-section' && level < ACMM_BEADS_MIN_LEVEL) hide(item);
           if (section === 'nous-section' && level < ACMM_NOUS_MIN_LEVEL) hide(item);

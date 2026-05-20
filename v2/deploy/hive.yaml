@@ -84,17 +84,17 @@ agents:
     restart_strategy: immediate
     launch_cmd: "/usr/bin/copilot --allow-all --model claude-opus-4.6"
     display_name: sec-check
-  tester:
+  quality:
     enabled: true
     backend: copilot
     model: claude-sonnet-4-6
-    beads_dir: /data/beads/tester
+    beads_dir: /data/beads/quality
     clear_on_kick: true
     cli_pinned: true
     stale_timeout: 2400
     restart_strategy: immediate
     launch_cmd: "agent-launch.sh --backend copilot --model claude-sonnet-4-6"
-    display_name: tester
+    display_name: quality
   strategist:
     enabled: true
     backend: copilot
@@ -117,7 +117,7 @@ governor:
       architect: pause
       outreach: pause
       sec-check: 2m
-      tester: pause
+      quality: pause
       strategist: pause
     busy:
       threshold: 16
@@ -127,7 +127,7 @@ governor:
       architect: pause
       outreach: pause
       sec-check: 2m
-      tester: 2h
+      quality: 2h
       strategist: pause
     quiet:
       threshold: 5
@@ -137,7 +137,7 @@ governor:
       architect: pause
       outreach: pause
       sec-check: 2m
-      tester: 45m
+      quality: 45m
       strategist: pause
     idle:
       threshold: 0
@@ -147,7 +147,7 @@ governor:
       architect: 2h
       outreach: 2h
       sec-check: 2m
-      tester: 30m
+      quality: 30m
       strategist: pause
   labels:
     exempt:

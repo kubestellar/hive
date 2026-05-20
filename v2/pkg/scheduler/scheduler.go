@@ -258,7 +258,7 @@ func (s *Scheduler) buildAgentMessage(agentName string, issues []github.Issue, a
 		return s.buildCIMaintainerMessage(actionable)
 	case "supervisor":
 		return s.buildSupervisorMessage(actionable)
-	case "tester":
+	case "quality":
 		return s.buildTesterMessage(issues, actionable)
 	case "architect":
 		return s.buildArchitectMessage(issues, actionable)
@@ -415,7 +415,7 @@ func (s *Scheduler) buildTesterMessage(issues []github.Issue, actionable *github
 
 	b.WriteString(fmt.Sprintf("COVERAGE TARGET: %.0f%%\n", defaultCoverageTargetPct))
 
-	testerIssues := filterByLane(issues, "tester")
+	testerIssues := filterByLane(issues, "quality")
 	if len(testerIssues) > 0 {
 		b.WriteString(fmt.Sprintf("\nTEST-RELATED ISSUES (%d):\n", len(testerIssues)))
 		shown := 0

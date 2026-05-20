@@ -9,7 +9,7 @@ governor:
   merge_policy: CI must pass (merge-gate.sh)
 agents:
   - name: scanner
-    display_name: Scanner
+    display_name: scanner
     role: scanner
     description: >
       Triages issues, creates fix PRs for simple bugs, and opens issues when
@@ -30,7 +30,7 @@ agents:
       Reads known patterns, past fixes, and regression history. Produces fix
       records and triage decisions.
   - name: ci-maintainer
-    display_name: CI Maintainer
+    display_name: ci-maintainer
     role: ci-maintainer
     description: >
       Monitors CI health, nightly tests, and coverage trends. Post-merge state
@@ -51,7 +51,7 @@ agents:
       Reads CI patterns and past failures. Produces CI health reports and
       workflow optimization insights.
   - name: architect
-    display_name: Architect
+    display_name: architect
     role: architect
     description: >
       RFCs for cross-cutting changes. Activated when scanner transfers complex
@@ -71,9 +71,9 @@ agents:
     knowledge_use: >
       Heavy consumer of architecture decisions and patterns. Produces RFCs
       and design records.
-  - name: tester
-    display_name: Quality
-    role: tester
+  - name: quality
+    display_name: quality
+    role: quality
     description: >
       Full TDD enforcement. Coverage ratcheting. Generates integration tests,
       quality gates, and regression suites. Works with scanner findings.
@@ -83,7 +83,7 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: tester-CLAUDE.md
+    kick_template: quality-CLAUDE.md
     include_repos: true
     lane_keywords: [test, coverage, quality, regression]
     interactions: >
@@ -93,7 +93,7 @@ agents:
       Reads test patterns, coverage rules, regressions. Produces test coverage
       reports and quality gate records.
   - name: guide
-    display_name: Guide
+    display_name: guide
     role: guide
     description: >
       Enhanced advisor that reviews PRs on request, flags code without tests,

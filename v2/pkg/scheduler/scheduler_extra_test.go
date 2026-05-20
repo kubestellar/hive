@@ -22,7 +22,7 @@ func extraActionable() *github.ActionableResult {
 			Items: []github.Issue{
 				{Repo: "repo1", Number: 1, Title: "bug fix", Labels: []string{"kind/bug"}, Lane: "scanner", AgeMinutes: 120, ComplexityTier: "simple", ModelRec: "haiku"},
 				{Repo: "repo1", Number: 2, Title: "refactor needed", Labels: []string{"kind/task"}, Lane: "architect", AgeMinutes: 60},
-				{Repo: "repo1", Number: 3, Title: "test coverage gap", Labels: []string{"kind/task"}, Lane: "tester", AgeMinutes: 45},
+				{Repo: "repo1", Number: 3, Title: "test coverage gap", Labels: []string{"kind/task"}, Lane: "quality", AgeMinutes: 45},
 			},
 		},
 		PRs: github.PRResult{
@@ -83,7 +83,7 @@ func TestBuildKickMessages_Supervisor_Extra(t *testing.T) {
 func TestBuildKickMessages_Tester(t *testing.T) {
 	s := newScheduler()
 	actionable := extraActionable()
-	msgs := s.BuildKickMessages(actionable, []string{"tester"})
+	msgs := s.BuildKickMessages(actionable, []string{"quality"})
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(msgs))
 	}
@@ -149,7 +149,7 @@ func TestFilterByLane_Extra(t *testing.T) {
 		{Number: 1, Lane: "scanner"},
 		{Number: 2, Lane: "architect"},
 		{Number: 3, Lane: ""}, // empty lane matches all
-		{Number: 4, Lane: "tester"},
+		{Number: 4, Lane: "quality"},
 	}
 
 	result := filterByLane(issues, "scanner")

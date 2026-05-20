@@ -60,7 +60,7 @@ func TestResolveAlias_KnownAliases(t *testing.T) {
 		{"ci", "ci-maintainer"},
 		{"se", "sec-check"},
 		{"sg", "strategist"},
-		{"te", "tester"},
+		{"te", "quality"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestResolveAlias_NotAnAlias(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetIdentity_KnownAgents(t *testing.T) {
-	known := []string{"scanner", "ci-maintainer", "architect", "outreach", "supervisor", "sec-check", "strategist", "tester", "governor", "pipeline"}
+	known := []string{"scanner", "ci-maintainer", "architect", "outreach", "supervisor", "sec-check", "strategist", "quality", "governor", "pipeline"}
 	for _, name := range known {
 		id := getIdentity(name)
 		if id.Emoji == "" {

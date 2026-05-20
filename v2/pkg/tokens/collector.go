@@ -372,7 +372,7 @@ func ConfiguredAgentNames() []string {
 	if len(configuredAgentNames) > 0 {
 		return configuredAgentNames
 	}
-	return []string{"scanner", "ci-maintainer", "architect", "outreach", "supervisor", "sec-check", "tester", "analyst"}
+	return []string{"scanner", "ci-maintainer", "architect", "outreach", "supervisor", "sec-check", "quality", "analyst"}
 }
 
 var defaultDetectKeywords = map[string][]string{

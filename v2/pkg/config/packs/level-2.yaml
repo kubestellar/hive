@@ -9,7 +9,7 @@ governor:
   merge_policy: manual
 agents:
   - name: guide
-    display_name: Guide
+    display_name: guide
     role: guide
     description: >
       Enhanced advisor that reviews PRs on request, flags code without tests,
@@ -27,7 +27,7 @@ agents:
       Reads community wiki and project patterns. Starts contributing review
       insights as knowledge entries.
   - name: scanner
-    display_name: Scanner (Advisory)
+    display_name: scanner (advisory)
     role: scanner
     description: >
       Scans code for issues and suggests fixes, but does NOT create PRs or
@@ -45,9 +45,9 @@ agents:
     knowledge_use: >
       Reads project patterns and known issues. Produces findings as knowledge
       entries for the team to review.
-  - name: tester
-    display_name: Quality
-    role: tester
+  - name: quality
+    display_name: quality
+    role: quality
     description: >
       Generates test cases for existing code. Focuses on coverage gaps and
       edge cases. All tests require human review before merging.
@@ -57,7 +57,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: tester-CLAUDE.md
+    kick_template: quality-CLAUDE.md
     include_repos: true
     interactions: "Complements scanner findings with targeted tests. Guide reviews test quality."
     knowledge_use: >

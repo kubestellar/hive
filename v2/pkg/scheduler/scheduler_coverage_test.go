@@ -371,7 +371,7 @@ func TestBuildTesterMessage_NoIssues(t *testing.T) {
 func TestBuildTesterMessage_WithIssues(t *testing.T) {
 	s := newScheduler()
 	issues := []github.Issue{
-		{Repo: "r", Number: 1, Title: "test gap", Lane: "tester", Labels: []string{"test"}},
+		{Repo: "r", Number: 1, Title: "test gap", Lane: "quality", Labels: []string{"test"}},
 	}
 	actionable := &github.ActionableResult{
 		Issues: github.IssueResult{Count: 1, Items: issues},
@@ -386,7 +386,7 @@ func TestBuildTesterMessage_TruncatesTitle(t *testing.T) {
 	s := newScheduler()
 	longTitle := strings.Repeat("z", 80)
 	issues := []github.Issue{
-		{Repo: "r", Number: 1, Title: longTitle, Lane: "tester", Labels: []string{}},
+		{Repo: "r", Number: 1, Title: longTitle, Lane: "quality", Labels: []string{}},
 	}
 	actionable := &github.ActionableResult{
 		Issues: github.IssueResult{Count: 1, Items: issues},

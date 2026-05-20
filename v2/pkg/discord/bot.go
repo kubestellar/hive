@@ -48,7 +48,7 @@ var aliases = map[string]string{
 	"k": "kick", "p": "pause", "r": "resume",
 	"sc": "scanner", "ar": "architect", "ou": "outreach",
 	"su": "supervisor", "ci": "ci-maintainer", "se": "sec-check",
-	"sg": "strategist", "te": "tester",
+	"sg": "strategist", "te": "quality", "qa": "quality",
 }
 
 // SetAgentIdentities rebuilds agentIdentities from config at startup.

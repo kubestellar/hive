@@ -5482,6 +5482,14 @@ function burnAreaChart() {
       window._tokensByAgent = (data.tokens || {}).byAgent || {};
       window._lastAgents = data.agents || [];
       window._lastStatus = data;
+      if (window._acmmOverride) {
+        if (data.acmmLevel === window._acmmOverride.level) {
+          window._acmmOverride = null;
+        } else {
+          window._lastStatus.acmmLevel = window._acmmOverride.level;
+          window._lastStatus.acmmPackAgents = window._acmmOverride.packAgents;
+        }
+      }
       window._lastBudget = data.budget || {};
       if (data.agents) injectAgentStyles(data.agents);
       // Display the Hive ID in header badges
@@ -6320,6 +6328,7 @@ function burnAreaChart() {
         const created = (data.created || []).length;
         const skipped = (data.skipped || []).length;
         closeACMMDialog();
+        window._acmmOverride = { level: level, packAgents: data.packAgents || [] };
         if (window._lastStatus) {
           window._lastStatus.acmmLevel = level;
           window._lastStatus.acmmPackAgents = data.packAgents || [];
@@ -6353,6 +6362,7 @@ function burnAreaChart() {
           return;
         }
         closeACMMDialog();
+        window._acmmOverride = { level: level, packAgents: data.packAgents || [] };
         if (window._lastStatus) {
           window._lastStatus.acmmLevel = level;
           window._lastStatus.acmmPackAgents = data.packAgents || [];

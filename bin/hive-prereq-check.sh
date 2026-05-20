@@ -1,8 +1,11 @@
 #!/bin/bash
-# hive-prereq-check.sh — Validate that a host has all prerequisites for Hive v2.
+# hive-prereq-check.sh — Validate prerequisites for Hive v2 (Docker-based deployment).
 #
 # Usage: ./hive-prereq-check.sh [--fix]
-#   --fix   Attempt to install missing prerequisites automatically
+#   --fix   Attempt to install/fix missing prerequisites automatically
+#
+# This checks the HOST (LXC container), not the Docker container.
+# The Docker image contains its own toolchain (Go, Node, Claude, Copilot, tmux, etc.)
 #
 # Exit codes:
 #   0  All prerequisites met
@@ -32,7 +35,10 @@ try_fix() {
   return 1
 }
 
-# ── OS ──────────────────────────────────────────────────────────────
+HIVE_DIR="${HIVE_DIR:-/opt/hive}"
+ENV_FILE="${HIVE_DIR}/.env"
+
+# ── OS & Hardware ──────────────────────────────────────────────────
 echo "OS & Environment"
 
 if [[ -f /etc/os-release ]]; then
@@ -54,250 +60,171 @@ else
 fi
 
 MEM_MB=$(free -m 2>/dev/null | awk '/^Mem:/ {print $2}' || echo 0)
-if [[ "$MEM_MB" -ge 8000 ]]; then
-  pass "RAM: ${MEM_MB}MB (minimum 8GB)"
-elif [[ "$MEM_MB" -ge 4000 ]]; then
-  warn "RAM: ${MEM_MB}MB (8GB+ recommended, 4GB minimum)"
+if [[ "$MEM_MB" -ge 4000 ]]; then
+  pass "RAM: ${MEM_MB}MB (minimum 4GB)"
 else
   fail "RAM: ${MEM_MB}MB (need at least 4GB)"
 fi
 
 DISK_AVAIL_KB=$(df / 2>/dev/null | awk 'NR==2 {print $4}' || echo 0)
 DISK_AVAIL_GB=$((DISK_AVAIL_KB / 1048576))
-if [[ "$DISK_AVAIL_GB" -ge 20 ]]; then
-  pass "Disk available: ${DISK_AVAIL_GB}GB (minimum 20GB)"
-elif [[ "$DISK_AVAIL_GB" -ge 10 ]]; then
-  warn "Disk available: ${DISK_AVAIL_GB}GB (20GB+ recommended)"
+if [[ "$DISK_AVAIL_GB" -ge 10 ]]; then
+  pass "Disk available: ${DISK_AVAIL_GB}GB (minimum 10GB)"
 else
   fail "Disk available: ${DISK_AVAIL_GB}GB (need at least 10GB)"
 fi
 
-# ── Users ───────────────────────────────────────────────────────────
+# ── LXC / AppArmor ────────────────────────────────────────────────
 echo ""
-echo "Users"
+echo "LXC Configuration"
 
-if id dev &>/dev/null; then
-  pass "User 'dev' exists"
+APPARMOR=$(cat /proc/self/attr/apparmor/current 2>/dev/null || cat /proc/self/attr/current 2>/dev/null || echo "unknown")
+if [[ "$APPARMOR" == "unconfined" ]]; then
+  pass "AppArmor: unconfined (required for Docker-in-LXC)"
 else
-  fail "User 'dev' does not exist"
-  try_fix "useradd -m -s /bin/bash dev" && pass "User 'dev' created"
+  fail "AppArmor: ${APPARMOR} — must be 'unconfined'"
+  echo "    Fix on Proxmox host: add 'lxc.apparmor.profile: unconfined' and 'lxc.cap.drop:' to /etc/pve/lxc/<CTID>.conf, then restart LXC"
 fi
 
-# ── Core Tools ──────────────────────────────────────────────────────
+# ── Docker ─────────────────────────────────────────────────────────
 echo ""
-echo "Core Tools"
-
-check_cmd() {
-  local name="$1" cmd="${2:-$1}" min_ver="${3:-}" install_cmd="${4:-}"
-  if command -v "$cmd" &>/dev/null; then
-    local ver
-    ver=$("$cmd" --version 2>/dev/null | head -1 || echo "installed")
-    pass "$name: $ver"
-  else
-    fail "$name: not found"
-    [[ -n "$install_cmd" ]] && try_fix "$install_cmd" && pass "$name: installed"
-  fi
-}
-
-check_cmd "git" "git" "" "apt-get install -y git"
-check_cmd "tmux" "tmux" "" "apt-get install -y tmux"
-check_cmd "jq" "jq" "" "apt-get install -y jq"
-check_cmd "curl" "curl" "" "apt-get install -y curl"
-check_cmd "gh" "gh" "" "apt-get install -y gh"
-check_cmd "ripgrep" "rg" "" "apt-get install -y ripgrep"
-check_cmd "htop" "htop" "" "apt-get install -y htop"
-check_cmd "sqlite3" "sqlite3" "" "apt-get install -y sqlite3"
-check_cmd "bc" "bc" "" "apt-get install -y bc"
-
-# ── Node.js ─────────────────────────────────────────────────────────
-echo ""
-echo "Node.js"
-
-if command -v node &>/dev/null; then
-  NODE_VER=$(node --version 2>/dev/null)
-  NODE_MAJOR="${NODE_VER#v}"
-  NODE_MAJOR="${NODE_MAJOR%%.*}"
-  if [[ "$NODE_MAJOR" -ge 22 ]]; then
-    pass "Node.js: $NODE_VER"
-  else
-    warn "Node.js: $NODE_VER (v22+ recommended)"
-  fi
-else
-  fail "Node.js: not installed"
-  try_fix "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs" \
-    && pass "Node.js: installed"
-fi
-
-if command -v npm &>/dev/null; then
-  pass "npm: $(npm --version 2>/dev/null)"
-else
-  fail "npm: not found (should come with Node.js)"
-fi
-
-# ── Claude Code CLI ─────────────────────────────────────────────────
-echo ""
-echo "AI Agent CLIs"
-
-if command -v claude &>/dev/null; then
-  pass "Claude Code: $(claude --version 2>/dev/null | head -1)"
-else
-  fail "Claude Code: not installed"
-  try_fix "npm install -g @anthropic-ai/claude-code" && pass "Claude Code: installed"
-fi
-
-if command -v copilot &>/dev/null; then
-  pass "GitHub Copilot CLI: $(copilot --version 2>/dev/null | head -1)"
-else
-  warn "GitHub Copilot CLI: not installed (optional failover backend)"
-fi
-
-# ── Python ──────────────────────────────────────────────────────────
-echo ""
-echo "Python"
-
-if command -v python3 &>/dev/null; then
-  pass "Python3: $(python3 --version 2>/dev/null)"
-else
-  fail "Python3: not installed"
-  try_fix "apt-get install -y python3 python3-venv" && pass "Python3: installed"
-fi
-
-# ── Go ──────────────────────────────────────────────────────────────
-echo ""
-echo "Go (optional — needed for Go-based projects)"
-
-if command -v go &>/dev/null; then
-  pass "Go: $(go version 2>/dev/null)"
-else
-  warn "Go: not installed (install if targeting Go projects)"
-fi
-
-# ── Docker ──────────────────────────────────────────────────────────
-echo ""
-echo "Docker (optional)"
+echo "Docker"
 
 if command -v docker &>/dev/null; then
-  pass "Docker: $(docker --version 2>/dev/null)"
+  pass "Docker: $(docker --version 2>/dev/null | head -1)"
 else
-  warn "Docker: not installed (optional, for container-based workflows)"
+  fail "Docker: not installed"
+  try_fix "apt-get update -qq && apt-get install -y -qq ca-certificates curl gnupg && install -m 0755 -d /etc/apt/keyrings && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc && chmod a+r /etc/apt/keyrings/docker.asc && echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \$(. /etc/os-release && echo \\\$VERSION_CODENAME) stable\" > /etc/apt/sources.list.d/docker.list && apt-get update -qq && apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin" \
+    && pass "Docker: installed"
 fi
 
-# ── Build Tools ─────────────────────────────────────────────────────
+if docker compose version &>/dev/null 2>&1; then
+  pass "Docker Compose: $(docker compose version --short 2>/dev/null)"
+else
+  fail "Docker Compose plugin: not installed"
+  try_fix "apt-get install -y -qq docker-compose-plugin" && pass "Docker Compose: installed"
+fi
+
+if docker info &>/dev/null 2>&1; then
+  pass "Docker daemon: running"
+else
+  fail "Docker daemon: not running"
+  try_fix "systemctl start docker" && pass "Docker daemon: started"
+fi
+
+# Smoke test: can Docker actually run containers?
+if docker run --rm alpine echo ok &>/dev/null 2>&1; then
+  pass "Docker run: works (AppArmor/nesting OK)"
+else
+  fail "Docker run: FAILED — likely AppArmor issue in LXC config"
+fi
+
+# ── Host Tools (minimal — most tooling is inside the container) ────
 echo ""
-echo "Build Tools"
+echo "Host Tools"
 
-check_cmd "make" "make" "" "apt-get install -y make"
-check_cmd "gcc" "gcc" "" "apt-get install -y build-essential"
-
-# ── Rust (needed for ai-native-storage-certus) ──────────────────────
-echo ""
-echo "Rust (needed for Rust-based projects)"
-
-if command -v rustc &>/dev/null; then
-  pass "Rust: $(rustc --version 2>/dev/null)"
-else
-  warn "Rust: not installed (needed for Rust projects like certus)"
-fi
-
-if command -v cargo &>/dev/null; then
-  pass "Cargo: $(cargo --version 2>/dev/null)"
-else
-  warn "Cargo: not installed"
-fi
-
-# ── Hive Infrastructure ────────────────────────────────────────────
-echo ""
-echo "Hive Infrastructure"
-
-if [[ -d /etc/hive ]]; then
-  pass "/etc/hive directory exists"
-else
-  fail "/etc/hive directory does not exist"
-  try_fix "mkdir -p /etc/hive" && pass "/etc/hive created"
-fi
-
-if [[ -d /var/run/hive ]]; then
-  pass "/var/run/hive directory exists"
-else
-  fail "/var/run/hive directory does not exist"
-  try_fix "mkdir -p /var/run/hive && chown dev:dev /var/run/hive" && pass "/var/run/hive created"
-fi
-
-if [[ -d /var/run/hive-metrics ]]; then
-  pass "/var/run/hive-metrics directory exists"
-else
-  fail "/var/run/hive-metrics directory does not exist"
-  try_fix "mkdir -p /var/run/hive-metrics && chown dev:dev /var/run/hive-metrics" \
-    && pass "/var/run/hive-metrics created"
-fi
-
-for script in supervisor.sh agent-launch.sh hive-config.sh kick-agents.sh; do
-  if [[ -x "/usr/local/bin/$script" ]]; then
-    pass "$script installed"
+for cmd in git curl jq; do
+  if command -v "$cmd" &>/dev/null; then
+    pass "$cmd: installed"
   else
-    fail "$script not found in /usr/local/bin/"
+    fail "$cmd: not found"
+    try_fix "apt-get install -y -qq $cmd" && pass "$cmd: installed"
   fi
 done
 
-if [[ -f /usr/local/etc/hive/backends.conf ]]; then
-  pass "backends.conf exists"
+# ── Hive Repo ──────────────────────────────────────────────────────
+echo ""
+echo "Hive Repository"
+
+if [[ -d "${HIVE_DIR}/.git" ]]; then
+  HIVE_BRANCH=$(cd "$HIVE_DIR" && git branch --show-current 2>/dev/null || echo "unknown")
+  pass "Hive repo: ${HIVE_DIR} (branch: ${HIVE_BRANCH})"
 else
-  fail "backends.conf not found at /usr/local/etc/hive/backends.conf"
+  fail "Hive repo: not found at ${HIVE_DIR}"
+  try_fix "git clone --branch v2 --single-branch https://github.com/kubestellar/hive.git ${HIVE_DIR}" \
+    && pass "Hive repo: cloned"
 fi
 
-# ── Systemd Units ───────────────────────────────────────────────────
+# ── Docker Image ───────────────────────────────────────────────────
 echo ""
-echo "Systemd Units"
+echo "Docker Image"
 
-for unit in hive.service hive@.service; do
-  if [[ -f "/etc/systemd/system/$unit" ]]; then
-    pass "$unit installed"
+if docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -qE '(v2-hive|deploy-hive)'; then
+  IMG=$(docker images --format '{{.Repository}}:{{.Tag}} ({{.Size}})' 2>/dev/null | grep -E '(v2-hive|deploy-hive)' | head -1)
+  pass "Hive image: ${IMG}"
+else
+  fail "Hive image: not built"
+  if [[ -d "${HIVE_DIR}" ]]; then
+    try_fix "cd ${HIVE_DIR} && docker compose -f v2/docker-compose.yaml build" \
+      && pass "Hive image: built"
+  fi
+fi
+
+# ── Environment File ──────────────────────────────────────────────
+echo ""
+echo "Configuration"
+
+if [[ -f "$ENV_FILE" ]]; then
+  pass ".env file: ${ENV_FILE}"
+  GH_TOKEN=$(grep -E '^HIVE_GITHUB_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
+  if [[ -n "$GH_TOKEN" ]]; then
+    pass "HIVE_GITHUB_TOKEN: set (${#GH_TOKEN} chars)"
   else
-    fail "$unit not found"
+    fail "HIVE_GITHUB_TOKEN: empty (required — Go binary refuses to start without it)"
+  fi
+  DASH_TOKEN=$(grep -E '^HIVE_DASHBOARD_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
+  if [[ -n "$DASH_TOKEN" ]]; then
+    pass "HIVE_DASHBOARD_TOKEN: set"
+  else
+    warn "HIVE_DASHBOARD_TOKEN: empty (dashboard API unprotected)"
+  fi
+else
+  fail ".env file: not found at ${ENV_FILE}"
+fi
+
+# Check for a hive.yaml project config
+HIVE_YAML_COUNT=0
+for yaml in "${HIVE_DIR}"/v2/deploy/hive*.yaml; do
+  if [[ -f "$yaml" ]] && grep -q "^project:" "$yaml" 2>/dev/null; then
+    pass "Hive config: $(basename "$yaml")"
+    HIVE_YAML_COUNT=$((HIVE_YAML_COUNT + 1))
   fi
 done
+if [[ "$HIVE_YAML_COUNT" -eq 0 ]]; then
+  fail "No hive.yaml config found in ${HIVE_DIR}/v2/deploy/"
+fi
 
-# ── Git Configuration ──────────────────────────────────────────────
+# ── Running Container ─────────────────────────────────────────────
 echo ""
-echo "Git Configuration"
+echo "Running State"
 
-GIT_NAME=$(sudo -u dev git config --global user.name 2>/dev/null || echo "")
-GIT_EMAIL=$(sudo -u dev git config --global user.email 2>/dev/null || echo "")
-if [[ -n "$GIT_NAME" ]]; then
-  pass "git user.name: $GIT_NAME"
+HIVE_CONTAINER=$(docker ps --filter "name=hive" --format '{{.Names}} (up {{.RunningFor}})' 2>/dev/null | head -1)
+if [[ -n "$HIVE_CONTAINER" ]]; then
+  pass "Container: ${HIVE_CONTAINER}"
+  if curl -sf http://localhost:3001/api/health &>/dev/null; then
+    pass "Dashboard: healthy (port 3001)"
+  else
+    warn "Dashboard: not responding on port 3001 (may still be starting)"
+  fi
+  if curl -sf http://localhost:7681 &>/dev/null; then
+    pass "ttyd terminal: available (port 7681)"
+  else
+    warn "ttyd terminal: not responding on port 7681"
+  fi
 else
-  fail "git user.name not set for user 'dev'"
-fi
-if [[ -n "$GIT_EMAIL" ]]; then
-  pass "git user.email: $GIT_EMAIL"
-else
-  fail "git user.email not set for user 'dev'"
+  warn "Container: not running"
 fi
 
-# ── GitHub Auth ─────────────────────────────────────────────────────
+# ── SSH ────────────────────────────────────────────────────────────
 echo ""
-echo "GitHub Authentication"
+echo "SSH Access"
 
-if sudo -u dev gh auth status &>/dev/null 2>&1; then
-  pass "gh CLI authenticated"
+if grep -q "^PermitRootLogin yes" /etc/ssh/sshd_config 2>/dev/null; then
+  pass "SSH root login: enabled"
 else
-  warn "gh CLI not authenticated (run: gh auth login)"
-fi
-
-if [[ -f /etc/hive/gh-app-key.pem ]]; then
-  pass "GitHub App key exists"
-else
-  warn "GitHub App key not found at /etc/hive/gh-app-key.pem (needed for App-based auth)"
-fi
-
-# ── Notifications ───────────────────────────────────────────────────
-echo ""
-echo "Notifications (optional)"
-
-if command -v ntfy &>/dev/null || [[ -f /usr/local/bin/ntfy ]]; then
-  pass "ntfy: installed"
-else
-  warn "ntfy: not installed (optional push notifications)"
+  warn "SSH root login: disabled (enable for remote management)"
+  try_fix 'sed -i "s/^#*PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config && sed -i "s/^#*PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config && systemctl restart sshd' \
+    && pass "SSH root login: enabled"
 fi
 
 # ── Summary ─────────────────────────────────────────────────────────
@@ -313,7 +240,7 @@ if [[ "$FAIL" -eq 0 ]]; then
 else
   echo "  Status: NOT READY — fix $FAIL issue(s) above"
   if ! $FIX_MODE; then
-    echo "  Tip: re-run with --fix to auto-install missing packages"
+    echo "  Tip: re-run with --fix to auto-install missing items"
   fi
   exit 1
 fi

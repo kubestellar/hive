@@ -1,20 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run this on the Proxmox host (192.168.6.144) to create the LXC.
-# Usage: bash create-lxc.sh
+# create-lxc.sh — Create a Proxmox LXC container for Hive v2 (Docker-based).
+#
+# Run this on the Proxmox host.
+# Usage:
+#   bash create-lxc.sh [--ctid 111] [--hostname hive-certus] [--password maver1ck]
 #
 # Or from your Mac:
-#   ssh root@192.168.6.144 'bash -s' < create-lxc.sh
+#   sshpass -p <pw> ssh root@<proxmox-ip> 'bash -s' < create-lxc.sh
+#
+# After creation, run bootstrap-lxc.sh inside the container:
+#   pct exec <CTID> -- bash -c 'curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/v2/v2/deploy/bootstrap-lxc.sh | bash'
 
-CTID=110
-HOSTNAME="hive-v2"
+CTID="${CTID:-111}"
+HOSTNAME="${LXC_HOSTNAME:-hive}"
+PASSWORD="${LXC_PASSWORD:-changeme}"
 TEMPLATE="local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
 STORAGE="local-lvm"
 DISK_SIZE=16
 RAM_MB=4096
 SWAP_MB=512
 CORES=4
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ctid)     CTID="$2"; shift 2 ;;
+    --hostname) HOSTNAME="$2"; shift 2 ;;
+    --password) PASSWORD="$2"; shift 2 ;;
+    --disk)     DISK_SIZE="$2"; shift 2 ;;
+    --memory)   RAM_MB="$2"; shift 2 ;;
+    --cores)    CORES="$2"; shift 2 ;;
+    *)          echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
 
 # Check if template exists, download if not
 if ! pveam list local | grep -q "ubuntu-24.04-standard"; then
@@ -25,7 +44,7 @@ fi
 
 # Check if CTID is in use
 if pct status "${CTID}" &>/dev/null; then
-  echo "ERROR: CTID ${CTID} already exists. Pick a different ID."
+  echo "ERROR: CTID ${CTID} already exists. Pick a different ID or destroy first."
   exit 1
 fi
 
@@ -40,21 +59,38 @@ pct create "${CTID}" "${TEMPLATE}" \
   --net0 "name=eth0,bridge=vmbr0,ip=dhcp" \
   --features "nesting=1,keyctl=1" \
   --unprivileged 0 \
-  --start 1 \
-  --password "changeme"
+  --start 0 \
+  --password "${PASSWORD}"
 
-echo "=== Waiting for LXC to boot ==="
+# Docker-in-LXC requires AppArmor unconfined + no cap drop
+echo "=== Configuring LXC for Docker compatibility ==="
+cat >> "/etc/pve/lxc/${CTID}.conf" <<'EOF'
+lxc.apparmor.profile: unconfined
+lxc.cap.drop:
+EOF
+
+echo "=== Starting LXC ==="
+pct start "${CTID}"
 sleep 5
 
+echo "=== Enabling SSH with root password auth ==="
+pct exec "${CTID}" -- bash -c '
+  sed -i "s/^#*PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config
+  sed -i "s/^#*PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config
+  systemctl restart sshd
+'
+
 echo "=== LXC IP address ==="
-pct exec "${CTID}" -- ip -4 addr show eth0 | grep inet || echo "(DHCP may still be pending — check in a few seconds)"
+LXC_IP=$(pct exec "${CTID}" -- ip -4 addr show eth0 | grep -oP '(?<=inet )\d+\.\d+\.\d+\.\d+' || echo "unknown")
+echo "  IP: ${LXC_IP}"
 
 echo ""
-echo "=== LXC ${CTID} created ==="
+echo "=== LXC ${CTID} (${HOSTNAME}) created ==="
 echo ""
-echo "Next: copy and run the bootstrap script inside the LXC:"
-echo "  pct exec ${CTID} -- bash -c 'curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/v2/v2/deploy/bootstrap-lxc.sh | bash'"
+echo "SSH:  ssh root@${LXC_IP}  (password: ${PASSWORD})"
 echo ""
-echo "Or manually:"
-echo "  pct enter ${CTID}"
-echo "  # then run bootstrap-lxc.sh"
+echo "Next: run the bootstrap script inside the LXC:"
+echo "  pct exec ${CTID} -- bash -c 'apt-get update -qq && apt-get install -y -qq curl && curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/v2/v2/deploy/bootstrap-lxc.sh | bash'"
+echo ""
+echo "Or via SSH:"
+echo "  sshpass -p ${PASSWORD} ssh root@${LXC_IP} 'apt-get update -qq && apt-get install -y -qq curl && curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/v2/v2/deploy/bootstrap-lxc.sh | bash'"

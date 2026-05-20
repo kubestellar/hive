@@ -19,6 +19,7 @@ import (
 
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/kubestellar/hive/v2/pkg/advisory"
 	"github.com/kubestellar/hive/v2/pkg/agent"
 	"github.com/kubestellar/hive/v2/pkg/beads"
 	"github.com/kubestellar/hive/v2/pkg/classify"
@@ -176,6 +177,8 @@ func main() {
 			}
 		}
 	}
+
+	advisoryStore := advisory.NewStore()
 
 	projectCtx := agent.ProjectContext{
 		Org:        cfg.Project.Org,
@@ -510,7 +513,7 @@ func main() {
 		return
 	}
 
-	runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, logger)
+	runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, logger)
 	persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 	dashSrv.MarkReady()
 
@@ -528,7 +531,7 @@ func main() {
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 			return
 		case <-ticker.C:
-			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, logger)
+			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, logger)
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 		case <-agentTickCh:
 			govState := gov.GetState()
@@ -553,6 +556,8 @@ func runEvalCycle(
 	metricsCollector *dashboard.MetricsCollector,
 	nousState *dashboard.NousState,
 	lastActionable *atomic.Pointer[github.ActionableResult],
+	advisoryStore *advisory.Store,
+	advisoryIssues map[string]int,
 	logger *slog.Logger,
 ) {
 	actionable, err := ghClient.EnumerateActionable(ctx)
@@ -639,6 +644,9 @@ func runEvalCycle(
 		ctx,
 		metricsCollector,
 	)
+	if d := dashSrv.GetAdvisoryDigest(); d != nil {
+		statusPayload.AdvisoryDigest = d
+	}
 	dashSrv.UpdateStatus(statusPayload)
 
 	if agentStats := dashboard.CollectAgentStats(statusPayload); len(agentStats) > 0 {
@@ -656,6 +664,33 @@ func runEvalCycle(
 		}
 		if err := nousState.RecordSnapshot(govState, actionable, agentsDue, agentStatuses, tokenSummary); err != nil {
 			logger.Warn("failed to record nous snapshot", "error", err)
+		}
+	}
+
+	// Advisory digest: read new agent findings and post to advisory issue.
+	if advisoryStore != nil {
+		findings, err := advisoryStore.ReadNewFindings()
+		if err != nil {
+			logger.Warn("failed to read advisory findings", "error", err)
+		} else if len(findings) > 0 {
+			digest := advisory.BuildDigest(findings, string(govState.Mode))
+			advisoryStore.SetLatestDigest(digest)
+			dashSrv.SetAdvisoryDigest(digest)
+
+			md := advisory.FormatDigestMarkdown(digest)
+			if md != "" {
+				primaryRepo := cfg.Project.PrimaryRepo
+				if primaryRepo == "" && len(cfg.Project.Repos) > 0 {
+					primaryRepo = cfg.Project.Repos[0]
+				}
+				if issueNum, ok := advisoryIssues[primaryRepo]; ok && issueNum > 0 {
+					if err := ghClient.PostAdvisoryDigest(ctx, primaryRepo, issueNum, md); err != nil {
+						logger.Warn("failed to post advisory digest", "repo", primaryRepo, "issue", issueNum, "error", err)
+					} else {
+						logger.Info("posted advisory digest", "repo", primaryRepo, "issue", issueNum, "findings", len(findings))
+					}
+				}
+			}
 		}
 	}
 }

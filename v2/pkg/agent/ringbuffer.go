@@ -51,6 +51,25 @@ func (r *RingBuffer) Last(n int) []string {
 	return result
 }
 
+func (r *RingBuffer) ReplaceAll(lines []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	n := len(lines)
+	if n > r.cap {
+		lines = lines[n-r.cap:]
+		n = r.cap
+	}
+	for i := range r.cap {
+		r.items[i] = ""
+	}
+	for i, l := range lines {
+		r.items[i] = l
+	}
+	r.head = n % r.cap
+	r.count = n
+}
+
 func (r *RingBuffer) Count() int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

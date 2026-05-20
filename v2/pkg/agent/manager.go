@@ -33,7 +33,7 @@ type KickRecord struct {
 const (
 	outputBufferCapacity = 500
 	kickHistoryCapacity  = 50
-	tmuxCaptureLines     = 200
+	tmuxCaptureLines     = 2000
 	paneCaptureSleep     = 500 * time.Millisecond
 )
 
@@ -415,22 +415,47 @@ func (m *Manager) pollTmuxOutput(name, session string, buf *RingBuffer, ctx cont
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
+	var lastHash uint64
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			output := m.captureTmuxPane(session)
-			if output != "" {
-				for _, line := range strings.Split(output, "\n") {
-					trimmed := strings.TrimRight(line, " \t")
-					if trimmed != "" {
-						buf.Write(trimmed)
-					}
+			if output == "" {
+				continue
+			}
+			var filtered []string
+			for _, line := range strings.Split(output, "\n") {
+				trimmed := strings.TrimRight(line, " \t")
+				if trimmed != "" {
+					filtered = append(filtered, trimmed)
 				}
 			}
+			if len(filtered) == 0 {
+				continue
+			}
+			h := hashLines(filtered)
+			if h == lastHash {
+				continue
+			}
+			lastHash = h
+			buf.ReplaceAll(filtered)
 		}
 	}
+}
+
+func hashLines(lines []string) uint64 {
+	var h uint64 = 14695981039346656037
+	for _, l := range lines {
+		for i := 0; i < len(l); i++ {
+			h ^= uint64(l[i])
+			h *= 1099511628211
+		}
+		h ^= uint64('\n')
+		h *= 1099511628211
+	}
+	return h
 }
 
 func (m *Manager) captureTmuxPane(session string) string {
@@ -940,6 +965,9 @@ func (m *Manager) GetOutput(name string, lines int) ([]string, error) {
 		output := m.captureTmuxPane(agent.tmuxSession)
 		if output != "" {
 			allLines := strings.Split(output, "\n")
+			for len(allLines) > 0 && strings.TrimSpace(allLines[len(allLines)-1]) == "" {
+				allLines = allLines[:len(allLines)-1]
+			}
 			if len(allLines) > lines {
 				allLines = allLines[len(allLines)-lines:]
 			}

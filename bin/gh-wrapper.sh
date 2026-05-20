@@ -159,4 +159,87 @@ if [ "$subcmd" = "api" ]; then
   done
 fi
 
+# Auto-label issues and PRs with agent identity + hive instance ID.
+# HIVE_AGENT is set by the Go binary (e.g. "scanner").
+# HIVE_ID is the unique hive instance ID (e.g. "hive-bold-fox").
+AGENT_NAME="${HIVE_AGENT:-$AGENT_ID}"
+HIVE_INSTANCE_ID="${HIVE_ID:-}"
+
+if [[ -n "$AGENT_NAME" ]]; then
+  LABELS_CSV="agent/${AGENT_NAME}"
+  [[ -n "$HIVE_INSTANCE_ID" ]] && LABELS_CSV="${LABELS_CSV},hive/${HIVE_INSTANCE_ID}"
+
+  # Ensure labels exist on the repo (cached per-session to avoid repeated API calls).
+  LABEL_CACHE="/tmp/.hive-labels-ensured"
+  _ensure_labels() {
+    [[ -f "$LABEL_CACHE" ]] && return 0
+    local repo_flag=""
+    for arg in "${args[@]}"; do
+      case "$arg" in
+        --repo) repo_flag="next" ;;
+        --repo=*) repo_flag="${arg#--repo=}" ; break ;;
+        *) [[ "$repo_flag" = "next" ]] && repo_flag="$arg" && break ;;
+      esac
+    done
+    [[ "$repo_flag" = "next" ]] && repo_flag=""
+    local rf=""
+    [[ -n "$repo_flag" ]] && rf="--repo $repo_flag"
+    "$REAL_GH" label create "agent/${AGENT_NAME}" --description "Work by the ${AGENT_NAME} agent" --color 6f42c1 $rf 2>/dev/null || true
+    if [[ -n "$HIVE_INSTANCE_ID" ]]; then
+      "$REAL_GH" label create "hive/${HIVE_INSTANCE_ID}" --description "Hive instance ${HIVE_INSTANCE_ID}" --color 1d76db $rf 2>/dev/null || true
+    fi
+    touch "$LABEL_CACHE"
+  }
+
+  # Extract issue/PR number and repo from args (for post-action labeling).
+  _extract_item() {
+    item_num=""
+    item_repo=""
+    local skip=false
+    for arg in "${args[@]}"; do
+      if $skip; then skip=false; item_repo="$arg"; continue; fi
+      case "$arg" in
+        comment|review|"$subcmd"|"$action") continue ;;
+        --repo) skip=true; continue ;;
+        --repo=*) item_repo="${arg#--repo=}"; continue ;;
+        -*) continue ;;
+        *) [[ -z "$item_num" ]] && item_num="$arg" ;;
+      esac
+    done
+  }
+
+  case "$subcmd/$action" in
+    issue/create|pr/create)
+      _ensure_labels
+      exec "$REAL_GH" "$@" --label "$LABELS_CSV"
+      ;;
+    issue/edit|pr/edit)
+      _ensure_labels
+      exec "$REAL_GH" "$@" --add-label "$LABELS_CSV"
+      ;;
+    pr/merge)
+      _ensure_labels
+      _extract_item
+      if [[ -n "$item_num" ]]; then
+        local_repo=""
+        [[ -n "$item_repo" ]] && local_repo="--repo $item_repo"
+        "$REAL_GH" pr edit "$item_num" $local_repo --add-label "$LABELS_CSV" 2>/dev/null || true
+      fi
+      exec "$REAL_GH" "$@"
+      ;;
+    issue/comment|pr/comment|pr/review)
+      _ensure_labels
+      _extract_item
+      "$REAL_GH" "$@"
+      exit_code=$?
+      if [[ $exit_code -eq 0 && -n "$item_num" ]]; then
+        local_repo=""
+        [[ -n "$item_repo" ]] && local_repo="--repo $item_repo"
+        "$REAL_GH" "$subcmd" edit "$item_num" $local_repo --add-label "$LABELS_CSV" 2>/dev/null || true
+      fi
+      exit $exit_code
+      ;;
+  esac
+fi
+
 exec "$REAL_GH" "$@"

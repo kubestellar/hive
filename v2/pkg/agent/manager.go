@@ -415,22 +415,47 @@ func (m *Manager) pollTmuxOutput(name, session string, buf *RingBuffer, ctx cont
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
+	var lastHash uint64
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			output := m.captureTmuxPane(session)
-			if output != "" {
-				for _, line := range strings.Split(output, "\n") {
-					trimmed := strings.TrimRight(line, " \t")
-					if trimmed != "" {
-						buf.Write(trimmed)
-					}
+			if output == "" {
+				continue
+			}
+			var filtered []string
+			for _, line := range strings.Split(output, "\n") {
+				trimmed := strings.TrimRight(line, " \t")
+				if trimmed != "" {
+					filtered = append(filtered, trimmed)
 				}
 			}
+			if len(filtered) == 0 {
+				continue
+			}
+			h := hashLines(filtered)
+			if h == lastHash {
+				continue
+			}
+			lastHash = h
+			buf.ReplaceAll(filtered)
 		}
 	}
+}
+
+func hashLines(lines []string) uint64 {
+	var h uint64 = 14695981039346656037
+	for _, l := range lines {
+		for i := 0; i < len(l); i++ {
+			h ^= uint64(l[i])
+			h *= 1099511628211
+		}
+		h ^= uint64('\n')
+		h *= 1099511628211
+	}
+	return h
 }
 
 func (m *Manager) captureTmuxPane(session string) string {

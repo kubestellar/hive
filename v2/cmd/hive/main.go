@@ -156,6 +156,27 @@ func main() {
 	notifier := notify.New(cfg.Notifications, logger)
 	notifier.SetHiveID(cfg.HiveID)
 	acmmLevel := inferACMMLevel(cfg)
+
+	// At L1/L2 (advisory-only), create or find the pinned advisory issue per repo.
+	// Agents can comment on this issue but cannot create new issues.
+	advisoryIssues := map[string]int{}
+	if acmmLevel > 0 && acmmLevel < 3 {
+		primaryRepo := cfg.Project.PrimaryRepo
+		if primaryRepo == "" && len(cfg.Project.Repos) > 0 {
+			primaryRepo = cfg.Project.Repos[0]
+		}
+		if primaryRepo != "" {
+			num, err := ghClient.EnsureAdvisoryIssue(ctx, primaryRepo)
+			if err != nil {
+				logger.Error("failed to ensure advisory issue", "repo", primaryRepo, "error", err)
+			} else {
+				advisoryIssues[primaryRepo] = num
+				os.Setenv("HIVE_ADVISORY_ISSUE", fmt.Sprintf("%d", num))
+				logger.Info("advisory issue ready", "repo", primaryRepo, "number", num)
+			}
+		}
+	}
+
 	projectCtx := agent.ProjectContext{
 		Org:        cfg.Project.Org,
 		Repos:      cfg.Project.Repos,

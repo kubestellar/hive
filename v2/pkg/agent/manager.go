@@ -156,7 +156,7 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 	}
 
 	cmd := exec.Command("tmux", "new-session", "-d", "-s", agent.tmuxSession, "-c", agentDir)
-	cmd.Env = append(os.Environ(), agentEnvVars(agent)...)
+	cmd.Env = append(os.Environ(), m.agentEnvVars(agent)...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("creating tmux session for %s: %w", agent.Name, err)
 	}
@@ -403,7 +403,7 @@ func (m *Manager) readCoveragePreamble() string {
 }
 
 func (m *Manager) buildEnvPrefix(agent *AgentProcess) string {
-	vars := agentEnvVars(agent)
+	vars := m.agentEnvVars(agent)
 	if len(vars) == 0 {
 		return ""
 	}
@@ -755,7 +755,7 @@ func normalizeModelName(model string) string {
 	return model
 }
 
-func agentEnvVars(agent *AgentProcess) []string {
+func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 	model := agent.Config.Model
 	if agent.ModelOverride != "" {
 		model = agent.ModelOverride
@@ -771,6 +771,13 @@ func agentEnvVars(agent *AgentProcess) []string {
 	}
 	if hiveID := os.Getenv("HIVE_ID"); hiveID != "" {
 		vars = append(vars, fmt.Sprintf("HIVE_ID=%s", hiveID))
+	}
+	vars = append(vars, fmt.Sprintf("HIVE_ACMM_LEVEL=%d", m.project.ACMMLevel))
+	if sha := os.Getenv("HIVE_SHA"); sha != "" {
+		vars = append(vars, fmt.Sprintf("HIVE_SHA=%s", sha))
+	}
+	if advisory := os.Getenv("HIVE_ADVISORY_ISSUE"); advisory != "" {
+		vars = append(vars, fmt.Sprintf("HIVE_ADVISORY_ISSUE=%s", advisory))
 	}
 	return vars
 }

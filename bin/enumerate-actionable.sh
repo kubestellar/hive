@@ -277,10 +277,6 @@ for i in issues:
         pass
     missing_sha.append(i)
 
-import sys as _dbg
-for _m in missing_sha:
-    _dbg.stderr.write(f"SHA-CLASSIFY-MISSING: #{_m.get('number')} author={_m.get('author')} type={_m.get('author_type')}\n")
-_dbg.stderr.write(f"SHA-SUMMARY: {len(kept)} kept, {len(missing_sha)} missing\n")
 print(json.dumps({'kept': kept, 'missing_sha': missing_sha}))
 " "$INTERNAL_AUTHORS" "$SHA_CHECK_REPO" "$SHA_HOLD_MARKER" 2>>"$LOG" || echo '{"kept":[],"missing_sha":[]}')
 

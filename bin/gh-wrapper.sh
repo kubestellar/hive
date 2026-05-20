@@ -90,6 +90,14 @@ if { [ "$subcmd" = "issue" ] || [ "$subcmd" = "pr" ]; } && [ "$action" = "list" 
   exit 1
 fi
 
+# Block supervisor from creating issues (supervisor observes and reports only)
+if [ "$subcmd" = "issue" ] && [ "$action" = "create" ]; then
+  if [[ "${AGENT_ID:-}" == "supervisor" || "${HIVE_AGENT:-}" == "supervisor" ]]; then
+    echo "⛔ BLOCKED: supervisor cannot create issues. Supervisor observes and reports only." >&2
+    exit 1
+  fi
+fi
+
 # Enforce merge gate — only PRs in merge-eligible.json can be merged
 MERGE_ELIGIBLE_FILE="/var/run/hive-metrics/merge-eligible.json"
 if [ "$subcmd" = "pr" ] && [ "$action" = "merge" ]; then

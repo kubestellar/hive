@@ -240,11 +240,12 @@ mkdir -p "$(dirname "$SHA_HOLD_MARKER")"
 
 SHA_CHECK_REPO="${PROJECT_PRIMARY_REPO:-kubestellar/console}"
 sha_result=$(echo "$all_issues" | python3 -c "
-import json, sys, re
+import json, sys, re, os
 
 issues = json.load(sys.stdin)
 internal = set(sys.argv[1].split())
 sha_repo = sys.argv[2]
+marker_prefix = sys.argv[3]
 
 SHA_PATTERN = re.compile(r'[0-9a-f]{7,40}\b')
 
@@ -252,7 +253,6 @@ missing_sha = []
 kept = []
 
 for i in issues:
-    # SHA detection only applies to the primary repo (console)
     if i.get('repo', '') != sha_repo:
         kept.append(i)
         continue
@@ -264,11 +264,21 @@ for i in issues:
     body = i.get('body', '') or ''
     if SHA_PATTERN.search(body):
         kept.append(i)
-    else:
-        missing_sha.append(i)
+        continue
+    # Check if this issue was already resolved (SHA found in comments on a prior cycle)
+    repo_safe = i.get('repo', '').replace('/', '_')
+    marker = f'{marker_prefix}_{repo_safe}_{i.get(\"number\", 0)}'
+    try:
+        with open(marker) as f:
+            if 'resolved=' in f.read():
+                kept.append(i)
+                continue
+    except FileNotFoundError:
+        pass
+    missing_sha.append(i)
 
 print(json.dumps({'kept': kept, 'missing_sha': missing_sha}))
-" "$INTERNAL_AUTHORS" "$SHA_CHECK_REPO" 2>/dev/null || echo '{"kept":[],"missing_sha":[]}')
+" "$INTERNAL_AUTHORS" "$SHA_CHECK_REPO" "$SHA_HOLD_MARKER" 2>/dev/null || echo '{"kept":[],"missing_sha":[]}')
 
 # For issues missing SHA: label hold + post comment (only once per issue)
 missing_sha_issues=$(echo "$sha_result" | python3 -c "

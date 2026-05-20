@@ -65,9 +65,9 @@ agents:
       Same as L4.
     knowledge_use: >
       Same as L4.
-  - name: tester
+  - name: quality
     display_name: Tester
-    role: tester
+    role: quality
     description: >
       Same as L4. Tests and validates but does not approve merges.
     emoji: "🧪"
@@ -76,7 +76,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: tester-CLAUDE.md
+    kick_template: quality-CLAUDE.md
     include_repos: true
     lane_keywords: [test, coverage, tdd, quality]
     interactions: >

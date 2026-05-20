@@ -44,7 +44,7 @@ agents:
     include_repos: true
     lane_keywords: [bug, triage, fix, issue]
     interactions: >
-      Creates PRs that tester validates. Transfers complex issues to architect.
+      Creates PRs that quality validates. Transfers complex issues to architect.
       Reports to supervisor.
     knowledge_use: >
       Reads full project history, known regressions, and fix patterns. Produces
@@ -65,14 +65,14 @@ agents:
     include_repos: true
     lane_keywords: [ci, build, pipeline, workflow, dependency]
     interactions: >
-      Coordinates with tester on coverage gates. Reports pipeline health
+      Coordinates with quality on coverage gates. Reports pipeline health
       to supervisor.
     knowledge_use: >
       Reads CI history and optimization patterns. Produces workflow health
       reports.
-  - name: tester
+  - name: quality
     display_name: Tester
-    role: tester
+    role: quality
     description: >
       Full TDD enforcement with coverage ratcheting. Generates tests for new
       code and validates scanner PRs.
@@ -82,7 +82,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: tester-CLAUDE.md
+    kick_template: quality-CLAUDE.md
     include_repos: true
     lane_keywords: [test, coverage, tdd, quality]
     interactions: >

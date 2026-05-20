@@ -283,7 +283,7 @@ func TestEnhancedAgentDetector_NoMatch(t *testing.T) {
 }
 
 func TestEnhancedAgentDetector_AllAgents(t *testing.T) {
-	agents := []string{"scanner", "ci-maintainer", "architect", "outreach", "supervisor", "sec-check", "tester", "analyst"}
+	agents := []string{"scanner", "ci-maintainer", "architect", "outreach", "supervisor", "sec-check", "quality", "analyst"}
 	for _, agent := range agents {
 		detect := EnhancedAgentDetector("/path/to/"+agent+"/dir", nil)
 		result := detect("anything")

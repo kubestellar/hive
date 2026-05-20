@@ -341,7 +341,7 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 		base = fmt.Sprintf("[agent:%s] [BOOT] Read %s for your instructions and begin your first pass.", agent.Name, policyPath)
 	}
 
-	if agent.Name == "tester" {
+	if agent.Name == "quality" {
 		if preamble := m.readCoveragePreamble(); preamble != "" {
 			base = preamble + " " + base
 		}

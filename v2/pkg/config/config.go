@@ -681,10 +681,10 @@ func applyKnownAgentDefaults(name string, agent *AgentConfig) {
 			DetectKeywords: []string{"security", "sec-check", "vulnerability"},
 			BeadRole: "worker", SortOrder: 60, IncludeRepos: true,
 		},
-		"tester": {
-			Emoji: "🧪", Color: "#3498db", Aliases: []string{"te"},
+		"quality": {
+			Emoji: "🧪", Color: "#3498db", Aliases: []string{"te", "qa"},
 			LaneKeywords:   []string{"test-gap", "test-strategy", "test-coverage", "test-scaffold", "untested", "missing-tests"},
-			DetectKeywords: []string{"tester", "test", "coverage"},
+			DetectKeywords: []string{"quality", "tester", "test", "coverage"},
 			BeadRole: "worker", SortOrder: 35, IncludeRepos: true,
 		},
 		"strategist": {

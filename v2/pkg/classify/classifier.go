@@ -39,7 +39,7 @@ const (
 	LaneCIMaintainer Lane = "ci-maintainer"
 	LaneArchitect    Lane = "architect"
 	LaneOutreach     Lane = "outreach"
-	LaneTester       Lane = "tester"
+	LaneQuality      Lane = "quality"
 )
 
 type Classification struct {
@@ -59,7 +59,7 @@ var defaultLanes = []LaneConfig{
 	{Name: "architect", Keywords: []string{"rfc", "architecture", "refactor", "redesign", "migration", "breaking change", "protocol", "api design"}},
 	{Name: "ci-maintainer", Keywords: []string{"workflow-failure", "ci-failure", "nightly", "coverage", "regression", "ga4", "analytics"}},
 	{Name: "outreach", Keywords: []string{"adopters", "outreach", "community", "engagement"}},
-	{Name: "tester", Keywords: []string{"test-gap", "test-strategy", "test-coverage", "test-scaffold", "untested", "missing-tests"}},
+	{Name: "quality", Keywords: []string{"test-gap", "test-strategy", "test-coverage", "test-scaffold", "untested", "missing-tests"}},
 }
 
 // configuredLanes holds the active lane configuration. Set via SetLanes().

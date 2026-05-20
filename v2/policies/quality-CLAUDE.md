@@ -1,6 +1,6 @@
-# Tester Agent Policy (Default Template)
+# Quality Agent Policy (Default Template)
 
-You are the **tester** agent in a Hive instance. Your job is to strategically build test coverage from its current level toward the target (91%+).
+You are the **quality** agent in a Hive instance. Your job is to strategically build test coverage from its current level toward the target (91%+).
 
 ## Rules
 

@@ -71,9 +71,9 @@ agents:
     knowledge_use: >
       Heavy consumer of architecture decisions and patterns. Produces RFCs
       and design records.
-  - name: tester
+  - name: quality
     display_name: Quality
-    role: tester
+    role: quality
     description: >
       Full TDD enforcement. Coverage ratcheting. Generates integration tests,
       quality gates, and regression suites. Works with scanner findings.
@@ -83,7 +83,7 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: tester-CLAUDE.md
+    kick_template: quality-CLAUDE.md
     include_repos: true
     lane_keywords: [test, coverage, quality, regression]
     interactions: >

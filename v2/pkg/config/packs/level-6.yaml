@@ -67,9 +67,9 @@ agents:
       Owns deploy pipeline. Coordinates rollbacks with supervisor.
     knowledge_use: >
       Full CI history. Produces deploy reports and rollback records.
-  - name: tester
+  - name: quality
     display_name: Tester
-    role: tester
+    role: quality
     description: >
       Full TDD with auto-approve when coverage gates pass.
     emoji: "🧪"
@@ -78,7 +78,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: tester-CLAUDE.md
+    kick_template: quality-CLAUDE.md
     include_repos: true
     lane_keywords: [test, coverage, tdd, quality]
     interactions: >

@@ -95,7 +95,7 @@ func apiServerWithKnowledge(t *testing.T) (*Server, *Dependencies, *httptest.Ser
 	}
 
 	gov := governor.New(cfg.Governor, cfg.Agents, logger)
-	mgr := agent.NewManager(cfg.Agents, logger)
+	mgr := agent.NewManager(cfg.Agents, logger, agent.ProjectContext{})
 
 	layers := []knowledge.LayerConfig{
 		{Type: knowledge.LayerProject, URL: wiki.URL},
@@ -2986,7 +2986,7 @@ func TestHandleAgentConfigGet_CopilotBackend(t *testing.T) {
 		},
 	}
 	gov := governor.New(cfg.Governor, cfg.Agents, logger)
-	mgr := agent.NewManager(cfg.Agents, logger)
+	mgr := agent.NewManager(cfg.Agents, logger, agent.ProjectContext{})
 	deps := &Dependencies{
 		Config:   cfg,
 		AgentMgr: mgr,
@@ -3027,7 +3027,7 @@ func TestHandleAgentConfigGet_CustomLaunchCmd(t *testing.T) {
 		},
 	}
 	gov := governor.New(cfg.Governor, cfg.Agents, logger)
-	mgr := agent.NewManager(cfg.Agents, logger)
+	mgr := agent.NewManager(cfg.Agents, logger, agent.ProjectContext{})
 	deps := &Dependencies{
 		Config:   cfg,
 		AgentMgr: mgr,
@@ -3068,7 +3068,7 @@ func TestHandleAgentConfigGet_DisplayNameAndPauseCadence(t *testing.T) {
 		},
 	}
 	gov := governor.New(cfg.Governor, cfg.Agents, logger)
-	mgr := agent.NewManager(cfg.Agents, logger)
+	mgr := agent.NewManager(cfg.Agents, logger, agent.ProjectContext{})
 	deps := &Dependencies{
 		Config:   cfg,
 		AgentMgr: mgr,
@@ -3222,7 +3222,7 @@ func TestHandleAgentConfigGet_OffCadence(t *testing.T) {
 		},
 	}
 	gov := governor.New(cfg.Governor, cfg.Agents, logger)
-	mgr := agent.NewManager(cfg.Agents, logger)
+	mgr := agent.NewManager(cfg.Agents, logger, agent.ProjectContext{})
 	deps := &Dependencies{
 		Config:   cfg,
 		AgentMgr: mgr,

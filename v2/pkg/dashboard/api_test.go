@@ -43,7 +43,7 @@ func testDeps(t *testing.T) *Dependencies {
 	}
 
 	gov := governor.New(cfg.Governor, cfg.Agents, logger)
-	mgr := agent.NewManager(cfg.Agents, logger)
+	mgr := agent.NewManager(cfg.Agents, logger, agent.ProjectContext{})
 
 	var refreshCalled atomic.Bool
 	var persistCalled atomic.Bool

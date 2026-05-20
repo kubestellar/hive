@@ -7,7 +7,7 @@ import (
 )
 
 func TestAddAgent(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	m.AddAgent("new-agent", config.AgentConfig{Backend: "claude", Model: "sonnet"})
 
 	status, err := m.GetStatus("new-agent")
@@ -25,7 +25,7 @@ func TestAddAgent(t *testing.T) {
 func TestAddAgent_Duplicate(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	// Should not overwrite
 	m.AddAgent("scanner", config.AgentConfig{Backend: "gemini"})
@@ -38,7 +38,7 @@ func TestAddAgent_Duplicate(t *testing.T) {
 func TestRemoveAgent(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.RemoveAgent("scanner")
 	_, err := m.GetStatus("scanner")
@@ -48,7 +48,7 @@ func TestRemoveAgent(t *testing.T) {
 }
 
 func TestRemoveAgent_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	// Should not panic
 	m.RemoveAgent("nonexistent")
 }
@@ -56,7 +56,7 @@ func TestRemoveAgent_NotFound(t *testing.T) {
 func TestResetRestartCount(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.mu.Lock()
 	m.agents["scanner"].RestartCount = 5
@@ -73,7 +73,7 @@ func TestResetRestartCount(t *testing.T) {
 }
 
 func TestResetRestartCount_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.ResetRestartCount("nonexistent")
 	if err == nil {
 		t.Error("expected error")
@@ -83,7 +83,7 @@ func TestResetRestartCount_NotFound(t *testing.T) {
 func TestUnpinCLI(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.PinCLI("scanner", "claude-v2")
 	err := m.UnpinCLI("scanner")
@@ -97,7 +97,7 @@ func TestUnpinCLI(t *testing.T) {
 }
 
 func TestUnpinCLI_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.UnpinCLI("nonexistent")
 	if err == nil {
 		t.Error("expected error")
@@ -107,7 +107,7 @@ func TestUnpinCLI_NotFound(t *testing.T) {
 func TestUnpinModel(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.PinModel("scanner", "opus")
 	err := m.UnpinModel("scanner")
@@ -121,7 +121,7 @@ func TestUnpinModel(t *testing.T) {
 }
 
 func TestUnpinModel_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.UnpinModel("nonexistent")
 	if err == nil {
 		t.Error("expected error")
@@ -129,7 +129,7 @@ func TestUnpinModel_NotFound(t *testing.T) {
 }
 
 func TestGetOutput_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	_, err := m.GetOutput("nonexistent", 10)
 	if err == nil {
 		t.Error("expected error")
@@ -139,7 +139,7 @@ func TestGetOutput_NotFound(t *testing.T) {
 func TestGetOutput_WithBuffer(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	// Write some output to the buffer
 	m.mu.Lock()
@@ -160,7 +160,7 @@ func TestGetOutput_WithBuffer(t *testing.T) {
 func TestIsPaused(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	if m.IsPaused("scanner") {
 		t.Error("scanner should not be paused initially")
@@ -173,7 +173,7 @@ func TestIsPaused(t *testing.T) {
 }
 
 func TestIsPaused_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	if m.IsPaused("nonexistent") {
 		t.Error("nonexistent agent should return false")
 	}
@@ -182,7 +182,7 @@ func TestIsPaused_NotFound(t *testing.T) {
 func TestTmuxSession(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	session := m.TmuxSession("scanner")
 	if session != "hive-scanner" {
@@ -191,7 +191,7 @@ func TestTmuxSession(t *testing.T) {
 }
 
 func TestTmuxSession_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	session := m.TmuxSession("nonexistent")
 	if session != "" {
 		t.Errorf("session = %q, want empty", session)
@@ -201,7 +201,7 @@ func TestTmuxSession_NotFound(t *testing.T) {
 func TestBuildEnvPrefix(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude", Model: "sonnet"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.mu.RLock()
 	agent := m.agents["scanner"]
@@ -214,7 +214,7 @@ func TestBuildEnvPrefix(t *testing.T) {
 }
 
 func TestBuildEnvPrefix_EmptyVars(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 
 	agent := &AgentProcess{Name: "test"}
 	prefix := m.buildEnvPrefix(agent)
@@ -227,7 +227,7 @@ func TestBuildEnvPrefix_EmptyVars(t *testing.T) {
 func TestSetModelOverride_Pinned(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude", Model: "sonnet"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.PinModel("scanner", "opus")
 	err := m.SetModelOverride("scanner", "haiku")

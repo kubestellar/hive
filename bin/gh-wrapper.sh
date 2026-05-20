@@ -84,6 +84,14 @@ if { [ "$subcmd" = "issue" ] || [ "$subcmd" = "pr" ]; } && [ "$action" = "list" 
   exit 1
 fi
 
+# Block supervisor from creating issues (supervisor observes and reports only)
+if [ "$subcmd" = "issue" ] && [ "$action" = "create" ]; then
+  if [[ "${AGENT_ID:-}" == "supervisor" || "${HIVE_AGENT:-}" == "supervisor" ]]; then
+    echo "⛔ BLOCKED: supervisor cannot create issues. Supervisor observes and reports only." >&2
+    exit 1
+  fi
+fi
+
 # ── ACMM level enforcement ──
 # At L1/L2: block issue create, pr create, pr merge.
 # Exception: commenting on the advisory issue is always allowed.

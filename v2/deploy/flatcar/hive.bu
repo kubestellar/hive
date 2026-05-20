@@ -1,0 +1,125 @@
+# Butane config for Hive on Flatcar Container Linux
+#
+# Provision via Knuckle:
+#   1. Boot the Knuckle ISO on a Proxmox VM
+#   2. Walk through the wizard (select Docker sysext)
+#   3. After install, copy this file and run:
+#        butane --strict hive.bu -o hive.ign
+#        # Or apply post-install via Ignition merge
+#
+# Or use as a post-install systemd drop-in — copy hive.service
+# to the Flatcar host after Knuckle provisioning.
+
+variant: flatcar
+version: 1.1.0
+
+storage:
+  directories:
+    - path: /etc/hive
+      mode: 0755
+    - path: /data
+      mode: 0755
+      user:
+        id: 1000
+      group:
+        id: 1000
+    - path: /data/logs
+      mode: 0755
+      user:
+        id: 1000
+      group:
+        id: 1000
+    - path: /data/repos
+      mode: 0755
+      user:
+        id: 1000
+      group:
+        id: 1000
+
+  files:
+    # Hive environment — EDIT before deploying
+    - path: /etc/hive/agent.env
+      mode: 0600
+      contents:
+        inline: |
+          # Required
+          AGENT_USER=dev
+          AGENT_WORKDIR=/data/repos
+          AGENT_LOG_FILE=/data/logs/heartbeat.log
+          AGENT_SESSION_NAME=hive
+          AGENT_LAUNCH_CMD="/usr/bin/claude --dangerously-skip-permissions --model claude-opus-4-6"
+          AGENT_READY_MARKER="bypass permissions on"
+          AGENT_LOOP_PROMPT="You are in EXECUTOR MODE. Read your policy file, then wait for work orders."
+
+          # Secrets — set these before starting
+          # ANTHROPIC_API_KEY=
+          # HIVE_GITHUB_TOKEN=
+
+          # Optional
+          # DISCORD_WEBHOOK=
+          # NTFY_TOPIC=
+          # AGENT_POLL_SEC=10
+          # AGENT_STALE_MAX_SEC=1800
+          # AGENT_MAX_RESPAWNS=3
+
+systemd:
+  units:
+    - name: hive.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Hive agent container
+        After=network-online.target docker.service
+        Wants=network-online.target
+        Requires=docker.service
+
+        [Service]
+        Type=simple
+        Restart=always
+        RestartSec=10
+        TimeoutStartSec=300
+
+        ExecStartPre=-/usr/bin/docker pull ghcr.io/kubestellar/hive:latest
+        ExecStartPre=-/usr/bin/docker rm -f hive
+
+        ExecStart=/usr/bin/docker run \
+          --name hive \
+          --hostname %H \
+          --env-file /etc/hive/agent.env \
+          -v /etc/hive:/etc/hive:ro \
+          -v /data:/data \
+          -p 3001:3001 \
+          --tty \
+          ghcr.io/kubestellar/hive:latest
+
+        ExecStop=/usr/bin/docker stop -t 30 hive
+        ExecStopPost=-/usr/bin/docker rm -f hive
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # Auto-update: pull latest image daily at 4 AM UTC
+    - name: hive-update.service
+      enabled: false
+      contents: |
+        [Unit]
+        Description=Pull latest hive container image
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/docker pull ghcr.io/kubestellar/hive:latest
+        ExecStartPost=/usr/bin/systemctl restart hive.service
+
+    - name: hive-update.timer
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Daily hive container update check
+
+        [Timer]
+        OnCalendar=*-*-* 04:00:00 UTC
+        RandomizedDelaySec=900
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target

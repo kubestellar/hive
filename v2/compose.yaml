@@ -1,0 +1,43 @@
+# Hive v2 — container deployment
+#
+# Usage:
+#   cp config/agent.env.example .env    # edit with your values
+#   docker compose up -d
+#
+# Mount points:
+#   /etc/hive/  — project config (hive-project.yaml, agent.env, policies)
+#   /data/      — persistent state (logs, beads, repos, agent scratch)
+
+services:
+  hive:
+    build:
+      context: ..
+      dockerfile: v2/Dockerfile
+    image: ghcr.io/kubestellar/hive:latest
+    container_name: hive
+    restart: unless-stopped
+    hostname: ${HIVE_HOSTNAME:-hive}
+    env_file:
+      - .env
+    environment:
+      - AGENT_USER=dev
+      - AGENT_WORKDIR=/data/repos
+      - AGENT_LOG_FILE=/data/logs/heartbeat.log
+      - AGENT_SESSION_NAME=${AGENT_SESSION_NAME:-hive}
+    volumes:
+      # Config — read-only from host
+      - ${HIVE_CONFIG_DIR:-./config}:/etc/hive:ro
+      # Persistent data — survives container restarts
+      - hive-data:/data
+      # SSH keys — for git+ssh access to repos (optional)
+      - ${SSH_KEY_DIR:-~/.ssh}:/home/dev/.ssh:ro
+    ports:
+      # Dashboard
+      - "${DASHBOARD_PORT:-3001}:3001"
+    # Keep tmux happy inside container
+    tty: true
+    stdin_open: true
+
+volumes:
+  hive-data:
+    driver: local

@@ -33,7 +33,7 @@ type KickRecord struct {
 const (
 	outputBufferCapacity = 500
 	kickHistoryCapacity  = 50
-	tmuxCaptureLines     = 200
+	tmuxCaptureLines     = 2000
 	paneCaptureSleep     = 500 * time.Millisecond
 )
 
@@ -940,6 +940,9 @@ func (m *Manager) GetOutput(name string, lines int) ([]string, error) {
 		output := m.captureTmuxPane(agent.tmuxSession)
 		if output != "" {
 			allLines := strings.Split(output, "\n")
+			for len(allLines) > 0 && strings.TrimSpace(allLines[len(allLines)-1]) == "" {
+				allLines = allLines[:len(allLines)-1]
+			}
 			if len(allLines) > lines {
 				allLines = allLines[len(allLines)-lines:]
 			}

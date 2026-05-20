@@ -142,8 +142,8 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	const maxACMMLevel = 6
-	if body.Level < 0 || body.Level > maxACMMLevel {
-		jsonError(w, "level must be 0-6", http.StatusBadRequest)
+	if body.Level < 1 || body.Level > maxACMMLevel {
+		jsonError(w, "level must be 1-6", http.StatusBadRequest)
 		return
 	}
 
@@ -212,9 +212,7 @@ func detectACMMLevel(cfg *config.Config) int {
 
 	agentCount := len(cfg.Agents)
 	switch {
-	case agentCount == 0:
-		return 0
-	case agentCount == 1:
+	case agentCount <= 1:
 		return 1
 	case agentCount == 2:
 		return 2

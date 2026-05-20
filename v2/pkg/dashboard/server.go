@@ -41,6 +41,9 @@ type Server struct {
 	tokenHistory      []TokenSparklineEntry
 	lastFullBroadcast time.Time
 
+	advisoryMu     sync.RWMutex
+	advisoryDigest any
+
 	ready bool
 }
 
@@ -62,6 +65,7 @@ type StatusPayload struct {
 	IssueToMerge  map[string]any      `json:"issueToMerge"`
 	ACMMLevel      int                 `json:"acmmLevel"`
 	ACMMPackAgents []string            `json:"acmmPackAgents"`
+	AdvisoryDigest any                 `json:"advisoryDigest,omitempty"`
 }
 
 type FrontendAgent struct {
@@ -478,4 +482,18 @@ func (s *Server) SeedTokenSparklineHistory(entries []TokenSparklineEntry) {
 		entries = entries[len(entries)-tokenSparklineMaxEntries:]
 	}
 	s.tokenHistory = entries
+}
+
+// SetAdvisoryDigest stores the latest advisory digest for SSE broadcast.
+func (s *Server) SetAdvisoryDigest(digest any) {
+	s.advisoryMu.Lock()
+	defer s.advisoryMu.Unlock()
+	s.advisoryDigest = digest
+}
+
+// GetAdvisoryDigest returns the latest advisory digest.
+func (s *Server) GetAdvisoryDigest() any {
+	s.advisoryMu.RLock()
+	defer s.advisoryMu.RUnlock()
+	return s.advisoryDigest
 }

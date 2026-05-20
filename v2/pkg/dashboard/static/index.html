@@ -1541,6 +1541,7 @@
     <div class="oc-nav-group">
       <div class="oc-nav-label">Control</div>
       <a class="oc-nav-item active" data-section="governor" onclick="ocNavigate('governor')">📊 Governor</a>
+      <a class="oc-nav-item" data-section="advisory-section" onclick="ocNavigate('advisory-section')">📋 Advisory</a>
       <a class="oc-nav-item" data-section="token-panel" onclick="ocNavigate('token-panel')">🪙 Tokens</a>
     </div>
     <div class="oc-nav-group">
@@ -1595,6 +1596,11 @@
   </h1>
 
   <div class="governor" id="governor"></div>
+
+  <div id="advisory-section" style="margin-top: 16px; margin-bottom: 24px; display: none;">
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">📋 Advisory Digest</h2>
+    <div id="advisory-digest" style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;"></div>
+  </div>
 
   <div class="token-usage" id="token-panel" style="margin-bottom: 24px;"></div>
 
@@ -2138,6 +2144,7 @@
       if (lastData.governor) {
         renderGovernor(lastData.governor, lastData.cadenceMatrix || [], lastData);
       }
+      renderAdvisoryDigest(lastData.advisoryDigest || null);
       renderDebugSection();
       const _lvl2 = (lastData.acmmLevel != null) ? lastData.acmmLevel : 0;
       applyACMMVisibility(_lvl2, lastData.acmmPackAgents || null);
@@ -3069,6 +3076,35 @@
         <thead><tr><th></th>${headers}<th>cli</th><th>model</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
+    }
+
+    function renderAdvisoryDigest(digest) {
+      const el = document.getElementById('advisory-digest');
+      if (!el) return;
+      if (!digest || !digest.total_count) {
+        setIfChanged(el, '<div style="color:var(--muted);font-size:0.82rem;text-align:center;padding:20px">No advisory findings yet. Agents will post findings here as they analyze the codebase.</div>');
+        return;
+      }
+      const sevIcon = s => ({ critical: '🔴', high: '🟠', medium: '🟡', low: '🔵' }[s] || '⚪');
+      const agents = Object.keys(digest.by_agent || {}).sort();
+      let html = `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px">
+        <strong>Mode:</strong> ${escapeHtml(digest.mode)} | <strong>Findings:</strong> ${digest.total_count} | <strong>Updated:</strong> ${new Date(digest.generated_at).toLocaleString()}
+      </div>`;
+      for (const agent of agents) {
+        const findings = digest.by_agent[agent] || [];
+        html += `<div style="margin-bottom:12px">
+          <div style="font-weight:600;font-size:0.85rem;margin-bottom:6px;color:var(--text)">${escapeHtml(agent)} <span style="color:var(--muted);font-weight:400">(${findings.length})</span></div>
+          <div style="display:flex;flex-direction:column;gap:4px">`;
+        for (const f of findings) {
+          const loc = f.file ? ` <code style="font-size:0.72rem;color:var(--muted)">${escapeHtml(f.file)}${f.line ? ':' + f.line : ''}</code>` : '';
+          html += `<div style="font-size:0.8rem;padding:6px 10px;background:var(--bg);border-radius:4px;border-left:3px solid ${f.severity === 'critical' ? '#dc2626' : f.severity === 'high' ? '#ea580c' : f.severity === 'medium' ? '#ca8a04' : '#6b7280'}">
+            ${sevIcon(f.severity)} <strong>[${escapeHtml(f.type || 'finding')}]</strong> ${escapeHtml(f.title)}${loc}
+            ${f.detail ? `<div style="margin-top:4px;color:var(--muted);font-size:0.75rem">${escapeHtml(f.detail)}</div>` : ''}
+          </div>`;
+        }
+        html += '</div></div>';
+      }
+      setIfChanged(el, html);
     }
 
     function renderRepos(repos) {
@@ -5521,6 +5557,7 @@ function burnAreaChart() {
         renderGovernor(data.governor || {}, data.cadenceMatrix || [], data);
       }
       renderTokens(data.tokens || {});
+      renderAdvisoryDigest(data.advisoryDigest || null);
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
       ocUpdateSidebarAgents();
@@ -6372,6 +6409,7 @@ function burnAreaChart() {
       const show = (el, d) => { if (el) el.style.display = d || ''; };
 
       const governor = document.getElementById('governor');
+      const advisorySection = document.getElementById('advisory-section');
       const tokenPanel = document.getElementById('token-panel');
       const reposSection = document.getElementById('repos-section');
       const beadsSection = document.getElementById('beads-section');
@@ -6387,6 +6425,7 @@ function burnAreaChart() {
       const agentDetail = document.getElementById('oc-agent-detail');
 
       const ACMM_GOVERNOR_MIN_LEVEL = 2;
+      const ACMM_ADVISORY_MIN_LEVEL = 2;
       const ACMM_TOKENS_MIN_LEVEL = 3;
       const ACMM_BEADS_MIN_LEVEL = 2;
       const ACMM_REPOS_MIN_LEVEL = 2;
@@ -6401,6 +6440,7 @@ function burnAreaChart() {
         sidebarItems.forEach(item => show(item, ''));
 
         level >= ACMM_GOVERNOR_MIN_LEVEL ? show(governor, '') : hide(governor);
+        level >= ACMM_ADVISORY_MIN_LEVEL ? show(advisorySection, '') : hide(advisorySection);
         level >= ACMM_TOKENS_MIN_LEVEL ? show(tokenPanel, '') : hide(tokenPanel);
         level >= ACMM_BEADS_MIN_LEVEL ? show(beadsSection, '') : hide(beadsSection);
         level >= ACMM_REPOS_MIN_LEVEL ? show(reposSection, '') : hide(reposSection);
@@ -6417,6 +6457,7 @@ function burnAreaChart() {
         }
         sidebarItems.forEach(item => {
           const section = item.getAttribute('data-section') || '';
+          if (section === 'advisory-section' && level < ACMM_ADVISORY_MIN_LEVEL) hide(item);
           if (section === 'token-panel' && level < ACMM_TOKENS_MIN_LEVEL) hide(item);
           if (section === 'repos-section' && level < ACMM_REPOS_MIN_LEVEL) hide(item);
           if (section === 'beads-section' && level < ACMM_BEADS_MIN_LEVEL) hide(item);

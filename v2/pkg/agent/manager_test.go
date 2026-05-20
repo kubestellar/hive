@@ -84,7 +84,7 @@ func TestNewManager_InitializesAgentsAsStopped(t *testing.T) {
 		"worker":  makeAgentConfig("gemini", "gemini-pro"),
 	}
 
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	if len(m.agents) != 2 {
 		t.Fatalf("expected 2 agents, got %d", len(m.agents))
@@ -107,7 +107,7 @@ func TestNewManager_InitializesAgentsAsStopped(t *testing.T) {
 }
 
 func TestNewManager_EmptyAgentMap(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	if len(m.agents) != 0 {
 		t.Fatalf("expected 0 agents, got %d", len(m.agents))
 	}
@@ -117,7 +117,7 @@ func TestNewManager_ConfigPreserved(t *testing.T) {
 	cfg := makeAgentConfig("gemini", "gemini-ultra")
 	cfg.BeadsDir = "/tmp/beads"
 
-	m := NewManager(map[string]config.AgentConfig{"agent1": cfg}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{"agent1": cfg}, discardLogger(), ProjectContext{})
 
 	ap := m.agents["agent1"]
 	if ap.Config.Backend != "gemini" {
@@ -140,7 +140,7 @@ func TestGetStatus_ReturnsCorrectAgent(t *testing.T) {
 		"alpha": makeAgentConfig("claude", "opus"),
 		"beta":  makeAgentConfig("gemini", "pro"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	ap, err := m.GetStatus("alpha")
 	if err != nil {
@@ -155,7 +155,7 @@ func TestGetStatus_ReturnsCorrectAgent(t *testing.T) {
 }
 
 func TestGetStatus_UnknownAgentReturnsError(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 
 	_, err := m.GetStatus("nonexistent")
 	if err == nil {
@@ -168,7 +168,7 @@ func TestGetStatus_UnknownAgentReturnsError(t *testing.T) {
 
 func TestGetStatus_ReturnsConsistentSnapshots(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{"a": makeAgentConfig("claude", "haiku")}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	ap1, _ := m.GetStatus("a")
 	ap2, _ := m.GetStatus("a")
@@ -188,7 +188,7 @@ func TestAllStatuses_ReturnsAllAgents(t *testing.T) {
 		"y": makeAgentConfig("gemini", "pro"),
 		"z": makeAgentConfig("goose", ""),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	all := m.AllStatuses()
 
@@ -204,7 +204,7 @@ func TestAllStatuses_ReturnsAllAgents(t *testing.T) {
 
 func TestAllStatuses_ReturnsCopy(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{"a": makeAgentConfig("claude", "sonnet")}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	all := m.AllStatuses()
 	delete(all, "a")
@@ -216,7 +216,7 @@ func TestAllStatuses_ReturnsCopy(t *testing.T) {
 }
 
 func TestAllStatuses_EmptyManager(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	all := m.AllStatuses()
 	if len(all) != 0 {
 		t.Errorf("expected empty map, got %d entries", len(all))
@@ -349,7 +349,7 @@ func TestAgentEnvVars_EmptyModelAllowed(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPause_UnknownAgentReturnsError(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.Pause("ghost")
 	if err == nil {
 		t.Fatal("expected error pausing unknown agent, got nil")
@@ -360,7 +360,7 @@ func TestPause_SetsPausedFlag(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{
 		"worker": makeAgentConfig("claude", "sonnet"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	if err := m.Pause("worker"); err != nil {
 		t.Fatalf("Pause() error: %v", err)
@@ -377,7 +377,7 @@ func TestResume_ClearsPausedFlag(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{
 		"worker": makeAgentConfig("claude", "sonnet"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	_ = m.Pause("worker")
 	if err := m.Resume(context.Background(), "worker"); err != nil {
@@ -398,7 +398,7 @@ func TestPinCLI_SetsValue(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{
 		"worker": makeAgentConfig("claude", "sonnet"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	if err := m.PinCLI("worker", "1.2.3"); err != nil {
 		t.Fatalf("PinCLI() error: %v", err)
@@ -414,7 +414,7 @@ func TestPinModel_SetsValue(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{
 		"worker": makeAgentConfig("claude", "sonnet"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	if err := m.PinModel("worker", "opus"); err != nil {
 		t.Fatalf("PinModel() error: %v", err)
@@ -434,7 +434,7 @@ func TestSetModelOverride(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{
 		"worker": makeAgentConfig("claude", "sonnet"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	if err := m.SetModelOverride("worker", "opus"); err != nil {
 		t.Fatalf("SetModelOverride() error: %v", err)
@@ -450,7 +450,7 @@ func TestSetBackendOverride(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{
 		"worker": makeAgentConfig("claude", "sonnet"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	if err := m.SetBackendOverride("worker", "gemini"); err != nil {
 		t.Fatalf("SetBackendOverride() error: %v", err)
@@ -467,7 +467,7 @@ func TestSetBackendOverride(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSendKick_UnknownAgentReturnsError(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.SendKick("nobody", "hello")
 	if err == nil {
 		t.Fatal("expected error for unknown agent, got nil")
@@ -481,7 +481,7 @@ func TestSendKick_NonRunningAgentReturnsError(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{
 		"idle": makeAgentConfig("claude", "haiku"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	err := m.SendKick("idle", "wake up")
 	if err == nil {
@@ -497,7 +497,7 @@ func TestSendKick_NonRunningAgentReturnsError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStop_UnknownAgentReturnsError(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.Stop("ghost")
 	if err == nil {
 		t.Fatal("expected error stopping unknown agent, got nil")
@@ -508,7 +508,7 @@ func TestStop_NonRunningAgentIsNoOp(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{
 		"idle": makeAgentConfig("claude", "haiku"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	if err := m.Stop("idle"); err != nil {
 		t.Fatalf("Stop() on non-running agent returned error: %v", err)
@@ -525,7 +525,7 @@ func TestStop_NonRunningAgentIsNoOp(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStart_UnknownAgentReturnsError(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 
 	err := m.Start(context.Background(), "ghost")
 	if err == nil {
@@ -541,7 +541,7 @@ func TestStart_UnknownBackendSetsFailed(t *testing.T) {
 	cfgs := map[string]config.AgentConfig{
 		"bad": makeAgentConfig("not-a-real-backend", ""),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	_ = m.Start(context.Background(), "bad")
 	ap, err := m.GetStatus("bad")
@@ -562,7 +562,7 @@ func TestConcurrentGetStatus_NoPanic(t *testing.T) {
 		"a": makeAgentConfig("claude", "haiku"),
 		"b": makeAgentConfig("gemini", "pro"),
 	}
-	m := NewManager(cfgs, discardLogger())
+	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
 	done := make(chan struct{})
 	for i := 0; i < 10; i++ {

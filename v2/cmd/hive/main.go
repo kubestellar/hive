@@ -155,7 +155,14 @@ func main() {
 
 	notifier := notify.New(cfg.Notifications, logger)
 	notifier.SetHiveID(cfg.HiveID)
-	agentMgr := agent.NewManager(cfg.EnabledAgents(), logger)
+	acmmLevel := inferACMMLevel(cfg)
+	projectCtx := agent.ProjectContext{
+		Org:        cfg.Project.Org,
+		Repos:      cfg.Project.Repos,
+		ACMMLevel:  acmmLevel,
+		PRsAllowed: cfg.Project.PRsAllowed(),
+	}
+	agentMgr := agent.NewManager(cfg.EnabledAgents(), logger, projectCtx)
 
 	const statePath = "/data/hive-state.json"
 	var savedIssueCosts map[string]int64
@@ -1068,6 +1075,24 @@ func initAgentConfigDrivenSystems(cfg *config.Config) {
 	discord.SetAgentIdentities(discordIdentities)
 	if len(discordAliases) > 0 {
 		discord.SetAgentAliases(discordAliases)
+	}
+}
+
+// inferACMMLevel returns the configured ACMM level, or infers one from agent count.
+func inferACMMLevel(cfg *config.Config) int {
+	if cfg.ACMMLevel != nil {
+		return *cfg.ACMMLevel
+	}
+	agentCount := len(cfg.Agents)
+	switch {
+	case agentCount <= 1:
+		return 1
+	case agentCount == 2:
+		return 2
+	case agentCount <= 4:
+		return 3
+	default:
+		return 4
 	}
 }
 

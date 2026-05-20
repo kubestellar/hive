@@ -15,7 +15,7 @@ import (
 func TestUpdateConfig_Success(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude", Model: "sonnet"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	newCfg := config.AgentConfig{Backend: "gemini", Model: "pro", Enabled: true}
 	err := m.UpdateConfig("scanner", newCfg)
@@ -33,7 +33,7 @@ func TestUpdateConfig_Success(t *testing.T) {
 }
 
 func TestUpdateConfig_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.UpdateConfig("nonexistent", config.AgentConfig{})
 	if err == nil {
 		t.Error("expected error for nonexistent agent")
@@ -47,7 +47,7 @@ func TestUpdateConfig_NotFound(t *testing.T) {
 func TestSeedLastKick_SetsTime(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	now := time.Now()
 	m.SeedLastKick("scanner", now)
@@ -62,7 +62,7 @@ func TestSeedLastKick_SetsTime(t *testing.T) {
 }
 
 func TestSeedLastKick_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	// Should not panic for nonexistent agent
 	m.SeedLastKick("nonexistent", time.Now())
 }
@@ -74,7 +74,7 @@ func TestSeedLastKick_NotFound(t *testing.T) {
 func TestSeedKickHistory_SetsRecords(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	records := []KickRecord{
 		{Timestamp: time.Now().Add(-2 * time.Hour), Agent: "scanner", Snippet: "first kick"},
@@ -96,7 +96,7 @@ func TestSeedKickHistory_SetsRecords(t *testing.T) {
 func TestSeedKickHistory_TruncatesToCapacity(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	// Create more records than capacity
 	records := make([]KickRecord, kickHistoryCapacity+10)
@@ -117,7 +117,7 @@ func TestSeedKickHistory_TruncatesToCapacity(t *testing.T) {
 }
 
 func TestSeedKickHistory_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	// Should not panic for nonexistent agent
 	m.SeedKickHistory("nonexistent", []KickRecord{})
 }
@@ -129,7 +129,7 @@ func TestSeedKickHistory_NotFound(t *testing.T) {
 func TestPinModel_SetsModelOverride(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude", Model: "sonnet"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	_ = m.PinModel("scanner", "opus")
 
@@ -201,7 +201,7 @@ func TestAgentEnvVars_WithOverrides(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRestart_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.Restart(nil, "nonexistent")
 	if err == nil {
 		t.Error("expected error for nonexistent agent")
@@ -215,7 +215,7 @@ func TestRestart_NotFound(t *testing.T) {
 func TestStop_RunningAgentCallsCancel(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	cancelled := false
 	m.mu.Lock()
@@ -245,7 +245,7 @@ func TestStop_RunningAgentCallsCancel(t *testing.T) {
 func TestStart_AlreadyRunning(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.mu.Lock()
 	m.agents["scanner"].State = StateRunning
@@ -268,7 +268,7 @@ func TestStart_PausedAgentStaysPaused(t *testing.T) {
 	t.Setenv("HIVE_WORK_DIR", t.TempDir())
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.mu.Lock()
 	m.agents["scanner"].Paused = true
@@ -286,7 +286,7 @@ func TestStart_PausedAgentStaysPaused(t *testing.T) {
 func TestGetOutput_NilBuffer(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.mu.Lock()
 	m.agents["scanner"].OutputBuffer = nil
@@ -308,7 +308,7 @@ func TestGetOutput_NilBuffer(t *testing.T) {
 func TestResume_NotPaused(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	// Agent is in Stopped state (not paused), Resume should be no-op
 	err := m.Resume(nil, "scanner")
@@ -318,7 +318,7 @@ func TestResume_NotPaused(t *testing.T) {
 }
 
 func TestResume_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.Resume(nil, "nonexistent")
 	if err == nil {
 		t.Error("expected error")
@@ -330,7 +330,7 @@ func TestResume_NotFound(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPinCLI_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.PinCLI("nonexistent", "v1")
 	if err == nil {
 		t.Error("expected error")
@@ -338,7 +338,7 @@ func TestPinCLI_NotFound(t *testing.T) {
 }
 
 func TestPinModel_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.PinModel("nonexistent", "opus")
 	if err == nil {
 		t.Error("expected error")
@@ -350,7 +350,7 @@ func TestPinModel_NotFound(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSetModelOverride_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.SetModelOverride("nonexistent", "opus")
 	if err == nil {
 		t.Error("expected error")
@@ -358,7 +358,7 @@ func TestSetModelOverride_NotFound(t *testing.T) {
 }
 
 func TestSetBackendOverride_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.SetBackendOverride("nonexistent", "gemini")
 	if err == nil {
 		t.Error("expected error")
@@ -375,7 +375,7 @@ func TestNewManager_CustomWorkDir(t *testing.T) {
 
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	if m.workDir != dir {
 		t.Errorf("workDir = %q, want %q", m.workDir, dir)
@@ -384,7 +384,7 @@ func TestNewManager_CustomWorkDir(t *testing.T) {
 
 func TestNewManager_DefaultWorkDir(t *testing.T) {
 	os.Unsetenv("HIVE_WORK_DIR")
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	if m.workDir != "/data/agents" {
 		t.Errorf("workDir = %q, want /data/agents", m.workDir)
 	}
@@ -397,7 +397,7 @@ func TestNewManager_DefaultWorkDir(t *testing.T) {
 func TestSnapshot_CopiesKickHistory(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	now := time.Now()
 	m.SeedKickHistory("scanner", []KickRecord{
@@ -425,7 +425,7 @@ func TestSnapshot_CopiesKickHistory(t *testing.T) {
 func TestSeedRestartCount(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.SeedRestartCount("scanner", 5)
 
@@ -436,7 +436,7 @@ func TestSeedRestartCount(t *testing.T) {
 }
 
 func TestSeedRestartCount_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	// Should not panic for nonexistent agent
 	m.SeedRestartCount("nonexistent", 3)
 }
@@ -448,7 +448,7 @@ func TestSeedRestartCount_NotFound(t *testing.T) {
 func TestRemoveAgent_WithCancel(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	cancelled := false
 	m.mu.Lock()
@@ -466,7 +466,7 @@ func TestRemoveAgent_WithCancel(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSendKick_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.SendKick("nonexistent", "go")
 	if err == nil {
 		t.Error("expected error for nonexistent agent")
@@ -476,7 +476,7 @@ func TestSendKick_NotFound(t *testing.T) {
 func TestSendKick_NotRunning(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	err := m.SendKick("scanner", "scan issues")
 	if err == nil {
@@ -489,7 +489,7 @@ func TestSendKick_NotRunning(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPause_NotFound(t *testing.T) {
-	m := NewManager(map[string]config.AgentConfig{}, discardLogger())
+	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
 	err := m.Pause("nonexistent")
 	if err == nil {
 		t.Error("expected error")
@@ -499,7 +499,7 @@ func TestPause_NotFound(t *testing.T) {
 func TestPause_AlreadyPaused(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.mu.Lock()
 	m.agents["scanner"].Paused = true
@@ -520,7 +520,7 @@ func TestPause_AlreadyPaused(t *testing.T) {
 func TestBuildBootstrapPrompt_NoFile(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	m.mu.RLock()
 	agent := m.agents["scanner"]
@@ -538,7 +538,7 @@ func TestBuildBootstrapPrompt_NoFile(t *testing.T) {
 func TestBuildBootstrapPrompt_WithFile(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude"},
-	}, discardLogger())
+	}, discardLogger(), ProjectContext{})
 
 	// Create a CLAUDE.md file in the expected path
 	tmpDir := t.TempDir()

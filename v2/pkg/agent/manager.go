@@ -57,15 +57,24 @@ type AgentProcess struct {
 	cancel          context.CancelFunc
 }
 
+// ProjectContext holds project-level config injected into agent boot prompts.
+type ProjectContext struct {
+	Org       string
+	Repos     []string
+	ACMMLevel int
+	PRsAllowed bool
+}
+
 type Manager struct {
 	agents    map[string]*AgentProcess
 	idToName  map[string]string
 	mu        sync.RWMutex
 	logger    *slog.Logger
 	workDir   string
+	project   ProjectContext
 }
 
-func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger) *Manager {
+func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, project ProjectContext) *Manager {
 	workDir := os.Getenv("HIVE_WORK_DIR")
 	if workDir == "" {
 		workDir = "/data/agents"
@@ -76,6 +85,7 @@ func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger) *Mana
 		idToName: make(map[string]string),
 		logger:   logger,
 		workDir:  workDir,
+		project:  project,
 	}
 
 	for name, cfg := range agents {
@@ -303,6 +313,16 @@ func (m *Manager) watchForTrustPrompt(session string, ctx context.Context) {
 	}
 }
 
+// acmmLevelNames maps ACMM level numbers to human-readable names.
+var acmmLevelNames = map[int]string{
+	1: "Idea",
+	2: "Development",
+	3: "CI/CD",
+	4: "Managed",
+	5: "Guarded Autonomy",
+	6: "Full Autonomy",
+}
+
 func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 	paths := []string{
 		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s-CLAUDE.md", agent.Name),
@@ -327,7 +347,33 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 		}
 	}
 
+	base = m.buildProjectPreamble() + base
 	return base
+}
+
+func (m *Manager) buildProjectPreamble() string {
+	p := m.project
+	if p.Org == "" || len(p.Repos) == 0 {
+		return ""
+	}
+
+	repos := make([]string, len(p.Repos))
+	for i, r := range p.Repos {
+		repos[i] = fmt.Sprintf("%s/%s", p.Org, r)
+	}
+
+	levelName := acmmLevelNames[p.ACMMLevel]
+	if levelName == "" {
+		levelName = fmt.Sprintf("Level %d", p.ACMMLevel)
+	}
+
+	prPolicy := "You MAY open pull requests."
+	if !p.PRsAllowed {
+		prPolicy = "You MUST NOT open pull requests. Analysis and issues ONLY."
+	}
+
+	return fmt.Sprintf("[PROJECT] Org: %s | Repos: %s | ACMM: L%d (%s) | %s ",
+		p.Org, strings.Join(repos, ", "), p.ACMMLevel, levelName, prPolicy)
 }
 
 const metricsCachePath = "/data/metrics/agent-metrics-cache.json"

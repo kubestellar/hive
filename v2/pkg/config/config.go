@@ -67,6 +67,15 @@ type ProjectConfig struct {
 	Repos       []string `yaml:"repos"`
 	AIAuthor    string   `yaml:"ai_author"`
 	PrimaryRepo string   `yaml:"primary_repo"`
+	OpenPRs     *bool    `yaml:"open_prs,omitempty"`
+}
+
+// PRsAllowed returns whether agents may open pull requests. Defaults to true.
+func (p *ProjectConfig) PRsAllowed() bool {
+	if p.OpenPRs != nil {
+		return *p.OpenPRs
+	}
+	return true
 }
 
 type PoliciesConfig struct {
@@ -418,6 +427,10 @@ func (c *Config) applyConfigEnv(path string) error {
 	}
 	if v, ok := env["PROJECT_PRIMARY_REPO"]; ok {
 		c.Project.PrimaryRepo = v
+	}
+	if v, ok := env["PROJECT_OPEN_PRS"]; ok {
+		b := v == "true" || v == "1" || v == "yes"
+		c.Project.OpenPRs = &b
 	}
 	if v, ok := env["AGENTS_ENABLED"]; ok {
 		for _, name := range strings.Fields(v) {

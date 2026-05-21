@@ -427,7 +427,7 @@ func (s *Server) broadcastFrame(frame string) {
 		select {
 		case ch <- raw:
 		default:
-			// Client too slow — drop the event
+			s.logger.Warn("SSE client too slow, dropping event")
 		}
 	}
 }

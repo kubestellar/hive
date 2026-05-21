@@ -2648,9 +2648,10 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 		token = os.Getenv("HIVE_DASHBOARD_TOKEN")
 	}
 	if token == "" {
-		token = "(not set)"
+		okResponse(w, map[string]string{"token": "(not set)", "configured": "false"})
+		return
 	}
-	okResponse(w, map[string]string{"token": token})
+	okResponse(w, map[string]string{"token": maskSecret(token), "configured": "true"})
 }
 
 func (s *Server) handleBeadsReset(w http.ResponseWriter, r *http.Request) {

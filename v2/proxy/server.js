@@ -104,6 +104,17 @@ const server = app.listen(PROXY_PORT, () => {
 
 server.on('upgrade', (req, socket, head) => {
   if (req.url.startsWith('/terminal')) {
+    if (DASHBOARD_TOKEN) {
+      const params = new URL(req.url, `http://${req.headers.host}`).searchParams;
+      const token = params.get('token') || '';
+      const supplied = Buffer.from(token);
+      const expected = Buffer.from(DASHBOARD_TOKEN);
+      if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+    }
     ttydProxy.upgrade(req, socket, head);
   }
 });

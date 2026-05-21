@@ -102,6 +102,22 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 
 	s.deps.Config.ACMMLevel = &level
 
+	if len(pack.Governor.Cadences) > 0 {
+		if s.deps.Config.Governor.Modes == nil {
+			s.deps.Config.Governor.Modes = make(map[string]config.ModeConfig)
+		}
+		for modeName, agentCadences := range pack.Governor.Cadences {
+			mode := s.deps.Config.Governor.Modes[modeName]
+			if mode.Cadences == nil {
+				mode.Cadences = make(map[string]string)
+			}
+			for agent, interval := range agentCadences {
+				mode.Cadences[agent] = interval
+			}
+			s.deps.Config.Governor.Modes[modeName] = mode
+		}
+	}
+
 	if len(created) > 0 {
 		s.reInitSubsystems()
 	}

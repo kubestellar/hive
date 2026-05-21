@@ -9,6 +9,49 @@ governor:
   merge_policy: >
     Auto-merge on green CI. No hold label. auto-deploy.sh active.
     rollback.sh for self-healing on deploy failure.
+  eval_interval_s: 120
+  thresholds:
+    surge: 10
+    busy: 5
+    quiet: 2
+    idle: 0
+  cadences:
+    surge:
+      supervisor: 1m
+      scanner: 5m
+      ci-maintainer: 5m
+      quality: 10m
+      architect: 15m
+      outreach: 30m
+      sec-check: 15m
+      strategist: 30m
+    busy:
+      supervisor: 2m
+      scanner: 10m
+      ci-maintainer: 10m
+      quality: 15m
+      architect: 30m
+      outreach: 1h
+      sec-check: 30m
+      strategist: 1h
+    quiet:
+      supervisor: 3m
+      scanner: 20m
+      ci-maintainer: 20m
+      quality: 30m
+      architect: 1h
+      outreach: 2h
+      sec-check: 1h
+      strategist: 2h
+    idle:
+      supervisor: 5m
+      scanner: 30m
+      ci-maintainer: 30m
+      quality: 1h
+      architect: 2h
+      outreach: 4h
+      sec-check: 2h
+      strategist: 4h
 agents:
   - name: supervisor
     display_name: supervisor
@@ -24,6 +67,7 @@ agents:
     bead_role: supervisor
     kick_template: supervisor-CLAUDE.md
     include_repos: true
+    stale_timeout: 600
     interactions: >
       Full autonomous oversight of all agents. Triggers rollbacks and
       self-healing actions without human intervention.
@@ -44,6 +88,7 @@ agents:
     bead_role: worker
     kick_template: scanner-CLAUDE.md
     include_repos: true
+    stale_timeout: 900
     lane_keywords: [bug, triage, fix, issue]
     interactions: >
       Creates and merges PRs autonomously. Tester validates before merge.
@@ -62,6 +107,7 @@ agents:
     bead_role: worker
     kick_template: ci-maintainer-CLAUDE.md
     include_repos: true
+    stale_timeout: 900
     lane_keywords: [ci, build, pipeline, workflow, dependency, deploy]
     interactions: >
       Owns deploy pipeline. Coordinates rollbacks with supervisor.
@@ -80,6 +126,7 @@ agents:
     bead_role: worker
     kick_template: quality-CLAUDE.md
     include_repos: true
+    stale_timeout: 900
     lane_keywords: [test, coverage, tdd, quality]
     interactions: >
       Auto-approves PRs when coverage + CI gates pass.
@@ -99,6 +146,7 @@ agents:
     bead_role: worker
     kick_template: architect-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     lane_keywords: [refactor, architecture, rfc, design, feature]
     interactions: >
       Full autonomous design and implementation.
@@ -118,6 +166,7 @@ agents:
     bead_role: worker
     kick_template: outreach-CLAUDE.md
     include_repos: false
+    stale_timeout: 1800
     lane_keywords: [community, adopters, outreach, ecosystem]
     interactions: >
       Fully autonomous community engagement.
@@ -136,6 +185,7 @@ agents:
     bead_role: worker
     kick_template: sec-check-CLAUDE.md
     include_repos: true
+    stale_timeout: 900
     lane_keywords: [security, cve, vulnerability, audit]
     interactions: >
       Auto-patches known CVEs. Escalates unknowns to supervisor.
@@ -154,6 +204,7 @@ agents:
     bead_role: worker
     kick_template: strategist-CLAUDE.md
     include_repos: false
+    stale_timeout: 1800
     lane_keywords: [strategy, roadmap, planning]
     interactions: >
       Full autonomous strategic planning and priority setting.

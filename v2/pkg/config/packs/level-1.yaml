@@ -7,6 +7,12 @@ description: >
 governor:
   modes: none
   merge_policy: manual
+  eval_interval_s: 600
+  cadences:
+    quiet:
+      guide: 2h
+    idle:
+      guide: 4h
 agents:
   - name: guide
     display_name: guide
@@ -23,6 +29,7 @@ agents:
     bead_role: worker
     kick_template: guide-CLAUDE.md
     include_repos: false
+    stale_timeout: 7200
     interactions: "Standalone. Responds to user queries only."
     knowledge_use: >
       Heavy consumer — reads community wiki, project patterns, and scaffolding

@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -38,24 +39,28 @@ func (s *Server) handlePacksList(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, result)
 }
 
-func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
-	levelStr := r.PathValue("level")
-	level, err := strconv.Atoi(levelStr)
-	if err != nil {
-		jsonError(w, "invalid level: "+levelStr, http.StatusBadRequest)
-		return
-	}
+// ApplyPackResult holds the outcome of applying an ACMM pack.
+type ApplyPackResult struct {
+	Name    string   `json:"name"`
+	Created []string `json:"created"`
+	Skipped []string `json:"skipped"`
+	Paused  []string `json:"paused"`
+	Resumed []string `json:"resumed"`
+}
 
+// ApplyPack applies the ACMM pack for the given level. It creates agents,
+// sets governor config (eval interval, cadences, thresholds, stale timeouts),
+// syncs agent visibility, and persists state. Callable from both the HTTP
+// handler and the startup bootstrap path.
+func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 	pack, err := config.ACMMPackByLevel(level)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusNotFound)
-		return
+		return nil, err
 	}
 
 	agentsDir := s.deps.Config.Data.AgentsDir
 	if agentsDir == "" {
-		jsonError(w, "agents_dir not configured", http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("agents_dir not configured")
 	}
 
 	var created []string
@@ -87,8 +92,7 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 
 		if err := config.SaveAgentFile(agentsDir, pa.Name, agentCfg); err != nil {
 			s.logger.Error("failed to save agent from pack", "agent", pa.Name, "error", err)
-			jsonError(w, "failed to save agent "+pa.Name+": "+err.Error(), http.StatusInternalServerError)
-			return
+			return nil, fmt.Errorf("failed to save agent %s: %w", pa.Name, err)
 		}
 
 		s.deps.Config.Agents[pa.Name] = agentCfg
@@ -102,7 +106,11 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 
 	s.deps.Config.ACMMLevel = &level
 
-	if len(pack.Governor.Cadences) > 0 {
+	if pack.Governor.EvalIntervalS > 0 {
+		s.deps.Config.Governor.EvalIntervalS = pack.Governor.EvalIntervalS
+	}
+
+	if len(pack.Governor.Cadences) > 0 || len(pack.Governor.Thresholds) > 0 {
 		if s.deps.Config.Governor.Modes == nil {
 			s.deps.Config.Governor.Modes = make(map[string]config.ModeConfig)
 		}
@@ -116,6 +124,20 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 			}
 			s.deps.Config.Governor.Modes[modeName] = mode
 		}
+		for modeName, threshold := range pack.Governor.Thresholds {
+			mode := s.deps.Config.Governor.Modes[modeName]
+			mode.Threshold = threshold
+			s.deps.Config.Governor.Modes[modeName] = mode
+		}
+	}
+
+	for _, pa := range pack.Agents {
+		if pa.StaleTimeout > 0 {
+			if ac, ok := s.deps.Config.Agents[pa.Name]; ok {
+				ac.StaleTimeout = pa.StaleTimeout
+				s.deps.Config.Agents[pa.Name] = ac
+			}
+		}
 	}
 
 	if len(created) > 0 {
@@ -128,23 +150,38 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 	go s.refreshAsync()
 	s.logger.Info("ACMM pack applied", "level", level, "name", pack.Name, "created", len(created), "skipped", len(skipped), "paused", len(paused), "resumed", len(resumed))
 
-	var packAgentNames []string
-	for _, a := range pack.Agents {
-		if !a.Hidden {
-			packAgentNames = append(packAgentNames, a.Name)
-		}
+	return &ApplyPackResult{
+		Name:    pack.Name,
+		Created: created,
+		Skipped: skipped,
+		Paused:  paused,
+		Resumed: resumed,
+	}, nil
+}
+
+func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
+	levelStr := r.PathValue("level")
+	level, err := strconv.Atoi(levelStr)
+	if err != nil {
+		jsonError(w, "invalid level: "+levelStr, http.StatusBadRequest)
+		return
+	}
+
+	result, err := s.ApplyPack(level)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	jsonResponse(w, map[string]interface{}{
 		"ok":         true,
 		"status":     "applied",
 		"level":      level,
-		"name":       pack.Name,
-		"created":    created,
-		"skipped":    skipped,
-		"paused":     paused,
-		"resumed":    resumed,
-		"packAgents": packAgentNames,
+		"name":       result.Name,
+		"created":    result.Created,
+		"skipped":    result.Skipped,
+		"paused":     result.Paused,
+		"resumed":    result.Resumed,
 	})
 }
 

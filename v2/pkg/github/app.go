@@ -19,6 +19,8 @@ import (
 const (
 	jwtExpiry          = 10 * time.Minute
 	tokenRefreshBuffer = 5 * time.Minute
+	tokenCachePath     = "/var/run/hive-metrics/gh-app-token.cache"
+	tokenCachePerms    = 0o640
 )
 
 type AppAuth struct {
@@ -109,6 +111,10 @@ func (a *AppAuth) Token(ctx context.Context) (string, error) {
 		"expires_at", a.tokenExpiry.Format(time.RFC3339),
 		"installation_id", a.installationID,
 	)
+
+	if err := os.WriteFile(tokenCachePath, []byte(a.cachedToken), tokenCachePerms); err != nil {
+		a.logger.Warn("failed to write token cache", "path", tokenCachePath, "error", err)
+	}
 
 	return a.cachedToken, nil
 }

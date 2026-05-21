@@ -7,6 +7,49 @@ description: >
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
   merge_policy: CI + coverage gate (90%+)
+  eval_interval_s: 300
+  thresholds:
+    surge: 10
+    busy: 5
+    quiet: 2
+    idle: 0
+  cadences:
+    surge:
+      supervisor: 2m
+      scanner: 10m
+      ci-maintainer: 10m
+      quality: 15m
+      architect: 30m
+      outreach: 1h
+      sec-check: 30m
+      strategist: 1h
+    busy:
+      supervisor: 3m
+      scanner: 15m
+      ci-maintainer: 15m
+      quality: 30m
+      architect: 1h
+      outreach: 2h
+      sec-check: 1h
+      strategist: 2h
+    quiet:
+      supervisor: 5m
+      scanner: 30m
+      ci-maintainer: 30m
+      quality: 1h
+      architect: 2h
+      outreach: 4h
+      sec-check: 2h
+      strategist: 4h
+    idle:
+      supervisor: 5m
+      scanner: 1h
+      ci-maintainer: 1h
+      quality: 2h
+      architect: 4h
+      outreach: 8h
+      sec-check: 4h
+      strategist: 8h
 agents:
   - name: supervisor
     display_name: supervisor
@@ -22,6 +65,7 @@ agents:
     bead_role: supervisor
     kick_template: supervisor-CLAUDE.md
     include_repos: true
+    stale_timeout: 900
     interactions: >
       Monitors all agents. Escalates issues to human operators. Coordinates
       agent restarts and health checks.
@@ -42,6 +86,7 @@ agents:
     bead_role: worker
     kick_template: scanner-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     lane_keywords: [bug, triage, fix, issue]
     interactions: >
       Creates PRs that quality validates. Transfers complex issues to architect.
@@ -63,6 +108,7 @@ agents:
     bead_role: worker
     kick_template: ci-maintainer-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     lane_keywords: [ci, build, pipeline, workflow, dependency]
     interactions: >
       Coordinates with quality on coverage gates. Reports pipeline health
@@ -84,6 +130,7 @@ agents:
     bead_role: worker
     kick_template: quality-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     lane_keywords: [test, coverage, tdd, quality]
     interactions: >
       Reviews scanner PRs for test coverage. Coordinates with ci-maintainer
@@ -105,6 +152,7 @@ agents:
     bead_role: worker
     kick_template: architect-CLAUDE.md
     include_repos: true
+    stale_timeout: 3600
     lane_keywords: [refactor, architecture, rfc, design, feature]
     interactions: >
       Receives complex issues from scanner. Produces RFCs that all agents
@@ -126,6 +174,7 @@ agents:
     bead_role: worker
     kick_template: outreach-CLAUDE.md
     include_repos: false
+    stale_timeout: 3600
     lane_keywords: [community, adopters, outreach, ecosystem]
     interactions: >
       Independent agent. Reports adoption metrics to supervisor.
@@ -146,6 +195,7 @@ agents:
     bead_role: worker
     kick_template: sec-check-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     lane_keywords: [security, cve, vulnerability, audit]
     interactions: >
       Reports critical findings to supervisor for escalation. Coordinates
@@ -167,6 +217,7 @@ agents:
     bead_role: worker
     kick_template: strategist-CLAUDE.md
     include_repos: false
+    stale_timeout: 3600
     lane_keywords: [strategy, roadmap, planning]
     interactions: >
       Reads all agent outputs. Produces strategic insights and priority

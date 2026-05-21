@@ -259,7 +259,10 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	cfg := s.deps.Config
 	primaryRepo := cfg.Project.PrimaryRepo
 	if primaryRepo == "" && len(cfg.Project.Repos) > 0 {
-		primaryRepo = cfg.Project.Org + "/" + cfg.Project.Repos[0]
+		primaryRepo = cfg.Project.Repos[0]
+	}
+	if primaryRepo != "" && cfg.Project.Org != "" && !strings.Contains(primaryRepo, "/") {
+		primaryRepo = cfg.Project.Org + "/" + primaryRepo
 	}
 	jsonResponse(w, map[string]interface{}{
 		"org":              cfg.Project.Org,

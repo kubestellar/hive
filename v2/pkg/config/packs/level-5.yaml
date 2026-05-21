@@ -10,6 +10,49 @@ governor:
   merge_policy: >
     Hold-gated — all agent PRs get 'hold' label. Human batch-approves.
     merge-gate.sh blocks agent merges. batch-approve.sh for human review.
+  eval_interval_s: 300
+  thresholds:
+    surge: 10
+    busy: 5
+    quiet: 2
+    idle: 0
+  cadences:
+    surge:
+      supervisor: 2m
+      scanner: 10m
+      ci-maintainer: 10m
+      quality: 15m
+      architect: 30m
+      outreach: 1h
+      sec-check: 30m
+      strategist: 1h
+    busy:
+      supervisor: 3m
+      scanner: 15m
+      ci-maintainer: 15m
+      quality: 30m
+      architect: 1h
+      outreach: 2h
+      sec-check: 1h
+      strategist: 2h
+    quiet:
+      supervisor: 5m
+      scanner: 30m
+      ci-maintainer: 30m
+      quality: 1h
+      architect: 2h
+      outreach: 4h
+      sec-check: 2h
+      strategist: 4h
+    idle:
+      supervisor: 5m
+      scanner: 1h
+      ci-maintainer: 1h
+      quality: 2h
+      architect: 4h
+      outreach: 8h
+      sec-check: 4h
+      strategist: 8h
 agents:
   - name: supervisor
     display_name: supervisor
@@ -24,6 +67,7 @@ agents:
     bead_role: supervisor
     kick_template: supervisor-CLAUDE.md
     include_repos: true
+    stale_timeout: 900
     interactions: >
       Monitors all agents. Escalates issues to human operators.
     knowledge_use: >
@@ -42,6 +86,7 @@ agents:
     bead_role: worker
     kick_template: scanner-guarded-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     lane_keywords: [bug, triage, fix, issue]
     interactions: >
       Creates hold-gated PRs. Tester validates but does not approve.
@@ -60,6 +105,7 @@ agents:
     bead_role: worker
     kick_template: ci-maintainer-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     lane_keywords: [ci, build, pipeline, workflow, dependency]
     interactions: >
       Same as L4.
@@ -78,6 +124,7 @@ agents:
     bead_role: worker
     kick_template: quality-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     lane_keywords: [test, coverage, tdd, quality]
     interactions: >
       Reviews PRs for coverage. Adds /lgtm but does NOT /approve.
@@ -96,6 +143,7 @@ agents:
     bead_role: worker
     kick_template: architect-CLAUDE.md
     include_repos: true
+    stale_timeout: 3600
     lane_keywords: [refactor, architecture, rfc, design, feature]
     interactions: >
       Same as L4.
@@ -115,6 +163,7 @@ agents:
     bead_role: worker
     kick_template: outreach-guarded-CLAUDE.md
     include_repos: false
+    stale_timeout: 3600
     lane_keywords: [community, adopters, outreach, ecosystem]
     interactions: >
       Drafts outreach actions for human review before execution.
@@ -134,6 +183,7 @@ agents:
     bead_role: worker
     kick_template: sec-check-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     lane_keywords: [security, cve, vulnerability, audit]
     interactions: >
       Same as L4 plus immediate escalation for critical CVEs.
@@ -152,6 +202,7 @@ agents:
     bead_role: worker
     kick_template: strategist-CLAUDE.md
     include_repos: false
+    stale_timeout: 3600
     lane_keywords: [strategy, roadmap, planning]
     interactions: >
       Same as L4.

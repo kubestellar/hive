@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -199,8 +200,9 @@ func main() {
 
 	const statePath = "/data/hive-state.json"
 	var savedIssueCosts map[string]int64
-	if saved, err := snapshot.LoadState(statePath, logger); err != nil {
-		logger.Warn("failed to load persisted state", "error", err)
+	saved, stateErr := snapshot.LoadState(statePath, logger)
+	if stateErr != nil {
+		logger.Warn("failed to load persisted state", "error", stateErr)
 	} else if saved != nil {
 		savedIssueCosts = saved.IssueCosts
 		for name, as := range saved.Agents {
@@ -460,6 +462,33 @@ func main() {
 		},
 	})
 
+	if saved == nil {
+		if levelStr := os.Getenv("HIVE_LEVEL"); levelStr != "" {
+			const maxACMMLevel = 6
+			level, err := strconv.Atoi(levelStr)
+			if err != nil || level < 1 || level > maxACMMLevel {
+				logger.Warn("invalid HIVE_LEVEL, skipping auto-apply", "value", levelStr)
+			} else {
+				logger.Info("first start detected, auto-applying ACMM pack", "level", level)
+				result, err := dashSrv.ApplyPack(level)
+				if err != nil {
+					logger.Error("failed to auto-apply ACMM pack", "level", level, "error", err)
+				} else {
+					logger.Info("ACMM pack auto-applied",
+						"level", level,
+						"name", result.Name,
+						"created", result.Created,
+						"skipped", result.Skipped,
+						"paused", result.Paused,
+						"resumed", result.Resumed,
+					)
+				}
+			}
+		}
+	} else if os.Getenv("HIVE_LEVEL") != "" {
+		logger.Info("existing state found, skipping ACMM auto-apply")
+	}
+
 	if cfg.Policies.Repo != "" {
 		localDir := cfg.Policies.LocalDir
 		if localDir == "" {
@@ -688,6 +717,10 @@ func runEvalCycle(
 		if err != nil {
 			logger.Warn("failed to read advisory findings", "error", err)
 		} else if len(findings) > 0 {
+			if persisted := advisory.PersistAsBeads(findings, beadStores); persisted > 0 {
+				logger.Info("advisory findings persisted as beads", "count", persisted)
+			}
+
 			digest := advisory.BuildDigest(findings, string(govState.Mode))
 			advisoryStore.SetLatestDigest(digest)
 			dashSrv.SetAdvisoryDigest(digest)

@@ -12,8 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       git \
       jq \
       openssh-client \
+      procps \
       python3 \
       python3-pip \
+      sudo \
       tmux \
     && rm -rf /var/lib/apt/lists/*
 
@@ -46,8 +48,9 @@ RUN groupadd -g 1000 dev && useradd -m -u 1000 -g dev -s /bin/bash dev
 #   /data/logs/          — heartbeat + supervisor logs
 #   /data/agents/        — per-agent beads, state, scratch
 #   /data/repos/         — cloned working repos
-RUN mkdir -p /opt/hive /etc/hive /data/logs /data/agents /data/repos \
-    && chown -R dev:dev /data
+RUN mkdir -p /opt/hive /etc/hive /data/logs /data/agents /data/repos /var/run/hive \
+    && chown -R dev:dev /data /var/run/hive \
+    && echo "dev ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/dev
 
 COPY bin/        /opt/hive/bin/
 COPY config/     /opt/hive/config/

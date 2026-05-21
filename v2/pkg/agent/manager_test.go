@@ -15,6 +15,13 @@ import (
 
 var stubBinDir string
 
+func testEnvVars(ap *AgentProcess) []string {
+	m := NewManager(map[string]config.AgentConfig{
+		ap.Name: ap.Config,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)), ProjectContext{})
+	return m.agentEnvVars(ap)
+}
+
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "hive-agent-stubs-*")
 	if err != nil {
@@ -287,7 +294,7 @@ func TestAgentEnvVars_ContainsRequiredKeys(t *testing.T) {
 		},
 	}
 
-	vars := agentEnvVars(ap)
+	vars := testEnvVars(ap)
 
 	want := map[string]string{
 		"HIVE_AGENT":   "test-agent",
@@ -315,14 +322,16 @@ func TestAgentEnvVars_ContainsRequiredKeys(t *testing.T) {
 	}
 }
 
-func TestAgentEnvVars_ExactlyThreeEntries(t *testing.T) {
+const baseEnvVarCount = 5 // HIVE_AGENT, HIVE_AGENT_DISPLAY_NAME, HIVE_BACKEND, HIVE_MODEL, HIVE_ACMM_LEVEL
+
+func TestAgentEnvVars_BaseEntryCount(t *testing.T) {
 	ap := &AgentProcess{
 		Name:   "agent",
 		Config: config.AgentConfig{Backend: "gemini", Model: "pro"},
 	}
-	vars := agentEnvVars(ap)
-	if len(vars) != 3 {
-		t.Errorf("agentEnvVars() returned %d vars, want 3", len(vars))
+	vars := testEnvVars(ap)
+	if len(vars) != baseEnvVarCount {
+		t.Errorf("testEnvVars() returned %d vars, want %d", len(vars), baseEnvVarCount)
 	}
 }
 
@@ -331,7 +340,7 @@ func TestAgentEnvVars_EmptyModelAllowed(t *testing.T) {
 		Name:   "nomodel",
 		Config: config.AgentConfig{Backend: "goose", Model: ""},
 	}
-	vars := agentEnvVars(ap)
+	vars := testEnvVars(ap)
 
 	found := false
 	for _, v := range vars {
@@ -652,7 +661,7 @@ func TestStart_EnvIncludesHiveVars(t *testing.T) {
 		Name:   "env-test",
 		Config: config.AgentConfig{Backend: "claude", Model: "opus"},
 	}
-	extra := agentEnvVars(ap)
+	extra := testEnvVars(ap)
 	combined := append(os.Environ(), extra...)
 
 	found := false

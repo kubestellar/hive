@@ -242,7 +242,7 @@ func (c *Client) fetchIssues(ctx context.Context, repo string, now time.Time) (a
 			Repo:       repo,
 			Number:     issue.GetNumber(),
 			Title:      issue.GetTitle(),
-			Author:     issue.GetUser().GetLogin(),
+			Author:     safeGetLogin(issue.GetUser()),
 			Labels:     labels,
 			Assignees:  extractAssignees(issue.Assignees),
 			CreatedAt:  issue.GetCreatedAt().Time,
@@ -293,7 +293,7 @@ func (c *Client) fetchPRs(ctx context.Context, repo string) (actionable []PullRe
 			Repo:      repo,
 			Number:    pr.GetNumber(),
 			Title:     pr.GetTitle(),
-			Author:    pr.GetUser().GetLogin(),
+			Author:    safeGetLogin(pr.GetUser()),
 			Labels:    labels,
 			Draft:     pr.GetDraft(),
 			CreatedAt: pr.GetCreatedAt().Time,
@@ -320,9 +320,18 @@ func extractPRLabels(labels []*gh.Label) []string {
 func extractAssignees(users []*gh.User) []string {
 	var result []string
 	for _, u := range users {
-		result = append(result, u.GetLogin())
+		if login := safeGetLogin(u); login != "" {
+			result = append(result, login)
+		}
 	}
 	return result
+}
+
+func safeGetLogin(u *gh.User) string {
+	if u == nil {
+		return ""
+	}
+	return u.GetLogin()
 }
 
 func isHeld(labels []string) bool {
@@ -540,7 +549,7 @@ func (c *Client) EnforceSHAHold(ctx context.Context, cfg SHAHoldConfig) (*SHAHol
 			continue
 		}
 
-		author := issue.GetUser().GetLogin()
+		author := safeGetLogin(issue.GetUser())
 		if author == cfg.AIAuthor || isInternalAuthor(author, cfg.InternalAuthors) {
 			result.Skipped++
 			continue

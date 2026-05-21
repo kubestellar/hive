@@ -678,6 +678,10 @@ func (s *Server) handleGHAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGHRateLimits(w http.ResponseWriter, r *http.Request) {
+	if s.deps.GHClient == nil {
+		jsonError(w, "GitHub client not configured", http.StatusServiceUnavailable)
+		return
+	}
 	limits, err := s.deps.GHClient.RateLimits(s.deps.Ctx)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -2400,7 +2404,7 @@ func (s *Server) handleNousStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleNousLedger(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Nous == nil {
+	if s.deps.Nous == nil || s.deps.Nous.Ledger == nil {
 		jsonResponse(w, []interface{}{})
 		return
 	}
@@ -2408,7 +2412,7 @@ func (s *Server) handleNousLedger(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleNousPrinciples(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Nous == nil {
+	if s.deps.Nous == nil || s.deps.Nous.Principles == nil {
 		jsonResponse(w, []interface{}{})
 		return
 	}

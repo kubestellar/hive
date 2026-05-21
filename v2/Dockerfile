@@ -81,7 +81,7 @@ VOLUME ["/data", "/secrets"]
 COPY v2/deploy/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-RUN chown -R dev:dev /data /home/dev 2>/dev/null || true
+RUN chown -R dev:node /data /home/dev 2>/dev/null || true
 
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["--config", "/etc/hive/hive.yaml"]

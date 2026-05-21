@@ -6,38 +6,55 @@ export HIVE_API_PORT="${HIVE_API_PORT:-3002}"
 export HIVE_PROXY_PORT="${HIVE_PROXY_PORT:-3001}"
 export HIVE_STATIC_DIR="${HIVE_STATIC_DIR:-/opt/hive/proxy/public}"
 
-# Seed data files from image into /data if they don't already exist
-if [ -d /opt/hive/seed-data ]; then
-  echo "[entrypoint] Seeding data files..."
-  cp -rn /opt/hive/seed-data/* /data/ 2>/dev/null || true
-fi
+# ── Root-only setup (runs once, then re-execs as dev) ──────────────────
+if [ "$(id -u)" = "0" ]; then
+  # Fix ownership of mounted volumes (may be root-owned from host bind mounts)
+  chown -R dev:dev /data /home/dev 2>/dev/null || true
+  mkdir -p /var/run/hive-metrics && chown dev:dev /var/run/hive-metrics
 
-# Create beads symlinks: /home/dev/<agent>-beads -> /data/beads/<agent>
-# Agents reference ~/scanner-beads etc. in their loop prompts.
-if [ -d /etc/hive/agents ] || [ -d /data/beads ]; then
-  mkdir -p /home/dev /data/beads
-  # Discover agent names from .env files if present
-  if [ -d /etc/hive/agents ]; then
-    for envfile in /etc/hive/agents/*.env; do
-      [ -f "$envfile" ] || continue
-      agent="$(basename "$envfile" .env)"
-      mkdir -p "/data/beads/${agent}"
-      ln -sfn "/data/beads/${agent}" "/home/dev/${agent}-beads"
-      echo "[entrypoint] Beads symlink: /home/dev/${agent}-beads -> /data/beads/${agent}"
-    done
+  # Seed data files from image into /data if they don't already exist
+  if [ -d /opt/hive/seed-data ]; then
+    echo "[entrypoint] Seeding data files..."
+    cp -rn /opt/hive/seed-data/* /data/ 2>/dev/null || true
+    chown -R dev:dev /data 2>/dev/null || true
   fi
-  # Also create symlinks for any existing beads directories not covered by .env files
-  for beaddir in /data/beads/*/; do
-    [ -d "$beaddir" ] || continue
-    agent="$(basename "$beaddir")"
-    if [ ! -L "/home/dev/${agent}-beads" ]; then
-      ln -sfn "/data/beads/${agent}" "/home/dev/${agent}-beads"
-      echo "[entrypoint] Beads symlink: /home/dev/${agent}-beads -> /data/beads/${agent}"
+
+  # Create beads symlinks: /home/dev/<agent>-beads -> /data/beads/<agent>
+  if [ -d /etc/hive/agents ] || [ -d /data/beads ]; then
+    mkdir -p /home/dev /data/beads
+    if [ -d /etc/hive/agents ]; then
+      for envfile in /etc/hive/agents/*.env; do
+        [ -f "$envfile" ] || continue
+        agent="$(basename "$envfile" .env)"
+        mkdir -p "/data/beads/${agent}"
+        ln -sfn "/data/beads/${agent}" "/home/dev/${agent}-beads"
+        echo "[entrypoint] Beads symlink: /home/dev/${agent}-beads -> /data/beads/${agent}"
+      done
     fi
-  done
+    for beaddir in /data/beads/*/; do
+      [ -d "$beaddir" ] || continue
+      agent="$(basename "$beaddir")"
+      if [ ! -L "/home/dev/${agent}-beads" ]; then
+        ln -sfn "/data/beads/${agent}" "/home/dev/${agent}-beads"
+        echo "[entrypoint] Beads symlink: /home/dev/${agent}-beads -> /data/beads/${agent}"
+      fi
+    done
+    chown -R dev:dev /data/beads /home/dev 2>/dev/null || true
+  fi
+
+  # Drop to non-root user for all runtime processes.
+  # Claude Code refuses --dangerously-skip-permissions as root.
+  if command -v gosu >/dev/null 2>&1; then
+    echo "[entrypoint] Dropping to dev user (uid=1000)"
+    exec gosu dev "$0" "$@"
+  else
+    echo "[entrypoint] WARN: gosu not found, running as root"
+  fi
 fi
 
-# Ensure vault directories exist (the Go binary will seed content + start git sync)
+# ── Non-root setup and process launch (runs as dev) ────────────────────
+
+# Ensure vault directories exist
 mkdir -p /data/vaults
 if [ -n "${HIVE_WIKI_GIT_URL:-}" ] && [ ! -d /data/vaults/hive-wiki/.git ]; then
   echo "[entrypoint] Cloning wiki vault from ${HIVE_WIKI_GIT_URL}..."
@@ -64,7 +81,7 @@ if [ -n "${GH_APP_ID:-}" ] && [ -n "${GH_APP_INSTALLATION_ID:-}" ]; then
   export HIVE_GITHUB_TOKEN="$(cat /var/run/hive-metrics/gh-app-token.cache 2>/dev/null || true)"
 fi
 
-echo "[entrypoint] Starting Go binary on :${HIVE_API_PORT}"
+echo "[entrypoint] Starting Go binary on :${HIVE_API_PORT} (uid=$(id -u))"
 hive "$@" &
 HIVE_PID=$!
 

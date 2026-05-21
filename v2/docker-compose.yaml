@@ -39,6 +39,8 @@ services:
       - HIVE_DASHBOARD_TOKEN=${HIVE_DASHBOARD_TOKEN}
       - NTFY_SERVER=${NTFY_SERVER}
       - NTFY_TOPIC=${NTFY_TOPIC}
+      - HIVE_LEVEL=${HIVE_LEVEL:-}
+      - HIVE_REPO=${HIVE_REPO:-}
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:3001/api/health"]
       interval: 10s

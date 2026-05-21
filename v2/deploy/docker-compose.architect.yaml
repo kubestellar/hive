@@ -14,6 +14,8 @@ services:
       - HIVE_GITHUB_TOKEN=${HIVE_GITHUB_TOKEN}
       - HIVE_DASHBOARD_TOKEN=${HIVE_DASHBOARD_TOKEN}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - HIVE_LEVEL=${HIVE_LEVEL:-}
+      - HIVE_REPO=${HIVE_REPO:-}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
       interval: 30s

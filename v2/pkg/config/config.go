@@ -346,6 +346,7 @@ func LoadWithOverrides(path, envPath string) (*Config, error) {
 		}
 	}
 
+	cfg.applyBootstrapEnv()
 	cfg.applyDefaults()
 
 	// Merge per-agent overlay files from the agents directory.
@@ -451,6 +452,17 @@ func (c *Config) applyConfigEnv(path string) error {
 	}
 
 	return nil
+}
+
+func (c *Config) applyBootstrapEnv() {
+	if repo := os.Getenv("HIVE_REPO"); repo != "" {
+		parts := strings.SplitN(repo, "/", 2)
+		if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+			c.Project.Org = parts[0]
+			c.Project.Repos = []string{parts[1]}
+			c.Project.PrimaryRepo = parts[1]
+		}
+	}
 }
 
 func expandEnvVars(s string) string {

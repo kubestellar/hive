@@ -692,6 +692,12 @@ func applyKnownAgentDefaults(name string, agent *AgentConfig) {
 			DetectKeywords: []string{"strategist", "strategy"},
 			BeadRole: "worker", SortOrder: 70, IncludeRepos: true,
 		},
+		"guide": {
+			Emoji: "📖", Color: "#8e44ad", Aliases: []string{"gu"},
+			LaneKeywords:   []string{"docs", "documentation", "readme", "guide", "tutorial", "onboarding"},
+			DetectKeywords: []string{"guide", "docs", "documentation"},
+			BeadRole: "worker", SortOrder: 45, IncludeRepos: true,
+		},
 	}
 
 	k, ok := known[name]

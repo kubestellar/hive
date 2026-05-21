@@ -168,17 +168,17 @@ func (mc *MetricsCollector) collectOutreach(ctx context.Context) map[string]any 
 		result["contributors"] = contribs
 	}
 
-	adopters := mc.countAdopters(ctx, mc.org, mc.repo)
-	result["adopters"] = adopters
-
 	if mc.org == "kubestellar" {
+		adopters := mc.countAdopters(ctx, mc.org, mc.repo)
+		result["adopters"] = adopters
+
 		acmm := mc.countACMM(ctx, mc.org, mc.repo)
 		result["acmm"] = acmm
-	}
 
-	open, merged := mc.countOutreachPRs(ctx)
-	result["outreachOpen"] = open
-	result["outreachMerged"] = merged
+		open, merged := mc.countOutreachPRs(ctx)
+		result["outreachOpen"] = open
+		result["outreachMerged"] = merged
+	}
 
 	return result
 }

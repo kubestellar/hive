@@ -497,6 +497,12 @@ const (
 )
 
 func (c *Config) applyDefaults() {
+	if c.Project.PrimaryRepo != "" && c.Project.Org != "" {
+		prefix := c.Project.Org + "/"
+		if strings.HasPrefix(c.Project.PrimaryRepo, prefix) {
+			c.Project.PrimaryRepo = strings.TrimPrefix(c.Project.PrimaryRepo, prefix)
+		}
+	}
 	if c.Dashboard.Port == 0 {
 		c.Dashboard.Port = defaultDashboardPort
 	}

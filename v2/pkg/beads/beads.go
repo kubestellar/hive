@@ -31,6 +31,7 @@ const (
 	TypeEpic     BeadType = "epic"
 	TypeChore    BeadType = "chore"
 	TypeDecision BeadType = "decision"
+	TypeAdvisory BeadType = "advisory"
 )
 
 type Priority int

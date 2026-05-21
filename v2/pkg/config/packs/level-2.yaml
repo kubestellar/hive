@@ -11,14 +11,14 @@ governor:
   cadences:
     quiet:
       supervisor: 5m
-      guide: 1h
-      scanner: 2h
-      quality: 2h
+      guide: 4h
+      scanner: 4h
+      quality: 6h
     idle:
       supervisor: 5m
-      guide: 2h
-      scanner: 2h
-      quality: 2h
+      guide: 8h
+      scanner: 6h
+      quality: 8h
 agents:
   - name: supervisor
     display_name: Supervisor
@@ -81,18 +81,18 @@ agents:
       Reads project patterns and known issues. Produces findings as knowledge
       entries for the team to review.
   - name: quality
-    display_name: quality
+    display_name: quality (advisory)
     role: quality
     description: >
-      Generates test cases for existing code. Focuses on coverage gaps and
-      edge cases. All tests require human review before merging.
+      Analyzes test coverage gaps and suggests test strategies. At L2, reports
+      findings to the advisory issue — does NOT create PRs or push code.
     emoji: "🧪"
     color: "#e67e22"
     sort_order: 25
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: quality-CLAUDE.md
+    kick_template: quality-advisory-CLAUDE.md
     include_repos: true
     stale_timeout: 7200
     interactions: "Complements scanner findings with targeted tests. Guide reviews test quality."

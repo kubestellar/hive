@@ -717,6 +717,10 @@ func runEvalCycle(
 		if err != nil {
 			logger.Warn("failed to read advisory findings", "error", err)
 		} else if len(findings) > 0 {
+			if persisted := advisory.PersistAsBeads(findings, beadStores); persisted > 0 {
+				logger.Info("advisory findings persisted as beads", "count", persisted)
+			}
+
 			digest := advisory.BuildDigest(findings, string(govState.Mode))
 			advisoryStore.SetLatestDigest(digest)
 			dashSrv.SetAdvisoryDigest(digest)

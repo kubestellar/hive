@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kubestellar/hive/v2/pkg/beads"
 )
 
 const advisoryDir = "/data/advisory"
@@ -120,53 +122,65 @@ func BuildDigest(findings []Finding, mode string) *Digest {
 }
 
 // FormatDigestMarkdown formats a digest as markdown for posting to GitHub.
+// Findings are grouped by severity (high→low) with a summary table, then
+// listed with their source agent — this gives repo owners a quick "what matters"
+// view without reading per-agent sections.
 func FormatDigestMarkdown(d *Digest) string {
 	if d.TotalCount == 0 {
 		return ""
 	}
 
+	var all []Finding
+	for _, findings := range d.ByAgent {
+		all = append(all, findings...)
+	}
+
+	bySeverity := map[string][]Finding{}
+	for _, f := range all {
+		sev := f.Severity
+		if sev == "" {
+			sev = "info"
+		}
+		bySeverity[sev] = append(bySeverity[sev], f)
+	}
+
+	sevOrder := []string{"critical", "high", "medium", "low", "info"}
+
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("## 🐝 Advisory Digest — %s\n\n", d.GeneratedAt.Format("2006-01-02 15:04 MST")))
 	b.WriteString(fmt.Sprintf("**Mode:** %s | **Findings:** %d\n\n", d.Mode, d.TotalCount))
 
-	agents := make([]string, 0, len(d.ByAgent))
-	for a := range d.ByAgent {
-		agents = append(agents, a)
-	}
-	sort.Strings(agents)
-
-	for _, agent := range agents {
-		findings := d.ByAgent[agent]
-		b.WriteString(fmt.Sprintf("### %s (%d)\n\n", agent, len(findings)))
-
-		bySeverity := map[string][]Finding{}
-		for _, f := range findings {
-			sev := f.Severity
-			if sev == "" {
-				sev = "info"
-			}
-			bySeverity[sev] = append(bySeverity[sev], f)
+	b.WriteString("| Severity | Count |\n|----------|-------|\n")
+	for _, sev := range sevOrder {
+		items := bySeverity[sev]
+		if len(items) == 0 {
+			continue
 		}
+		b.WriteString(fmt.Sprintf("| %s %s | %d |\n", severityIcon(sev), sev, len(items)))
+	}
+	b.WriteString("\n")
 
-		sevOrder := []string{"critical", "high", "medium", "low", "info"}
-		for _, sev := range sevOrder {
-			items, ok := bySeverity[sev]
-			if !ok {
-				continue
+	for _, sev := range sevOrder {
+		items, ok := bySeverity[sev]
+		if !ok {
+			continue
+		}
+		sort.Slice(items, func(i, j int) bool {
+			return items[i].Agent < items[j].Agent
+		})
+		icon := severityIcon(sev)
+		b.WriteString(fmt.Sprintf("### %s %s (%d)\n\n", icon, strings.ToUpper(sev), len(items)))
+		for _, f := range items {
+			loc := ""
+			if f.File != "" {
+				loc = fmt.Sprintf(" `%s`", f.File)
+				if f.Line > 0 {
+					loc = fmt.Sprintf(" `%s:%d`", f.File, f.Line)
+				}
 			}
-			icon := severityIcon(sev)
-			for _, f := range items {
-				loc := ""
-				if f.File != "" {
-					loc = fmt.Sprintf(" `%s`", f.File)
-					if f.Line > 0 {
-						loc = fmt.Sprintf(" `%s:%d`", f.File, f.Line)
-					}
-				}
-				b.WriteString(fmt.Sprintf("- %s **[%s]** %s%s\n", icon, f.Type, f.Title, loc))
-				if f.Detail != "" {
-					b.WriteString(fmt.Sprintf("  > %s\n", f.Detail))
-				}
+			b.WriteString(fmt.Sprintf("- **[%s]** %s%s _%s_\n", f.Type, f.Title, loc, f.Agent))
+			if f.Detail != "" {
+				b.WriteString(fmt.Sprintf("  > %s\n", f.Detail))
 			}
 		}
 		b.WriteString("\n")
@@ -186,6 +200,73 @@ func (s *Store) LatestDigest() *Digest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.latestDigest
+}
+
+// severityToPriority maps advisory severity strings to bead priority values.
+func severityToPriority(sev string) beads.Priority {
+	switch sev {
+	case "critical":
+		return beads.PriorityCritical
+	case "high":
+		return beads.PriorityHigh
+	case "medium":
+		return beads.PriorityMedium
+	case "low":
+		return beads.PriorityLow
+	default:
+		return beads.PriorityMinor
+	}
+}
+
+// PersistAsBeads stores advisory findings as beads in the given bead stores,
+// keyed by agent name. Findings are deduplicated by title — if a bead with the
+// same title already exists for an agent, it is skipped.
+func PersistAsBeads(findings []Finding, stores map[string]*beads.Store) (created int) {
+	for _, f := range findings {
+		store, ok := stores[f.Agent]
+		if !ok {
+			continue
+		}
+
+		existing := store.List(beads.ListFilter{})
+		dup := false
+		for _, b := range existing {
+			if b.Title == f.Title && b.Type == beads.TypeAdvisory {
+				dup = true
+				break
+			}
+		}
+		if dup {
+			continue
+		}
+
+		ref := ""
+		if f.File != "" {
+			ref = f.File
+			if f.Line > 0 {
+				ref = fmt.Sprintf("%s:%d", f.File, f.Line)
+			}
+		}
+
+		meta := map[string]string{
+			"severity":       f.Severity,
+			"finding_type":   f.Type,
+			"advisory_agent": f.Agent,
+		}
+		if f.Detail != "" {
+			meta["detail"] = f.Detail
+		}
+
+		b, err := store.Create(f.Title, beads.TypeAdvisory, severityToPriority(f.Severity), f.Agent, ref)
+		if err != nil {
+			continue
+		}
+		for k, v := range meta {
+			_ = store.SetMetadata(b.ID, k, v)
+		}
+		created++
+	}
+	return created
 }
 
 func severityIcon(sev string) string {

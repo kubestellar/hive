@@ -655,7 +655,7 @@ func (s *Server) handleBudgetIgnoreGet(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBudgetIgnoreSet(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Agents []string `json:"agents"`
+		Agents []string `json:"ignored"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body", http.StatusBadRequest)

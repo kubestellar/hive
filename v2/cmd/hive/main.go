@@ -1138,22 +1138,12 @@ func initAgentConfigDrivenSystems(cfg *config.Config) {
 	}
 }
 
-// inferACMMLevel returns the configured ACMM level, or infers one from agent count.
+// inferACMMLevel returns the configured ACMM level, defaulting to L1 (advisory-only).
 func inferACMMLevel(cfg *config.Config) int {
 	if cfg.ACMMLevel != nil {
 		return *cfg.ACMMLevel
 	}
-	agentCount := len(cfg.Agents)
-	switch {
-	case agentCount <= 1:
-		return 1
-	case agentCount == 2:
-		return 2
-	case agentCount <= 4:
-		return 3
-	default:
-		return 4
-	}
+	return 1
 }
 
 // parseColorInt converts a hex color string like "#3498db" to an int.

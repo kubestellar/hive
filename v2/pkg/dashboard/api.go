@@ -131,6 +131,9 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("PUT /api/nous/config/principles", s.handleNousConfigPrinciples)
 	s.mux.HandleFunc("DELETE /api/nous/principles/{id}", s.handleNousDeletePrinciple)
 
+	s.mux.HandleFunc("POST /api/beads/reset", s.handleBeadsReset)
+	s.mux.HandleFunc("POST /api/beads/reset/{agent}", s.handleBeadsResetAgent)
+
 	s.mux.HandleFunc("GET /api/auth/token", s.handleAuthToken)
 }
 
@@ -2642,5 +2645,63 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 		token = "(not set)"
 	}
 	okResponse(w, map[string]string{"token": token})
+}
+
+func (s *Server) handleBeadsReset(w http.ResponseWriter, r *http.Request) {
+	if s.deps.BeadStores == nil {
+		jsonError(w, "bead stores not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		body.Reason = "manual reset via API"
+	}
+
+	results := make(map[string]int)
+	for name, store := range s.deps.BeadStores {
+		closed, err := store.CloseAll(body.Reason)
+		if err != nil {
+			s.deps.Logger.Error("beads reset failed", "agent", name, "error", err)
+		}
+		results[name] = closed
+	}
+
+	s.refreshAndPersist()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"status": "reset", "closed": results, "reason": body.Reason})
+}
+
+func (s *Server) handleBeadsResetAgent(w http.ResponseWriter, r *http.Request) {
+	agentName := r.PathValue("agent")
+	if s.deps.BeadStores == nil {
+		jsonError(w, "bead stores not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	store, ok := s.deps.BeadStores[agentName]
+	if !ok {
+		jsonError(w, fmt.Sprintf("no bead store for agent %q", agentName), http.StatusNotFound)
+		return
+	}
+
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		body.Reason = "manual reset via API"
+	}
+
+	closed, err := store.CloseAll(body.Reason)
+	if err != nil {
+		jsonError(w, fmt.Sprintf("reset failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.refreshAndPersist()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"status": "reset", "agent": agentName, "closed": closed, "reason": body.Reason})
 }
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/agent"
+	"github.com/kubestellar/hive/v2/pkg/beads"
 	"github.com/kubestellar/hive/v2/pkg/config"
 	"github.com/kubestellar/hive/v2/pkg/governor"
 	ghpkg "github.com/kubestellar/hive/v2/pkg/github"
@@ -26,6 +27,7 @@ type Dependencies struct {
 	Knowledge        *knowledge.KnowledgeAPI
 	Nous             *NousState
 	MetricsCollector *MetricsCollector
+	BeadStores       map[string]*beads.Store
 	Logger           *slog.Logger
 	Ctx              context.Context
 	RefreshFunc      func()

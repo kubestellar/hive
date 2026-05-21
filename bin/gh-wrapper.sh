@@ -29,7 +29,7 @@ fi
 
 # Log any hold-label manipulation for debugging
 if [[ "$*" == *"--add-label"*"hold"* ]] || [[ "$*" == *"--add-label hold"* ]]; then
-  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] HOLD-TRACE: gh $* | PID=$$ PPID=$PPID AGENT=${HIVE_AGENT_ID:-${HIVE_AGENT:-unknown}} | caller=$(ps -o args= -p $PPID 2>/dev/null | head -c200)" >> /var/log/hold-trace.log 2>/dev/null || true
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] HOLD-TRACE: gh $* | PID=$$ PPID=$PPID AGENT=${HIVE_AGENT_ID:-${HIVE_AGENT:-unknown}} | caller=$(ps -o args= -p $PPID 2>/dev/null | head -c200)" >> /tmp/hold-trace.log 2>/dev/null || true
 fi
 
 # Build the full command string for pattern matching

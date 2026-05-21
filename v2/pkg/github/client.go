@@ -193,15 +193,25 @@ func (c *Client) EnumerateActionable(ctx context.Context) (*ActionableResult, er
 	return result, nil
 }
 
+// splitRepo handles repo names that may include org prefix (e.g. "org/repo").
+// When repo contains "/", the prefix is used as owner; otherwise c.org is used.
+func (c *Client) splitRepo(repo string) (owner, repoName string) {
+	if parts := strings.SplitN(repo, "/", 2); len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return c.org, repo
+}
+
 func (c *Client) fetchIssues(ctx context.Context, repo string, now time.Time) (actionable []Issue, held []HoldItem, totalIssues int, err error) {
+	owner, repoName := c.splitRepo(repo)
 	opts := &gh.IssueListByRepoOptions{
 		State:       "open",
 		ListOptions: gh.ListOptions{PerPage: 100},
 	}
 
-	issues, _, err := c.client.Issues.ListByRepo(ctx, c.org, repo, opts)
+	issues, _, err := c.client.Issues.ListByRepo(ctx, owner, repoName, opts)
 	if err != nil {
-		return nil, nil, 0, fmt.Errorf("listing issues for %s/%s: %w", c.org, repo, err)
+		return nil, nil, 0, fmt.Errorf("listing issues for %s/%s: %w", owner, repoName, err)
 	}
 
 	for _, issue := range issues {
@@ -246,14 +256,15 @@ func (c *Client) fetchIssues(ctx context.Context, repo string, now time.Time) (a
 }
 
 func (c *Client) fetchPRs(ctx context.Context, repo string) (actionable []PullRequest, held []HoldItem, totalPRs int, err error) {
+	owner, repoName := c.splitRepo(repo)
 	opts := &gh.PullRequestListOptions{
 		State:       "open",
 		ListOptions: gh.ListOptions{PerPage: 100},
 	}
 
-	prs, _, err := c.client.PullRequests.List(ctx, c.org, repo, opts)
+	prs, _, err := c.client.PullRequests.List(ctx, owner, repoName, opts)
 	if err != nil {
-		return nil, nil, 0, fmt.Errorf("listing PRs for %s/%s: %w", c.org, repo, err)
+		return nil, nil, 0, fmt.Errorf("listing PRs for %s/%s: %w", owner, repoName, err)
 	}
 
 	for _, pr := range prs {
@@ -511,8 +522,7 @@ type SHAHoldResult struct {
 
 func (c *Client) EnforceSHAHold(ctx context.Context, cfg SHAHoldConfig) (*SHAHoldResult, error) {
 	result := &SHAHoldResult{}
-	owner := c.org
-	repo := cfg.PrimaryRepo
+	owner, repo := c.splitRepo(cfg.PrimaryRepo)
 
 	opts := &gh.IssueListByRepoOptions{
 		State:       "open",

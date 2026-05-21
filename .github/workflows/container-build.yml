@@ -2,7 +2,7 @@ name: Container Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
     paths:
       - 'bin/**'
       - 'config/**'
@@ -57,6 +57,7 @@ jobs:
           tags: |
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=v2-latest,enable=${{ github.ref == 'refs/heads/v2' }}
             type=ref,event=pr
 
       - name: Build and push

@@ -102,7 +102,11 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 
 	s.deps.Config.ACMMLevel = &level
 
-	if len(pack.Governor.Cadences) > 0 {
+	if pack.Governor.EvalIntervalS > 0 {
+		s.deps.Config.Governor.EvalIntervalS = pack.Governor.EvalIntervalS
+	}
+
+	if len(pack.Governor.Cadences) > 0 || len(pack.Governor.Thresholds) > 0 {
 		if s.deps.Config.Governor.Modes == nil {
 			s.deps.Config.Governor.Modes = make(map[string]config.ModeConfig)
 		}
@@ -115,6 +119,20 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 				mode.Cadences[agent] = interval
 			}
 			s.deps.Config.Governor.Modes[modeName] = mode
+		}
+		for modeName, threshold := range pack.Governor.Thresholds {
+			mode := s.deps.Config.Governor.Modes[modeName]
+			mode.Threshold = threshold
+			s.deps.Config.Governor.Modes[modeName] = mode
+		}
+	}
+
+	for _, pa := range pack.Agents {
+		if pa.StaleTimeout > 0 {
+			if ac, ok := s.deps.Config.Agents[pa.Name]; ok {
+				ac.StaleTimeout = pa.StaleTimeout
+				s.deps.Config.Agents[pa.Name] = ac
+			}
 		}
 	}
 

@@ -7,6 +7,25 @@ description: >
 governor:
   modes: QUIET, IDLE
   merge_policy: CI must pass (merge-gate.sh)
+  eval_interval_s: 300
+  thresholds:
+    quiet: 3
+    idle: 0
+  cadences:
+    quiet:
+      supervisor: 5m
+      scanner: 30m
+      ci-maintainer: 30m
+      architect: 1h
+      quality: 1h
+      guide: 1h
+    idle:
+      supervisor: 5m
+      scanner: 1h
+      ci-maintainer: 1h
+      architect: 2h
+      quality: 2h
+      guide: 2h
 agents:
   - name: supervisor
     display_name: Supervisor
@@ -22,6 +41,7 @@ agents:
     bead_role: supervisor
     kick_template: supervisor-CLAUDE.md
     include_repos: true
+    stale_timeout: 1800
     interactions: >
       Monitors all agents. Escalates issues to human operators. Coordinates
       agent restarts and health checks.
@@ -42,6 +62,7 @@ agents:
     bead_role: worker
     kick_template: scanner-CLAUDE.md
     include_repos: true
+    stale_timeout: 3600
     lane_keywords: [bug, triage, fix, issue]
     interactions: >
       Creates PRs that ci-maintainer monitors. Transfers complex issues to
@@ -63,6 +84,7 @@ agents:
     bead_role: worker
     kick_template: ci-maintainer-CLAUDE.md
     include_repos: true
+    stale_timeout: 3600
     lane_keywords: [ci, build, pipeline, workflow]
     interactions: >
       Watches scanner's PRs for CI failures. Coordinates with architect on
@@ -84,6 +106,7 @@ agents:
     bead_role: worker
     kick_template: architect-CLAUDE.md
     include_repos: true
+    stale_timeout: 7200
     lane_keywords: [refactor, architecture, rfc, design]
     interactions: >
       Receives complex issues from scanner. Produces RFCs that other agents
@@ -105,6 +128,7 @@ agents:
     bead_role: worker
     kick_template: quality-CLAUDE.md
     include_repos: true
+    stale_timeout: 3600
     lane_keywords: [test, coverage, quality, regression]
     interactions: >
       Uses scanner findings to generate targeted tests. CI-maintainer validates

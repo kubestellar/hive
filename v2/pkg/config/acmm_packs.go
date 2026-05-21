@@ -39,13 +39,16 @@ type PackAgent struct {
 	Interactions string   `json:"interactions" yaml:"interactions"`
 	KnowledgeUse string   `json:"knowledgeUse" yaml:"knowledge_use"`
 	Hidden       bool     `json:"hidden,omitempty" yaml:"hidden"`
+	StaleTimeout int      `json:"staleTimeout,omitempty" yaml:"stale_timeout,omitempty"`
 }
 
 // PackGovernor describes the governor configuration recommended for a level.
 type PackGovernor struct {
-	Modes       string                       `json:"modes" yaml:"modes"`
-	MergePolicy string                       `json:"mergePolicy" yaml:"merge_policy"`
-	Cadences    map[string]map[string]string `json:"cadences,omitempty" yaml:"cadences,omitempty"`
+	Modes         string                       `json:"modes" yaml:"modes"`
+	MergePolicy   string                       `json:"mergePolicy" yaml:"merge_policy"`
+	EvalIntervalS int                          `json:"evalIntervalS,omitempty" yaml:"eval_interval_s,omitempty"`
+	Cadences      map[string]map[string]string `json:"cadences,omitempty" yaml:"cadences,omitempty"`
+	Thresholds    map[string]int               `json:"thresholds,omitempty" yaml:"thresholds,omitempty"`
 }
 
 // ACMMPacks returns the built-in ACMM level pack definitions loaded from

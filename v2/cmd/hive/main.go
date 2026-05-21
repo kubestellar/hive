@@ -180,11 +180,20 @@ func main() {
 
 	advisoryStore := advisory.NewStore()
 
+	policyDir := cfg.Policies.LocalDir
+	if policyDir == "" {
+		policyDir = "/data/policies"
+	}
+	if cfg.Policies.Path != "" {
+		policyDir = policyDir + "/" + cfg.Policies.Path
+	}
+
 	projectCtx := agent.ProjectContext{
 		Org:        cfg.Project.Org,
 		Repos:      cfg.Project.Repos,
 		ACMMLevel:  acmmLevel,
 		PRsAllowed: cfg.Project.PRsAllowed(),
+		PolicyDir:  policyDir,
 	}
 	agentMgr := agent.NewManager(cfg.EnabledAgents(), logger, projectCtx)
 

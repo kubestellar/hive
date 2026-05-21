@@ -9,6 +9,16 @@ governor:
   merge_policy: manual
   eval_interval_s: 600
   cadences:
+    surge:
+      supervisor: 5m
+      guide: 4h
+      scanner: 4h
+      quality: 6h
+    busy:
+      supervisor: 5m
+      guide: 4h
+      scanner: 4h
+      quality: 6h
     quiet:
       supervisor: 5m
       guide: 4h
@@ -16,9 +26,9 @@ governor:
       quality: 6h
     idle:
       supervisor: 5m
-      guide: 8h
-      scanner: 6h
-      quality: 8h
+      guide: 4h
+      scanner: 4h
+      quality: 6h
 agents:
   - name: supervisor
     display_name: Supervisor

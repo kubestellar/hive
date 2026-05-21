@@ -20,6 +20,10 @@ const (
 // Returns the issue number.
 func (c *Client) EnsureAdvisoryIssue(ctx context.Context, repo string) (int, error) {
 	owner := c.org
+	if parts := strings.SplitN(repo, "/", 2); len(parts) == 2 {
+		owner = parts[0]
+		repo = parts[1]
+	}
 
 	num, err := c.findAdvisoryIssue(ctx, owner, repo)
 	if err != nil {
@@ -65,8 +69,8 @@ func (c *Client) EnsureAdvisoryIssue(ctx context.Context, repo string) (int, err
 
 // PostAdvisoryDigest posts a digest comment on the advisory issue.
 func (c *Client) PostAdvisoryDigest(ctx context.Context, repo string, issueNum int, digest string) error {
-	owner := c.org
-	_, _, err := c.client.Issues.CreateComment(ctx, owner, repo, issueNum, &gh.IssueComment{
+	owner, repoName := c.splitRepo(repo)
+	_, _, err := c.client.Issues.CreateComment(ctx, owner, repoName, issueNum, &gh.IssueComment{
 		Body: gh.Ptr(digest),
 	})
 	if err != nil {

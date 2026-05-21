@@ -47,7 +47,7 @@ var fixesPattern = regexp.MustCompile(`(?i)(?:fixes|closes|resolves)\s+#(\d+)`)
 // "Fixes #N" references, looks up each issue's creation time, and computes
 // issue-to-merge duration statistics.
 func (c *Client) ComputeMTTR(ctx context.Context, primaryRepo string) (*MTTRResult, error) {
-	owner := c.org
+	owner, repo := c.splitRepo(primaryRepo)
 
 	// List recently merged PRs
 	opts := &gh.PullRequestListOptions{
@@ -57,9 +57,9 @@ func (c *Client) ComputeMTTR(ctx context.Context, primaryRepo string) (*MTTRResu
 		ListOptions: gh.ListOptions{PerPage: mttrMergedPRLimit},
 	}
 
-	prs, _, err := c.client.PullRequests.List(ctx, owner, primaryRepo, opts)
+	prs, _, err := c.client.PullRequests.List(ctx, owner, repo, opts)
 	if err != nil {
-		return nil, fmt.Errorf("listing merged PRs for %s/%s: %w", owner, primaryRepo, err)
+		return nil, fmt.Errorf("listing merged PRs for %s/%s: %w", owner, repo, err)
 	}
 
 	// Extract issue references from merged PRs
@@ -103,7 +103,7 @@ func (c *Client) ComputeMTTR(ctx context.Context, primaryRepo string) (*MTTRResu
 	// Fetch creation times for referenced issues
 	createdAt := make(map[int]time.Time)
 	for num := range issueNums {
-		issue, _, err := c.client.Issues.Get(ctx, owner, primaryRepo, num)
+		issue, _, err := c.client.Issues.Get(ctx, owner, repo, num)
 		if err != nil {
 			c.logger.Warn("failed to fetch issue for MTTR", "issue", num, "error", err)
 			continue

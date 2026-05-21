@@ -121,6 +121,59 @@ func BuildDigest(findings []Finding, mode string) *Digest {
 	}
 }
 
+// BuildDigestFromBeads creates a digest by reading open advisory beads from all
+// agent bead stores. This is the primary source of truth — agents write findings
+// as beads, and the digest renders them dynamically.
+func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
+	byAgent := make(map[string][]Finding)
+	total := 0
+	for agentName, store := range stores {
+		for _, b := range store.List(beads.ListFilter{}) {
+			if b.Status == beads.StatusClosed {
+				continue
+			}
+			f := Finding{
+				Agent:     agentName,
+				Timestamp: b.CreatedAt,
+				Type:      string(b.Type),
+				Severity:  beadPriorityToSeverity(b.Priority),
+				Title:     b.Title,
+				Detail:    b.Notes,
+				File:      b.ExternalRef,
+			}
+			if ft, ok := b.Metadata["finding_type"]; ok {
+				f.Type = ft
+			}
+			if d, ok := b.Metadata["detail"]; ok && f.Detail == "" {
+				f.Detail = d
+			}
+			byAgent[agentName] = append(byAgent[agentName], f)
+			total++
+		}
+	}
+	return &Digest{
+		GeneratedAt: time.Now(),
+		Mode:        mode,
+		ByAgent:     byAgent,
+		TotalCount:  total,
+	}
+}
+
+func beadPriorityToSeverity(p beads.Priority) string {
+	switch p {
+	case beads.PriorityCritical:
+		return "critical"
+	case beads.PriorityHigh:
+		return "high"
+	case beads.PriorityMedium:
+		return "medium"
+	case beads.PriorityLow:
+		return "low"
+	default:
+		return "info"
+	}
+}
+
 // FormatDigestMarkdown formats a digest as markdown for posting to GitHub.
 // Findings are grouped by severity (high→low) with a summary table, then
 // listed with their source agent — this gives repo owners a quick "what matters"

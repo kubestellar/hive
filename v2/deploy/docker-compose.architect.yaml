@@ -8,7 +8,7 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - ./architect-only.yaml:/etc/hive/hive.yaml:ro
+      - ./architect-only.yaml:/etc/hive/hive.yaml
       - hive-data:/data
     environment:
       - HIVE_GITHUB_TOKEN=${HIVE_GITHUB_TOKEN}

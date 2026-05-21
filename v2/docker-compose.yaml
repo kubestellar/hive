@@ -31,7 +31,7 @@ services:
       - "3001"
       - "7681"
     volumes:
-      - ./hive.yaml:/etc/hive/hive.yaml:ro
+      - ./hive.yaml:/etc/hive/hive.yaml
       - hive-data:/data
       - ./secrets:/secrets:ro
     environment:

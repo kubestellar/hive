@@ -43,7 +43,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/kubestellar/hive:latest
+            ghcr.io/kubestellar/hive:v2-latest
             ghcr.io/kubestellar/hive:${{ steps.meta.outputs.git_short }}
           build-args: |
             GIT_HASH=${{ steps.meta.outputs.git_hash }}

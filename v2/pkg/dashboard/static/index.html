@@ -6136,14 +6136,17 @@ function burnAreaChart() {
 
     // Set project name and repo from API
     fetch("/api/config").then(r => r.json()).then(cfg => {
+      const repoDisplay = cfg.org && cfg.primaryRepo && !cfg.primaryRepo.includes('/')
+        ? cfg.org + '/' + cfg.primaryRepo
+        : (cfg.primaryRepo || '');
       const el = document.getElementById("project-name");
-      if (el && cfg.primaryRepo) {
-        el.textContent = "for " + cfg.primaryRepo;
-        document.title = "🐝 Hive Dashboard for " + cfg.primaryRepo;
+      if (el && repoDisplay) {
+        el.textContent = "for " + repoDisplay;
+        document.title = "🐝 Hive Dashboard for " + repoDisplay;
       }
       const ocEl = document.getElementById("oc-project-name");
-      if (ocEl && cfg.primaryRepo) ocEl.textContent = cfg.primaryRepo;
-      if (cfg.primaryRepo) window._primaryRepo = cfg.primaryRepo;
+      if (ocEl && repoDisplay) ocEl.textContent = repoDisplay;
+      if (repoDisplay) window._primaryRepo = repoDisplay;
     }).catch(() => {});
 
     // Initial fetch then SSE

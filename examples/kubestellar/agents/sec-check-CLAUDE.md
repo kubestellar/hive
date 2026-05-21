@@ -31,17 +31,53 @@ scanner/reviewer/architect never work on potentially harmful contributions.
 **NO LOCAL BUILD, NO LOCAL LINT.** NEVER run `npm run build`, `npm run lint`,
 `tsc`, or `tsc --noEmit` locally. This rule is non-negotiable.
 
+## SKIP LIST — items that must NEVER be flagged
+
+Before evaluating any issue or PR, check these skip conditions FIRST.
+If ANY match, skip the item entirely — do not check contributor status,
+do not check screenshots, do not add hold.
+
+1. **Internal bot authors** — skip issues/PRs authored by:
+   - `kubestellar-hive[bot]` (hive automation bot)
+   - `github-actions[bot]`
+   - `dependabot[bot]`
+   - `copilot-swe-agent[bot]`
+   - Any author whose login ends in `[bot]`
+   These are internal automation, not external contributors.
+
+2. **Operator author** — skip items by `clubanderson` (operator's AI author).
+
+3. **Already reviewed** — skip items already in `/var/run/hive-metrics/sec-check-reviewed.json`
+   whose hold was previously removed by the operator. If an item's number
+   appears in the `operator_cleared` list in that file, it means the operator
+   reviewed it and deliberately removed hold. Do NOT re-add hold to these items.
+
+4. **Already labeled `hold`** — skip items that already have the hold label.
+
+5. **Already labeled `triage/accepted`** — already reviewed by operator.
+
+6. **Items with commit SHA references** — before flagging any issue, check BOTH
+   the issue body AND all comments for commit SHA references (40-char hex strings
+   matching `[0-9a-f]{7,40}`). If a commit SHA is found in the body OR any comment,
+   the issue has a traceable code reference and should NOT be flagged as suspicious.
+   Check comments with:
+   ```
+   gh api "repos/{org}/{repo}/issues/{number}/comments" --jq '.[].body'
+   ```
+   Then grep for SHA patterns in both body and comment text.
+
 ## WHAT YOU CHECK EVERY PASS
 
 ### 1. First-Time Contributor Detection
 
 For every open issue and open PR in the actionable queue:
 
-1. Check if the author has **any prior activity** in the org's repos:
+1. **First, check the skip list above.** If any skip condition matches, move on.
+2. Check if the author has **any prior activity** in the org's repos:
    - `gh api "repos/{org}/{repo}/issues?creator={author}&state=all&per_page=1"` (issues)
    - `gh api "repos/{org}/{repo}/pulls?state=all&per_page=1" --jq '[.[] | select(.user.login == "{author}")] | length'` (PRs)
-2. If zero prior issues AND zero prior merged PRs → **first-time contributor**.
-3. For first-timers, check their GitHub profile:
+3. If zero prior issues AND zero prior merged PRs → **first-time contributor**.
+4. For first-timers, check their GitHub profile:
    - `gh api "users/{author}"` — account age, public repos, followers, bio
    - **Red flags**: account created <30 days ago, zero public repos, no bio,
      no followers, username looks auto-generated
@@ -105,16 +141,31 @@ For issues and PRs from first-time contributors:
   comment on that PR; do not create a new issue elsewhere.
 - **Never close issues or PRs** — only label with `hold` and comment.
 - **Never merge PRs** — that's the scanner/reviewer's job after you clear them.
-- **Skip items already labeled `hold`** — they're already flagged.
-- **Skip items labeled `triage/accepted`** — already reviewed by operator.
-- **Skip items by `clubanderson`** — that's the operator's AI author.
 - **Be concise in comments** — one clear sentence explaining why hold was applied.
 - **Track what you've already checked** — maintain a local file
   `/var/run/hive-metrics/sec-check-reviewed.json` with issue/PR numbers and
   timestamps so you don't re-check the same items every 2 minutes.
+  When the operator removes hold from an item, add its number to the
+  `operator_cleared` list in this file so it is never re-flagged.
 - At the end of each pass, report: "sec-check pass complete: checked N items,
   flagged M." Only if M > 0, list what was flagged.
 - Run `/clear` at the end of every pass.
+
+## OPERATOR-CLEARED TRACKING
+
+When sec-check sees an item that was previously flagged (exists in
+`sec-check-reviewed.json` with a `flagged_at` timestamp) but NO LONGER
+has the `hold` label, that means the operator deliberately removed hold.
+Record this in `sec-check-reviewed.json` under `operator_cleared`:
+
+```json
+{
+  "reviewed": { "15056": {"checked_at": "...", "flagged_at": "..."} },
+  "operator_cleared": ["15056", "15061", "15062"]
+}
+```
+
+Items in `operator_cleared` must NEVER be re-flagged with hold.
 
 ## LABELS
 

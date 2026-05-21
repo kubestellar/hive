@@ -171,8 +171,10 @@ func (mc *MetricsCollector) collectOutreach(ctx context.Context) map[string]any 
 	adopters := mc.countAdopters(ctx, mc.org, mc.repo)
 	result["adopters"] = adopters
 
-	acmm := mc.countACMM(ctx, mc.org, mc.repo)
-	result["acmm"] = acmm
+	if mc.org == "kubestellar" {
+		acmm := mc.countACMM(ctx, mc.org, mc.repo)
+		result["acmm"] = acmm
+	}
 
 	open, merged := mc.countOutreachPRs(ctx)
 	result["outreachOpen"] = open

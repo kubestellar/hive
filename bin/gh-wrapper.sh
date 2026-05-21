@@ -27,9 +27,13 @@ elif [[ -n "${HIVE_GITHUB_TOKEN:-}" ]]; then
   export GH_TOKEN="$HIVE_GITHUB_TOKEN"
 fi
 
-# Log any hold-label manipulation for debugging
-if [[ "$*" == *"--add-label"*"hold"* ]] || [[ "$*" == *"--add-label hold"* ]]; then
+# Log ANY gh call that mentions "hold" anywhere in args (catches --add-label, gh api, etc.)
+if [[ "$*" == *"hold"* ]]; then
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] HOLD-TRACE: gh $* | PID=$$ PPID=$PPID AGENT=${HIVE_AGENT_ID:-${HIVE_AGENT:-unknown}} | caller=$(ps -o args= -p $PPID 2>/dev/null | head -c200)" >> /tmp/hold-trace.log 2>/dev/null || true
+fi
+# Log gh api calls that target issue/PR label endpoints (catches direct API label adds)
+if [[ "$*" == *"api"* ]] && [[ "$*" == *"/labels"* || "$*" == *"addLabelsToLabelable"* ]]; then
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] LABEL-API-TRACE: gh $* | PID=$$ PPID=$PPID AGENT=${HIVE_AGENT_ID:-${HIVE_AGENT:-unknown}} | caller=$(ps -o args= -p $PPID 2>/dev/null | head -c200)" >> /tmp/hold-trace.log 2>/dev/null || true
 fi
 
 # Build the full command string for pattern matching

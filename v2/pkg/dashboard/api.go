@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubestellar/hive/v2/pkg/beads"
 	"github.com/kubestellar/hive/v2/pkg/config"
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
@@ -132,6 +133,9 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("PUT /api/nous/config/principles", s.handleNousConfigPrinciples)
 	s.mux.HandleFunc("DELETE /api/nous/principles/{id}", s.handleNousDeletePrinciple)
 
+	s.mux.HandleFunc("GET /api/beads", s.handleBeadsList)
+	s.mux.HandleFunc("GET /api/beads/{agent}", s.handleBeadsList)
+	s.mux.HandleFunc("POST /api/beads/{agent}", s.handleBeadsCreate)
 	s.mux.HandleFunc("POST /api/beads/reset", s.handleBeadsReset)
 	s.mux.HandleFunc("POST /api/beads/reset/{agent}", s.handleBeadsResetAgent)
 
@@ -2720,5 +2724,81 @@ func (s *Server) handleBeadsResetAgent(w http.ResponseWriter, r *http.Request) {
 	s.refreshAndPersist()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"status": "reset", "agent": agentName, "closed": closed, "reason": body.Reason})
+}
+
+func (s *Server) handleBeadsList(w http.ResponseWriter, r *http.Request) {
+	if s.deps.BeadStores == nil {
+		jsonError(w, "bead stores not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	agentName := r.PathValue("agent")
+	result := make(map[string]any)
+
+	if agentName != "" {
+		store, ok := s.deps.BeadStores[agentName]
+		if !ok {
+			jsonError(w, fmt.Sprintf("no bead store for agent %q", agentName), http.StatusNotFound)
+			return
+		}
+		result[agentName] = store.List(beads.ListFilter{})
+	} else {
+		for name, store := range s.deps.BeadStores {
+			result[name] = store.List(beads.ListFilter{})
+		}
+	}
+	jsonResponse(w, result)
+}
+
+const maxBeadPriority = 4
+
+func (s *Server) handleBeadsCreate(w http.ResponseWriter, r *http.Request) {
+	agentName := r.PathValue("agent")
+	if s.deps.BeadStores == nil {
+		jsonError(w, "bead stores not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	store, ok := s.deps.BeadStores[agentName]
+	if !ok {
+		jsonError(w, fmt.Sprintf("no bead store for agent %q", agentName), http.StatusNotFound)
+		return
+	}
+
+	var body struct {
+		Title       string            `json:"title"`
+		Type        string            `json:"type"`
+		Priority    int               `json:"priority"`
+		ExternalRef string            `json:"external_ref"`
+		Metadata    map[string]string `json:"metadata"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if body.Title == "" {
+		jsonError(w, "title is required", http.StatusBadRequest)
+		return
+	}
+	if body.Type == "" {
+		body.Type = "advisory"
+	}
+	if body.Priority < 0 || body.Priority > maxBeadPriority {
+		jsonError(w, "priority must be 0-4", http.StatusBadRequest)
+		return
+	}
+
+	b, err := store.Create(body.Title, beads.BeadType(body.Type), beads.Priority(body.Priority), agentName, body.ExternalRef)
+	if err != nil {
+		jsonError(w, fmt.Sprintf("failed to create bead: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	for k, v := range body.Metadata {
+		_ = store.SetMetadata(b.ID, k, v)
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	jsonResponse(w, b)
 }
 

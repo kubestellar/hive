@@ -151,7 +151,7 @@ func cmdReady(args []string) {
 func cmdCreate(args []string) {
 	fs := flag.NewFlagSet("create", flag.ExitOnError)
 	title := fs.String("title", "", "Bead title (required)")
-	beadType := fs.String("type", "task", "Bead type: bug|feature|task|epic|chore|decision")
+	beadType := fs.String("type", "task", "Bead type: bug|feature|task|epic|chore|decision|advisory")
 	priority := fs.Int("priority", 2, "Priority 0-4 (0=critical, 4=minor)")
 	actor := fs.String("actor", "", "Actor name (required)")
 	extRef := fs.String("external-ref", "", "External reference (e.g. issue URL)")

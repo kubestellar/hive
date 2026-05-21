@@ -12,6 +12,14 @@ if [ "$(id -u)" = "0" ]; then
   chown -R dev:node /data /home/dev 2>/dev/null || true
   mkdir -p /var/run/hive-metrics && chown dev:node /var/run/hive-metrics 2>/dev/null || true
 
+  # Copy read-only mounted secrets so dev user can read them
+  if [ -f /etc/hive/gh-app-key.pem ]; then
+    cp /etc/hive/gh-app-key.pem /var/run/hive-metrics/gh-app-key.pem
+    chown dev:node /var/run/hive-metrics/gh-app-key.pem
+    chmod 400 /var/run/hive-metrics/gh-app-key.pem
+    export GH_APP_KEY_FILE=/var/run/hive-metrics/gh-app-key.pem
+  fi
+
   # Seed data files from image into /data if they don't already exist
   if [ -d /opt/hive/seed-data ]; then
     echo "[entrypoint] Seeding data files..."
@@ -72,6 +80,12 @@ git config --global --replace-all "credential.https://github.com.helper" "/usr/l
 # Generate initial GitHub App token if credentials are available
 if [ -x /usr/local/bin/hive-config.sh ]; then
   . /usr/local/bin/hive-config.sh 2>/dev/null || true
+fi
+# Use the dev-readable copy if the configured key file isn't readable
+if [ -n "${GH_APP_KEY_FILE:-}" ] && [ ! -r "$GH_APP_KEY_FILE" ]; then
+  if [ -r /var/run/hive-metrics/gh-app-key.pem ]; then
+    export GH_APP_KEY_FILE=/var/run/hive-metrics/gh-app-key.pem
+  fi
 fi
 if [ -n "${GH_APP_ID:-}" ] && [ -n "${GH_APP_INSTALLATION_ID:-}" ]; then
   echo "[entrypoint] Generating GitHub App token..."

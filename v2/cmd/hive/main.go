@@ -87,6 +87,9 @@ func main() {
 	var ghClient *github.Client
 	if cfg.GitHub.AppID != 0 {
 		keyFile := cfg.GitHub.KeyFile
+		if envKey := os.Getenv("GH_APP_KEY_FILE"); envKey != "" {
+			keyFile = envKey
+		}
 		if keyFile == "" {
 			keyFile = "/secrets/gh-app-key.pem"
 		}

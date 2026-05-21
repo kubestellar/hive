@@ -2820,8 +2820,9 @@
     const TTYD_PORT = 7681;
     function terminalUrl(agentName) {
       const session = TMUX_SESSION_PREFIX + agentName;
-      const host = window.location.hostname;
-      return `http://${host}:${TTYD_PORT}/?arg=${encodeURIComponent(session)}`;
+      const proto = window.location.protocol;
+      const host = window.location.host;
+      return `${proto}//${host}/terminal/?arg=${encodeURIComponent(session)}`;
     }
 
     function renderAgents(agents) {

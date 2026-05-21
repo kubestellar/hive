@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 # Non-root user for agent processes (Claude Code refuses --dangerously-skip-permissions as root)
-RUN groupadd -g 1000 dev && useradd -m -u 1000 -g dev -s /bin/bash dev
+# node:24-slim already has group 1000 (node), so reuse it
+RUN useradd -m -u 1001 -g node -s /bin/bash dev
 
 # --- Layer 2: ttyd (stable, infrequent releases) ---
 RUN ARCH=$(uname -m) && \

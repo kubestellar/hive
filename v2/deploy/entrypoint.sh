@@ -45,7 +45,7 @@ if [ "$(id -u)" = "0" ]; then
   # Drop to non-root user for all runtime processes.
   # Claude Code refuses --dangerously-skip-permissions as root.
   if command -v gosu >/dev/null 2>&1; then
-    echo "[entrypoint] Dropping to dev user (uid=1000)"
+    echo "[entrypoint] Dropping to dev user"
     exec gosu dev "$0" "$@"
   else
     echo "[entrypoint] WARN: gosu not found, running as root"

@@ -1514,7 +1514,8 @@ func (s *Server) handleGovernorSensing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if body.EvalIntervalS > 0 {
+	const maxEvalIntervalS = 86400 // 24 hours
+	if body.EvalIntervalS > 0 && body.EvalIntervalS <= maxEvalIntervalS {
 		s.deps.Config.Governor.EvalIntervalS = body.EvalIntervalS
 	}
 	if body.GHRatePatterns != nil {

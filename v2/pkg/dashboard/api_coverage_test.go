@@ -781,7 +781,7 @@ func TestHandleBudgetIgnoreGet(t *testing.T) {
 
 func TestHandleBudgetIgnoreSet(t *testing.T) {
 	s, _ := apiServer(t)
-	body := map[string][]string{"agents": {"scanner"}}
+	body := map[string][]string{"ignored": {"scanner"}}
 	rec := doPost(s, "/api/budget-ignore", body)
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d", rec.Code)

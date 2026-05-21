@@ -119,6 +119,9 @@ func TestHandleAuthToken_NotSet(t *testing.T) {
 	if body["token"] != "(not set)" {
 		t.Errorf("token = %q, want (not set)", body["token"])
 	}
+	if body["configured"] != "false" {
+		t.Errorf("configured = %q, want false", body["configured"])
+	}
 }
 
 func TestHandleAuthToken_FromEnv(t *testing.T) {
@@ -131,8 +134,11 @@ func TestHandleAuthToken_FromEnv(t *testing.T) {
 	}
 	var body map[string]string
 	json.Unmarshal(rec.Body.Bytes(), &body)
-	if body["token"] != "secret-token-abc" {
-		t.Errorf("token = %q, want secret-token-abc", body["token"])
+	if body["token"] != "••••••••••••-abc" {
+		t.Errorf("token = %q, want masked value", body["token"])
+	}
+	if body["configured"] != "true" {
+		t.Errorf("configured = %q, want true", body["configured"])
 	}
 }
 
@@ -143,8 +149,11 @@ func TestHandleAuthToken_FromServer(t *testing.T) {
 	rec := doGet(s, "/api/auth/token")
 	var body map[string]string
 	json.Unmarshal(rec.Body.Bytes(), &body)
-	if body["token"] != "server-token-xyz" {
-		t.Errorf("token = %q, want server-token-xyz", body["token"])
+	if body["token"] != "••••••••••••-xyz" {
+		t.Errorf("token = %q, want masked value", body["token"])
+	}
+	if body["configured"] != "true" {
+		t.Errorf("configured = %q, want true", body["configured"])
 	}
 }
 

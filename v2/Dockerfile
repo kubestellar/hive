@@ -12,8 +12,12 @@ FROM node:24-slim
 
 # --- Layer 1: system packages (rarely changes) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ca-certificates bash curl tmux bzip2 \
+    git ca-certificates bash curl tmux bzip2 gosu \
  && rm -rf /var/lib/apt/lists/*
+
+# Non-root user for agent processes (Claude Code refuses --dangerously-skip-permissions as root)
+# node:24-slim already has group 1000 (node), so reuse it
+RUN useradd -m -u 1001 -g node -s /bin/bash dev
 
 # --- Layer 2: ttyd (stable, infrequent releases) ---
 RUN ARCH=$(uname -m) && \
@@ -34,8 +38,7 @@ ARG CLAUDE_CODE_VERSION=latest
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && npm cache clean --force
 
 # --- Application layers ---
-ENV HOME=/data/home
-RUN mkdir -p /data/home
+ENV HOME=/home/dev
 
 COPY --from=builder /hive /usr/local/bin/hive
 COPY --from=builder /bd /usr/local/bin/bd
@@ -77,6 +80,8 @@ VOLUME ["/data", "/secrets"]
 
 COPY v2/deploy/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
+
+RUN chown -R dev:dev /data /home/dev 2>/dev/null || true
 
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["--config", "/etc/hive/hive.yaml"]

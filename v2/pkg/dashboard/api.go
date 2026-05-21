@@ -443,14 +443,17 @@ func (s *Server) handlePane(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleKick(w http.ResponseWriter, r *http.Request) {
 	name := s.resolveAgentParam(r.PathValue("agent"))
 	var body struct {
+		Prompt  string `json:"prompt"`
 		Message string `json:"message"`
 	}
-	if err := decodeBody(r, &body); err != nil || body.Message == "" {
-		jsonError(w, "message is required", http.StatusBadRequest)
-		return
+	_ = decodeBody(r, &body)
+
+	msg := body.Prompt
+	if msg == "" {
+		msg = body.Message
 	}
 
-	if err := s.deps.AgentMgr.SendKick(name, body.Message); err != nil {
+	if err := s.deps.AgentMgr.SendKick(name, msg); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}

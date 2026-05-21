@@ -7,6 +7,17 @@ description: >
 governor:
   modes: none
   merge_policy: manual
+  cadences:
+    quiet:
+      supervisor: 5m
+      guide: 1h
+      scanner: 2h
+      quality: 2h
+    idle:
+      supervisor: 5m
+      guide: 2h
+      scanner: 2h
+      quality: 2h
 agents:
   - name: supervisor
     display_name: Supervisor

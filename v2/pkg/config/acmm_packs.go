@@ -43,8 +43,9 @@ type PackAgent struct {
 
 // PackGovernor describes the governor configuration recommended for a level.
 type PackGovernor struct {
-	Modes       string `json:"modes" yaml:"modes"`
-	MergePolicy string `json:"mergePolicy" yaml:"merge_policy"`
+	Modes       string                       `json:"modes" yaml:"modes"`
+	MergePolicy string                       `json:"mergePolicy" yaml:"merge_policy"`
+	Cadences    map[string]map[string]string `json:"cadences,omitempty" yaml:"cadences,omitempty"`
 }
 
 // ACMMPacks returns the built-in ACMM level pack definitions loaded from

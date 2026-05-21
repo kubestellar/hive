@@ -9,14 +9,14 @@ export HIVE_STATIC_DIR="${HIVE_STATIC_DIR:-/opt/hive/proxy/public}"
 # ── Root-only setup (runs once, then re-execs as dev) ──────────────────
 if [ "$(id -u)" = "0" ]; then
   # Fix ownership of mounted volumes (may be root-owned from host bind mounts)
-  chown -R dev:dev /data /home/dev 2>/dev/null || true
-  mkdir -p /var/run/hive-metrics && chown dev:dev /var/run/hive-metrics
+  chown -R dev:node /data /home/dev 2>/dev/null || true
+  mkdir -p /var/run/hive-metrics && chown dev:node /var/run/hive-metrics 2>/dev/null || true
 
   # Seed data files from image into /data if they don't already exist
   if [ -d /opt/hive/seed-data ]; then
     echo "[entrypoint] Seeding data files..."
     cp -rn /opt/hive/seed-data/* /data/ 2>/dev/null || true
-    chown -R dev:dev /data 2>/dev/null || true
+    chown -R dev:node /data 2>/dev/null || true
   fi
 
   # Create beads symlinks: /home/dev/<agent>-beads -> /data/beads/<agent>
@@ -39,7 +39,7 @@ if [ "$(id -u)" = "0" ]; then
         echo "[entrypoint] Beads symlink: /home/dev/${agent}-beads -> /data/beads/${agent}"
       fi
     done
-    chown -R dev:dev /data/beads /home/dev 2>/dev/null || true
+    chown -R dev:node /data/beads /home/dev 2>/dev/null || true
   fi
 
   # Drop to non-root user for all runtime processes.

@@ -560,7 +560,7 @@ func (c *Client) EnforceSHAHold(ctx context.Context, cfg SHAHoldConfig) (*SHAHol
 	return result, nil
 }
 
-func (c *Client) checkCommentsForSHA(ctx context.Context, owner, repo string, number int, reporter string) bool {
+func (c *Client) checkCommentsForSHA(ctx context.Context, owner, repo string, number int, _ string) bool {
 	opts := &gh.IssueListCommentsOptions{
 		ListOptions: gh.ListOptions{PerPage: 100},
 	}
@@ -570,7 +570,7 @@ func (c *Client) checkCommentsForSHA(ctx context.Context, owner, repo string, nu
 		return false
 	}
 	for _, comment := range comments {
-		if comment.GetUser().GetLogin() == reporter && shaPattern.MatchString(comment.GetBody()) {
+		if shaPattern.MatchString(comment.GetBody()) {
 			return true
 		}
 	}
@@ -598,6 +598,9 @@ func (c *Client) unhold(ctx context.Context, owner, repo string, number int) {
 }
 
 func isInternalAuthor(author string, internalAuthors []string) bool {
+	if strings.HasSuffix(author, "[bot]") {
+		return true
+	}
 	for _, ia := range internalAuthors {
 		if strings.EqualFold(author, ia) {
 			return true

@@ -78,4 +78,4 @@ EXPOSE 3001
 HEALTHCHECK --interval=60s --timeout=5s --start-period=120s --retries=3 \
   CMD find /data/logs -name "heartbeat.log" -mmin -30 | grep -q . || exit 1
 
-ENTRYPOINT ["/opt/hive/bin/supervisor.sh"]
+ENTRYPOINT ["/opt/hive/bin/container-entrypoint.sh"]

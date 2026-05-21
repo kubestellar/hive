@@ -408,12 +408,12 @@ while true; do
     sync_launch_cmd_from_governor
     start_session
   else
-    handle_startup_dialogs
-    check_prompt_delivered
-    approve_prompt_if_present
-    dismiss_prompts_if_present
-    notify_if_phrase_present
-    check_rate_limit_and_failover
+    handle_startup_dialogs || true
+    check_prompt_delivered || true
+    approve_prompt_if_present || true
+    dismiss_prompts_if_present || true
+    notify_if_phrase_present || true
+    check_rate_limit_and_failover || true
   fi
   sleep "$POLL_SEC"
 done

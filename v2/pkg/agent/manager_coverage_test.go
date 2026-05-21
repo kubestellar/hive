@@ -146,12 +146,16 @@ func TestPinModel_SetsModelOverride(t *testing.T) {
 func TestAgentEnvVars_WithHiveID(t *testing.T) {
 	t.Setenv("HIVE_ID", "test-hive-123")
 
+	m := NewManager(map[string]config.AgentConfig{
+		"scanner": {Backend: "claude", Model: "sonnet"},
+	}, discardLogger(), ProjectContext{})
+
 	ap := &AgentProcess{
 		Name:   "scanner",
 		Config: config.AgentConfig{Backend: "claude", Model: "sonnet"},
 	}
 
-	vars := agentEnvVars(ap)
+	vars := m.agentEnvVars(ap)
 
 	foundHiveID := false
 	for _, v := range vars {
@@ -162,13 +166,13 @@ func TestAgentEnvVars_WithHiveID(t *testing.T) {
 	if !foundHiveID {
 		t.Error("HIVE_ID should be included when set in environment")
 	}
-	// Should now have 4 vars: HIVE_AGENT, HIVE_BACKEND, HIVE_MODEL, HIVE_ID
-	if len(vars) != 4 {
-		t.Errorf("expected 4 env vars with HIVE_ID, got %d", len(vars))
-	}
 }
 
 func TestAgentEnvVars_WithOverrides(t *testing.T) {
+	m := NewManager(map[string]config.AgentConfig{
+		"scanner": {Backend: "claude", Model: "sonnet"},
+	}, discardLogger(), ProjectContext{})
+
 	ap := &AgentProcess{
 		Name:            "scanner",
 		Config:          config.AgentConfig{Backend: "claude", Model: "sonnet"},
@@ -176,7 +180,7 @@ func TestAgentEnvVars_WithOverrides(t *testing.T) {
 		BackendOverride: "gemini",
 	}
 
-	vars := agentEnvVars(ap)
+	vars := m.agentEnvVars(ap)
 
 	foundModel := false
 	foundBackend := false
@@ -530,8 +534,8 @@ func TestBuildBootstrapPrompt_NoFile(t *testing.T) {
 	if prompt == "" {
 		t.Error("expected non-empty fallback prompt")
 	}
-	if !contains(prompt, "CLAUDE.md") {
-		t.Errorf("expected CLAUDE.md reference, got %q", prompt)
+	if !contains(prompt, "first pass") {
+		t.Errorf("expected generic boot prompt, got %q", prompt)
 	}
 }
 

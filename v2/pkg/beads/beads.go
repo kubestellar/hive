@@ -280,6 +280,33 @@ func (s *Store) persist(b *Bead) error {
 	return os.WriteFile(path, data, 0644)
 }
 
+func (s *Store) CloseAll(reason string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now().UTC()
+	closed := 0
+	for _, b := range s.beads {
+		if b.Status == StatusOpen || b.Status == StatusInProgress || b.Status == StatusBlocked {
+			b.Status = StatusClosed
+			b.ClosedAt = &now
+			b.UpdatedAt = now
+			if b.Metadata == nil {
+				b.Metadata = make(map[string]string)
+			}
+			b.Metadata["close_reason"] = reason
+			closed++
+		}
+	}
+
+	if closed > 0 {
+		if err := s.persist(nil); err != nil {
+			return closed, err
+		}
+	}
+	return closed, nil
+}
+
 func (s *Store) Count() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

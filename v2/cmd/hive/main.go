@@ -448,6 +448,7 @@ func main() {
 		Knowledge:        knowledgeAPI,
 		Nous:             nousState,
 		MetricsCollector: metricsCollector,
+		BeadStores:       beadStores,
 		Logger:           logger,
 		Ctx:              ctx,
 		RefreshFunc:      refreshDashboard,

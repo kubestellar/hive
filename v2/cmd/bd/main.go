@@ -61,6 +61,8 @@ func main() {
 		cmdUpdate(os.Args[2:])
 	case "close":
 		cmdClose(os.Args[2:])
+	case "reset":
+		cmdReset(os.Args[2:])
 	case "dolt":
 		cmdDolt(os.Args[2:])
 	case "init":
@@ -85,6 +87,7 @@ Commands:
   update <id> --status <status>            Change status
   update <id> --set-metadata key=value     Set metadata key
   close  <id>                              Close a bead
+  reset  [--reason "..."]                  Close all open/in_progress/blocked beads
   dolt   push                              No-op (data already on disk)
   init                                     No-op (store auto-creates)
 
@@ -246,6 +249,22 @@ func cmdClose(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("Closed bead %s\n", id)
+}
+
+// ---------- reset ----------
+
+func cmdReset(args []string) {
+	fs := flag.NewFlagSet("reset", flag.ExitOnError)
+	reason := fs.String("reason", "manual reset", "Reason for closing all beads")
+	_ = fs.Parse(args)
+
+	store := openStore()
+	closed, err := store.CloseAll(*reason)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "bd reset: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Closed %d bead(s) (reason: %s)\n", closed, *reason)
 }
 
 // ---------- dolt push (no-op) ----------

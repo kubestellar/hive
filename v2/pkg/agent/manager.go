@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -59,10 +60,11 @@ type AgentProcess struct {
 
 // ProjectContext holds project-level config injected into agent boot prompts.
 type ProjectContext struct {
-	Org       string
-	Repos     []string
-	ACMMLevel int
+	Org        string
+	Repos      []string
+	ACMMLevel  int
 	PRsAllowed bool
+	PolicyDir  string
 }
 
 type Manager struct {
@@ -324,8 +326,17 @@ var acmmLevelNames = map[int]string{
 }
 
 func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
+	// Look for policy files in priority order.
+	// 1. <policy_dir>/<agent>.md (backend-neutral, preferred)
+	// 2. <policy_dir>/<agent>-CLAUDE.md (legacy Claude-specific name)
+	// 3. /data/agents/<agent>/CLAUDE.md (per-agent override)
+	policyDir := m.project.PolicyDir
+	if policyDir == "" {
+		policyDir = "/data/policies/agents"
+	}
 	paths := []string{
-		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s-CLAUDE.md", agent.Name),
+		fmt.Sprintf("%s/%s.md", policyDir, agent.Name),
+		fmt.Sprintf("%s/%s-CLAUDE.md", policyDir, agent.Name),
 		fmt.Sprintf("/data/agents/%s/CLAUDE.md", agent.Name),
 	}
 	var policyPath string
@@ -336,10 +347,22 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 		}
 	}
 
-	base := fmt.Sprintf("[agent:%s] [BOOT] Read your CLAUDE.md for instructions and begin your first pass.", agent.Name)
+	base := fmt.Sprintf("[agent:%s] [BOOT] Read your policy file for instructions and begin your first pass.", agent.Name)
 	if policyPath != "" {
-		base = fmt.Sprintf("[agent:%s] [BOOT] Read %s for your instructions and begin your first pass.", agent.Name, policyPath)
+		base = fmt.Sprintf("[agent:%s] [BOOT] Read %s for your instructions.", agent.Name, policyPath)
 	}
+
+	// ACMM fragment files: base rules + level-specific rules.
+	// These are read AFTER the agent policy so they override conflicting instructions.
+	acmmFiles := m.findACMMFragments()
+	if len(acmmFiles) > 0 {
+		base += " THEN read these MANDATORY ACMM policy files (they override everything else):"
+		for _, f := range acmmFiles {
+			base += fmt.Sprintf(" %s", f)
+		}
+		base += "."
+	}
+	base += " Begin your first pass."
 
 	if agent.Name == "quality" {
 		if preamble := m.readCoveragePreamble(); preamble != "" {
@@ -350,6 +373,50 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 	base = m.buildProjectPreamble() + base
 	return base
 }
+
+// findACMMFragments returns paths to ACMM policy files the agent should read.
+// Order: base.md (shared rules) then l<N>.md (level-specific).
+func (m *Manager) findACMMFragments() []string {
+	level := m.project.ACMMLevel
+	if level <= 0 {
+		return nil
+	}
+
+	// Look for ACMM fragments in the policies directory first, then fallback to baked-in paths.
+	policiesRoot := filepath.Dir(m.project.PolicyDir)
+	if policiesRoot == "." || policiesRoot == "" {
+		policiesRoot = "/data/policies"
+	}
+
+	acmmDirs := []string{
+		filepath.Join(policiesRoot, "examples", "acmm"),
+		"/data/policies/examples/acmm",
+		"/opt/hive/examples/acmm",
+	}
+
+	var acmmDir string
+	for _, d := range acmmDirs {
+		if _, err := os.Stat(d); err == nil {
+			acmmDir = d
+			break
+		}
+	}
+	if acmmDir == "" {
+		return nil
+	}
+
+	var files []string
+	basePath := filepath.Join(acmmDir, "base.md")
+	if _, err := os.Stat(basePath); err == nil {
+		files = append(files, basePath)
+	}
+	levelPath := filepath.Join(acmmDir, fmt.Sprintf("l%d.md", level))
+	if _, err := os.Stat(levelPath); err == nil {
+		files = append(files, levelPath)
+	}
+	return files
+}
+
 
 func (m *Manager) buildProjectPreamble() string {
 	p := m.project
@@ -367,9 +434,9 @@ func (m *Manager) buildProjectPreamble() string {
 		levelName = fmt.Sprintf("Level %d", p.ACMMLevel)
 	}
 
-	prPolicy := "You MAY open pull requests."
+	prPolicy := "PRs allowed."
 	if !p.PRsAllowed {
-		prPolicy = "You MUST NOT open pull requests. Analysis and issues ONLY."
+		prPolicy = "PRs NOT allowed."
 	}
 
 	return fmt.Sprintf("[PROJECT] Org: %s | Repos: %s | ACMM: L%d (%s) | %s ",

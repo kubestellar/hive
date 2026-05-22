@@ -7759,20 +7759,23 @@ function burnAreaChart() {
     const GH_AUTH_SUCCESS_DISMISS_MS = 1500;
 
     function copyDeviceCode() {
-      const code = (document.getElementById('gh-device-code').textContent || '').trim();
+      const el = document.getElementById('gh-device-code');
+      const code = (el.textContent || '').trim();
       const btn = document.getElementById('gh-copy-btn');
-      navigator.clipboard.writeText(code).then(() => {
-        btn.textContent = 'Copied!';
-        btn.style.background = '#16a34a';
-        setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = '#238636'; }, 1500);
-      }).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
-        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-        document.body.removeChild(ta);
-        btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
-      });
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      if (!ok && navigator.clipboard) {
+        navigator.clipboard.writeText(code).catch(() => {});
+        ok = true;
+      }
+      btn.textContent = ok ? 'Copied!' : 'Selected — press Cmd+C';
+      btn.style.background = '#16a34a';
+      setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = '#238636'; }, 2000);
     }
 
     function showGHAuthState(loggedIn, username) {

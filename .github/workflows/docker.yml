@@ -11,14 +11,70 @@ permissions:
   packages: write
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Platform slug
+        id: slug
+        run: echo "slug=${PLATFORM//\//-}" >> "$GITHUB_OUTPUT"
+        env:
+          PLATFORM: ${{ matrix.platform }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: v2/Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/kubestellar/hive,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ steps.slug.outputs.slug }}
+          cache-to: type=gha,scope=${{ steps.slug.outputs.slug }},mode=max
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ steps.slug.outputs.slug }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -33,19 +89,12 @@ jobs:
       - name: Extract git metadata
         id: meta
         run: |
-          echo "git_hash=${{ github.sha }}" >> "$GITHUB_OUTPUT"
           echo "git_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: v2/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/kubestellar/hive:v2-latest
-            ghcr.io/kubestellar/hive:${{ steps.meta.outputs.git_short }}
-          build-args: |
-            GIT_HASH=${{ steps.meta.outputs.git_hash }}
-            GIT_SHORT=${{ steps.meta.outputs.git_short }}
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/kubestellar/hive:v2-latest \
+            -t ghcr.io/kubestellar/hive:${{ steps.meta.outputs.git_short }} \
+            $(printf 'ghcr.io/kubestellar/hive@sha256:%s ' *)

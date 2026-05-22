@@ -67,16 +67,51 @@ func (c *Client) EnsureAdvisoryIssue(ctx context.Context, repo string) (int, err
 	return issue.GetNumber(), nil
 }
 
-// PostAdvisoryDigest posts a digest comment on the advisory issue.
+const advisoryDigestPrefix = "## 🐝 Advisory Digest"
+
+// PostAdvisoryDigest updates the existing digest comment on the advisory issue,
+// or creates one if none exists. This prevents duplicate comments on each eval cycle.
 func (c *Client) PostAdvisoryDigest(ctx context.Context, repo string, issueNum int, digest string) error {
 	owner, repoName := c.splitRepo(repo)
-	_, _, err := c.client.Issues.CreateComment(ctx, owner, repoName, issueNum, &gh.IssueComment{
+
+	commentID, err := c.findDigestComment(ctx, owner, repoName, issueNum)
+	if err != nil {
+		c.logger.Warn("could not search for existing digest comment, creating new", slog.String("error", err.Error()))
+	}
+
+	if commentID > 0 {
+		_, _, err := c.client.Issues.EditComment(ctx, owner, repoName, int64(commentID), &gh.IssueComment{
+			Body: gh.Ptr(digest),
+		})
+		if err != nil {
+			return fmt.Errorf("updating advisory digest comment on %s#%d: %w", repo, issueNum, err)
+		}
+		return nil
+	}
+
+	_, _, err = c.client.Issues.CreateComment(ctx, owner, repoName, issueNum, &gh.IssueComment{
 		Body: gh.Ptr(digest),
 	})
 	if err != nil {
 		return fmt.Errorf("posting advisory digest to %s#%d: %w", repo, issueNum, err)
 	}
 	return nil
+}
+
+func (c *Client) findDigestComment(ctx context.Context, owner, repo string, issueNum int) (int, error) {
+	opts := &gh.IssueListCommentsOptions{
+		ListOptions: gh.ListOptions{PerPage: 50},
+	}
+	comments, _, err := c.client.Issues.ListComments(ctx, owner, repo, issueNum, opts)
+	if err != nil {
+		return 0, err
+	}
+	for _, comment := range comments {
+		if strings.HasPrefix(comment.GetBody(), advisoryDigestPrefix) {
+			return int(comment.GetID()), nil
+		}
+	}
+	return 0, nil
 }
 
 func (c *Client) findAdvisoryIssue(ctx context.Context, owner, repo string) (int, error) {

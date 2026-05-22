@@ -15,7 +15,12 @@ const FETCH_TIMEOUT_MS = 10_000;
 const args = process.argv.slice(2);
 const modeIdx = args.indexOf('--mode');
 const snapshotMode = modeIdx >= 0 ? args[modeIdx + 1] : 'classic';
-const positional = args.filter((_, i) => i !== modeIdx && i !== modeIdx + 1);
+const basePathIdx = args.indexOf('--base-path');
+const basePath = basePathIdx >= 0 ? args[basePathIdx + 1] : '/live/hive';
+const skipIdxSet = new Set();
+if (modeIdx >= 0) { skipIdxSet.add(modeIdx); skipIdxSet.add(modeIdx + 1); }
+if (basePathIdx >= 0) { skipIdxSet.add(basePathIdx); skipIdxSet.add(basePathIdx + 1); }
+const positional = args.filter((_, i) => !skipIdxSet.has(i));
 const dashboardUrl = positional[0] || process.env.HIVE_DASHBOARD_URL || 'http://localhost:3001';
 const outputFile = positional[1] || 'snapshot.html';
 
@@ -126,7 +131,7 @@ async function main() {
   <div class="snapshot-banner">
     <span class="snap-icon">${isLight ? '📊' : '📸'}</span>
     <span><span class="snap-label">Read-only snapshot</span> &mdash; captured <span class="snap-time" id="snap-time"></span></span>
-    <span class="snap-links"><a href="/live/hive/${altMode}">${altLabel} mode</a></span>
+    <span class="snap-links"><a href="${basePath}/${altMode}">${altLabel} mode</a></span>
     <span class="snap-refresh" id="snap-refresh"></span>
   </div>`;
 

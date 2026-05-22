@@ -1493,13 +1493,19 @@
   <span id="gh-auth-msg">GitHub login required for advisory posting</span>
   <button class="gh-auth-btn" id="gh-auth-btn" onclick="startGHLogin()">Sign in with GitHub</button>
 </div>
+<div id="gh-auth-badge" class="gh-auth-banner" style="display:none;background:linear-gradient(135deg,#0d1117,#161b22);padding:6px 24px;gap:8px;font-size:0.8rem">
+  <span style="color:#3fb950">●</span>
+  <span style="color:#8b949e">GitHub:</span>
+  <span id="gh-auth-badge-user" class="gh-auth-user"></span>
+  <button onclick="startGHLogin()" style="background:none;border:1px solid #30363d;color:#8b949e;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:8px">Switch</button>
+</div>
 <div id="gh-auth-modal-overlay" class="gh-auth-overlay" style="display:none">
   <div class="gh-auth-modal">
     <h3>Sign in with GitHub</h3>
     <p>Enter this code on GitHub to authorize Hive:</p>
     <div style="position:relative;display:inline-block">
       <div class="device-code" id="gh-device-code">--------</div>
-      <button onclick="navigator.clipboard.writeText(document.getElementById('gh-device-code').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)" style="position:absolute;top:4px;right:4px;background:#238636;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600">Copy</button>
+      <button id="gh-copy-btn" onclick="copyDeviceCode()" style="position:absolute;top:4px;right:4px;background:#238636;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600">Copy</button>
     </div>
     <a id="gh-verify-link" class="gh-verify-link" href="https://github.com/login/device" target="_blank" rel="noopener">Open GitHub →</a>
     <div class="gh-poll-status" id="gh-poll-status">Waiting for authorization...</div>
@@ -7748,27 +7754,53 @@ function burnAreaChart() {
 
     // GitHub Device Flow Auth
     let ghPollTimer = null;
-    const GH_POLL_INTERVAL_MS = 5000;
+    const GH_POLL_INTERVAL_MS = 2000;
     const GH_AUTH_CHECK_INTERVAL_MS = 300000;
+    const GH_AUTH_SUCCESS_DISMISS_MS = 1500;
+
+    function copyDeviceCode() {
+      const code = (document.getElementById('gh-device-code').textContent || '').trim();
+      const btn = document.getElementById('gh-copy-btn');
+      navigator.clipboard.writeText(code).then(() => {
+        btn.textContent = 'Copied!';
+        btn.style.background = '#16a34a';
+        setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = '#238636'; }, 1500);
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      });
+    }
+
+    function showGHAuthState(loggedIn, username) {
+      const banner = document.getElementById('gh-auth-banner');
+      const badge = document.getElementById('gh-auth-badge');
+      const topBtn = document.getElementById('oc-gh-login-btn');
+      const topUser = document.getElementById('oc-gh-user');
+      if (loggedIn) {
+        banner.style.display = 'none';
+        badge.style.display = 'flex';
+        document.getElementById('gh-auth-badge-user').textContent = username;
+        if (topBtn) topBtn.style.display = 'none';
+        if (topUser) { topUser.textContent = username; topUser.style.display = ''; }
+      } else {
+        banner.style.display = 'flex';
+        badge.style.display = 'none';
+        if (topBtn) topBtn.style.display = '';
+        if (topUser) topUser.style.display = 'none';
+      }
+    }
 
     async function checkGHAuth() {
       try {
         const resp = await fetch('/api/gh-user-auth/status');
         const data = await resp.json();
-        const banner = document.getElementById('gh-auth-banner');
-        const topBtn = document.getElementById('oc-gh-login-btn');
-        const topUser = document.getElementById('oc-gh-user');
-        if (data.logged_in) {
-          banner.style.display = 'none';
-          if (topBtn) topBtn.style.display = 'none';
-          if (topUser) { topUser.textContent = data.username; topUser.style.display = ''; }
-        } else {
-          banner.style.display = 'flex';
-          if (topBtn) topBtn.style.display = '';
-          if (topUser) topUser.style.display = 'none';
-        }
+        showGHAuthState(data.logged_in, data.username);
       } catch (e) {
-        // API not available yet — hide banner
+        // API not available yet
       }
     }
 
@@ -7780,9 +7812,10 @@ function burnAreaChart() {
         document.getElementById('gh-device-code').textContent = data.user_code;
         document.getElementById('gh-verify-link').href = data.verification_uri;
         document.getElementById('gh-poll-status').textContent = 'Waiting for authorization...';
+        document.getElementById('gh-poll-status').style.color = '#6b7280';
         document.getElementById('gh-auth-modal-overlay').style.display = 'flex';
         if (ghPollTimer) clearInterval(ghPollTimer);
-        ghPollTimer = setInterval(pollGHAuth, data.interval ? data.interval * 1000 : GH_POLL_INTERVAL_MS);
+        ghPollTimer = setInterval(pollGHAuth, GH_POLL_INTERVAL_MS);
       } catch (e) {
         alert('Login error: ' + e.message);
       }
@@ -7792,26 +7825,29 @@ function burnAreaChart() {
       try {
         const resp = await fetch('/api/gh-user-auth/poll', { method: 'POST' });
         const data = await resp.json();
-        console.log('[gh-auth] poll response:', data);
         if (data.status === 'complete') {
           clearInterval(ghPollTimer);
           ghPollTimer = null;
-          document.getElementById('gh-auth-modal-overlay').style.display = 'none';
-          document.getElementById('gh-auth-banner').style.display = 'none';
-          const topBtn = document.getElementById('oc-gh-login-btn');
-          const topUser = document.getElementById('oc-gh-user');
-          if (topBtn) topBtn.style.display = 'none';
-          if (topUser) { topUser.textContent = data.username; topUser.style.display = ''; }
+          const status = document.getElementById('gh-poll-status');
+          status.textContent = 'Signed in as ' + data.username;
+          status.style.color = '#16a34a';
+          status.style.fontWeight = '700';
+          document.getElementById('gh-device-code').textContent = data.username;
+          document.getElementById('gh-device-code').style.color = '#16a34a';
+          setTimeout(() => {
+            document.getElementById('gh-auth-modal-overlay').style.display = 'none';
+            document.getElementById('gh-device-code').style.color = '';
+            showGHAuthState(true, data.username);
+          }, GH_AUTH_SUCCESS_DISMISS_MS);
           showToast('Signed in as ' + data.username, 'success');
         } else if (data.status === 'error') {
           clearInterval(ghPollTimer);
           ghPollTimer = null;
           document.getElementById('gh-poll-status').textContent = 'Error: ' + (data.error || 'unknown');
-        } else {
-          document.getElementById('gh-poll-status').textContent = 'Waiting for authorization...';
+          document.getElementById('gh-poll-status').style.color = '#ef4444';
         }
       } catch (e) {
-        console.error('[gh-auth] poll error:', e);
+        // network hiccup — keep polling
       }
     }
 

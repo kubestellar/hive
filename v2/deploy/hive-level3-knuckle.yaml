@@ -75,24 +75,28 @@ governor:
       guide: pause
       scanner: pause
       quality: pause
+      ci-maintainer: pause
     busy:
       threshold: 10
       supervisor: 5m
       guide: 4h
       scanner: 4h
       quality: 2h
+      ci-maintainer: 4h
     quiet:
       threshold: 3
       supervisor: 5m
       guide: 4h
       scanner: 4h
       quality: 2h
+      ci-maintainer: 4h
     idle:
       threshold: 0
       supervisor: 5m
       guide: 4h
       scanner: 4h
       quality: 2h
+      ci-maintainer: 4h
   labels:
     exempt:
       - hold

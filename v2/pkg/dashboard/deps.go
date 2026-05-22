@@ -34,6 +34,7 @@ type Dependencies struct {
 	PersistFunc      func()
 	ReInitFunc       func()
 	SetUserClient    func(token string)
+	EnumerateFunc    func()
 }
 
 type NousState struct {

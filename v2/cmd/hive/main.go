@@ -475,6 +475,9 @@ func main() {
 			userGHClient.Store(uc)
 			logger.Info("user GitHub client updated via device flow")
 		},
+		EnumerateFunc: func() {
+			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, logger)
+		},
 	})
 
 	if saved == nil {

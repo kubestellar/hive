@@ -222,11 +222,14 @@ func main() {
 			if as.PinnedModel != "" {
 				_ = agentMgr.PinModel(name, as.PinnedModel)
 			}
+			// Model/backend overrides are intentionally NOT restored from
+			// persisted state — YAML is authoritative on restart. Overrides
+			// set via the dashboard API are session-only.
 			if as.ModelOverride != "" {
-				_ = agentMgr.SetModelOverride(name, as.ModelOverride)
+				logger.Info("ignoring persisted model override (YAML is authoritative)", "agent", name, "override", as.ModelOverride)
 			}
 			if as.BackendOverride != "" {
-				_ = agentMgr.SetBackendOverride(name, as.BackendOverride)
+				logger.Info("ignoring persisted backend override (YAML is authoritative)", "agent", name, "override", as.BackendOverride)
 			}
 			if as.RestartCount > 0 {
 				agentMgr.SeedRestartCount(name, as.RestartCount)
@@ -260,9 +263,6 @@ func main() {
 				if as.RestartStrategy != "" {
 					agentCfg.RestartStrategy = as.RestartStrategy
 				}
-				if as.LaunchCmd != "" {
-					agentCfg.LaunchCmd = as.LaunchCmd
-				}
 				cfg.Agents[name] = agentCfg
 				_ = agentMgr.UpdateConfig(name, agentCfg)
 			}
@@ -273,18 +273,10 @@ func main() {
 		if len(saved.BudgetIgnored) > 0 {
 			gov.SetBudgetIgnored(saved.BudgetIgnored)
 		}
-		for modeName, cadences := range saved.CadenceOverrides {
-			mode, ok := cfg.Governor.Modes[modeName]
-			if !ok {
-				continue
-			}
-			if mode.Cadences == nil {
-				mode.Cadences = make(map[string]string)
-			}
-			for agentName, cadence := range cadences {
-				mode.Cadences[agentName] = cadence
-			}
-			cfg.Governor.Modes[modeName] = mode
+		// Cadence overrides are intentionally NOT restored — YAML is
+		// authoritative on restart. Dashboard cadence tweaks are session-only.
+		if len(saved.CadenceOverrides) > 0 {
+			logger.Info("ignoring persisted cadence overrides (YAML is authoritative)", "modes", len(saved.CadenceOverrides))
 		}
 		if saved.GovernorMode != "" {
 			gov.SetMode(governor.Mode(saved.GovernorMode))

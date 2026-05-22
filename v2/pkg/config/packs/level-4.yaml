@@ -16,12 +16,12 @@ governor:
     idle: 0
   cadences:
     surge:
-      supervisor: 5m
-      scanner: 4h
-      ci-maintainer: 4h
-      quality: 2h
-      guide: 4h
-      sec-check: 4h
+      supervisor: pause
+      scanner: pause
+      ci-maintainer: pause
+      quality: pause
+      guide: pause
+      sec-check: pause
     busy:
       supervisor: 5m
       scanner: 4h

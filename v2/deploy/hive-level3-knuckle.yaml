@@ -71,10 +71,10 @@ governor:
   modes:
     surge:
       threshold: 15
-      supervisor: 5m
-      guide: 4h
-      scanner: 4h
-      quality: 2h
+      supervisor: pause
+      guide: pause
+      scanner: pause
+      quality: pause
     busy:
       threshold: 10
       supervisor: 5m

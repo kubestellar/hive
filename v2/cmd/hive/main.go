@@ -111,6 +111,21 @@ func main() {
 		}
 		ghClient = github.NewClient(ghToken, cfg.Project.Org, cfg.Project.Repos, logger)
 	}
+	// Load user token for advisory posting (comments on issues as the logged-in user)
+	var userGHClient atomic.Pointer[github.Client]
+	if tokenData, err := os.ReadFile("/data/gh-user-token"); err == nil {
+		userToken := strings.TrimSpace(string(tokenData))
+		if userToken != "" {
+			if username, err := github.ValidateToken(userToken); err == nil {
+				uc := github.NewClient(userToken, cfg.Project.Org, cfg.Project.Repos, logger)
+				userGHClient.Store(uc)
+				logger.Info("user GitHub token loaded for advisory posting", "username", username)
+			} else {
+				logger.Warn("persisted user token is invalid or expired", "error", err)
+			}
+		}
+	}
+
 	gov := governor.New(cfg.Governor, cfg.EnabledAgents(), logger)
 	sched := scheduler.New(cfg, logger)
 
@@ -455,6 +470,11 @@ func main() {
 		ReInitFunc: func() {
 			initAgentConfigDrivenSystems(cfg)
 		},
+		SetUserClient: func(token string) {
+			uc := github.NewClient(token, cfg.Project.Org, cfg.Project.Repos, logger)
+			userGHClient.Store(uc)
+			logger.Info("user GitHub client updated via device flow")
+		},
 	})
 
 	if saved == nil {
@@ -551,7 +571,7 @@ func main() {
 		return
 	}
 
-	runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, logger)
+	runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, logger)
 	persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 	dashSrv.MarkReady()
 
@@ -569,7 +589,7 @@ func main() {
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 			return
 		case <-ticker.C:
-			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, logger)
+			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, logger)
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 		case <-agentTickCh:
 			govState := gov.GetState()
@@ -596,6 +616,7 @@ func runEvalCycle(
 	lastActionable *atomic.Pointer[github.ActionableResult],
 	advisoryStore *advisory.Store,
 	advisoryIssues map[string]int,
+	userGHClient *atomic.Pointer[github.Client],
 	logger *slog.Logger,
 ) {
 	actionable, err := ghClient.EnumerateActionable(ctx)
@@ -712,7 +733,11 @@ func runEvalCycle(
 					primaryRepo = cfg.Project.Repos[0]
 				}
 				if issueNum, ok := advisoryIssues[primaryRepo]; ok && issueNum > 0 {
-					if err := ghClient.PostAdvisoryDigest(ctx, primaryRepo, issueNum, md); err != nil {
+					postClient := ghClient
+					if uc := userGHClient.Load(); uc != nil {
+						postClient = uc
+					}
+					if err := postClient.PostAdvisoryDigest(ctx, primaryRepo, issueNum, md); err != nil {
 						logger.Warn("failed to post advisory digest", "repo", primaryRepo, "issue", issueNum, "error", err)
 					} else {
 						logger.Info("posted advisory digest", "repo", primaryRepo, "issue", issueNum, "findings", digest.TotalCount)

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubestellar/hive/v2/pkg/github"
 )
 
 //go:embed static
@@ -43,6 +44,9 @@ type Server struct {
 
 	advisoryMu     sync.RWMutex
 	advisoryDigest any
+
+	deviceFlowMu    sync.Mutex
+	deviceFlowState *github.DeviceFlowState
 
 	ready bool
 }

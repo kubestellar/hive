@@ -33,6 +33,7 @@ type Dependencies struct {
 	RefreshFunc      func()
 	PersistFunc      func()
 	ReInitFunc       func()
+	SetUserClient    func(token string)
 }
 
 type NousState struct {

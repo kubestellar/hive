@@ -14,6 +14,7 @@ import (
 
 	"github.com/kubestellar/hive/v2/pkg/beads"
 	"github.com/kubestellar/hive/v2/pkg/config"
+	"github.com/kubestellar/hive/v2/pkg/github"
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
 
@@ -47,6 +48,9 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 
 	s.mux.HandleFunc("GET /api/gh-auth", s.handleGHAuth)
 	s.mux.HandleFunc("GET /api/gh-rate-limits", s.handleGHRateLimits)
+	s.mux.HandleFunc("GET /api/gh-user-auth/status", s.handleGHUserAuthStatus)
+	s.mux.HandleFunc("POST /api/gh-user-auth/start", s.handleGHUserAuthStart)
+	s.mux.HandleFunc("POST /api/gh-user-auth/poll", s.handleGHUserAuthPoll)
 	s.mux.HandleFunc("GET /api/summaries", s.handleSummaries)
 
 	s.mux.HandleFunc("GET /api/config/agent/{name}", s.handleAgentConfigGet)
@@ -684,6 +688,84 @@ func (s *Server) handleGHAuth(w http.ResponseWriter, r *http.Request) {
 		"app_id":          cfg.AppID,
 		"installation_id": cfg.InstallationID,
 	})
+}
+
+const userTokenPath = "/data/gh-user-token"
+
+func (s *Server) handleGHUserAuthStatus(w http.ResponseWriter, r *http.Request) {
+	tokenData, err := os.ReadFile(userTokenPath)
+	if err != nil || len(strings.TrimSpace(string(tokenData))) == 0 {
+		jsonResponse(w, map[string]interface{}{"logged_in": false})
+		return
+	}
+	token := strings.TrimSpace(string(tokenData))
+	username, err := github.ValidateToken(token)
+	if err != nil {
+		jsonResponse(w, map[string]interface{}{"logged_in": false, "error": "token expired or revoked"})
+		return
+	}
+	jsonResponse(w, map[string]interface{}{"logged_in": true, "username": username})
+}
+
+func (s *Server) handleGHUserAuthStart(w http.ResponseWriter, r *http.Request) {
+	clientID := s.deps.Config.GitHub.OAuthClientID
+	if clientID == "" {
+		jsonError(w, "oauth_client_id not configured in github section of hive.yaml", http.StatusBadRequest)
+		return
+	}
+
+	s.deviceFlowMu.Lock()
+	defer s.deviceFlowMu.Unlock()
+
+	state, err := github.StartDeviceFlow(clientID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.deviceFlowState = state
+	jsonResponse(w, map[string]interface{}{
+		"user_code":        state.UserCode,
+		"verification_uri": state.VerificationURI,
+		"expires_in":       state.ExpiresIn,
+		"interval":         state.Interval,
+	})
+}
+
+func (s *Server) handleGHUserAuthPoll(w http.ResponseWriter, r *http.Request) {
+	s.deviceFlowMu.Lock()
+	defer s.deviceFlowMu.Unlock()
+
+	if s.deviceFlowState == nil {
+		jsonError(w, "no device flow in progress — call /api/gh-user-auth/start first", http.StatusBadRequest)
+		return
+	}
+
+	clientID := s.deps.Config.GitHub.OAuthClientID
+	token, status, err := github.PollDeviceFlow(clientID, s.deviceFlowState.DeviceCode)
+	if err != nil {
+		s.deviceFlowState = nil
+		jsonResponse(w, map[string]interface{}{"status": "error", "error": err.Error()})
+		return
+	}
+	if status == "authorization_pending" || status == "slow_down" {
+		jsonResponse(w, map[string]interface{}{"status": "pending"})
+		return
+	}
+
+	if err := os.WriteFile(userTokenPath, []byte(token), 0o600); err != nil {
+		jsonError(w, "failed to save token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	username, _ := github.ValidateToken(token)
+	s.deviceFlowState = nil
+	s.deps.Logger.Info("GitHub user authenticated via device flow", "username", username)
+
+	if s.deps.SetUserClient != nil {
+		s.deps.SetUserClient(token)
+	}
+
+	jsonResponse(w, map[string]interface{}{"status": "complete", "username": username})
 }
 
 func (s *Server) handleGHRateLimits(w http.ResponseWriter, r *http.Request) {

@@ -273,6 +273,7 @@ type GitHubConfig struct {
 	InstallationID int64  `yaml:"installation_id"`
 	KeyFile        string `yaml:"key_file"`
 	Token          string `yaml:"token"`
+	OAuthClientID  string `yaml:"oauth_client_id"`
 }
 
 type NotificationsConfig struct {

@@ -121,15 +121,30 @@ func BuildDigest(findings []Finding, mode string) *Digest {
 	}
 }
 
+// isAdvisoryBeadType returns true for bead types that represent actionable
+// findings for repo owners. Internal agent work items (task, decision) are
+// excluded so the advisory digest stays high-signal.
+func isAdvisoryBeadType(t beads.BeadType) bool {
+	switch t {
+	case beads.TypeAdvisory, beads.TypeBug, beads.TypeFeature:
+		return true
+	default:
+		return false
+	}
+}
+
 // BuildDigestFromBeads creates a digest by reading open advisory beads from all
-// agent bead stores. This is the primary source of truth — agents write findings
-// as beads, and the digest renders them dynamically.
+// agent bead stores. Only advisory/bug/feature beads are included — task and
+// decision beads are internal agent work items, not findings for repo owners.
 func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
 	byAgent := make(map[string][]Finding)
 	total := 0
 	for agentName, store := range stores {
 		for _, b := range store.List(beads.ListFilter{}) {
 			if b.Status == beads.StatusClosed {
+				continue
+			}
+			if !isAdvisoryBeadType(b.Type) {
 				continue
 			}
 			f := Finding{
@@ -201,7 +216,9 @@ func FormatDigestMarkdown(d *Digest) string {
 
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("## 🐝 Advisory Digest — %s\n\n", d.GeneratedAt.Format("2006-01-02 15:04 MST")))
-	b.WriteString(fmt.Sprintf("**Mode:** %s | **Findings:** %d\n\n", d.Mode, d.TotalCount))
+	b.WriteString("> Automated code review findings from [Hive](https://github.com/kubestellar/hive) agents. ")
+	b.WriteString("Each finding includes a file reference and suggested fix. This comment is updated periodically.\n\n")
+	b.WriteString(fmt.Sprintf("**Findings:** %d\n\n", d.TotalCount))
 
 	b.WriteString("| Severity | Count |\n|----------|-------|\n")
 	for _, sev := range sevOrder {

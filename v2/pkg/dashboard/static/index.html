@@ -1497,7 +1497,10 @@
   <div class="gh-auth-modal">
     <h3>Sign in with GitHub</h3>
     <p>Enter this code on GitHub to authorize Hive:</p>
-    <div class="device-code" id="gh-device-code">--------</div>
+    <div style="position:relative;display:inline-block">
+      <div class="device-code" id="gh-device-code">--------</div>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('gh-device-code').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)" style="position:absolute;top:4px;right:4px;background:#238636;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:600">Copy</button>
+    </div>
     <a id="gh-verify-link" class="gh-verify-link" href="https://github.com/login/device" target="_blank" rel="noopener">Open GitHub →</a>
     <div class="gh-poll-status" id="gh-poll-status">Waiting for authorization...</div>
     <button class="gh-cancel" onclick="cancelGHLogin()">Cancel</button>
@@ -7789,6 +7792,7 @@ function burnAreaChart() {
       try {
         const resp = await fetch('/api/gh-user-auth/poll', { method: 'POST' });
         const data = await resp.json();
+        console.log('[gh-auth] poll response:', data);
         if (data.status === 'complete') {
           clearInterval(ghPollTimer);
           ghPollTimer = null;
@@ -7803,9 +7807,11 @@ function burnAreaChart() {
           clearInterval(ghPollTimer);
           ghPollTimer = null;
           document.getElementById('gh-poll-status').textContent = 'Error: ' + (data.error || 'unknown');
+        } else {
+          document.getElementById('gh-poll-status').textContent = 'Waiting for authorization...';
         }
       } catch (e) {
-        // network hiccup — keep polling
+        console.error('[gh-auth] poll error:', e);
       }
     }
 

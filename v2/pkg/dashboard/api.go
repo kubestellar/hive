@@ -741,7 +741,9 @@ func (s *Server) handleGHUserAuthPoll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientID := s.deps.Config.GitHub.OAuthClientID
+	s.deps.Logger.Info("polling device flow", "client_id", clientID, "device_code_prefix", s.deviceFlowState.DeviceCode[:8])
 	token, status, err := github.PollDeviceFlow(clientID, s.deviceFlowState.DeviceCode)
+	s.deps.Logger.Info("device flow poll result", "status", status, "has_token", token != "", "error", err)
 	if err != nil {
 		s.deviceFlowState = nil
 		jsonResponse(w, map[string]interface{}{"status": "error", "error": err.Error()})

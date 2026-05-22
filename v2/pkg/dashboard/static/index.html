@@ -7865,6 +7865,12 @@ function burnAreaChart() {
       document.getElementById('gh-auth-modal-overlay').style.display = 'none';
     }
 
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && document.getElementById('gh-auth-modal-overlay').style.display === 'flex') {
+        cancelGHLogin();
+      }
+    });
+
     checkGHAuth();
     setInterval(checkGHAuth, GH_AUTH_CHECK_INTERVAL_MS);
 

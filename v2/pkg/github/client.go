@@ -121,6 +121,10 @@ func NewClientForTest(serverURL string, org string, repos []string, logger *slog
 	return c
 }
 
+func (c *Client) SetRepos(repos []string) {
+	c.repos = repos
+}
+
 func (c *Client) EnumerateActionable(ctx context.Context) (*ActionableResult, error) {
 	now := time.Now()
 	result := &ActionableResult{

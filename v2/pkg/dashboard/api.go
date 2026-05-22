@@ -1852,6 +1852,9 @@ func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.deps.Config.Project.Repos = stripped
+	if s.deps.GHClient != nil {
+		s.deps.GHClient.SetRepos(stripped)
+	}
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }

@@ -144,11 +144,51 @@ with open('${ADVISORY_DIR}/${AGENT_NAME}.jsonl', 'a') as fh:
     exit 1
   fi
 fi
-# At L3: block pr merge (issues and PRs allowed, merging is manual)
+# At L3: only quality agent can create issues and hold-gated PRs. All others are advisory.
+# Merging is blocked for ALL agents at L3.
 if [ "$ACMM_LEVEL" -eq 3 ]; then
+  AGENT_NAME_L3="${HIVE_AGENT:-${HIVE_AGENT_ID:-unknown}}"
   if [ "$subcmd" = "pr" ] && [ "$action" = "merge" ]; then
     echo "⛔ BLOCKED: gh pr merge is not allowed at ACMM L3." >&2
-    echo "L3 agents can create PRs but merging requires human approval." >&2
+    echo "L3 PRs are hold-gated — merging requires human approval." >&2
+    exit 1
+  fi
+  if [ "$subcmd" = "issue" ] && [ "$action" = "create" ] && [ "$AGENT_NAME_L3" != "quality" ]; then
+    _adv_title="" _adv_body="" _next_is_title=false _next_is_body=false
+    for arg in "${args[@]}"; do
+      if $_next_is_title; then _adv_title="$arg"; _next_is_title=false; continue; fi
+      if $_next_is_body;  then _adv_body="$arg";  _next_is_body=false;  continue; fi
+      case "$arg" in
+        --title)   _next_is_title=true ;;
+        --title=*) _adv_title="${arg#--title=}" ;;
+        --body)    _next_is_body=true ;;
+        --body=*)  _adv_body="${arg#--body=}" ;;
+        -t)        _next_is_title=true ;;
+        -b)        _next_is_body=true ;;
+      esac
+    done
+    ADVISORY_DIR="/data/advisory"
+    mkdir -p "$ADVISORY_DIR"
+    python3 -c "
+import json, datetime, sys
+f = {
+    'agent': '${AGENT_NAME_L3}',
+    'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
+    'type': 'issue',
+    'severity': 'medium',
+    'title': sys.argv[1],
+    'detail': sys.argv[2][:500] if len(sys.argv[2]) > 500 else sys.argv[2]
+}
+with open('${ADVISORY_DIR}/${AGENT_NAME_L3}.jsonl', 'a') as fh:
+    fh.write(json.dumps(f) + '\n')
+" "${_adv_title:-untitled}" "${_adv_body:-}" 2>/dev/null || true
+    echo "⛔ BLOCKED: only the quality agent can create issues at ACMM L3." >&2
+    echo "Agent '${AGENT_NAME_L3}' is advisory-only at L3. Finding saved to advisory digest." >&2
+    exit 1
+  fi
+  if [ "$subcmd" = "pr" ] && [ "$action" = "create" ] && [ "$AGENT_NAME_L3" != "quality" ]; then
+    echo "⛔ BLOCKED: only the quality agent can create PRs at ACMM L3." >&2
+    echo "Agent '${AGENT_NAME_L3}' is advisory-only at L3. No PRs allowed." >&2
     exit 1
   fi
 fi

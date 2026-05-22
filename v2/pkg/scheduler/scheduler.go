@@ -12,6 +12,7 @@ import (
 	"github.com/kubestellar/hive/v2/pkg/config"
 	"github.com/kubestellar/hive/v2/pkg/github"
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
+	"github.com/kubestellar/hive/v2/pkg/policies"
 )
 
 type Scheduler struct {
@@ -34,6 +35,7 @@ func (s *Scheduler) SetPrimer(p *knowledge.Primer) {
 }
 
 // loadPromptTemplate searches standard paths for an agent's CLAUDE.md template.
+// It checks on-disk paths first, then falls back to embedded default policies.
 func (s *Scheduler) loadPromptTemplate(agentName string) string {
 	paths := []string{
 		fmt.Sprintf("/data/agents/%s/CLAUDE.md", agentName),
@@ -50,10 +52,14 @@ func (s *Scheduler) loadPromptTemplate(agentName string) string {
 			return string(data)
 		}
 	}
+	if data, err := policies.DefaultPolicies.ReadFile("defaults/" + agentName + "-CLAUDE.md"); err == nil {
+		return string(data)
+	}
 	return ""
 }
 
 // loadNamedTemplate loads a kick template by explicit filename (from config kick_template field).
+// It checks on-disk paths first, then falls back to embedded default policies.
 func (s *Scheduler) loadNamedTemplate(templateName string) string {
 	paths := []string{
 		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s", templateName),
@@ -68,6 +74,9 @@ func (s *Scheduler) loadNamedTemplate(templateName string) string {
 		if data, err := os.ReadFile(p); err == nil {
 			return string(data)
 		}
+	}
+	if data, err := policies.DefaultPolicies.ReadFile("defaults/" + templateName); err == nil {
+		return string(data)
 	}
 	return ""
 }

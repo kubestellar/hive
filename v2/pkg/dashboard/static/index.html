@@ -1493,12 +1493,6 @@
   <span id="gh-auth-msg">GitHub login required for advisory posting</span>
   <button class="gh-auth-btn" id="gh-auth-btn" onclick="startGHLogin()">Sign in with GitHub</button>
 </div>
-<div id="gh-auth-badge" class="gh-auth-banner" style="display:none;background:linear-gradient(135deg,#0d1117,#161b22);padding:6px 24px;gap:8px;font-size:0.8rem">
-  <span style="color:#3fb950">●</span>
-  <span style="color:#8b949e">GitHub:</span>
-  <span id="gh-auth-badge-user" class="gh-auth-user"></span>
-  <button onclick="startGHLogin()" style="background:none;border:1px solid #30363d;color:#8b949e;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:8px">Switch</button>
-</div>
 <div id="gh-auth-modal-overlay" class="gh-auth-overlay" style="display:none">
   <div class="gh-auth-modal">
     <h3>Sign in with GitHub</h3>
@@ -7786,13 +7780,10 @@ function burnAreaChart() {
 
     function showGHAuthState(loggedIn, username, avatarURL) {
       const banner = document.getElementById('gh-auth-banner');
-      const badge = document.getElementById('gh-auth-badge');
       const topBtn = document.getElementById('oc-gh-login-btn');
       const avatarWrap = document.getElementById('oc-gh-avatar-wrap');
       if (loggedIn) {
         banner.style.display = 'none';
-        badge.style.display = 'flex';
-        document.getElementById('gh-auth-badge-user').textContent = username;
         if (topBtn) topBtn.style.display = 'none';
         if (avatarWrap) {
           avatarWrap.style.display = '';
@@ -7805,7 +7796,6 @@ function burnAreaChart() {
         }
       } else {
         banner.style.display = 'flex';
-        badge.style.display = 'none';
         if (topBtn) topBtn.style.display = '';
         if (avatarWrap) avatarWrap.style.display = 'none';
       }

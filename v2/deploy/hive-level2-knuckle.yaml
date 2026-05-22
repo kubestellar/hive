@@ -1,0 +1,132 @@
+# Hive v2 — projectbluefin/knuckle (ACMM Level 2: analysis only)
+# Advisory mode: no issues, no PRs. Findings go to the advisory issue.
+
+acmm_level: 2
+project:
+  org: projectbluefin
+  name: knuckle
+  repos:
+    - knuckle
+  ai_author: clubanderson
+  primary_repo: knuckle
+  open_prs: false
+
+policies:
+  repo: https://github.com/kubestellar/hive
+  path: examples/agents/
+  local_dir: /data/policies
+  poll_interval: 5m
+
+agents:
+  supervisor:
+    enabled: true
+    backend: copilot
+    model: claude-sonnet-4-6
+    beads_dir: /data/beads/supervisor
+    clear_on_kick: true
+    cli_pinned: true
+    stale_timeout: 1800
+    restart_strategy: immediate
+    launch_cmd: "agent-launch.sh --backend copilot --model claude-sonnet-4-6"
+    display_name: supervisor
+  guide:
+    enabled: true
+    backend: copilot
+    model: claude-sonnet-4-6
+    beads_dir: /data/beads/guide
+    clear_on_kick: true
+    cli_pinned: true
+    stale_timeout: 3600
+    restart_strategy: immediate
+    launch_cmd: "agent-launch.sh --backend copilot --model claude-sonnet-4-6"
+    display_name: guide (advisory)
+    kick_template: guide-advisory-CLAUDE.md
+  scanner:
+    enabled: true
+    backend: copilot
+    model: claude-sonnet-4-6
+    beads_dir: /data/beads/scanner
+    clear_on_kick: true
+    cli_pinned: true
+    stale_timeout: 7200
+    restart_strategy: immediate
+    launch_cmd: "agent-launch.sh --backend copilot --model claude-sonnet-4-6"
+    display_name: scanner (advisory)
+    kick_template: scanner-advisory-CLAUDE.md
+  quality:
+    enabled: true
+    backend: copilot
+    model: claude-sonnet-4-6
+    beads_dir: /data/beads/quality
+    clear_on_kick: true
+    cli_pinned: true
+    stale_timeout: 7200
+    restart_strategy: immediate
+    launch_cmd: "agent-launch.sh --backend copilot --model claude-sonnet-4-6"
+    display_name: quality (advisory)
+    kick_template: quality-advisory-CLAUDE.md
+
+governor:
+  eval_interval_s: 600
+  modes:
+    surge:
+      threshold: 15
+      supervisor: 5m
+      guide: 4h
+      scanner: 4h
+      quality: 6h
+    busy:
+      threshold: 10
+      supervisor: 5m
+      guide: 4h
+      scanner: 4h
+      quality: 6h
+    quiet:
+      threshold: 3
+      supervisor: 5m
+      guide: 4h
+      scanner: 4h
+      quality: 6h
+    idle:
+      threshold: 0
+      supervisor: 5m
+      guide: 4h
+      scanner: 4h
+      quality: 6h
+  labels:
+    exempt:
+      - hold
+      - do-not-merge
+  sensing:
+    gh_rate_patterns:
+      - "API rate limit exceeded"
+      - "secondary rate limit"
+    cli_exclude_patterns:
+      - "out of extra usage"
+    ttl_seconds: 900
+    pullback_seconds: 900
+  health:
+    healthcheck_interval: 300
+    restart_cooldown: 60
+    model_lock: false
+
+github:
+  app_id: 3568013
+  installation_id: 128685788
+  key_file: /etc/hive/gh-app-key.pem
+  oauth_client_id: Ov23ligE2p0gjXg6xAUf
+
+notifications:
+  ntfy:
+    server: https://ntfy.sh
+    topic: hive-knuckle
+
+dashboard:
+  port: 3002
+  snapshot_dir: /data/snapshots
+  title: Knuckle Hive
+
+data:
+  metrics_dir: /data/metrics
+  logs_dir: /data/logs
+  claude_sessions_dir: /data/home/.claude/projects

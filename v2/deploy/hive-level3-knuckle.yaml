@@ -8,6 +8,8 @@ project:
   name: knuckle
   repos:
     - knuckle
+    - documentation
+    - website
   ai_author: clubanderson
   primary_repo: knuckle
 

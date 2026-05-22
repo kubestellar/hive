@@ -1,29 +1,42 @@
 level: 3
-name: CI/CD
+name: Measured
 description: >
-  Automated builds, coverage gates, and active scanning. Agents create PRs
-  and issues. All merges require CI pass. Governor runs in QUIET/IDLE modes.
-  Coverage gate at 70%+ with ratcheting.
+  Feedback becomes visible. The quality agent opens issues about testing
+  infrastructure — coverage gaps, missing CI workflows, test result reporting.
+  All other agents remain in advisory mode. CI-maintainer joins to monitor
+  build health. The key L3 artifact is measurement infrastructure.
 governor:
-  modes: QUIET, IDLE
-  merge_policy: CI must pass (merge-gate.sh)
+  modes: SURGE, BUSY, QUIET, IDLE
+  merge_policy: manual
   eval_interval_s: 300
   thresholds:
+    surge: 15
+    busy: 10
     quiet: 3
     idle: 0
   cadences:
+    surge:
+      supervisor: 5m
+      scanner: 30m
+      ci-maintainer: 30m
+      quality: 30m
+      guide: 1h
+    busy:
+      supervisor: 5m
+      scanner: 30m
+      ci-maintainer: 30m
+      quality: 30m
+      guide: 1h
     quiet:
       supervisor: 5m
       scanner: 30m
       ci-maintainer: 30m
-      architect: 1h
       quality: 1h
       guide: 1h
     idle:
       supervisor: 5m
       scanner: 1h
       ci-maintainer: 1h
-      architect: 2h
       quality: 2h
       guide: 2h
 agents:
@@ -49,105 +62,83 @@ agents:
       Reads agent health history and operational patterns. Produces sweep
       reports and health assessments.
   - name: scanner
-    display_name: scanner
+    display_name: scanner (advisory)
     role: scanner
     description: >
-      Triages issues, creates fix PRs for simple bugs, and opens issues when
-      coverage drops. Active, not just advisory.
+      Scans code for issues and suggests fixes, but does NOT create PRs or
+      issues. Reports findings as beads for the advisory digest.
     emoji: "🔍"
     color: "#3498db"
     sort_order: 20
     backend: copilot
-    model: claude-opus-4-6
+    model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: scanner-CLAUDE.md
+    kick_template: scanner-advisory-CLAUDE.md
     include_repos: true
-    stale_timeout: 3600
-    lane_keywords: [bug, triage, fix, issue]
-    interactions: >
-      Creates PRs that ci-maintainer monitors. Transfers complex issues to
-      architect via lane routing.
+    stale_timeout: 7200
+    lane_keywords: [bug, triage, fix]
+    interactions: "Produces advisory findings. No autonomous actions."
     knowledge_use: >
-      Reads known patterns, past fixes, and regression history. Produces fix
-      records and triage decisions.
+      Reads project patterns and known issues. Produces findings as advisory
+      beads for the team to review.
   - name: ci-maintainer
-    display_name: ci-maintainer
+    display_name: ci-maintainer (advisory)
     role: ci-maintainer
     description: >
-      Monitors CI health, nightly tests, and coverage trends. Post-merge state
-      checks ensure nothing regresses.
+      Monitors CI health, workflow status, and build trends. Reports findings
+      as beads for the advisory digest. Does NOT create PRs or issues.
     emoji: "🔧"
     color: "#2ecc71"
     sort_order: 30
     backend: copilot
-    model: claude-opus-4-6
+    model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: ci-maintainer-CLAUDE.md
+    kick_template: ci-maintainer-advisory-CLAUDE.md
     include_repos: true
     stale_timeout: 3600
     lane_keywords: [ci, build, pipeline, workflow]
     interactions: >
-      Watches scanner's PRs for CI failures. Coordinates with architect on
-      workflow changes.
+      Monitors CI alongside quality. Reports CI health as advisory beads.
     knowledge_use: >
-      Reads CI patterns and past failures. Produces CI health reports and
-      workflow optimization insights.
-  - name: architect
-    display_name: architect
-    role: architect
-    description: >
-      RFCs for cross-cutting changes. Activated when scanner transfers complex
-      issues via lane routing. Opportunistic — not always active.
-    emoji: "🏗"
-    color: "#9b59b6"
-    sort_order: 40
-    backend: copilot
-    model: claude-opus-4-6
-    bead_role: worker
-    kick_template: architect-CLAUDE.md
-    include_repos: true
-    stale_timeout: 7200
-    lane_keywords: [refactor, architecture, rfc, design]
-    interactions: >
-      Receives complex issues from scanner. Produces RFCs that other agents
-      can reference.
-    knowledge_use: >
-      Heavy consumer of architecture decisions and patterns. Produces RFCs
-      and design records.
+      Reads CI patterns and past failures. Produces CI health advisory beads.
   - name: quality
     display_name: quality
     role: quality
     description: >
-      Full TDD enforcement. Coverage ratcheting. Generates integration tests,
-      quality gates, and regression suites. Works with scanner findings.
+      Analyzes test coverage and opens GitHub issues about testing gaps,
+      missing CI workflows, and test infrastructure. The ONE agent at L3
+      that can create issues. Also produces advisory beads.
     emoji: "🧪"
     color: "#e67e22"
     sort_order: 25
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: quality-CLAUDE.md
+    kick_template: quality-measured-CLAUDE.md
     include_repos: true
     stale_timeout: 3600
-    lane_keywords: [test, coverage, quality, regression]
     interactions: >
-      Uses scanner findings to generate targeted tests. CI-maintainer validates
-      test results in the pipeline.
+      Opens issues about testing. Complements scanner and ci-maintainer
+      advisory findings with actionable test recommendations.
     knowledge_use: >
-      Reads test patterns, coverage rules, regressions. Produces test coverage
-      reports and quality gate records.
+      Reads test patterns, coverage rules, and known regressions from the
+      knowledge base to prioritize which code needs tests most.
   - name: guide
-    display_name: guide
+    display_name: guide (advisory)
     role: guide
     description: >
-      Enhanced advisor that reviews PRs on request, flags code without tests,
-      and suggests patterns from the knowledge base.
+      Audits project documentation and onboarding experience. Reports
+      findings as beads for the advisory digest. Does NOT create PRs or issues.
     emoji: "🧭"
     color: "#8e44ad"
-    sort_order: 5
+    sort_order: 10
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: guide-CLAUDE.md
-    include_repos: false
-    hidden: true
+    kick_template: guide-advisory-CLAUDE.md
+    include_repos: true
+    stale_timeout: 3600
+    interactions: "Works alongside scanner. Reviews scanner's suggestions when asked."
+    knowledge_use: >
+      Reads community wiki and project patterns. Starts contributing review
+      insights as knowledge entries.

@@ -17,28 +17,28 @@ governor:
   cadences:
     surge:
       supervisor: 5m
-      scanner: 30m
-      ci-maintainer: 30m
-      quality: 30m
-      guide: 1h
+      scanner: 4h
+      ci-maintainer: 4h
+      quality: 2h
+      guide: 4h
     busy:
       supervisor: 5m
-      scanner: 30m
-      ci-maintainer: 30m
-      quality: 30m
-      guide: 1h
+      scanner: 4h
+      ci-maintainer: 4h
+      quality: 2h
+      guide: 4h
     quiet:
       supervisor: 5m
-      scanner: 30m
-      ci-maintainer: 30m
-      quality: 1h
-      guide: 1h
+      scanner: 4h
+      ci-maintainer: 4h
+      quality: 2h
+      guide: 4h
     idle:
       supervisor: 5m
-      scanner: 1h
-      ci-maintainer: 1h
+      scanner: 4h
+      ci-maintainer: 4h
       quality: 2h
-      guide: 2h
+      guide: 4h
 agents:
   - name: supervisor
     display_name: Supervisor

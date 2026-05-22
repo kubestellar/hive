@@ -1,9 +1,10 @@
 level: 1
-name: Idea
+name: Assisted
 description: >
-  Project conception and scaffolding. A single interactive advisor helps with
-  repo setup, test stubs, and early architecture decisions. All actions require
-  human approval. The knowledge base is your primary asset at this level.
+  Open-loop assistance. A single interactive advisor helps with repo setup,
+  test stubs, and early architecture decisions. All actions require human
+  approval. No feedback loops — the advisor responds to requests but does
+  not monitor or act autonomously.
 governor:
   modes: none
   merge_policy: manual

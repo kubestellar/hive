@@ -1,11 +1,12 @@
 level: 2
-name: Development
+name: Instructed
 description: >
-  Code exists, PRs are manual, knowledge is accumulating. An enhanced advisor
-  reviews PRs on request. An advisory scanner suggests fixes but does not
-  create PRs or issues. Agents start building your knowledge base.
+  One-way feedback. Four agents (supervisor, scanner, quality, guide) produce
+  advisory beads — findings visible on the dashboard and in a tracking issue.
+  No GitHub issues or PRs created. Agents observe and report; humans decide
+  what to act on.
 governor:
-  modes: none
+  modes: SURGE, BUSY, QUIET, IDLE
   merge_policy: manual
   eval_interval_s: 600
   cadences:

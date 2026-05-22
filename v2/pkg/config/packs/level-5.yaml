@@ -1,15 +1,15 @@
 level: 5
-name: Guarded Autonomy
+name: Semi-Automated
 description: >
-  Same agents as Level 4 but with hold-gated merges. All agent-created PRs
-  get a 'hold' label automatically. Humans batch-review and approve. Ideal
-  for regulated industries, compliance requirements, or teams building trust
-  in their AI pipeline.
+  Multi-loop feedback. Agents open issues AND pull requests. All agent PRs
+  get a 'hold' label automatically — humans batch-review and approve.
+  Adds architect (+architect) for RFCs and strategist (+strategist) for
+  cross-agent coordination. Eight agents total. The system proposes;
+  it does not merge autonomously.
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
   merge_policy: >
     Hold-gated — all agent PRs get 'hold' label. Human batch-approves.
-    merge-gate.sh blocks agent merges. batch-approve.sh for human review.
   eval_interval_s: 300
   thresholds:
     surge: 10
@@ -18,56 +18,57 @@ governor:
     idle: 0
   cadences:
     surge:
-      supervisor: 2m
-      scanner: 10m
-      ci-maintainer: 10m
-      quality: 15m
-      architect: 30m
-      outreach: 1h
-      sec-check: 30m
-      strategist: 1h
+      supervisor: 5m
+      scanner: 4h
+      ci-maintainer: 4h
+      quality: 2h
+      guide: 4h
+      sec-check: 4h
+      architect: 4h
+      strategist: 4h
     busy:
-      supervisor: 3m
-      scanner: 15m
-      ci-maintainer: 15m
-      quality: 30m
-      architect: 1h
-      outreach: 2h
-      sec-check: 1h
-      strategist: 2h
+      supervisor: 5m
+      scanner: 4h
+      ci-maintainer: 4h
+      quality: 2h
+      guide: 4h
+      sec-check: 4h
+      architect: 4h
+      strategist: 4h
     quiet:
       supervisor: 5m
-      scanner: 30m
-      ci-maintainer: 30m
-      quality: 1h
-      architect: 2h
-      outreach: 4h
-      sec-check: 2h
+      scanner: 4h
+      ci-maintainer: 4h
+      quality: 2h
+      guide: 4h
+      sec-check: 4h
+      architect: 4h
       strategist: 4h
     idle:
       supervisor: 5m
-      scanner: 1h
-      ci-maintainer: 1h
+      scanner: 4h
+      ci-maintainer: 4h
       quality: 2h
-      architect: 4h
-      outreach: 8h
+      guide: 4h
       sec-check: 4h
-      strategist: 8h
+      architect: 4h
+      strategist: 4h
 agents:
   - name: supervisor
-    display_name: supervisor
+    display_name: Supervisor
     role: supervisor
     description: >
-      Agent health monitoring and sweep analysis. Same as L4.
+      Agent health monitoring, sweep analysis, and escalation. Watches all
+      other agents for stalls, rate limits, and anomalies.
     emoji: "👑"
     color: "#e74c3c"
-    sort_order: 10
+    sort_order: 1
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: supervisor
     kick_template: supervisor-CLAUDE.md
     include_repos: true
-    stale_timeout: 900
+    stale_timeout: 1800
     interactions: >
       Monitors all agents. Escalates issues to human operators.
     knowledge_use: >
@@ -76,7 +77,7 @@ agents:
     display_name: scanner
     role: scanner
     description: >
-      Opens issues and PRs but does NOT merge. All PRs get 'hold' label
+      Opens issues AND hold-gated PRs. All PRs get 'hold' label
       automatically. Human reviews in batches.
     emoji: "🔍"
     color: "#3498db"
@@ -84,116 +85,118 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: scanner-guarded-CLAUDE.md
+    kick_template: scanner-holdgated-CLAUDE.md
     include_repos: true
     stale_timeout: 1800
     lane_keywords: [bug, triage, fix, issue]
     interactions: >
-      Creates hold-gated PRs. Tester validates but does not approve.
+      Creates hold-gated PRs. Quality validates but does not approve.
     knowledge_use: >
-      Same as L4. Full project history access.
+      Full project history access. Produces fix records.
   - name: ci-maintainer
     display_name: ci-maintainer
     role: ci-maintainer
     description: >
-      Same as L4. CI changes are low-risk and don't need hold gating.
+      Opens issues AND hold-gated PRs for CI improvements. Workflow
+      optimization and dependency updates.
     emoji: "🔧"
     color: "#2ecc71"
     sort_order: 30
     backend: copilot
-    model: claude-opus-4-6
+    model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: ci-maintainer-CLAUDE.md
+    kick_template: ci-maintainer-holdgated-CLAUDE.md
     include_repos: true
-    stale_timeout: 1800
+    stale_timeout: 3600
     lane_keywords: [ci, build, pipeline, workflow, dependency]
     interactions: >
-      Same as L4.
+      Creates CI-related issues and hold-gated PRs.
     knowledge_use: >
-      Same as L4.
+      Reads CI history. Produces workflow health reports.
   - name: quality
     display_name: quality
     role: quality
     description: >
-      Same as L4. Tests and validates but does not approve merges.
+      Opens issues about testing AND hold-gated PRs for test improvements.
+      Reviews scanner PRs for coverage.
     emoji: "🧪"
-    color: "#3498db"
-    sort_order: 35
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    kick_template: quality-CLAUDE.md
-    include_repos: true
-    stale_timeout: 1800
-    lane_keywords: [test, coverage, tdd, quality]
-    interactions: >
-      Reviews PRs for coverage. Adds /lgtm but does NOT /approve.
-    knowledge_use: >
-      Same as L4.
-  - name: architect
-    display_name: architect
-    role: architect
-    description: >
-      Same as L4. RFCs are advisory by nature and don't need hold gating.
-    emoji: "🏗"
-    color: "#9b59b6"
-    sort_order: 40
+    color: "#e67e22"
+    sort_order: 25
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: architect-CLAUDE.md
+    kick_template: quality-holdgated-CLAUDE.md
     include_repos: true
     stale_timeout: 3600
-    lane_keywords: [refactor, architecture, rfc, design, feature]
     interactions: >
-      Same as L4.
+      Reviews scanner PRs for coverage. Creates test PRs with hold label.
     knowledge_use: >
-      Same as L4.
-  - name: outreach
-    display_name: outreach
-    role: outreach
+      Reads test patterns and coverage history.
+  - name: guide
+    display_name: guide
+    role: guide
     description: >
-      Proposes outreach but does NOT file external issues/PRs without
-      human approval.
-    emoji: "🌐"
-    color: "#e67e22"
-    sort_order: 50
+      Opens issues about documentation AND hold-gated PRs for doc
+      improvements. Reviews PRs on request.
+    emoji: "🧭"
+    color: "#8e44ad"
+    sort_order: 10
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: outreach-guarded-CLAUDE.md
-    include_repos: false
+    kick_template: guide-holdgated-CLAUDE.md
+    include_repos: true
     stale_timeout: 3600
-    lane_keywords: [community, adopters, outreach, ecosystem]
     interactions: >
-      Drafts outreach actions for human review before execution.
+      Creates documentation issues and hold-gated PRs.
     knowledge_use: >
-      Same as L4.
+      Reads community wiki and project patterns.
   - name: sec-check
     display_name: security
     role: sec-check
     description: >
-      Enhanced security scanning with CVE monitoring. Critical findings
-      escalate to supervisor immediately.
+      Opens issues AND hold-gated PRs for security fixes. CVE tracking
+      and vulnerability monitoring.
     emoji: "🛡"
     color: "#1abc9c"
     sort_order: 60
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: sec-check-CLAUDE.md
+    kick_template: sec-check-holdgated-CLAUDE.md
     include_repos: true
-    stale_timeout: 1800
+    stale_timeout: 3600
     lane_keywords: [security, cve, vulnerability, audit]
     interactions: >
-      Same as L4 plus immediate escalation for critical CVEs.
+      Creates security issues and hold-gated PRs.
     knowledge_use: >
-      Same as L4.
+      Reads vulnerability databases and past security fixes.
+  - name: architect
+    display_name: architect
+    role: architect
+    description: >
+      Architecture agent. Produces RFCs, refactors, and new features.
+      Opens hold-gated PRs for structural changes.
+    emoji: "🏗"
+    color: "#9b59b6"
+    sort_order: 40
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: architect-holdgated-CLAUDE.md
+    include_repos: true
+    stale_timeout: 3600
+    lane_keywords: [refactor, architecture, rfc, design, feature]
+    interactions: >
+      Receives complex issues from scanner. Produces RFCs and hold-gated PRs.
+    knowledge_use: >
+      Heavy consumer and producer of architecture decisions and patterns.
   - name: strategist
     display_name: strategist
     role: strategist
     description: >
-      Same as L4.
+      Strategic planning, roadmap alignment, and cross-agent coordination.
+      Analyzes trends across all agents.
     emoji: "🧠"
     color: "#f39c12"
     sort_order: 70
@@ -205,21 +208,6 @@ agents:
     stale_timeout: 3600
     lane_keywords: [strategy, roadmap, planning]
     interactions: >
-      Same as L4.
+      Reads all agent outputs. Produces strategic insights.
     knowledge_use: >
-      Same as L4.
-  - name: guide
-    display_name: guide
-    role: guide
-    description: >
-      Enhanced advisor that reviews PRs on request, flags code without tests,
-      and suggests patterns from the knowledge base.
-    emoji: "🧭"
-    color: "#8e44ad"
-    sort_order: 5
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    kick_template: guide-CLAUDE.md
-    include_repos: false
-    hidden: true
+      Heavy consumer of all agent knowledge.

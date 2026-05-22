@@ -1,14 +1,14 @@
 level: 6
-name: Full Autonomy
+name: Fully Autonomous
 description: >
-  Agents open AND merge PRs. Self-healing on deploy failures. Minimal human
-  oversight — monitoring shifts from pre-merge approval to post-merge
-  dashboards and alerts. Auto-deploy with rollback on failure.
+  Multi-loop with external orchestration. Agents open issues, create PRs,
+  and auto-merge on green CI. No hold label. Adds outreach agent (+outreach)
+  for community engagement and external-facing actions. Nine agents total.
+  Highest trust — governor at fastest cadence.
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
   merge_policy: >
-    Auto-merge on green CI. No hold label. auto-deploy.sh active.
-    rollback.sh for self-healing on deploy failure.
+    Auto-merge on green CI. No hold label.
   eval_interval_s: 120
   thresholds:
     surge: 10
@@ -54,14 +54,14 @@ governor:
       strategist: 4h
 agents:
   - name: supervisor
-    display_name: supervisor
+    display_name: Supervisor
     role: supervisor
     description: >
       Full autonomous oversight. Self-healing: restarts stalled agents,
       triggers rollbacks on deploy failures.
     emoji: "👑"
     color: "#e74c3c"
-    sort_order: 10
+    sort_order: 1
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: supervisor
@@ -69,8 +69,8 @@ agents:
     include_repos: true
     stale_timeout: 600
     interactions: >
-      Full autonomous oversight of all agents. Triggers rollbacks and
-      self-healing actions without human intervention.
+      Full autonomous oversight of all agents. Triggers self-healing
+      actions without human intervention.
     knowledge_use: >
       Reads agent health history. Produces sweep reports and self-healing
       action logs.
@@ -78,8 +78,8 @@ agents:
     display_name: scanner
     role: scanner
     description: >
-      Merges PRs when CI passes. No hold. Full SLA enforcement with
-      30-minute response time.
+      Creates and auto-merges PRs on green CI. No hold label. Full SLA
+      enforcement with 30-minute response time.
     emoji: "🔍"
     color: "#3498db"
     sort_order: 20
@@ -91,87 +91,65 @@ agents:
     stale_timeout: 900
     lane_keywords: [bug, triage, fix, issue]
     interactions: >
-      Creates and merges PRs autonomously. Tester validates before merge.
+      Creates and merges PRs autonomously.
     knowledge_use: >
       Full access to all project knowledge.
   - name: ci-maintainer
     display_name: ci-maintainer
     role: ci-maintainer
     description: >
-      Full CI pipeline ownership with auto-deploy integration.
+      Full CI pipeline ownership. Creates and auto-merges CI improvement PRs.
     emoji: "🔧"
     color: "#2ecc71"
     sort_order: 30
     backend: copilot
-    model: claude-opus-4-6
+    model: claude-sonnet-4-6
     bead_role: worker
     kick_template: ci-maintainer-CLAUDE.md
     include_repos: true
     stale_timeout: 900
-    lane_keywords: [ci, build, pipeline, workflow, dependency, deploy]
+    lane_keywords: [ci, build, pipeline, workflow, dependency]
     interactions: >
-      Owns deploy pipeline. Coordinates rollbacks with supervisor.
+      Owns CI pipeline. Coordinates with supervisor.
     knowledge_use: >
-      Full CI history. Produces deploy reports and rollback records.
+      Full CI history.
   - name: quality
     display_name: quality
     role: quality
     description: >
-      Full TDD with auto-approve when coverage gates pass.
+      Full TDD enforcement. Creates and auto-merges test PRs when coverage
+      gates pass.
     emoji: "🧪"
-    color: "#3498db"
-    sort_order: 35
+    color: "#e67e22"
+    sort_order: 25
     backend: copilot
-    model: claude-sonnet-4-6
+    model: claude-opus-4-6
     bead_role: worker
     kick_template: quality-CLAUDE.md
     include_repos: true
     stale_timeout: 900
-    lane_keywords: [test, coverage, tdd, quality]
     interactions: >
       Auto-approves PRs when coverage + CI gates pass.
     knowledge_use: >
       Full test history access.
-  - name: architect
-    display_name: architect
-    role: architect
+  - name: guide
+    display_name: guide
+    role: guide
     description: >
-      Full autonomous architecture. Implements RFCs without waiting for
-      human approval.
-    emoji: "🏗"
-    color: "#9b59b6"
-    sort_order: 40
-    backend: copilot
-    model: claude-opus-4-6
-    bead_role: worker
-    kick_template: architect-CLAUDE.md
-    include_repos: true
-    stale_timeout: 1800
-    lane_keywords: [refactor, architecture, rfc, design, feature]
-    interactions: >
-      Full autonomous design and implementation.
-    knowledge_use: >
-      Full architecture knowledge access.
-  - name: outreach
-    display_name: outreach
-    role: outreach
-    description: >
-      Full autonomous outreach. Files issues on partner projects and
-      manages community engagement.
-    emoji: "🌐"
-    color: "#e67e22"
-    sort_order: 50
+      Creates and auto-merges documentation PRs. Reviews PRs on request.
+    emoji: "🧭"
+    color: "#8e44ad"
+    sort_order: 10
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: outreach-CLAUDE.md
-    include_repos: false
-    stale_timeout: 1800
-    lane_keywords: [community, adopters, outreach, ecosystem]
+    kick_template: guide-CLAUDE.md
+    include_repos: true
+    stale_timeout: 3600
     interactions: >
-      Fully autonomous community engagement.
+      Creates documentation PRs autonomously.
     knowledge_use: >
-      Full community knowledge access.
+      Reads community wiki and project patterns.
   - name: sec-check
     display_name: security
     role: sec-check
@@ -191,6 +169,26 @@ agents:
       Auto-patches known CVEs. Escalates unknowns to supervisor.
     knowledge_use: >
       Full security knowledge access.
+  - name: architect
+    display_name: architect
+    role: architect
+    description: >
+      Full autonomous architecture. Implements RFCs and auto-merges
+      structural changes.
+    emoji: "🏗"
+    color: "#9b59b6"
+    sort_order: 40
+    backend: copilot
+    model: claude-opus-4-6
+    bead_role: worker
+    kick_template: architect-CLAUDE.md
+    include_repos: true
+    stale_timeout: 1800
+    lane_keywords: [refactor, architecture, rfc, design, feature]
+    interactions: >
+      Full autonomous design and implementation.
+    knowledge_use: >
+      Full architecture knowledge access.
   - name: strategist
     display_name: strategist
     role: strategist
@@ -210,18 +208,23 @@ agents:
       Full autonomous strategic planning and priority setting.
     knowledge_use: >
       Full cross-agent knowledge synthesis.
-  - name: guide
-    display_name: guide
-    role: guide
+  - name: outreach
+    display_name: outreach
+    role: outreach
     description: >
-      Enhanced advisor that reviews PRs on request, flags code without tests,
-      and suggests patterns from the knowledge base.
-    emoji: "🧭"
-    color: "#8e44ad"
-    sort_order: 5
+      Full autonomous outreach. Files issues on partner projects and
+      manages community engagement. Highest trust — external-facing.
+    emoji: "🌐"
+    color: "#e67e22"
+    sort_order: 50
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: guide-CLAUDE.md
+    kick_template: outreach-CLAUDE.md
     include_repos: false
-    hidden: true
+    stale_timeout: 1800
+    lane_keywords: [community, adopters, outreach, ecosystem]
+    interactions: >
+      Fully autonomous community engagement.
+    knowledge_use: >
+      Full community knowledge access.

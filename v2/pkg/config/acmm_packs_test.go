@@ -25,7 +25,7 @@ func TestACMMPacksAgentCounts(t *testing.T) {
 	packs := ACMMPacks()
 
 	expected := map[int]int{
-		1: 1, 2: 4, 3: 6, 4: 9, 5: 9, 6: 9,
+		1: 1, 2: 4, 3: 5, 4: 6, 5: 8, 6: 9,
 	}
 	for _, p := range packs {
 		want, ok := expected[p.Level]
@@ -66,8 +66,8 @@ func TestACMMPackByLevel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if p.Name != "Managed" {
-		t.Errorf("L4 name = %q, want 'Managed'", p.Name)
+	if p.Name != "Adaptive" {
+		t.Errorf("L4 name = %q, want 'Adaptive'", p.Name)
 	}
 
 	_, err = ACMMPackByLevel(99)

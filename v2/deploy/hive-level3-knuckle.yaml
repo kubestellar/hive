@@ -72,26 +72,26 @@ governor:
     surge:
       threshold: 15
       supervisor: 5m
-      guide: 1h
-      scanner: 30m
-      quality: 30m
+      guide: 4h
+      scanner: 4h
+      quality: 2h
     busy:
       threshold: 10
       supervisor: 5m
-      guide: 1h
-      scanner: 30m
-      quality: 30m
+      guide: 4h
+      scanner: 4h
+      quality: 2h
     quiet:
       threshold: 3
       supervisor: 5m
-      guide: 1h
-      scanner: 30m
-      quality: 1h
+      guide: 4h
+      scanner: 4h
+      quality: 2h
     idle:
       threshold: 0
       supervisor: 5m
-      guide: 2h
-      scanner: 1h
+      guide: 4h
+      scanner: 4h
       quality: 2h
   labels:
     exempt:

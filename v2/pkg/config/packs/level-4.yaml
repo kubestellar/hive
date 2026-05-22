@@ -1,12 +1,13 @@
 level: 4
-name: Managed
+name: Adaptive
 description: >
-  24/7 agents with dynamic scaling, full TDD enforcement, and community
-  outreach. Governor active in all modes (SURGE/BUSY/QUIET/IDLE). Coverage
-  gate at 90%+ with ratcheting. This is the standard production level.
+  Closed-loop feedback. All agents open GitHub issues — not just quality.
+  Scanner files bug reports, guide files documentation gaps, ci-maintainer
+  files workflow issues, sec-check files vulnerabilities. No PRs yet —
+  issues only. Adds security agent (+sec-check). Six agents total.
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
-  merge_policy: CI + coverage gate (90%+)
+  merge_policy: manual
   eval_interval_s: 300
   thresholds:
     surge: 10
@@ -15,57 +16,49 @@ governor:
     idle: 0
   cadences:
     surge:
-      supervisor: 2m
-      scanner: 10m
-      ci-maintainer: 10m
-      quality: 15m
-      architect: 30m
-      outreach: 1h
-      sec-check: 30m
-      strategist: 1h
+      supervisor: 5m
+      scanner: 4h
+      ci-maintainer: 4h
+      quality: 2h
+      guide: 4h
+      sec-check: 4h
     busy:
-      supervisor: 3m
-      scanner: 15m
-      ci-maintainer: 15m
-      quality: 30m
-      architect: 1h
-      outreach: 2h
-      sec-check: 1h
-      strategist: 2h
+      supervisor: 5m
+      scanner: 4h
+      ci-maintainer: 4h
+      quality: 2h
+      guide: 4h
+      sec-check: 4h
     quiet:
       supervisor: 5m
-      scanner: 30m
-      ci-maintainer: 30m
-      quality: 1h
-      architect: 2h
-      outreach: 4h
-      sec-check: 2h
-      strategist: 4h
+      scanner: 4h
+      ci-maintainer: 4h
+      quality: 2h
+      guide: 4h
+      sec-check: 4h
     idle:
       supervisor: 5m
-      scanner: 1h
-      ci-maintainer: 1h
+      scanner: 4h
+      ci-maintainer: 4h
       quality: 2h
-      architect: 4h
-      outreach: 8h
+      guide: 4h
       sec-check: 4h
-      strategist: 8h
 agents:
   - name: supervisor
-    display_name: supervisor
+    display_name: Supervisor
     role: supervisor
     description: >
       Agent health monitoring, sweep analysis, and escalation. Watches all
       other agents for stalls, rate limits, and anomalies.
     emoji: "👑"
     color: "#e74c3c"
-    sort_order: 10
+    sort_order: 1
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: supervisor
     kick_template: supervisor-CLAUDE.md
     include_repos: true
-    stale_timeout: 900
+    stale_timeout: 1800
     interactions: >
       Monitors all agents. Escalates issues to human operators. Coordinates
       agent restarts and health checks.
@@ -76,167 +69,104 @@ agents:
     display_name: scanner
     role: scanner
     description: >
-      Full triage and fix capability. Parallel dispatch with 30-minute SLA
-      on issue response.
+      Opens GitHub issues for bugs and code problems found during scans.
+      Does NOT create PRs. Reports findings as both issues and advisory beads.
     emoji: "🔍"
     color: "#3498db"
     sort_order: 20
     backend: copilot
-    model: claude-opus-4-6
+    model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: scanner-CLAUDE.md
+    kick_template: scanner-issues-CLAUDE.md
     include_repos: true
-    stale_timeout: 1800
+    stale_timeout: 7200
     lane_keywords: [bug, triage, fix, issue]
     interactions: >
-      Creates PRs that quality validates. Transfers complex issues to architect.
-      Reports to supervisor.
+      Creates issues. Produces advisory beads. No PRs.
     knowledge_use: >
-      Reads full project history, known regressions, and fix patterns. Produces
-      fix records and triage decisions.
+      Reads project patterns and known issues. Produces findings as issues
+      and advisory beads.
   - name: ci-maintainer
     display_name: ci-maintainer
     role: ci-maintainer
     description: >
-      Full CI pipeline ownership. Nightly E2E monitoring. Dependency updates
-      and workflow optimization.
+      Opens GitHub issues about CI health, workflow failures, and build
+      problems. Does NOT create PRs. Also produces advisory beads.
     emoji: "🔧"
     color: "#2ecc71"
     sort_order: 30
     backend: copilot
-    model: claude-opus-4-6
+    model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: ci-maintainer-CLAUDE.md
+    kick_template: ci-maintainer-issues-CLAUDE.md
     include_repos: true
-    stale_timeout: 1800
-    lane_keywords: [ci, build, pipeline, workflow, dependency]
+    stale_timeout: 3600
+    lane_keywords: [ci, build, pipeline, workflow]
     interactions: >
-      Coordinates with quality on coverage gates. Reports pipeline health
-      to supervisor.
+      Creates CI-related issues. Produces advisory beads. No PRs.
     knowledge_use: >
-      Reads CI history and optimization patterns. Produces workflow health
-      reports.
+      Reads CI patterns and past failures. Produces CI health issues and
+      advisory beads.
   - name: quality
     display_name: quality
     role: quality
     description: >
-      Full TDD enforcement with coverage ratcheting. Generates tests for new
-      code and validates scanner PRs.
+      Opens GitHub issues about testing gaps, coverage, and test infrastructure.
+      Does NOT create PRs. Also produces advisory beads.
     emoji: "🧪"
-    color: "#3498db"
-    sort_order: 35
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    kick_template: quality-CLAUDE.md
-    include_repos: true
-    stale_timeout: 1800
-    lane_keywords: [test, coverage, tdd, quality]
-    interactions: >
-      Reviews scanner PRs for test coverage. Coordinates with ci-maintainer
-      on test infrastructure.
-    knowledge_use: >
-      Reads test patterns and coverage history. Produces coverage reports
-      and test strategy insights.
-  - name: architect
-    display_name: architect
-    role: architect
-    description: >
-      Active architecture agent. RFCs, refactors, and new features. Proactively
-      identifies improvement areas.
-    emoji: "🏗"
-    color: "#9b59b6"
-    sort_order: 40
+    color: "#e67e22"
+    sort_order: 25
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: architect-CLAUDE.md
+    kick_template: quality-issues-CLAUDE.md
     include_repos: true
     stale_timeout: 3600
-    lane_keywords: [refactor, architecture, rfc, design, feature]
     interactions: >
-      Receives complex issues from scanner. Produces RFCs that all agents
-      reference.
+      Creates testing-related issues. Produces advisory beads. No PRs.
     knowledge_use: >
-      Heavy consumer and producer of architecture decisions, patterns, and
-      design records.
-  - name: outreach
-    display_name: outreach
-    role: outreach
+      Reads test patterns, coverage rules, and known regressions to
+      prioritize which code needs tests most.
+  - name: guide
+    display_name: guide
+    role: guide
     description: >
-      Community engagement, ADOPTERS tracking, and ecosystem missions.
-      Monitors adoption metrics and files issues on partner projects.
-    emoji: "🌐"
-    color: "#e67e22"
-    sort_order: 50
+      Opens GitHub issues about documentation gaps and onboarding problems.
+      Does NOT create PRs. Also produces advisory beads.
+    emoji: "🧭"
+    color: "#8e44ad"
+    sort_order: 10
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: outreach-CLAUDE.md
-    include_repos: false
+    kick_template: guide-issues-CLAUDE.md
+    include_repos: true
     stale_timeout: 3600
-    lane_keywords: [community, adopters, outreach, ecosystem]
     interactions: >
-      Independent agent. Reports adoption metrics to supervisor.
+      Creates documentation issues. Produces advisory beads. No PRs.
     knowledge_use: >
-      Reads community patterns and adoption history. Produces outreach
-      reports and engagement insights.
+      Reads community wiki and project patterns. Produces findings as
+      issues and advisory beads.
   - name: sec-check
     display_name: security
     role: sec-check
     description: >
       Security scanning, dependency audit, and vulnerability monitoring.
-      CVE tracking and security gate enforcement.
+      Opens GitHub issues for vulnerabilities and security gaps. Does NOT
+      create PRs.
     emoji: "🛡"
     color: "#1abc9c"
     sort_order: 60
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: sec-check-CLAUDE.md
+    kick_template: sec-check-issues-CLAUDE.md
     include_repos: true
-    stale_timeout: 1800
+    stale_timeout: 3600
     lane_keywords: [security, cve, vulnerability, audit]
     interactions: >
-      Reports critical findings to supervisor for escalation. Coordinates
-      with ci-maintainer on security gates.
+      Creates security issues. Reports critical findings to supervisor
+      for escalation. Produces advisory beads.
     knowledge_use: >
       Reads vulnerability databases and past security fixes. Produces
-      security audit reports.
-  - name: strategist
-    display_name: strategist
-    role: strategist
-    description: >
-      Strategic planning, roadmap alignment, and cross-agent coordination.
-      Analyzes trends across all agents.
-    emoji: "🧠"
-    color: "#f39c12"
-    sort_order: 70
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    kick_template: strategist-CLAUDE.md
-    include_repos: false
-    stale_timeout: 3600
-    lane_keywords: [strategy, roadmap, planning]
-    interactions: >
-      Reads all agent outputs. Produces strategic insights and priority
-      recommendations.
-    knowledge_use: >
-      Heavy consumer of all agent knowledge. Produces strategic summaries
-      and priority recommendations.
-  - name: guide
-    display_name: guide
-    role: guide
-    description: >
-      Enhanced advisor that reviews PRs on request, flags code without tests,
-      and suggests patterns from the knowledge base.
-    emoji: "🧭"
-    color: "#8e44ad"
-    sort_order: 5
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    kick_template: guide-CLAUDE.md
-    include_repos: false
-    hidden: true
+      security audit reports and issues.

@@ -106,29 +106,32 @@ func PollDeviceFlow(clientID, deviceCode string) (token string, status string, e
 	return "", pr.Error, fmt.Errorf("%s: %s", pr.Error, pr.ErrorDesc)
 }
 
-func ValidateToken(token string) (string, error) {
+type GitHubUser struct {
+	Login     string `json:"login"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+func ValidateToken(token string) (*GitHubUser, error) {
 	req, err := http.NewRequest("GET", userURL, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("Authorization", "token "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("user request: %w", err)
+		return nil, fmt.Errorf("user request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token invalid: status %d", resp.StatusCode)
+		return nil, fmt.Errorf("token invalid: status %d", resp.StatusCode)
 	}
 
-	var user struct {
-		Login string `json:"login"`
-	}
+	var user GitHubUser
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return "", fmt.Errorf("parsing user response: %w", err)
+		return nil, fmt.Errorf("parsing user response: %w", err)
 	}
-	return user.Login, nil
+	return &user, nil
 }

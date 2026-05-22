@@ -1617,7 +1617,13 @@
       <span class="oc-topbar-ts" id="oc-ts"></span>
       <span id="oc-git-version" class="git-version"></span>
       <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
-      <span id="oc-gh-user" class="gh-auth-user" style="display:none"></span>
+      <div id="oc-gh-avatar-wrap" style="display:none;position:relative">
+        <img id="oc-gh-avatar" src="" alt="" style="width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid #3fb950;vertical-align:middle" onclick="toggleGHUserMenu()">
+        <div id="oc-gh-user-menu" style="display:none;position:absolute;right:0;top:34px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:4px 0;min-width:160px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+          <div style="padding:8px 16px;border-bottom:1px solid #21262d;color:#f0f6fc;font-weight:600;font-size:0.85rem" id="oc-gh-menu-user"></div>
+          <button onclick="ghLogout()" style="display:block;width:100%;text-align:left;padding:8px 16px;background:none;border:none;color:#f85149;cursor:pointer;font-size:0.82rem">Sign out</button>
+        </div>
+      </div>
       <button class="gh-auth-btn" id="oc-gh-login-btn" onclick="startGHLogin()" style="display:none;font-size:0.75rem;padding:3px 10px">Sign in</button>
     </div>
   </header>
@@ -7778,30 +7784,59 @@ function burnAreaChart() {
       setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = '#238636'; }, 2000);
     }
 
-    function showGHAuthState(loggedIn, username) {
+    function showGHAuthState(loggedIn, username, avatarURL) {
       const banner = document.getElementById('gh-auth-banner');
       const badge = document.getElementById('gh-auth-badge');
       const topBtn = document.getElementById('oc-gh-login-btn');
-      const topUser = document.getElementById('oc-gh-user');
+      const avatarWrap = document.getElementById('oc-gh-avatar-wrap');
       if (loggedIn) {
         banner.style.display = 'none';
         badge.style.display = 'flex';
         document.getElementById('gh-auth-badge-user').textContent = username;
         if (topBtn) topBtn.style.display = 'none';
-        if (topUser) { topUser.textContent = username; topUser.style.display = ''; }
+        if (avatarWrap) {
+          avatarWrap.style.display = '';
+          const img = document.getElementById('oc-gh-avatar');
+          if (avatarURL) {
+            img.src = avatarURL + '&s=56';
+            img.alt = username;
+          }
+          document.getElementById('oc-gh-menu-user').textContent = username;
+        }
       } else {
         banner.style.display = 'flex';
         badge.style.display = 'none';
         if (topBtn) topBtn.style.display = '';
-        if (topUser) topUser.style.display = 'none';
+        if (avatarWrap) avatarWrap.style.display = 'none';
       }
+    }
+
+    function toggleGHUserMenu() {
+      const menu = document.getElementById('oc-gh-user-menu');
+      menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+
+    document.addEventListener('click', function(e) {
+      const wrap = document.getElementById('oc-gh-avatar-wrap');
+      if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('oc-gh-user-menu').style.display = 'none';
+      }
+    });
+
+    async function ghLogout() {
+      document.getElementById('oc-gh-user-menu').style.display = 'none';
+      try {
+        await fetch('/api/gh-user-auth/logout', { method: 'POST' });
+      } catch (e) { /* ignore */ }
+      showGHAuthState(false);
+      showToast('Signed out of GitHub', 'info');
     }
 
     async function checkGHAuth() {
       try {
         const resp = await fetch('/api/gh-user-auth/status');
         const data = await resp.json();
-        showGHAuthState(data.logged_in, data.username);
+        showGHAuthState(data.logged_in, data.username, data.avatar_url);
       } catch (e) {
         // API not available yet
       }
@@ -7841,7 +7876,7 @@ function burnAreaChart() {
           setTimeout(() => {
             document.getElementById('gh-auth-modal-overlay').style.display = 'none';
             document.getElementById('gh-device-code').style.color = '';
-            showGHAuthState(true, data.username);
+            showGHAuthState(true, data.username, data.avatar_url);
           }, GH_AUTH_SUCCESS_DISMISS_MS);
           showToast('Signed in as ' + data.username, 'success');
         } else if (data.status === 'slow_down') {

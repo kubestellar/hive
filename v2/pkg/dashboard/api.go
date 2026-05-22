@@ -51,6 +51,7 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("GET /api/gh-user-auth/status", s.handleGHUserAuthStatus)
 	s.mux.HandleFunc("POST /api/gh-user-auth/start", s.handleGHUserAuthStart)
 	s.mux.HandleFunc("POST /api/gh-user-auth/poll", s.handleGHUserAuthPoll)
+	s.mux.HandleFunc("POST /api/gh-user-auth/logout", s.handleGHUserAuthLogout)
 	s.mux.HandleFunc("GET /api/summaries", s.handleSummaries)
 
 	s.mux.HandleFunc("GET /api/config/agent/{name}", s.handleAgentConfigGet)
@@ -699,12 +700,12 @@ func (s *Server) handleGHUserAuthStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	token := strings.TrimSpace(string(tokenData))
-	username, err := github.ValidateToken(token)
+	user, err := github.ValidateToken(token)
 	if err != nil {
 		jsonResponse(w, map[string]interface{}{"logged_in": false, "error": "token expired or revoked"})
 		return
 	}
-	jsonResponse(w, map[string]interface{}{"logged_in": true, "username": username})
+	jsonResponse(w, map[string]interface{}{"logged_in": true, "username": user.Login, "avatar_url": user.AvatarURL})
 }
 
 func (s *Server) handleGHUserAuthStart(w http.ResponseWriter, r *http.Request) {
@@ -741,9 +742,7 @@ func (s *Server) handleGHUserAuthPoll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientID := s.deps.Config.GitHub.OAuthClientID
-	s.deps.Logger.Info("polling device flow", "client_id", clientID, "device_code_prefix", s.deviceFlowState.DeviceCode[:8])
 	token, status, err := github.PollDeviceFlow(clientID, s.deviceFlowState.DeviceCode)
-	s.deps.Logger.Info("device flow poll result", "status", status, "has_token", token != "", "error", err)
 	if err != nil {
 		s.deviceFlowState = nil
 		jsonResponse(w, map[string]interface{}{"status": "error", "error": err.Error()})
@@ -763,15 +762,27 @@ func (s *Server) handleGHUserAuthPoll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username, _ := github.ValidateToken(token)
+	user, _ := github.ValidateToken(token)
 	s.deviceFlowState = nil
+	username := ""
+	avatarURL := ""
+	if user != nil {
+		username = user.Login
+		avatarURL = user.AvatarURL
+	}
 	s.deps.Logger.Info("GitHub user authenticated via device flow", "username", username)
 
 	if s.deps.SetUserClient != nil {
 		s.deps.SetUserClient(token)
 	}
 
-	jsonResponse(w, map[string]interface{}{"status": "complete", "username": username})
+	jsonResponse(w, map[string]interface{}{"status": "complete", "username": username, "avatar_url": avatarURL})
+}
+
+func (s *Server) handleGHUserAuthLogout(w http.ResponseWriter, r *http.Request) {
+	os.Remove(userTokenPath)
+	s.deps.Logger.Info("GitHub user logged out")
+	jsonResponse(w, map[string]interface{}{"status": "logged_out"})
 }
 
 func (s *Server) handleGHRateLimits(w http.ResponseWriter, r *http.Request) {

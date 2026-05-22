@@ -52,19 +52,19 @@ agents:
       Reads agent health history and operational patterns. Produces sweep
       reports and health assessments.
   - name: guide
-    display_name: guide
+    display_name: guide (advisory)
     role: guide
     description: >
-      Enhanced advisor that reviews PRs on request, flags code without tests,
-      and suggests patterns from the knowledge base.
+      Audits project documentation and onboarding experience. At L2, reports
+      findings to the advisory issue — does NOT create PRs or push code.
     emoji: "🧭"
     color: "#8e44ad"
     sort_order: 10
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: guide-CLAUDE.md
-    include_repos: false
+    kick_template: guide-advisory-CLAUDE.md
+    include_repos: true
     stale_timeout: 3600
     interactions: "Works alongside scanner. Reviews scanner's suggestions when asked."
     knowledge_use: >

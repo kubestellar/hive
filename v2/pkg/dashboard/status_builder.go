@@ -90,8 +90,13 @@ func BuildFrontendStatus(
 func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, govState governor.State) []FrontendAgent {
 	currentMode := strings.ToLower(string(govState.Mode))
 
+	packAllowed := acmmPackAllowedSet(cfg)
+
 	names := make([]string, 0, len(statuses))
 	for name := range statuses {
+		if packAllowed != nil && !packAllowed[name] {
+			continue
+		}
 		names = append(names, name)
 	}
 	sort.Slice(names, func(i, j int) bool {
@@ -852,6 +857,24 @@ func buildIssueToMerge(mc *MetricsCollector) map[string]any {
 		"updated_at":      mttr.UpdatedAt,
 		"history":         history,
 	}
+}
+
+func acmmPackAllowedSet(cfg *config.Config) map[string]bool {
+	if cfg.ACMMLevel == nil {
+		return nil
+	}
+	level := *cfg.ACMMLevel
+	pack, err := config.ACMMPackByLevel(level)
+	if err != nil {
+		return nil
+	}
+	allowed := make(map[string]bool, len(pack.Agents))
+	for _, a := range pack.Agents {
+		if !a.Hidden {
+			allowed[a.Name] = true
+		}
+	}
+	return allowed
 }
 
 func buildACMMPackAgents(cfg *config.Config) []string {

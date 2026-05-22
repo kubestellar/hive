@@ -140,16 +140,18 @@ func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
 	byAgent := make(map[string][]Finding)
 	total := 0
 	for agentName, store := range stores {
+		seen := make(map[string]bool)
 		for _, b := range store.List(beads.ListFilter{}) {
-			if b.Status == beads.StatusClosed {
-				continue
-			}
 			if !isAdvisoryBeadType(b.Type) {
 				continue
 			}
 			if b.Title == "" {
 				continue
 			}
+			if seen[b.Title] {
+				continue
+			}
+			seen[b.Title] = true
 			f := Finding{
 				Agent:     agentName,
 				Timestamp: b.CreatedAt,

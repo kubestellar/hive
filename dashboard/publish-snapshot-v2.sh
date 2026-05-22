@@ -22,6 +22,7 @@
 
 set -euo pipefail
 
+export PATH="/usr/local/bin:$PATH"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ $# -lt 2 ]; then
@@ -78,8 +79,11 @@ node "${SCRIPT_DIR}/build-snapshot.mjs" \
 
 cp "${PUBLISH_PATH}/light/index.html" "${PUBLISH_PATH}/index.html"
 
-if git diff --quiet -- "${PUBLISH_PATH}/"; then
+# Stage first so both new and modified files are detected
+git add "${PUBLISH_PATH}/"
+if git diff --cached --quiet -- "${PUBLISH_PATH}/"; then
   echo "[${INSTANCE}] No changes — skipping."
+  git reset HEAD -- "${PUBLISH_PATH}/" >/dev/null 2>&1
   exit 0
 fi
 

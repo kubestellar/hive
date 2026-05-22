@@ -316,7 +316,7 @@ func main() {
 		if !saved.LastEval.IsZero() {
 			gov.SeedLastEval(saved.LastEval)
 		}
-		if saved.ACMMLevel != nil {
+		if saved.ACMMLevel != nil && cfg.ACMMLevel == nil {
 			cfg.ACMMLevel = saved.ACMMLevel
 			logger.Info("ACMM level restored", "level", *saved.ACMMLevel)
 		}
@@ -500,8 +500,29 @@ func main() {
 				}
 			}
 		}
-	} else if os.Getenv("HIVE_LEVEL") != "" {
-		logger.Info("existing state found, skipping ACMM auto-apply")
+	} else if levelStr := os.Getenv("HIVE_LEVEL"); levelStr != "" {
+		const maxACMMLevel = 6
+		level, err := strconv.Atoi(levelStr)
+		if err != nil || level < 1 || level > maxACMMLevel {
+			logger.Warn("invalid HIVE_LEVEL, skipping auto-apply", "value", levelStr)
+		} else if saved.ACMMLevel != nil && *saved.ACMMLevel == level {
+			logger.Info("ACMM level unchanged from saved state, skipping auto-apply", "level", level)
+		} else {
+			logger.Info("ACMM level changed, re-applying pack", "level", level, "saved_level", saved.ACMMLevel)
+			result, err := dashSrv.ApplyPack(level)
+			if err != nil {
+				logger.Error("failed to re-apply ACMM pack", "level", level, "error", err)
+			} else {
+				logger.Info("ACMM pack re-applied",
+					"level", level,
+					"name", result.Name,
+					"created", result.Created,
+					"skipped", result.Skipped,
+					"paused", result.Paused,
+					"resumed", result.Resumed,
+				)
+			}
+		}
 	}
 
 	if cfg.Policies.Repo != "" {

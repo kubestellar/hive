@@ -749,8 +749,12 @@ func (s *Server) handleGHUserAuthPoll(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]interface{}{"status": "error", "error": err.Error()})
 		return
 	}
-	if status == "authorization_pending" || status == "slow_down" {
+	if status == "authorization_pending" {
 		jsonResponse(w, map[string]interface{}{"status": "pending"})
+		return
+	}
+	if status == "slow_down" {
+		jsonResponse(w, map[string]interface{}{"status": "slow_down"})
 		return
 	}
 

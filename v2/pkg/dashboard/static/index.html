@@ -7754,7 +7754,7 @@ function burnAreaChart() {
 
     // GitHub Device Flow Auth
     let ghPollTimer = null;
-    const GH_POLL_INTERVAL_MS = 2000;
+    let ghPollIntervalMs = 6000;
     const GH_AUTH_CHECK_INTERVAL_MS = 300000;
     const GH_AUTH_SUCCESS_DISMISS_MS = 1500;
 
@@ -7817,8 +7817,9 @@ function burnAreaChart() {
         document.getElementById('gh-poll-status').textContent = 'Waiting for authorization...';
         document.getElementById('gh-poll-status').style.color = '#6b7280';
         document.getElementById('gh-auth-modal-overlay').style.display = 'flex';
+        ghPollIntervalMs = data.interval ? (data.interval + 1) * 1000 : 6000;
         if (ghPollTimer) clearInterval(ghPollTimer);
-        ghPollTimer = setInterval(pollGHAuth, GH_POLL_INTERVAL_MS);
+        ghPollTimer = setInterval(pollGHAuth, ghPollIntervalMs);
       } catch (e) {
         alert('Login error: ' + e.message);
       }
@@ -7843,6 +7844,11 @@ function burnAreaChart() {
             showGHAuthState(true, data.username);
           }, GH_AUTH_SUCCESS_DISMISS_MS);
           showToast('Signed in as ' + data.username, 'success');
+        } else if (data.status === 'slow_down') {
+          clearInterval(ghPollTimer);
+          const SLOWDOWN_BACKOFF_MS = 5000;
+          ghPollIntervalMs += SLOWDOWN_BACKOFF_MS;
+          ghPollTimer = setInterval(pollGHAuth, ghPollIntervalMs);
         } else if (data.status === 'error') {
           clearInterval(ghPollTimer);
           ghPollTimer = null;

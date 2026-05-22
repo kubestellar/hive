@@ -1830,15 +1830,21 @@ func (s *Server) handleGovernorRemoveAgent(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Repos []string `json:"repos"`
+		List  []string `json:"list"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body", http.StatusBadRequest)
 		return
 	}
 
+	repos := body.Repos
+	if len(repos) == 0 && len(body.List) > 0 {
+		repos = body.List
+	}
+
 	org := s.deps.Config.Project.Org
-	stripped := make([]string, 0, len(body.Repos))
-	for _, repo := range body.Repos {
+	stripped := make([]string, 0, len(repos))
+	for _, repo := range repos {
 		if org != "" && strings.HasPrefix(repo, org+"/") {
 			stripped = append(stripped, strings.TrimPrefix(repo, org+"/"))
 		} else {

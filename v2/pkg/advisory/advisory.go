@@ -147,6 +147,9 @@ func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
 			if !isAdvisoryBeadType(b.Type) {
 				continue
 			}
+			if b.Title == "" {
+				continue
+			}
 			f := Finding{
 				Agent:     agentName,
 				Timestamp: b.CreatedAt,

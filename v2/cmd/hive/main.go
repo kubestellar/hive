@@ -260,10 +260,10 @@ func main() {
 				agentMgr.SeedKickHistory(name, records)
 			}
 			if agentCfg, ok := cfg.Agents[name]; ok {
-				if as.DisplayName != "" {
+				if as.DisplayName != "" && agentCfg.DisplayName == "" {
 					agentCfg.DisplayName = as.DisplayName
 				}
-				if as.Description != "" {
+				if as.Description != "" && agentCfg.Description == "" {
 					agentCfg.Description = as.Description
 				}
 				if as.Enabled != nil {

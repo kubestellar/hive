@@ -691,9 +691,47 @@ func runEvalCycle(
 		ctx,
 		metricsCollector,
 	)
-	if d := dashSrv.GetAdvisoryDigest(); d != nil {
+	// Ingest any JSONL findings agents wrote and persist them as beads.
+	if advisoryStore != nil {
+		findings, err := advisoryStore.ReadNewFindings()
+		if err != nil {
+			logger.Warn("failed to read advisory findings", "error", err)
+		} else if len(findings) > 0 {
+			if persisted := advisory.PersistAsBeads(findings, beadStores); persisted > 0 {
+				logger.Info("advisory findings persisted as beads", "count", persisted)
+			}
+		}
+	}
+
+	// Advisory digest: build from beads (the source of truth) before status broadcast.
+	if len(beadStores) > 0 {
+		digest := advisory.BuildDigestFromBeads(beadStores, string(govState.Mode))
+		if advisoryStore != nil {
+			advisoryStore.SetLatestDigest(digest)
+		}
+		dashSrv.SetAdvisoryDigest(digest)
+		statusPayload.AdvisoryDigest = digest
+
+		if digest.TotalCount > 0 {
+			md := advisory.FormatDigestMarkdown(digest)
+			if md != "" {
+				primaryRepo := cfg.Project.PrimaryRepo
+				if primaryRepo == "" && len(cfg.Project.Repos) > 0 {
+					primaryRepo = cfg.Project.Repos[0]
+				}
+				if issueNum, ok := advisoryIssues[primaryRepo]; ok && issueNum > 0 {
+					if err := ghClient.PostAdvisoryDigest(ctx, primaryRepo, issueNum, md); err != nil {
+						logger.Warn("failed to post advisory digest", "repo", primaryRepo, "issue", issueNum, "error", err)
+					} else {
+						logger.Info("posted advisory digest", "repo", primaryRepo, "issue", issueNum, "findings", digest.TotalCount)
+					}
+				}
+			}
+		}
+	} else if d := dashSrv.GetAdvisoryDigest(); d != nil {
 		statusPayload.AdvisoryDigest = d
 	}
+
 	dashSrv.UpdateStatus(statusPayload)
 
 	if agentStats := dashboard.CollectAgentStats(statusPayload); len(agentStats) > 0 {
@@ -711,44 +749,6 @@ func runEvalCycle(
 		}
 		if err := nousState.RecordSnapshot(govState, actionable, agentsDue, agentStatuses, tokenSummary); err != nil {
 			logger.Warn("failed to record nous snapshot", "error", err)
-		}
-	}
-
-	// Ingest any JSONL findings agents wrote and persist them as beads.
-	if advisoryStore != nil {
-		findings, err := advisoryStore.ReadNewFindings()
-		if err != nil {
-			logger.Warn("failed to read advisory findings", "error", err)
-		} else if len(findings) > 0 {
-			if persisted := advisory.PersistAsBeads(findings, beadStores); persisted > 0 {
-				logger.Info("advisory findings persisted as beads", "count", persisted)
-			}
-		}
-	}
-
-	// Advisory digest: build from beads (the source of truth) and post to advisory issue.
-	if len(beadStores) > 0 {
-		digest := advisory.BuildDigestFromBeads(beadStores, string(govState.Mode))
-		if advisoryStore != nil {
-			advisoryStore.SetLatestDigest(digest)
-		}
-		dashSrv.SetAdvisoryDigest(digest)
-
-		if digest.TotalCount > 0 {
-			md := advisory.FormatDigestMarkdown(digest)
-			if md != "" {
-				primaryRepo := cfg.Project.PrimaryRepo
-				if primaryRepo == "" && len(cfg.Project.Repos) > 0 {
-					primaryRepo = cfg.Project.Repos[0]
-				}
-				if issueNum, ok := advisoryIssues[primaryRepo]; ok && issueNum > 0 {
-					if err := ghClient.PostAdvisoryDigest(ctx, primaryRepo, issueNum, md); err != nil {
-						logger.Warn("failed to post advisory digest", "repo", primaryRepo, "issue", issueNum, "error", err)
-					} else {
-						logger.Info("posted advisory digest", "repo", primaryRepo, "issue", issueNum, "findings", digest.TotalCount)
-					}
-				}
-			}
 		}
 	}
 }

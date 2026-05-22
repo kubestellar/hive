@@ -1,13 +1,13 @@
 level: 3
 name: Measured
 description: >
-  Feedback becomes visible. The quality agent opens issues about testing
-  infrastructure — coverage gaps, missing CI workflows, test result reporting.
-  All other agents remain in advisory mode. CI-maintainer joins to monitor
-  build health. The key L3 artifact is measurement infrastructure.
+  Feedback becomes visible. The quality agent opens issues AND hold-gated PRs
+  about testing — coverage gaps, missing CI workflows, test infrastructure.
+  Quality PRs get a 'hold' label; no agent merges. All other agents remain
+  in advisory mode. CI-maintainer joins to monitor build health.
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
-  merge_policy: manual
+  merge_policy: hold-gated (quality PRs only)
   eval_interval_s: 300
   thresholds:
     surge: 15
@@ -105,9 +105,10 @@ agents:
     display_name: quality
     role: quality
     description: >
-      Analyzes test coverage and opens GitHub issues about testing gaps,
-      missing CI workflows, and test infrastructure. The ONE agent at L3
-      that can create issues. Also produces advisory beads.
+      Opens GitHub issues AND hold-gated PRs about testing — coverage gaps,
+      missing CI workflows, test infrastructure. The ONE agent at L3 with
+      GitHub write access. PRs get 'hold' label; never merges. Also
+      produces advisory beads.
     emoji: "🧪"
     color: "#e67e22"
     sort_order: 25
@@ -118,8 +119,8 @@ agents:
     include_repos: true
     stale_timeout: 3600
     interactions: >
-      Opens issues about testing. Complements scanner and ci-maintainer
-      advisory findings with actionable test recommendations.
+      Opens issues and hold-gated PRs about testing. Complements scanner
+      and ci-maintainer advisory findings with actionable test improvements.
     knowledge_use: >
       Reads test patterns, coverage rules, and known regressions from the
       knowledge base to prioritize which code needs tests most.

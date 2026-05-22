@@ -1,5 +1,6 @@
 # Hive v2 — projectbluefin/knuckle (ACMM Level 3: measured)
-# Quality opens issues about testing. All other agents remain advisory.
+# Quality opens testing issues AND hold-gated testing PRs.
+# All other agents remain advisory.
 
 acmm_level: 3
 project:
@@ -9,7 +10,6 @@ project:
     - knuckle
   ai_author: clubanderson
   primary_repo: knuckle
-  open_prs: false
 
 policies:
   repo: https://github.com/kubestellar/hive

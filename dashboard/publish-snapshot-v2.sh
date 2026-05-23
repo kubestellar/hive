@@ -69,12 +69,17 @@ git reset --hard origin/main
 
 mkdir -p "${PUBLISH_PATH}/light" "${PUBLISH_PATH}/classic"
 
+LIVE_HTML="${HIVE_DASHBOARD_HTML:-/opt/hive/proxy/public/index.html}"
+if [ ! -f "$LIVE_HTML" ]; then
+  LIVE_HTML="${SCRIPT_DIR}/index.html"
+fi
+
 node "${SCRIPT_DIR}/build-snapshot.mjs" \
-  --mode light --base-path "$BASE_PATH" \
+  --mode light --base-path "$BASE_PATH" --html "$LIVE_HTML" \
   "$DASHBOARD_URL" "${PUBLISH_PATH}/light/index.html"
 
 node "${SCRIPT_DIR}/build-snapshot.mjs" \
-  --mode classic --base-path "$BASE_PATH" \
+  --mode classic --base-path "$BASE_PATH" --html "$LIVE_HTML" \
   "$DASHBOARD_URL" "${PUBLISH_PATH}/classic/index.html"
 
 cp "${PUBLISH_PATH}/light/index.html" "${PUBLISH_PATH}/index.html"

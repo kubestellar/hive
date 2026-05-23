@@ -48,6 +48,9 @@ RUN cd /opt/hive/proxy && npm install --omit=dev
 
 COPY v2/pkg/dashboard/static/index.html /opt/hive/proxy/public/
 
+COPY dashboard/ /opt/hive/dashboard/
+RUN chmod +x /opt/hive/dashboard/publish-snapshot*.sh
+
 COPY examples/kubestellar/hive-project.yaml /etc/hive/hive-project.yaml
 COPY examples/acmm/ /opt/hive/examples/acmm/
 COPY examples/agents/ /opt/hive/examples/agents/

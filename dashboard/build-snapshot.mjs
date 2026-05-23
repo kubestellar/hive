@@ -17,9 +17,12 @@ const modeIdx = args.indexOf('--mode');
 const snapshotMode = modeIdx >= 0 ? args[modeIdx + 1] : 'classic';
 const basePathIdx = args.indexOf('--base-path');
 const basePath = basePathIdx >= 0 ? args[basePathIdx + 1] : '/live/hive';
+const htmlIdx = args.indexOf('--html');
+const htmlSource = htmlIdx >= 0 ? args[htmlIdx + 1] : join(__dirname, 'index.html');
 const skipIdxSet = new Set();
 if (modeIdx >= 0) { skipIdxSet.add(modeIdx); skipIdxSet.add(modeIdx + 1); }
 if (basePathIdx >= 0) { skipIdxSet.add(basePathIdx); skipIdxSet.add(basePathIdx + 1); }
+if (htmlIdx >= 0) { skipIdxSet.add(htmlIdx); skipIdxSet.add(htmlIdx + 1); }
 const positional = args.filter((_, i) => !skipIdxSet.has(i));
 const dashboardUrl = positional[0] || process.env.HIVE_DASHBOARD_URL || 'http://localhost:3001';
 const outputFile = positional[1] || 'snapshot.html';
@@ -63,21 +66,58 @@ async function main() {
 
   console.log(`Building ${snapshotMode} snapshot for ${projectName} (${snapshotTs})...`);
 
-  const sourceHtml = readFileSync(join(__dirname, 'index.html'), 'utf-8');
+  const sourceHtml = readFileSync(htmlSource, 'utf-8');
 
-  // Split at key boundaries
+  // Split at key boundaries — the live HTML has two <script> blocks:
+  //   1. Small layout pre-apply script right after <body>
+  //   2. Main script with all render functions and connect()
+  // We need the LAST <script> for render functions, and everything
+  // between <body> and that last <script> as body content (includes
+  // the small script and all HTML structure).
   const styleEnd = sourceHtml.indexOf('</style>');
   const bodyStart = sourceHtml.indexOf('<body>');
-  const scriptStart = sourceHtml.indexOf('<script>');
-  const scriptEnd = sourceHtml.lastIndexOf('</script>');
+  const mainScriptStart = sourceHtml.lastIndexOf('<script>');
+  const mainScriptEnd = sourceHtml.lastIndexOf('</script>');
 
   const headAndStyles = sourceHtml.slice(0, styleEnd);
-  const bodyContent = sourceHtml.slice(bodyStart + 6, scriptStart);
-  const originalScript = sourceHtml.slice(scriptStart + 8, scriptEnd);
+  const bodyContent = sourceHtml.slice(bodyStart + 6, mainScriptStart);
+  const originalScript = sourceHtml.slice(mainScriptStart + 8, mainScriptEnd);
 
-  // Extract only the render functions from the original script (skip initialization code)
-  const connectIdx = originalScript.indexOf('function connect()');
-  const renderFunctions = originalScript.slice(0, connectIdx);
+  // Include the entire script but neutralize live-connection code.
+  // Replace connect() body with no-op, and strip the trailing init calls
+  // (connect(), checkGHAuth(), fetchAgentLogs) that auto-fire on load.
+  const CONNECT_MARKER = 'function connect()';
+  const connectIdx = originalScript.indexOf(CONNECT_MARKER);
+
+  // Find the end of connect() by matching its closing brace
+  let braceDepth = 0;
+  let connectEnd = connectIdx;
+  let foundOpen = false;
+  for (let i = connectIdx; i < originalScript.length; i++) {
+    if (originalScript[i] === '{') { braceDepth++; foundOpen = true; }
+    if (originalScript[i] === '}') { braceDepth--; }
+    if (foundOpen && braceDepth === 0) { connectEnd = i + 1; break; }
+  }
+
+  // Strip trailing init calls: everything after the last function definition
+  // (the last '}' before 'connect();' or 'checkGHAuth();' at script end)
+  const INIT_MARKER = 'connect();';
+  const initCallIdx = originalScript.lastIndexOf(INIT_MARKER);
+  // Walk backward to find start of init block (after last function/event listener closing brace)
+  let initBlockStart = initCallIdx;
+  while (initBlockStart > 0 && originalScript[initBlockStart - 1] !== '\n') initBlockStart--;
+  // Go back further past checkGHAuth and setInterval lines
+  const checkGHIdx = originalScript.lastIndexOf('checkGHAuth();');
+  if (checkGHIdx >= 0 && checkGHIdx < initCallIdx) {
+    initBlockStart = checkGHIdx;
+    while (initBlockStart > 0 && originalScript[initBlockStart - 1] !== '\n') initBlockStart--;
+  }
+
+  // Build the render functions: everything before connect() + everything after connect()
+  // up to the init block, with connect() replaced by a no-op
+  const renderFunctions = originalScript.slice(0, connectIdx)
+    + 'function connect() {} // neutralized for snapshot\n'
+    + originalScript.slice(connectEnd, initBlockStart);
 
   const AUTO_REFRESH_SECONDS = 300;
 
@@ -142,7 +182,9 @@ async function main() {
   const initScript = `
     // ── Static snapshot initialization ──
     historyData = ${historyRaw};
-    window._trendData = ${trendsRaw};
+    // Trends API returns {evals: [...]}, but _trendData must be the array
+    var _rawTrends = ${trendsRaw};
+    window._trendData = _rawTrends && _rawTrends.evals ? _rawTrends.evals : (Array.isArray(_rawTrends) ? _rawTrends : []);
     window._timelineData = ${timelineRaw};
 
     // Set project name — match the live dashboard's pattern

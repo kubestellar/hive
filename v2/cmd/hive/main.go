@@ -100,6 +100,37 @@ func main() {
 		}
 		logger.Info("using GitHub App authentication", "app_id", cfg.GitHub.AppID)
 		ghClient = github.NewClientFromApp(appAuth, cfg.Project.Org, cfg.Project.Repos, logger)
+
+		if cfg.GitHub.DocsInstallationID != 0 {
+			docsAuth, err := github.NewAppAuthWithCache(
+				cfg.GitHub.AppID, cfg.GitHub.DocsInstallationID,
+				keyFile, github.DocsTokenCachePath, logger,
+			)
+			if err != nil {
+				logger.Warn("failed to init docs org token", "error", err)
+			} else {
+				if _, err := docsAuth.Token(ctx); err != nil {
+					logger.Warn("failed to generate initial docs org token", "error", err)
+				} else {
+					logger.Info("docs org token cached", "installation_id", cfg.GitHub.DocsInstallationID)
+				}
+				go func() {
+					const docsTokenRefreshInterval = 45 * time.Minute
+					ticker := time.NewTicker(docsTokenRefreshInterval)
+					defer ticker.Stop()
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case <-ticker.C:
+							if _, err := docsAuth.Token(ctx); err != nil {
+								logger.Warn("docs token refresh failed", "error", err)
+							}
+						}
+					}
+				}()
+			}
+		}
 	} else {
 		ghToken := cfg.GitHub.Token
 		if ghToken == "" {

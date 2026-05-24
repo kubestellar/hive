@@ -269,11 +269,12 @@ func (m *ModeConfig) UnmarshalYAML(value *yaml.Node) error {
 }
 
 type GitHubConfig struct {
-	AppID          int64  `yaml:"app_id"`
-	InstallationID int64  `yaml:"installation_id"`
-	KeyFile        string `yaml:"key_file"`
-	Token          string `yaml:"token"`
-	OAuthClientID  string `yaml:"oauth_client_id"`
+	AppID                int64  `yaml:"app_id"`
+	InstallationID       int64  `yaml:"installation_id"`
+	DocsInstallationID   int64  `yaml:"docs_installation_id"`
+	KeyFile              string `yaml:"key_file"`
+	Token                string `yaml:"token"`
+	OAuthClientID        string `yaml:"oauth_client_id"`
 }
 
 type NotificationsConfig struct {

@@ -48,15 +48,19 @@ DOCS_REPO_SLUG="kubestellar/docs"
 PUBLISH_PATH="public/live/hive/${INSTANCE}"
 BASE_PATH="/live/hive/${INSTANCE}"
 
-GH_APP_TOKEN_FILE="/var/run/hive-metrics/gh-app-token.cache"
-if [ -f "$GH_APP_TOKEN_FILE" ]; then
-  GH_APP_TOKEN=$(cat "$GH_APP_TOKEN_FILE")
-  DOCS_REMOTE="https://x-access-token:${GH_APP_TOKEN}@github.com/${DOCS_REPO_SLUG}.git"
-  export GH_TOKEN="$GH_APP_TOKEN"
+DOCS_TOKEN_FILE="/var/run/hive-metrics/gh-app-token-docs.cache"
+FALLBACK_TOKEN_FILE="/var/run/hive-metrics/gh-app-token.cache"
+if [ -f "$DOCS_TOKEN_FILE" ]; then
+  GH_APP_TOKEN=$(cat "$DOCS_TOKEN_FILE")
+elif [ -f "$FALLBACK_TOKEN_FILE" ]; then
+  echo "WARN: docs token not found, falling back to default token"
+  GH_APP_TOKEN=$(cat "$FALLBACK_TOKEN_FILE")
 else
-  echo "ERROR: no GitHub App token at $GH_APP_TOKEN_FILE"
+  echo "ERROR: no GitHub App token at $DOCS_TOKEN_FILE or $FALLBACK_TOKEN_FILE"
   exit 1
 fi
+DOCS_REMOTE="https://x-access-token:${GH_APP_TOKEN}@github.com/${DOCS_REPO_SLUG}.git"
+export GH_TOKEN="$GH_APP_TOKEN"
 
 echo "[${INSTANCE}] Snapshot from ${DASHBOARD_URL} → ${BASE_PATH}"
 

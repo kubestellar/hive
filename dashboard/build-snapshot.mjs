@@ -159,7 +159,7 @@ async function main() {
     .snapshot-banner .snap-icon { font-size: 1.2rem; }
     .snapshot-banner .snap-label { ${bannerLabelColor} font-weight: 600; }
     .snapshot-banner .snap-time { ${bannerTimeColor} }
-    .snapshot-banner .snap-refresh { ${bannerRefreshColor} margin-left: auto; font-size: 0.75rem; }
+    .snapshot-banner .snap-refresh { ${bannerRefreshColor} margin-left: auto; font-size: 0.75rem; font-variant-numeric: tabular-nums; min-width: 10ch; text-align: right; white-space: nowrap; }
     .snapshot-banner .snap-links { margin-left: 12px; font-size: 0.75rem; }
     .snapshot-banner .snap-links a { ${bannerLabelColor} text-decoration: none; margin: 0 6px; }
     .snapshot-banner .snap-links a:hover { text-decoration: underline; }

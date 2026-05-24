@@ -314,7 +314,7 @@ func TestLoadPromptTemplate_NotFound(t *testing.T) {
 		},
 	}
 	s := New(cfg, testLogger())
-	result := s.loadPromptTemplate("scanner")
+	result := s.loadPromptTemplate("nonexistent-agent-xyz")
 	if result != "" {
 		t.Errorf("expected empty string for missing template, got %q", result)
 	}
@@ -339,7 +339,7 @@ func TestBuildAgentMessage_UsesTemplate(t *testing.T) {
 	actionable := &github.ActionableResult{
 		Issues: github.IssueResult{Count: 7},
 	}
-	result := s.buildAgentMessage("custom-agent", nil, actionable)
+	result := s.BuildAgentMessage("custom-agent", nil, actionable)
 	if !strings.Contains(result, "[agent:custom-agent] [KICK]") {
 		t.Errorf("expected kick header: %s", result)
 	}

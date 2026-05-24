@@ -467,6 +467,10 @@ func (s *Server) handleKick(w http.ResponseWriter, r *http.Request) {
 		msg = body.Message
 	}
 
+	if msg == "" && s.deps.Scheduler != nil {
+		msg = s.deps.Scheduler.BuildAgentMessage(name, nil, nil)
+	}
+
 	if err := s.deps.AgentMgr.SendKick(name, msg); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return

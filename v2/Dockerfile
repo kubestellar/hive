@@ -28,6 +28,18 @@ RUN ARCH=$(uname -m) && \
       "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.${TTYD_ARCH}" && \
     chmod +x /usr/local/bin/ttyd
 
+# --- Layer 2b: GitHub CLI (off-PATH — only snapshot publisher uses it) ---
+ARG GH_VERSION=2.74.0
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then GH_ARCH=amd64; \
+    elif [ "$ARCH" = "aarch64" ]; then GH_ARCH=arm64; \
+    else GH_ARCH=amd64; fi && \
+    mkdir -p /opt/hive/bin && \
+    curl -sL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz" | \
+    tar xz --strip-components=2 -C /opt/hive/bin "gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh" && \
+    mv /opt/hive/bin/gh /opt/hive/bin/gh-real && \
+    chmod +x /opt/hive/bin/gh-real
+
 # --- Layer 3: GitHub Copilot CLI (frequent updates) ---
 ARG COPILOT_VERSION=latest
 RUN npm install -g @github/copilot@${COPILOT_VERSION} && npm cache clean --force || \

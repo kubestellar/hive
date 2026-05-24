@@ -202,7 +202,7 @@ func (s *Scheduler) BuildKickMessages(actionable *github.ActionableResult, agent
 
 	var messages []KickMessage
 	for _, agentName := range agentsDue {
-		msg := s.buildAgentMessage(agentName, classifiedIssues, actionable)
+		msg := s.BuildAgentMessage(agentName, classifiedIssues, actionable)
 		if msg != "" {
 			includeRepos := true
 			if agentCfg, ok := s.cfg.Agents[agentName]; ok {
@@ -239,7 +239,9 @@ func (s *Scheduler) buildReposSection() string {
 
 const maxIssuesPerKick = 20
 
-func (s *Scheduler) buildAgentMessage(agentName string, issues []github.Issue, actionable *github.ActionableResult) string {
+// BuildAgentMessage constructs a kick prompt for the named agent using the
+// template resolution chain (config kick_template → convention → embedded → hardcoded).
+func (s *Scheduler) BuildAgentMessage(agentName string, issues []github.Issue, actionable *github.ActionableResult) string {
 	// 1. Config-driven: use kick_template field if set
 	if agentCfg, ok := s.cfg.Agents[agentName]; ok && agentCfg.KickTemplate != "" {
 		if template := s.loadNamedTemplate(agentCfg.KickTemplate); template != "" {

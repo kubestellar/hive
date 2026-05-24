@@ -25,8 +25,12 @@ set -euo pipefail
 export PATH="/usr/local/bin:$PATH"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Use the real gh binary, not the agent wrapper at /usr/local/bin/gh
-REAL_GH="/usr/bin/gh"
+# Use the real gh binary, not the agent wrapper at /usr/local/bin/gh.
+# /opt/hive/bin/gh-real is off-PATH so agents can't bypass ACMM enforcement.
+REAL_GH="/opt/hive/bin/gh-real"
+if [ ! -x "$REAL_GH" ]; then
+  REAL_GH="/data/bin/gh"
+fi
 if [ ! -x "$REAL_GH" ]; then
   REAL_GH="$(command -v gh)"
 fi

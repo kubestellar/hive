@@ -459,6 +459,7 @@ func main() {
 		Tokens:           tokenCollector,
 		Knowledge:        knowledgeAPI,
 		Nous:             nousState,
+		Scheduler:        sched,
 		MetricsCollector: metricsCollector,
 		BeadStores:       beadStores,
 		Logger:           logger,

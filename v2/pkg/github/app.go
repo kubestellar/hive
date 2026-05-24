@@ -19,7 +19,8 @@ import (
 const (
 	jwtExpiry          = 10 * time.Minute
 	tokenRefreshBuffer = 5 * time.Minute
-	tokenCachePath     = "/var/run/hive-metrics/gh-app-token.cache"
+	TokenCachePath     = "/var/run/hive-metrics/gh-app-token.cache"
+	DocsTokenCachePath = "/var/run/hive-metrics/gh-app-token-docs.cache"
 	tokenCachePerms    = 0o640
 )
 
@@ -28,6 +29,7 @@ type AppAuth struct {
 	installationID int64
 	key            *rsa.PrivateKey
 	logger         *slog.Logger
+	cachePath      string
 
 	mu          sync.RWMutex
 	cachedToken string
@@ -35,6 +37,10 @@ type AppAuth struct {
 }
 
 func NewAppAuth(appID, installationID int64, keyFile string, logger *slog.Logger) (*AppAuth, error) {
+	return NewAppAuthWithCache(appID, installationID, keyFile, TokenCachePath, logger)
+}
+
+func NewAppAuthWithCache(appID, installationID int64, keyFile, cachePath string, logger *slog.Logger) (*AppAuth, error) {
 	keyData, err := os.ReadFile(keyFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading app key %s: %w", keyFile, err)
@@ -63,6 +69,7 @@ func NewAppAuth(appID, installationID int64, keyFile string, logger *slog.Logger
 		installationID: installationID,
 		key:            key,
 		logger:         logger,
+		cachePath:      cachePath,
 	}, nil
 }
 
@@ -112,8 +119,8 @@ func (a *AppAuth) Token(ctx context.Context) (string, error) {
 		"installation_id", a.installationID,
 	)
 
-	if err := os.WriteFile(tokenCachePath, []byte(a.cachedToken), tokenCachePerms); err != nil {
-		a.logger.Warn("failed to write token cache", "path", tokenCachePath, "error", err)
+	if err := os.WriteFile(a.cachePath, []byte(a.cachedToken), tokenCachePerms); err != nil {
+		a.logger.Warn("failed to write token cache", "path", a.cachePath, "error", err)
 	}
 
 	return a.cachedToken, nil

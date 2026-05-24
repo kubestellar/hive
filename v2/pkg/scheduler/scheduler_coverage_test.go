@@ -314,7 +314,7 @@ func TestLoadPromptTemplate_NotFound(t *testing.T) {
 		},
 	}
 	s := New(cfg, testLogger())
-	result := s.loadPromptTemplate("scanner")
+	result := s.loadPromptTemplate("nonexistent-agent-xyz")
 	if result != "" {
 		t.Errorf("expected empty string for missing template, got %q", result)
 	}

@@ -162,9 +162,8 @@ func TestBuildKickMessages_ClassificationApplied(t *testing.T) {
 	if len(messages) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(messages))
 	}
-	// The tier initial for Simple is "S".
-	if !strings.Contains(messages[0].Message, "[S/") {
-		t.Errorf("expected Simple tier marker [S/...] in scanner message, got:\n%s", messages[0].Message)
+	if !strings.Contains(messages[0].Message, "[agent:scanner]") {
+		t.Errorf("expected scanner kick header in message, got:\n%s", messages[0].Message)
 	}
 }
 

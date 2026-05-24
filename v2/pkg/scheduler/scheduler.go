@@ -83,6 +83,9 @@ func (s *Scheduler) loadNamedTemplate(templateName string) string {
 
 // substituteTemplate replaces ${VAR} placeholders in a prompt template.
 func (s *Scheduler) substituteTemplate(template string, actionable *github.ActionableResult, agentName string, issues []github.Issue) string {
+	if actionable == nil {
+		actionable = &github.ActionableResult{}
+	}
 	now := time.Now().In(time.FixedZone("EDT", -4*3600))
 
 	issueList := s.formatIssueList(filterByLane(issues, agentName))

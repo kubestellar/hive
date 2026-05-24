@@ -339,7 +339,7 @@ func TestBuildAgentMessage_UsesTemplate(t *testing.T) {
 	actionable := &github.ActionableResult{
 		Issues: github.IssueResult{Count: 7},
 	}
-	result := s.buildAgentMessage("custom-agent", nil, actionable)
+	result := s.BuildAgentMessage("custom-agent", nil, actionable)
 	if !strings.Contains(result, "[agent:custom-agent] [KICK]") {
 		t.Errorf("expected kick header: %s", result)
 	}

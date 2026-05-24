@@ -15,6 +15,7 @@ import (
 	"github.com/kubestellar/hive/v2/pkg/governor"
 	ghpkg "github.com/kubestellar/hive/v2/pkg/github"
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
+	"github.com/kubestellar/hive/v2/pkg/scheduler"
 	"github.com/kubestellar/hive/v2/pkg/tokens"
 )
 
@@ -26,6 +27,7 @@ type Dependencies struct {
 	Tokens           *tokens.Collector
 	Knowledge        *knowledge.KnowledgeAPI
 	Nous             *NousState
+	Scheduler        *scheduler.Scheduler
 	MetricsCollector *MetricsCollector
 	BeadStores       map[string]*beads.Store
 	Logger           *slog.Logger

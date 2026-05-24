@@ -25,6 +25,12 @@ set -euo pipefail
 export PATH="/usr/local/bin:$PATH"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Use the real gh binary, not the agent wrapper at /usr/local/bin/gh
+REAL_GH="/usr/bin/gh"
+if [ ! -x "$REAL_GH" ]; then
+  REAL_GH="$(command -v gh)"
+fi
+
 if [ $# -lt 2 ]; then
   echo "Usage: $0 <instance-name> <dashboard-url>"
   echo "  e.g.: $0 bluefin http://192.168.4.85:3001"
@@ -100,7 +106,7 @@ git add "${PUBLISH_PATH}/"
 git commit -s -m "chore: update hive snapshot (${INSTANCE}) ${TIMESTAMP}"
 git push origin "$SNAPSHOT_BRANCH"
 
-PR_URL=$(gh pr create \
+PR_URL=$($REAL_GH pr create \
   --repo "$DOCS_REPO_SLUG" \
   --title "chore: hive snapshot (${INSTANCE}) ${TIMESTAMP}" \
   --body "Automated snapshot update for **${INSTANCE}** from ${DASHBOARD_URL}." \
@@ -118,7 +124,7 @@ netlify_status="pending"
 
 echo "[${INSTANCE}] Waiting for Netlify deploy-preview..."
 while [ "$elapsed" -lt "$NETLIFY_TIMEOUT_SECONDS" ]; do
-  checks_output=$(gh pr checks "$PR_NUM" --repo "$DOCS_REPO_SLUG" 2>/dev/null || true)
+  checks_output=$($REAL_GH pr checks "$PR_NUM" --repo "$DOCS_REPO_SLUG" 2>/dev/null || true)
   netlify_line=$(echo "$checks_output" | grep -i "$NETLIFY_CHECK" || true)
 
   if [ -n "$netlify_line" ]; then
@@ -137,10 +143,10 @@ done
 
 if [ "$netlify_status" = "pass" ]; then
   echo "[${INSTANCE}] Netlify passed."
-  if gh pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --admin --squash --delete-branch 2>/dev/null; then
+  if $REAL_GH pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --admin --squash --delete-branch 2>/dev/null; then
     echo "[${INSTANCE}] Snapshot published via PR #${PR_NUM}."
   else
-    gh pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --squash --auto --delete-branch
+    $REAL_GH pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --squash --auto --delete-branch
     echo "[${INSTANCE}] Auto-merge enabled on PR #${PR_NUM}."
   fi
 elif [ "$netlify_status" = "fail" ]; then

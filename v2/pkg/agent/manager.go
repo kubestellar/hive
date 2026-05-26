@@ -173,20 +173,52 @@ func (m *Manager) tmuxSessionExists(session string) bool {
 	return cmd.Run() == nil
 }
 
-func (m *Manager) tmuxPaneHasProcess(session string) bool {
+// knownCLIBinaries are the executable names that count as "a CLI is running".
+var knownCLIBinaries = map[string]bool{
+	"claude": true, "copilot": true, "gemini": true, "goose": true, "aider": true,
+}
+
+// tmuxPaneHasCLI reports whether a known CLI binary is running in the pane.
+func (m *Manager) tmuxPaneHasCLI(session string) bool {
+	children, hasAny := m.paneChildInfo(session)
+	if !hasAny {
+		return false
+	}
+	for _, pid := range children {
+		comm, err := os.ReadFile(fmt.Sprintf("/proc/%s/comm", pid))
+		if err != nil {
+			continue
+		}
+		name := strings.TrimSpace(string(comm))
+		if knownCLIBinaries[name] {
+			return true
+		}
+	}
+	return false
+}
+
+// paneChildInfo returns the child PIDs of the tmux pane's shell and whether
+// any children exist at all.
+func (m *Manager) paneChildInfo(session string) ([]string, bool) {
 	cmd := exec.Command("tmux", "list-panes", "-t", session, "-F", "#{pane_pid}")
 	out, err := cmd.Output()
 	if err != nil {
-		return false
+		return nil, false
 	}
 	panePID := strings.TrimSpace(string(out))
 	if panePID == "" {
-		return false
+		return nil, false
 	}
-	// Use procfs instead of pgrep (not available in minimal containers)
 	childrenPath := fmt.Sprintf("/proc/%s/task/%s/children", panePID, panePID)
-	children, err := os.ReadFile(childrenPath)
-	return err == nil && len(strings.TrimSpace(string(children))) > 0
+	childrenData, err := os.ReadFile(childrenPath)
+	if err != nil {
+		return nil, false
+	}
+	raw := strings.TrimSpace(string(childrenData))
+	if raw == "" {
+		return nil, false
+	}
+	return strings.Fields(raw), true
 }
 
 func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
@@ -248,8 +280,8 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 		}
 	}
 
-	if !agent.forceRelaunch && m.tmuxPaneHasProcess(agent.tmuxSession) {
-		m.logger.Info("tmux pane already has a running process, skipping launch", "name", agent.Name, "session", agent.tmuxSession)
+	if !agent.forceRelaunch && m.tmuxPaneHasCLI(agent.tmuxSession) {
+		m.logger.Info("CLI already running in tmux pane, skipping launch", "name", agent.Name, "session", agent.tmuxSession)
 		now := time.Now()
 		agent.State = StateRunning
 		agent.StartedAt = &now
@@ -655,7 +687,7 @@ func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) []string {
 		if !m.tmuxSessionExists(agent.tmuxSession) {
 			continue
 		}
-		if !m.tmuxPaneHasProcess(agent.tmuxSession) {
+		if !m.tmuxPaneHasCLI(agent.tmuxSession) {
 			crashed = append(crashed, name)
 		}
 	}
@@ -690,8 +722,8 @@ func (m *Manager) SendKick(name string, message string) error {
 		return fmt.Errorf("tmux session %s not found", agent.tmuxSession)
 	}
 
-	// Detect crashed CLI (bare shell prompt with no child process) and restart
-	if !m.tmuxPaneHasProcess(agent.tmuxSession) {
+	// Detect crashed CLI and restart before sending kick
+	if !m.tmuxPaneHasCLI(agent.tmuxSession) {
 		m.logger.Warn("agent CLI crashed, restarting before kick", "name", name)
 		m.mu.Unlock()
 		if err := m.Restart(context.Background(), name); err != nil {

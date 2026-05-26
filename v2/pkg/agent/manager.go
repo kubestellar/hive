@@ -514,7 +514,7 @@ func (m *Manager) pollTmuxOutput(name, session string, buf *RingBuffer, ctx cont
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
-	var lastHash uint64
+	var prevLines []string
 	for {
 		select {
 		case <-ctx.Done():
@@ -534,28 +534,46 @@ func (m *Manager) pollTmuxOutput(name, session string, buf *RingBuffer, ctx cont
 			if len(filtered) == 0 {
 				continue
 			}
-			h := hashLines(filtered)
-			if h == lastHash {
-				continue
+			newLines := diffNewLines(prevLines, filtered)
+			for _, l := range newLines {
+				buf.Write(l)
 			}
-			lastHash = h
-			buf.ReplaceAll(filtered)
+			prevLines = filtered
 		}
 	}
 }
 
-func hashLines(lines []string) uint64 {
-	var h uint64 = 14695981039346656037
-	for _, l := range lines {
-		for i := 0; i < len(l); i++ {
-			h ^= uint64(l[i])
-			h *= 1099511628211
-		}
-		h ^= uint64('\n')
-		h *= 1099511628211
+func diffNewLines(prev, curr []string) []string {
+	if len(prev) == 0 {
+		return curr
 	}
-	return h
+	overlap := findOverlap(prev, curr)
+	if overlap >= 0 && overlap < len(curr) {
+		return curr[overlap:]
+	}
+	return curr
 }
+
+func findOverlap(prev, curr []string) int {
+	maxTail := len(prev)
+	if maxTail > len(curr) {
+		maxTail = len(curr)
+	}
+	for tail := maxTail; tail > 0; tail-- {
+		match := true
+		for i := range tail {
+			if prev[len(prev)-tail+i] != curr[i] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return tail
+		}
+	}
+	return -1
+}
+
 
 // waitForCLIReady polls the tmux pane until the CLI shows its ready prompt
 // or the timeout expires. Returns true if the CLI became ready.
@@ -1149,25 +1167,11 @@ func (m *Manager) GetOutput(name string, lines int) ([]string, error) {
 		return nil, fmt.Errorf("agent %s not found", name)
 	}
 
-	if m.tmuxSessionExists(agent.tmuxSession) {
-		output := m.captureTmuxPane(agent.tmuxSession)
-		if output != "" {
-			allLines := strings.Split(output, "\n")
-			for len(allLines) > 0 && strings.TrimSpace(allLines[len(allLines)-1]) == "" {
-				allLines = allLines[:len(allLines)-1]
-			}
-			if len(allLines) > lines {
-				allLines = allLines[len(allLines)-lines:]
-			}
-			return allLines, nil
-		}
+	if agent.OutputBuffer != nil {
+		return agent.OutputBuffer.Last(lines), nil
 	}
 
-	if agent.OutputBuffer == nil {
-		return nil, nil
-	}
-
-	return agent.OutputBuffer.Last(lines), nil
+	return nil, nil
 }
 
 func (m *Manager) IsPaused(name string) bool {

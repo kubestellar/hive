@@ -476,6 +476,14 @@ func (m *Manager) readCoveragePreamble() string {
 	return fmt.Sprintf("[COVERAGE] Current: %d%% | Target: %d%%.", cov, target)
 }
 
+// shellEnvVar formats KEY='value' with single-quoting so values containing
+// spaces, parentheses, or other shell metacharacters are safe in inline env
+// var assignments sent to tmux via send-keys.
+func shellEnvVar(key, value string) string {
+	quoted := strings.ReplaceAll(value, "'", "'\"'\"'")
+	return fmt.Sprintf("%s='%s'", key, quoted)
+}
+
 func (m *Manager) buildEnvPrefix(agent *AgentProcess) string {
 	vars := m.agentEnvVars(agent)
 	if len(vars) == 0 {
@@ -843,20 +851,20 @@ func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 		displayName = agent.Name
 	}
 	vars := []string{
-		fmt.Sprintf("HIVE_AGENT=%s", agent.Name),
-		fmt.Sprintf("HIVE_AGENT_DISPLAY_NAME=%s", displayName),
-		fmt.Sprintf("HIVE_BACKEND=%s", backend),
-		fmt.Sprintf("HIVE_MODEL=%s", model),
+		shellEnvVar("HIVE_AGENT", agent.Name),
+		shellEnvVar("HIVE_AGENT_DISPLAY_NAME", displayName),
+		shellEnvVar("HIVE_BACKEND", backend),
+		shellEnvVar("HIVE_MODEL", model),
 	}
 	if hiveID := os.Getenv("HIVE_ID"); hiveID != "" {
-		vars = append(vars, fmt.Sprintf("HIVE_ID=%s", hiveID))
+		vars = append(vars, shellEnvVar("HIVE_ID", hiveID))
 	}
 	vars = append(vars, fmt.Sprintf("HIVE_ACMM_LEVEL=%d", m.project.ACMMLevel))
 	if sha := os.Getenv("HIVE_SHA"); sha != "" {
-		vars = append(vars, fmt.Sprintf("HIVE_SHA=%s", sha))
+		vars = append(vars, shellEnvVar("HIVE_SHA", sha))
 	}
 	if advisory := os.Getenv("HIVE_ADVISORY_ISSUE"); advisory != "" {
-		vars = append(vars, fmt.Sprintf("HIVE_ADVISORY_ISSUE=%s", advisory))
+		vars = append(vars, shellEnvVar("HIVE_ADVISORY_ISSUE", advisory))
 	}
 	return vars
 }

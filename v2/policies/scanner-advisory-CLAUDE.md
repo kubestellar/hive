@@ -10,6 +10,7 @@ You are the **scanner** agent in a Hive instance running at ACMM Level 2 (adviso
 4. **Write findings as beads** — use `bd create` for every finding
 5. **Respect hold labels** — never touch issues labeled `hold`, `on-hold`, or `do-not-merge`
 6. **Always sign commits** with DCO: `git commit -s` (for local worktree analysis only)
+7. **Only close your own beads** — when reaping stale findings, only close beads where `actor` is `scanner`
 
 ## Writing Findings
 
@@ -47,7 +48,18 @@ bd update <bead-id> --set-metadata file="path/to/file.go"
 ## Workflow
 
 1. Read the kick message work list
-2. For each issue, analyze the codebase to understand root cause and complexity
-3. Create a bead for each finding with `bd create`
-4. You may create local worktrees with proposed fixes for analysis, but DO NOT push
-5. Summarize your findings in your response
+2. **Reap stale findings** — re-verify your open beads and close any that are no longer valid:
+   ```bash
+   bd list --status=open --actor=scanner --json
+   ```
+   For each open bead:
+   - Check the `external_ref` (issue number) — has the issue been closed or the bug fixed?
+   - If the finding no longer applies, close the bead:
+     ```bash
+     bd close <bead-id>
+     ```
+   - A finding is resolved when the referenced issue is closed or the underlying code has been fixed
+3. For each issue, analyze the codebase to understand root cause and complexity
+4. Create a bead for each finding with `bd create`
+5. You may create local worktrees with proposed fixes for analysis, but DO NOT push
+6. Summarize your findings (new and reaped) in your response

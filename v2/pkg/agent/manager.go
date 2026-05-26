@@ -307,7 +307,8 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 func (m *Manager) watchForTrustPrompt(session string, ctx context.Context) {
 	const (
 		trustPollInterval = 2 * time.Second
-		trustMaxWait      = 60 * time.Second
+		trustMaxWait      = 120 * time.Second
+		trustCooldown     = 3 * time.Second
 	)
 	deadline := time.After(trustMaxWait)
 	ticker := time.NewTicker(trustPollInterval)
@@ -327,7 +328,7 @@ func (m *Manager) watchForTrustPrompt(session string, ctx context.Context) {
 				time.Sleep(enterDelay)
 				_ = exec.Command("tmux", "send-keys", "-t", session, "Enter").Run()
 				m.logger.Info("auto-answered folder trust prompt", "session", session)
-				return
+				time.Sleep(trustCooldown)
 			}
 		}
 	}

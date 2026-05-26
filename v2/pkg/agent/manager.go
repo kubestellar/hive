@@ -56,6 +56,7 @@ type AgentProcess struct {
 	KickHistory     []KickRecord
 	tmuxSession     string
 	cancel          context.CancelFunc
+	forceRelaunch   bool
 }
 
 // ProjectContext holds project-level config injected into agent boot prompts.
@@ -247,7 +248,7 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 		}
 	}
 
-	if m.tmuxPaneHasProcess(agent.tmuxSession) {
+	if !agent.forceRelaunch && m.tmuxPaneHasProcess(agent.tmuxSession) {
 		m.logger.Info("tmux pane already has a running process, skipping launch", "name", agent.Name, "session", agent.tmuxSession)
 		now := time.Now()
 		agent.State = StateRunning
@@ -262,6 +263,7 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 		}
 		return nil
 	}
+	agent.forceRelaunch = false
 
 	envCmd := m.buildEnvPrefix(agent)
 	fullCmd := envCmd + launchCmd
@@ -939,6 +941,7 @@ func (m *Manager) Resume(ctx context.Context, name string) error {
 
 	agent.Paused = false
 	if agent.State == StatePaused {
+		agent.forceRelaunch = true
 		if err := m.ensureTmuxSession(agent); err != nil {
 			return err
 		}
@@ -968,6 +971,7 @@ func (m *Manager) Restart(ctx context.Context, name string) error {
 	_ = killCmd.Run()
 
 	agent.RestartCount++
+	agent.forceRelaunch = true
 	m.logger.Info("agent restarting", "name", name, "restart_count", agent.RestartCount)
 
 	if err := m.ensureTmuxSession(agent); err != nil {

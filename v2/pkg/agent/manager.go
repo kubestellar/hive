@@ -576,6 +576,26 @@ func hashLines(lines []string) uint64 {
 	return h
 }
 
+// waitForCLIReady polls the tmux pane until the CLI shows its ready prompt
+// (❯) or the timeout expires. Returns true if the CLI became ready.
+func (m *Manager) waitForCLIReady(session string) bool {
+	deadline := time.After(cliReadyTimeout)
+	ticker := time.NewTicker(cliReadyPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-deadline:
+			return false
+		case <-ticker.C:
+			output := m.captureTmuxPane(session)
+			if strings.Contains(output, "❯") || strings.Contains(output, "help") {
+				return true
+			}
+		}
+	}
+}
+
 func (m *Manager) captureTmuxPane(session string) string {
 	cmd := exec.Command("tmux", "capture-pane", "-t", session, "-p",
 		"-S", fmt.Sprintf("-%d", tmuxCaptureLines))
@@ -730,7 +750,10 @@ func (m *Manager) SendKick(name string, message string) error {
 			m.mu.Lock()
 			return fmt.Errorf("failed to restart crashed agent %s: %w", name, err)
 		}
-		time.Sleep(cliRestartSettleDelay)
+		if !m.waitForCLIReady(agent.tmuxSession) {
+			m.mu.Lock()
+			return fmt.Errorf("agent %s CLI did not become ready after restart", name)
+		}
 		m.mu.Lock()
 		agent, ok = m.agents[name]
 		if !ok {
@@ -811,7 +834,8 @@ const (
 	chunkSize             = 400
 	chunkDelay            = 1 * time.Second
 	staleCheckDelay       = 1 * time.Second
-	cliRestartSettleDelay = 5 * time.Second
+	cliReadyPollInterval = 2 * time.Second
+	cliReadyTimeout      = 60 * time.Second
 )
 
 func (m *Manager) SeedLastKick(name string, t time.Time) {

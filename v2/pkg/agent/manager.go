@@ -640,7 +640,9 @@ func (m *Manager) RemoveAgent(name string) {
 
 // CheckAndRestartCrashedAgents checks all running agents for crashed CLI
 // processes (bare shell prompt with no child process) and restarts them.
-func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) {
+// Returns the names of agents that were successfully restarted so the
+// caller can send them a kick with their prompt template.
+func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) []string {
 	m.mu.RLock()
 	var crashed []string
 	for name, agent := range m.agents {
@@ -659,12 +661,16 @@ func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) {
 	}
 	m.mu.RUnlock()
 
+	var restarted []string
 	for _, name := range crashed {
 		m.logger.Warn("agent CLI not running, restarting", "name", name)
 		if err := m.Restart(ctx, name); err != nil {
 			m.logger.Error("failed to restart crashed agent", "name", name, "error", err)
+		} else {
+			restarted = append(restarted, name)
 		}
 	}
+	return restarted
 }
 
 func (m *Manager) SendKick(name string, message string) error {

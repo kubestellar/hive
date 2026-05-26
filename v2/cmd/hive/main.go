@@ -645,8 +645,8 @@ func main() {
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 			return
 		case <-ticker.C:
-			agentMgr.CheckAndRestartCrashedAgents(ctx)
-			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, logger)
+			restarted := agentMgr.CheckAndRestartCrashedAgents(ctx)
+			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, restarted, logger)
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 		case <-agentTickCh:
 			govState := gov.GetState()
@@ -674,6 +674,7 @@ func runEvalCycle(
 	advisoryStore *advisory.Store,
 	advisoryIssues map[string]int,
 	userGHClient *atomic.Pointer[github.Client],
+	restartedAgents []string,
 	logger *slog.Logger,
 ) {
 	actionable, err := ghClient.EnumerateActionable(ctx)
@@ -707,6 +708,20 @@ func runEvalCycle(
 		actionable.Hold.Total,
 		actionable.Issues.SLAViolations,
 	)
+
+	// Restarted agents need a kick even if the governor wouldn't schedule one this cycle.
+	if len(restartedAgents) > 0 {
+		dueSet := make(map[string]bool, len(agentsDue))
+		for _, a := range agentsDue {
+			dueSet[a] = true
+		}
+		for _, a := range restartedAgents {
+			if !dueSet[a] {
+				agentsDue = append(agentsDue, a)
+				logger.Info("adding restarted agent to kick list", "agent", a)
+			}
+		}
+	}
 
 	govState := gov.GetState()
 	logger.Info("governor eval complete",

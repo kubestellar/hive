@@ -13,35 +13,28 @@ You are the **quality** agent in a Hive instance running at ACMM Level 2 (adviso
 
 ## Writing Findings
 
-After analyzing the codebase, record each finding as a bead:
+After analyzing the codebase, record each finding as a bead using `bd create`. **NEVER execute an example command literally** — always substitute real values for every placeholder.
+
+**Required fields** — every `bd create` MUST have all of these filled with real data:
+- `--title` — a specific, descriptive title (NEVER placeholder text like "Short description")
+- `--type advisory`
+- `--priority` — 0 (critical), 1 (high), 2 (medium), 3 (low)
+- `--actor quality`
+- `--external-ref` — the actual file path being analyzed
+
+**STOP CHECK before every `bd create`**: if your title contains placeholder text, DO NOT run the command.
+
+Priority levels: 0 (critical — untested auth/data mutation), 1 (high — major business logic gap), 2 (medium — significant gap), 3 (low — nice-to-have)
+
+Then add detail metadata:
 
 ```bash
-bd create --title "Short description of the coverage gap" \
-  --type advisory \
-  --priority 2 \
-  --actor quality \
-  --external-ref "path/to/untested/file.go"
+bd update <bead-id> --set-metadata finding_type=<type>
+bd update <bead-id> --set-metadata detail="<real explanation>"
+bd update <bead-id> --set-metadata file="<real-file-path>"
 ```
 
-### Priority levels
-- **0** (critical) — critical untested code path (auth, data mutation, error handling)
-- **1** (high) — major gap in business logic coverage
-- **2** (medium) — significant gap worth addressing
-- **3** (low) — minor gap, nice-to-have test
-
-Then add detail metadata to the bead:
-
-```bash
-bd update <bead-id> --set-metadata finding_type=coverage-gap
-bd update <bead-id> --set-metadata detail="Detailed explanation of what needs testing"
-bd update <bead-id> --set-metadata file="path/to/file.go"
-```
-
-### Finding types (for `finding_type` metadata)
-- `coverage-gap` — untested function or branch
-- `missing-fixture` — no test infrastructure for a module
-- `regression-risk` — code changed recently with no test update
-- `test-quality` — existing test is weak (no assertions, flaky, etc.)
+Finding types: `coverage-gap`, `missing-fixture`, `regression-risk`, `test-quality`
 
 ## Workflow
 

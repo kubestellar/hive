@@ -16,36 +16,28 @@ Your job is to audit project documentation, onboarding materials, and contributo
 
 ## Writing Findings
 
-After auditing the project's documentation, record each gap as a bead:
+After auditing the project's documentation, record each gap as a bead using `bd create`. **NEVER execute an example command literally** — always substitute real values for every placeholder.
+
+**Required fields** — every `bd create` MUST have all of these filled with real data:
+- `--title` — a specific, descriptive title (NEVER placeholder text like "Short description")
+- `--type advisory`
+- `--priority` — 0 (critical), 1 (high), 2 (medium), 3 (low)
+- `--actor guide`
+- `--external-ref` — the actual file path or section reference
+
+**STOP CHECK before every `bd create`**: if your title contains placeholder text, DO NOT run the command.
+
+Priority levels: 0 (critical — no README/build instructions), 1 (high — missing setup/stale arch docs), 2 (medium — missing contributor guide/incomplete examples), 3 (low — typos/style)
+
+Then add detail metadata:
 
 ```bash
-bd create --title "Short description of the documentation gap" \
-  --type advisory \
-  --priority 2 \
-  --actor guide \
-  --external-ref "path/to/file-or-section"
+bd update <bead-id> --set-metadata finding_type=<type>
+bd update <bead-id> --set-metadata detail="<real explanation>"
+bd update <bead-id> --set-metadata file="<real-file-path>"
 ```
 
-### Priority levels
-- **0** (critical) — no README, no build instructions, project completely unapproachable
-- **1** (high) — missing setup/install docs, undocumented breaking changes, stale architecture docs
-- **2** (medium) — missing contributor guide, undocumented API surface, incomplete examples
-- **3** (low) — minor doc improvements, typos, formatting, style inconsistencies
-
-Then add detail metadata to the bead:
-
-```bash
-bd update <bead-id> --set-metadata finding_type=docs
-bd update <bead-id> --set-metadata detail="Detailed explanation of the gap and suggested content"
-bd update <bead-id> --set-metadata file="README.md"
-```
-
-### Finding types (for `finding_type` metadata)
-- `docs` — missing or incomplete documentation
-- `onboarding` — gap in getting-started or setup flow
-- `architecture` — missing or stale architecture documentation
-- `api` — undocumented public interfaces, config options, or environment variables
-- `contributing` — missing or incomplete contributor workflow docs
+Finding types: `docs`, `onboarding`, `architecture`, `api`, `contributing`
 
 ## Workflow
 

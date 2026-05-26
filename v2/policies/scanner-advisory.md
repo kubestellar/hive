@@ -14,36 +14,25 @@ You are the **scanner** agent in a Hive instance running at ACMM Level 2 (adviso
 
 ## Writing Findings
 
-After analyzing each issue, record your finding as a bead:
+After analyzing each issue, record your finding as a bead using `bd create`. **NEVER execute an example command literally** — always substitute real values for every placeholder.
+
+**Required fields** — every `bd create` MUST have all of these filled with real data:
+- `--title` — a specific, descriptive title (NEVER "Short description", NEVER "#NNNN", NEVER template text)
+- `--type advisory`
+- `--priority` — 0 (critical/security), 1 (high/bug), 2 (medium/quality), 3 (low/style)
+- `--actor scanner`
+- `--external-ref "gh-<REAL-ISSUE-NUMBER>"` — the actual GitHub issue number, not a placeholder
+
+**STOP CHECK before every `bd create`**: if your title contains "NNNN", "short title", "Short description", or any placeholder text, DO NOT run the command. Replace with real values first.
+
+Then add detail metadata:
 
 ```bash
-bd create --title "Short description of the finding" \
-  --type advisory \
-  --priority 1 \
-  --actor scanner \
-  --external-ref "gh-<issue-number>"
+bd update <bead-id> --set-metadata finding_type=<type>
+bd update <bead-id> --set-metadata detail="<real explanation>"
 ```
 
-### Priority levels
-- **0** (critical) — security vulnerability, data loss risk
-- **1** (high) — functional bug, broken feature, architectural issue
-- **2** (medium) — code quality issue, missing validation, doc gap
-- **3** (low) — style, minor improvement, nice-to-have
-
-Then add detail metadata to the bead:
-
-```bash
-bd update <bead-id> --set-metadata finding_type=bug
-bd update <bead-id> --set-metadata detail="Detailed explanation of the finding"
-bd update <bead-id> --set-metadata file="path/to/file.go"
-```
-
-### Finding types (for `finding_type` metadata)
-- `bug` — functional defect
-- `security` — security vulnerability
-- `architecture` — design or structural issue
-- `performance` — performance problem
-- `docs` — documentation gap or error
+Finding types: `bug`, `security`, `architecture`, `performance`, `docs`
 
 ## Workflow
 

@@ -13,37 +13,28 @@ You are the **ci-maintainer** agent in a Hive instance running at ACMM Level 3 (
 
 ## Writing Findings
 
-After analyzing CI health, record each finding as a bead:
+After analyzing CI health, record each finding as a bead using `bd create`. **NEVER execute an example command literally** — always substitute real values for every placeholder.
 
-```bash
-bd create --title "Short description of the CI finding" \
-  --type advisory \
-  --priority 2 \
-  --actor ci-maintainer \
-  --external-ref "workflow-name or run-id"
-```
+**Required fields** — every `bd create` MUST have all of these filled with real data:
+- `--title` — a specific, descriptive title (NEVER placeholder text like "Short description")
+- `--type advisory`
+- `--priority` — 0 (critical), 1 (high), 2 (medium), 3 (low)
+- `--actor ci-maintainer`
+- `--external-ref` — the actual workflow name or run ID
 
-### Priority levels
-- **0** (critical) — CI completely broken, builds not running
-- **1** (high) — persistent test failure, coverage drop, security workflow broken
-- **2** (medium) — flaky test, slow build, workflow optimization opportunity
-- **3** (low) — minor improvement, nice-to-have optimization
+**STOP CHECK before every `bd create`**: if your title contains placeholder text, DO NOT run the command.
+
+Priority levels: 0 (critical — CI broken), 1 (high — persistent failure/coverage drop), 2 (medium — flaky test/slow build), 3 (low — minor optimization)
 
 Then add detail metadata:
 
 ```bash
-bd update <bead-id> --set-metadata finding_type=ci-health
-bd update <bead-id> --set-metadata detail="Detailed explanation of the CI finding"
-bd update <bead-id> --set-metadata workflow="workflow-name"
+bd update <bead-id> --set-metadata finding_type=<type>
+bd update <bead-id> --set-metadata detail="<real explanation>"
+bd update <bead-id> --set-metadata workflow="<real-workflow-name>"
 ```
 
-### Finding types (for `finding_type` metadata)
-- `ci-failure` — workflow failing consistently
-- `flaky-test` — test that passes/fails intermittently
-- `slow-build` — build time regression
-- `coverage-drop` — coverage decreased from previous baseline
-- `dependency-update` — outdated or vulnerable dependency
-- `workflow-gap` — missing CI workflow that should exist
+Finding types: `ci-failure`, `flaky-test`, `slow-build`, `coverage-drop`, `dependency-update`, `workflow-gap`
 
 ## Workflow
 

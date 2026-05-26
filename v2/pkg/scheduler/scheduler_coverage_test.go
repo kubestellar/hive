@@ -290,7 +290,7 @@ func TestSubstituteTemplate_TimestampPresent(t *testing.T) {
 func TestLoadPromptTemplate_FromPoliciesDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Create the template file
-	templatePath := tmpDir + "/examples/kubestellar/agents/scanner-CLAUDE.md"
+	templatePath := tmpDir + "/examples/kubestellar/agents/scanner.md"
 	os.MkdirAll(tmpDir+"/examples/kubestellar/agents", 0o755)
 	os.WriteFile(templatePath, []byte("Hello ${AGENT_NAME}"), 0o644)
 
@@ -326,7 +326,7 @@ func TestLoadPromptTemplate_NotFound(t *testing.T) {
 
 func TestBuildAgentMessage_UsesTemplate(t *testing.T) {
 	tmpDir := t.TempDir()
-	templatePath := tmpDir + "/examples/kubestellar/agents/custom-agent-CLAUDE.md"
+	templatePath := tmpDir + "/examples/kubestellar/agents/custom-agent.md"
 	os.MkdirAll(tmpDir+"/examples/kubestellar/agents", 0o755)
 	os.WriteFile(templatePath, []byte("Custom: ${AGENT_NAME} issues=${QUEUE_ISSUES}"), 0o644)
 

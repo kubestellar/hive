@@ -83,7 +83,7 @@ governor:
       my-agent: 15m
 ```
 
-Place a `CLAUDE.md` policy file in the agent's working directory, or use a git config repo for hot-reloadable policies:
+Place a policy file in the agent's working directory, or use a git config repo for hot-reloadable policies:
 
 ```yaml
 policies:

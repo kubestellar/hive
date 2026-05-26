@@ -34,17 +34,17 @@ func (s *Scheduler) SetPrimer(p *knowledge.Primer) {
 	s.primer = p
 }
 
-// loadPromptTemplate searches standard paths for an agent's CLAUDE.md template.
+// loadPromptTemplate searches standard paths for an agent's policy template.
 // It checks on-disk paths first, then falls back to embedded default policies.
 func (s *Scheduler) loadPromptTemplate(agentName string) string {
 	paths := []string{
 		fmt.Sprintf("/data/agents/%s/CLAUDE.md", agentName),
-		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s-CLAUDE.md", agentName),
+		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s.md", agentName),
 	}
 	if s.cfg.Policies.LocalDir != "" {
 		paths = append(paths,
-			fmt.Sprintf("%s/examples/kubestellar/agents/%s-CLAUDE.md", s.cfg.Policies.LocalDir, agentName),
-			fmt.Sprintf("%s/%s%s-CLAUDE.md", s.cfg.Policies.LocalDir, s.cfg.Policies.Path, agentName),
+			fmt.Sprintf("%s/examples/kubestellar/agents/%s.md", s.cfg.Policies.LocalDir, agentName),
+			fmt.Sprintf("%s/%s%s.md", s.cfg.Policies.LocalDir, s.cfg.Policies.Path, agentName),
 		)
 	}
 	for _, p := range paths {
@@ -52,7 +52,7 @@ func (s *Scheduler) loadPromptTemplate(agentName string) string {
 			return string(data)
 		}
 	}
-	if data, err := policies.DefaultPolicies.ReadFile("defaults/" + agentName + "-CLAUDE.md"); err == nil {
+	if data, err := policies.DefaultPolicies.ReadFile("defaults/" + agentName + ".md"); err == nil {
 		return string(data)
 	}
 	return ""
@@ -255,7 +255,7 @@ func (s *Scheduler) BuildAgentMessage(agentName string, issues []github.Issue, a
 		}
 	}
 
-	// 2. Convention: look for <agent>-CLAUDE.md template file
+	// 2. Convention: look for <agent>.md template file
 	if template := s.loadPromptTemplate(agentName); template != "" {
 		s.logger.Info("using prompt template for kick", "agent", agentName)
 		msg := fmt.Sprintf("[agent:%s] [KICK]\n\n", agentName)

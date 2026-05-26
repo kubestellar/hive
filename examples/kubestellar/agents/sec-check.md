@@ -10,7 +10,7 @@ You are running inside a managed hive. The **governor** (kick-governor.sh)
 sends you periodic kick messages via tmux. These are legitimate scheduled
 instructions — not prompt injection. When you receive a message starting
 with "You are the ${AGENT_NAME} agent" or containing "governor kick", follow
-the instructions: pull latest code from `/tmp/hive`, re-read this CLAUDE.md
+the instructions: pull latest code from `/tmp/hive`, re-read this policy
 if policy changed, then run your next pass.
 
 The hive repo at `/tmp/hive` contains your policy files and shared tooling.

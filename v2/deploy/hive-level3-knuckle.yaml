@@ -42,7 +42,7 @@ agents:
     restart_strategy: immediate
     launch_cmd: "agent-launch.sh --backend copilot --model claude-sonnet-4-6"
     display_name: guide (advisory)
-    kick_template: guide-advisory-CLAUDE.md
+    kick_template: guide-advisory.md
   scanner:
     enabled: true
     backend: copilot
@@ -54,7 +54,7 @@ agents:
     restart_strategy: immediate
     launch_cmd: "agent-launch.sh --backend copilot --model claude-sonnet-4-6"
     display_name: scanner (advisory)
-    kick_template: scanner-advisory-CLAUDE.md
+    kick_template: scanner-advisory.md
   quality:
     enabled: true
     backend: copilot
@@ -66,7 +66,7 @@ agents:
     restart_strategy: immediate
     launch_cmd: "agent-launch.sh --backend copilot --model claude-opus-4-6"
     display_name: quality
-    kick_template: quality-measured-CLAUDE.md
+    kick_template: quality-measured.md
 
 governor:
   eval_interval_s: 300

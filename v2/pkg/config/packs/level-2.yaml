@@ -43,7 +43,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: supervisor
-    kick_template: supervisor-CLAUDE.md
+    kick_template: supervisor.md
     include_repos: true
     stale_timeout: 1800
     interactions: >
@@ -64,7 +64,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: guide-advisory-CLAUDE.md
+    kick_template: guide-advisory.md
     include_repos: true
     stale_timeout: 3600
     interactions: "Works alongside scanner. Reviews scanner's suggestions when asked."
@@ -83,7 +83,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: scanner-advisory-CLAUDE.md
+    kick_template: scanner-advisory.md
     include_repos: true
     stale_timeout: 7200
     lane_keywords: [bug, triage, fix]
@@ -103,7 +103,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: quality-advisory-CLAUDE.md
+    kick_template: quality-advisory.md
     include_repos: true
     stale_timeout: 7200
     interactions: "Complements scanner findings with targeted tests. Guide reviews test quality."

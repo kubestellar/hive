@@ -65,7 +65,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: supervisor
-    kick_template: supervisor-CLAUDE.md
+    kick_template: supervisor.md
     include_repos: true
     stale_timeout: 600
     interactions: >
@@ -86,7 +86,7 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: scanner-CLAUDE.md
+    kick_template: scanner.md
     include_repos: true
     stale_timeout: 900
     lane_keywords: [bug, triage, fix, issue]
@@ -105,7 +105,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: ci-maintainer-CLAUDE.md
+    kick_template: ci-maintainer.md
     include_repos: true
     stale_timeout: 900
     lane_keywords: [ci, build, pipeline, workflow, dependency]
@@ -125,7 +125,7 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: quality-CLAUDE.md
+    kick_template: quality.md
     include_repos: true
     stale_timeout: 900
     interactions: >
@@ -143,7 +143,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: guide-CLAUDE.md
+    kick_template: guide.md
     include_repos: true
     stale_timeout: 3600
     interactions: >
@@ -161,7 +161,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: sec-check-CLAUDE.md
+    kick_template: sec-check.md
     include_repos: true
     stale_timeout: 900
     lane_keywords: [security, cve, vulnerability, audit]
@@ -181,7 +181,7 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: architect-CLAUDE.md
+    kick_template: architect.md
     include_repos: true
     stale_timeout: 1800
     lane_keywords: [refactor, architecture, rfc, design, feature]
@@ -200,7 +200,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: strategist-CLAUDE.md
+    kick_template: strategist.md
     include_repos: false
     stale_timeout: 1800
     lane_keywords: [strategy, roadmap, planning]
@@ -220,7 +220,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: outreach-CLAUDE.md
+    kick_template: outreach.md
     include_repos: false
     stale_timeout: 1800
     lane_keywords: [community, adopters, outreach, ecosystem]

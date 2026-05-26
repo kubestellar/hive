@@ -325,7 +325,7 @@ Each issue has a `lane` field. **Only work on issues with `lane=${AGENT_NAME}`.*
 
 **At the very start of every cron iteration**, use the `Read` tool to re-read these files from disk:
 
-1. This policy file (${AGENT_NAME}-CLAUDE.md)
+1. This policy file (${AGENT_NAME} policy)
 2. Every `feedback_*.md` and `project_*.md` file under `/home/dev/.claude/projects/-Users-andan02/memory/` whose name is referenced anywhere in this policy (MEMORY.md has the full index).
 3. `/home/dev/.claude/projects/-Users-andan02/memory/cron_scan_log.md` — last 100 lines, so you know what the previous iterations did.
 
@@ -618,7 +618,7 @@ The SLA is an OBLIGATION, not an aspiration. Missing it is worse than shipping a
    - Creates its own worktree: `/tmp/<repo-name>-<bug-num>-<slug>`
    - Reads the issue body, produces a focused fix
    - ⛔ Does NOT run npm run build, npm run lint, tsc, vitest, or any local validation — CI handles that
-   - Commits with `-s` (DCO sign-off, per CLAUDE.md)
+   - Commits with `-s` (DCO sign-off, per policy)
    - Opens PR with `Fixes #NNN` in body
    - Returns PR number to ${AGENT_NAME}
 3. Filter candidate bugs for parallel dispatch:
@@ -662,11 +662,11 @@ All repos are already included. The enumerator covers all repos listed in hive-p
 ### Triage decision tree (per PR)
 
 1. **Author classification**:
-   - AI-authored (`${PROJECT_AI_AUTHOR}` is AI per CLAUDE.md; `copilot-swe-agent[bot]`; ${AGENT_NAME}'s own branches) → self-merge-eligible path.
+   - AI-authored (`${PROJECT_AI_AUTHOR}` is AI per policy; `copilot-swe-agent[bot]`; ${AGENT_NAME}'s own branches) → self-merge-eligible path.
    - Community contributor → review path.
 
 2. **CI status** (required for any merge):
-   - All blocking checks passing (ignore Playwright per CLAUDE.md) → proceed.
+   - All blocking checks passing (ignore Playwright per policy) → proceed.
    - **`tide` is NOT a blocking check** — it is Prow's merge queue and will stay pending forever without `lgtm`/`approved` labels. If `tide` is the only pending or failing check, treat CI as green and merge with `gh pr merge --admin --squash --repo <repo>`. NEVER post `/lgtm`, `/approve`, or `/ok-to-test` comments as a merge strategy — always use `--admin --squash` directly.
    - Failing blocking check (anything other than `tide` or Playwright) → leave a comment pointing at the failure + `@author` mention, move on.
    - Checks pending >30min (excluding `tide` and Playwright) → assume stuck, comment asking to re-run.
@@ -680,7 +680,7 @@ All repos are already included. The enumerator covers all repos listed in hive-p
 
 | Author | CI | Size | Action |
 |---|---|---|---|
-| AI-authored | green | any | `gh pr merge --admin --squash` (matches CLAUDE.md auto-merge workflow for ${PROJECT_PRIMARY_REPO}) |
+| AI-authored | green | any | `gh pr merge --admin --squash` (matches policy auto-merge workflow for ${PROJECT_PRIMARY_REPO}) |
 | Community | green | small | Read diff, if clean: `gh pr merge --admin --squash --repo <repo>`. Thank the contributor. NEVER use `/lgtm` or `/approve` — Prow labels don't trigger for bot-authored PRs and cause merges to stall. |
 | Community | green | medium | Read diff, leave 1-2 specific comments if improvements possible; if clean, approve + merge. |
 | Community | green | large | Leave a structured review: what works, what needs changes, link to docs/conventions. If structural (new pattern, API change), lane-transfer to architect via `bd create --actor architect --set-metadata lane_transfer=${AGENT_NAME}-to-architect` for RFC review. |
@@ -879,7 +879,7 @@ When you discover a new standing rule, anti-pattern, gotcha, or constraint durin
 
 1. **Update your policy file** — append the finding to the relevant section of your policy file (`project_<agent>_policy.md` in `/home/dev/.claude/projects/-Users-andan02/memory/`). Be specific: what triggered it, what the rule is, when it applies.
 
-2. **Push to hive** — commit the updated policy and any related CLAUDE.md to the hive repo:
+2. **Push to hive** — commit the updated policy to the hive repo:
    ```bash
    cd /tmp/hive && git pull --rebase origin main
    # copy updated policy into hive if it lives there

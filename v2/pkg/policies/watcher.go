@@ -170,7 +170,7 @@ func policyFileToAgent(filename string) string {
 	name := filepath.Base(filename)
 	name = name[:len(name)-len(filepath.Ext(name))]
 
-	suffixes := []string{"-CLAUDE", "-policy", "_policy", "-claude"}
+	suffixes := []string{"-policy", "_policy"}
 	for _, suffix := range suffixes {
 		if idx := len(name) - len(suffix); idx > 0 && name[idx:] == suffix {
 			return name[:idx]

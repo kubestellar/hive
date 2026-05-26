@@ -67,7 +67,7 @@ campaign:
 
   # NEVER touched by experiments — hard constraints
   invariants:
-    - agent_policies       # CLAUDE.md files, kick prompts, agent autonomy
+    - agent_policies       # policy files, kick prompts, agent autonomy
     - repo_permissions     # what agents can do on kubestellar/console + associated repos
     - merge_rules          # auto-merge, yolo behavior, PR workflow
     - budget_total         # only operator sets the ceiling

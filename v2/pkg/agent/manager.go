@@ -363,10 +363,9 @@ var acmmLevelNames = map[int]string{
 
 func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 	// Look for policy files in priority order.
-	// 1. <policy_dir>/<agent>.md (project-specific, backend-neutral)
-	// 2. <policy_dir>/<agent>-CLAUDE.md (project-specific, legacy name)
-	// 3. /data/agents/<agent>/CLAUDE.md (per-agent runtime override)
-	// 4. Generic role definitions from the hive repo (baked into image or policy-synced)
+	// 1. <policy_dir>/<agent>.md (project-specific)
+	// 2. /data/agents/<agent>/CLAUDE.md (per-agent runtime override)
+	// 3. Generic role definitions from the hive repo (baked into image or policy-synced)
 	policyDir := m.project.PolicyDir
 	if policyDir == "" {
 		policyDir = "/data/policies/agents"
@@ -377,7 +376,6 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 	}
 	paths := []string{
 		fmt.Sprintf("%s/%s.md", policyDir, agent.Name),
-		fmt.Sprintf("%s/%s-CLAUDE.md", policyDir, agent.Name),
 		fmt.Sprintf("/data/agents/%s/CLAUDE.md", agent.Name),
 		filepath.Join(policiesRoot, "examples", "agents", agent.Name+".md"),
 		fmt.Sprintf("/opt/hive/examples/agents/%s.md", agent.Name),

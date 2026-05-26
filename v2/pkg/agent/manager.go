@@ -214,7 +214,9 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	case "claude":
 		launchCmd = fmt.Sprintf("%s --model %s --dangerously-skip-permissions", binary, model)
 	case "copilot":
-		launchCmd = fmt.Sprintf("%s --model %s --allow-all", binary, model)
+		// Copilot CLI uses dashes in model IDs (claude-opus-4-6), not dots (claude-opus-4.6)
+		copilotModel := strings.ReplaceAll(model, ".", "-")
+		launchCmd = fmt.Sprintf("%s --model %s --allow-all", binary, copilotModel)
 	case "gemini":
 		launchCmd = fmt.Sprintf("%s --model %s", binary, model)
 	case "goose":

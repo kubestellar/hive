@@ -508,7 +508,7 @@ func main() {
 			logger.Info("user GitHub client updated via device flow")
 		},
 		EnumerateFunc: func() {
-			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, logger)
+			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, nil, logger)
 		},
 	})
 
@@ -627,7 +627,7 @@ func main() {
 		return
 	}
 
-	runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, logger)
+	runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, nil, logger)
 	persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 	dashSrv.MarkReady()
 

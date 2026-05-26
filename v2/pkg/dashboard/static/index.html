@@ -1114,7 +1114,7 @@
     .btn-sm.btn-danger:hover { background: rgba(248,81,73,0.15); }
     .btn-add { padding: 6px 14px; font-size: 0.8rem; background: var(--surface); border: 1px solid var(--blue); border-radius: 4px; cursor: pointer; color: var(--blue); }
     .btn-add:hover { background: rgba(88,166,255,0.1); }
-    .config-stats-list { max-height: 400px; overflow-y: auto; }
+    .config-stats-list { max-height: 400px; overflow-y: auto; padding-right: 12px; }
 
     .config-info {
       display: inline-flex; align-items: center; justify-content: center;
@@ -5645,8 +5645,17 @@ function burnAreaChart() {
       const labelStyle = 'font-size:0.65rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px;font-weight:600;';
       const rowStyle = 'display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:0.8rem;';
 
+      // Only show health checks that match ci-maintainer's stats config
+      const ciAgent = agents.find(a => a.role === 'ci-maintainer' || a.name === 'ci-maintainer');
+      const ciHealthFields = new Set(
+        (ciAgent?.statsConfig || [])
+          .filter(s => s.source === 'health')
+          .map(s => s.field)
+      );
+
       let healthRows = '';
       for (const [k, v] of Object.entries(health)) {
+        if (ciHealthFields.size > 0 && !ciHealthFields.has(k)) continue;
         const label = HEALTH_LABELS[k] || k;
         const ok = k === 'ci' ? v >= CI_PASS_THRESHOLD : (v === true || v === 1);
         const skip = v === -1;

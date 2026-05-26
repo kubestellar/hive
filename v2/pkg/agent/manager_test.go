@@ -297,9 +297,9 @@ func TestAgentEnvVars_ContainsRequiredKeys(t *testing.T) {
 	vars := testEnvVars(ap)
 
 	want := map[string]string{
-		"HIVE_AGENT":   "test-agent",
-		"HIVE_BACKEND": "claude",
-		"HIVE_MODEL":   "claude-3-5-sonnet",
+		"HIVE_AGENT":   "'test-agent'",
+		"HIVE_BACKEND": "'claude'",
+		"HIVE_MODEL":   "'claude-3-5-sonnet'",
 	}
 
 	for _, v := range vars {
@@ -344,12 +344,12 @@ func TestAgentEnvVars_EmptyModelAllowed(t *testing.T) {
 
 	found := false
 	for _, v := range vars {
-		if v == "HIVE_MODEL=" {
+		if v == "HIVE_MODEL=''" {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("expected HIVE_MODEL= (empty) to be present when model is unset")
+		t.Error("expected HIVE_MODEL='' (empty) to be present when model is unset")
 	}
 }
 
@@ -666,12 +666,12 @@ func TestStart_EnvIncludesHiveVars(t *testing.T) {
 
 	found := false
 	for _, v := range combined {
-		if v == "HIVE_AGENT=env-test" {
+		if v == "HIVE_AGENT='env-test'" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("HIVE_AGENT=env-test not found in combined env")
+		t.Error("HIVE_AGENT='env-test' not found in combined env")
 	}
 }

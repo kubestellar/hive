@@ -159,7 +159,7 @@ func TestAgentEnvVars_WithHiveID(t *testing.T) {
 
 	foundHiveID := false
 	for _, v := range vars {
-		if v == "HIVE_ID=test-hive-123" {
+		if v == "HIVE_ID='test-hive-123'" {
 			foundHiveID = true
 		}
 	}
@@ -185,10 +185,10 @@ func TestAgentEnvVars_WithOverrides(t *testing.T) {
 	foundModel := false
 	foundBackend := false
 	for _, v := range vars {
-		if v == "HIVE_MODEL=opus" {
+		if v == "HIVE_MODEL='opus'" {
 			foundModel = true
 		}
-		if v == "HIVE_BACKEND=gemini" {
+		if v == "HIVE_BACKEND='gemini'" {
 			foundBackend = true
 		}
 	}

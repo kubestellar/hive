@@ -208,10 +208,10 @@ func main() {
 	notifier.SetHiveID(cfg.HiveID)
 	acmmLevel := inferACMMLevel(cfg)
 
-	// At L1/L2 (advisory-only), create or find the pinned advisory issue per repo.
-	// Agents can comment on this issue but cannot create new issues.
+	// Find or create the pinned advisory issue. Any level can have advisory
+	// agents whose findings should be posted to this issue.
 	advisoryIssues := map[string]int{}
-	if acmmLevel > 0 && acmmLevel < 3 {
+	if acmmLevel > 0 {
 		primaryRepo := cfg.Project.PrimaryRepo
 		if primaryRepo == "" && len(cfg.Project.Repos) > 0 {
 			primaryRepo = cfg.Project.Repos[0]

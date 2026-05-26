@@ -116,7 +116,7 @@ func (c *Client) findDigestComment(ctx context.Context, owner, repo string, issu
 
 func (c *Client) findAdvisoryIssue(ctx context.Context, owner, repo string) (int, error) {
 	opts := &gh.IssueListByRepoOptions{
-		State:  "open",
+		State:  "all",
 		Labels: []string{advisoryLabelName},
 		ListOptions: gh.ListOptions{PerPage: 5},
 	}

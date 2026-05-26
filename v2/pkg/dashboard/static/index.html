@@ -7158,7 +7158,7 @@ function burnAreaChart() {
       const stats = _configState.data.stats || [];
       if (!stats[idx]) return;
       if (value === undefined) { delete stats[idx][key]; } else { stats[idx][key] = value; }
-      markDirty('stats', 'list', stats);
+      markDirty('stats', 'stats', stats);
     }
 
     function updateStatSource(idx, newSource) {
@@ -7168,7 +7168,7 @@ function burnAreaChart() {
       const sources = (_statSources || {}).sources || {};
       const fields = (sources[newSource] || {}).fields || [];
       stats[idx].field = fields[0] || '';
-      markDirty('stats', 'list', stats);
+      markDirty('stats', 'stats', stats);
       renderConfigTab('Stats');
     }
 
@@ -7176,7 +7176,7 @@ function burnAreaChart() {
       const stats = _configState.data.stats || [];
       if (idx <= 0) return;
       [stats[idx - 1], stats[idx]] = [stats[idx], stats[idx - 1]];
-      markDirty('stats', 'list', stats);
+      markDirty('stats', 'stats', stats);
       renderConfigTab('Stats');
     }
 
@@ -7184,7 +7184,7 @@ function burnAreaChart() {
       const stats = _configState.data.stats || [];
       if (idx >= stats.length - 1) return;
       [stats[idx], stats[idx + 1]] = [stats[idx + 1], stats[idx]];
-      markDirty('stats', 'list', stats);
+      markDirty('stats', 'stats', stats);
       renderConfigTab('Stats');
     }
 
@@ -7192,7 +7192,7 @@ function burnAreaChart() {
       const stats = _configState.data.stats || [];
       stats.splice(idx, 1);
       _configState.data.stats = stats;
-      markDirty('stats', 'list', stats);
+      markDirty('stats', 'stats', stats);
       renderConfigTab('Stats');
     }
 
@@ -7203,7 +7203,7 @@ function burnAreaChart() {
       const firstField = ((sources[firstSource] || {}).fields || [])[0] || '';
       const newKey = 'stat_' + Date.now();
       _configState.data.stats.push({ key: newKey, label: firstField || 'New Stat', source: firstSource, field: firstField, style: 'number' });
-      markDirty('stats', 'list', _configState.data.stats);
+      markDirty('stats', 'stats', _configState.data.stats);
       renderConfigTab('Stats');
     }
 
@@ -7377,11 +7377,11 @@ function burnAreaChart() {
       } else if (section === 'labels') {
         if (!_configState.data.labels) _configState.data.labels = [];
         _configState.data.labels.push(val);
-        markDirty('labels', 'list', _configState.data.labels);
+        markDirty('labels', 'labels', _configState.data.labels);
       } else if (section === 'repos') {
         if (!_configState.data.repos) _configState.data.repos = [];
         _configState.data.repos.push(val);
-        markDirty('repos', 'list', _configState.data.repos);
+        markDirty('repos', 'repos', _configState.data.repos);
       }
       input.value = '';
       renderConfigTab(_configState.tab);
@@ -7393,10 +7393,10 @@ function burnAreaChart() {
         markDirty('hooks', key, _configState.data.hooks[key]);
       } else if (section === 'labels') {
         _configState.data.labels.splice(index, 1);
-        markDirty('labels', 'list', _configState.data.labels);
+        markDirty('labels', 'labels', _configState.data.labels);
       } else if (section === 'repos') {
         _configState.data.repos.splice(index, 1);
-        markDirty('repos', 'list', _configState.data.repos);
+        markDirty('repos', 'repos', _configState.data.repos);
       }
       renderConfigTab(_configState.tab);
     }

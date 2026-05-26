@@ -858,7 +858,9 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 		if cli == "claude" {
 			launchCmd = fmt.Sprintf("claude --model %s --dangerously-skip-permissions", model)
 		} else if cli == "copilot" {
-			launchCmd = fmt.Sprintf("/usr/bin/copilot --allow-all --model %s", model)
+			// Copilot CLI uses dashes in model IDs (claude-opus-4-6), not dots (claude-opus-4.6)
+			cliModel := strings.ReplaceAll(model, ".", "-")
+			launchCmd = fmt.Sprintf("/usr/bin/copilot --allow-all --model %s", cliModel)
 		}
 	}
 
@@ -1834,21 +1836,15 @@ func (s *Server) handleGovernorRemoveAgent(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Repos []string `json:"repos"`
-		List  []string `json:"list"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body", http.StatusBadRequest)
 		return
 	}
 
-	repos := body.Repos
-	if len(repos) == 0 && len(body.List) > 0 {
-		repos = body.List
-	}
-
 	org := s.deps.Config.Project.Org
-	stripped := make([]string, 0, len(repos))
-	for _, repo := range repos {
+	stripped := make([]string, 0, len(body.Repos))
+	for _, repo := range body.Repos {
 		if org != "" && strings.HasPrefix(repo, org+"/") {
 			stripped = append(stripped, strings.TrimPrefix(repo, org+"/"))
 		} else {

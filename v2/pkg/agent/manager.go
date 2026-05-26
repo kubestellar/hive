@@ -56,6 +56,7 @@ type AgentProcess struct {
 	KickHistory     []KickRecord
 	tmuxSession     string
 	cancel          context.CancelFunc
+	forceRelaunch   bool
 }
 
 // ProjectContext holds project-level config injected into agent boot prompts.
@@ -214,7 +215,9 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	case "claude":
 		launchCmd = fmt.Sprintf("%s --model %s --dangerously-skip-permissions", binary, model)
 	case "copilot":
-		launchCmd = fmt.Sprintf("%s --model %s --allow-all", binary, model)
+		// Copilot CLI uses dashes in model IDs (claude-opus-4-6), not dots (claude-opus-4.6)
+		copilotModel := strings.ReplaceAll(model, ".", "-")
+		launchCmd = fmt.Sprintf("%s --model %s --allow-all", binary, copilotModel)
 	case "gemini":
 		launchCmd = fmt.Sprintf("%s --model %s", binary, model)
 	case "goose":
@@ -245,7 +248,7 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 		}
 	}
 
-	if m.tmuxPaneHasProcess(agent.tmuxSession) {
+	if !agent.forceRelaunch && m.tmuxPaneHasProcess(agent.tmuxSession) {
 		m.logger.Info("tmux pane already has a running process, skipping launch", "name", agent.Name, "session", agent.tmuxSession)
 		now := time.Now()
 		agent.State = StateRunning
@@ -260,6 +263,7 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 		}
 		return nil
 	}
+	agent.forceRelaunch = false
 
 	envCmd := m.buildEnvPrefix(agent)
 	fullCmd := envCmd + launchCmd
@@ -634,6 +638,35 @@ func (m *Manager) RemoveAgent(name string) {
 	m.logger.Info("agent removed", "name", name, "id", agent.ID)
 }
 
+// CheckAndRestartCrashedAgents checks all running agents for crashed CLI
+// processes (bare shell prompt with no child process) and restarts them.
+func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) {
+	m.mu.RLock()
+	var crashed []string
+	for name, agent := range m.agents {
+		if agent.State != StateRunning {
+			continue
+		}
+		if agent.Paused {
+			continue
+		}
+		if !m.tmuxSessionExists(agent.tmuxSession) {
+			continue
+		}
+		if !m.tmuxPaneHasProcess(agent.tmuxSession) {
+			crashed = append(crashed, name)
+		}
+	}
+	m.mu.RUnlock()
+
+	for _, name := range crashed {
+		m.logger.Warn("agent CLI not running, restarting", "name", name)
+		if err := m.Restart(ctx, name); err != nil {
+			m.logger.Error("failed to restart crashed agent", "name", name, "error", err)
+		}
+	}
+}
+
 func (m *Manager) SendKick(name string, message string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -649,6 +682,22 @@ func (m *Manager) SendKick(name string, message string) error {
 
 	if !m.tmuxSessionExists(agent.tmuxSession) {
 		return fmt.Errorf("tmux session %s not found", agent.tmuxSession)
+	}
+
+	// Detect crashed CLI (bare shell prompt with no child process) and restart
+	if !m.tmuxPaneHasProcess(agent.tmuxSession) {
+		m.logger.Warn("agent CLI crashed, restarting before kick", "name", name)
+		m.mu.Unlock()
+		if err := m.Restart(context.Background(), name); err != nil {
+			m.mu.Lock()
+			return fmt.Errorf("failed to restart crashed agent %s: %w", name, err)
+		}
+		time.Sleep(cliRestartSettleDelay)
+		m.mu.Lock()
+		agent, ok = m.agents[name]
+		if !ok {
+			return fmt.Errorf("agent %s disappeared after restart", name)
+		}
 	}
 
 	// Clear stale input before kick (Ctrl+C then Ctrl+U)
@@ -724,6 +773,7 @@ const (
 	chunkSize             = 400
 	chunkDelay            = 1 * time.Second
 	staleCheckDelay       = 1 * time.Second
+	cliRestartSettleDelay = 5 * time.Second
 )
 
 func (m *Manager) SeedLastKick(name string, t time.Time) {
@@ -899,6 +949,7 @@ func (m *Manager) Resume(ctx context.Context, name string) error {
 
 	agent.Paused = false
 	if agent.State == StatePaused {
+		agent.forceRelaunch = true
 		if err := m.ensureTmuxSession(agent); err != nil {
 			return err
 		}
@@ -928,6 +979,7 @@ func (m *Manager) Restart(ctx context.Context, name string) error {
 	_ = killCmd.Run()
 
 	agent.RestartCount++
+	agent.forceRelaunch = true
 	m.logger.Info("agent restarting", "name", name, "restart_count", agent.RestartCount)
 
 	if err := m.ensureTmuxSession(agent); err != nil {

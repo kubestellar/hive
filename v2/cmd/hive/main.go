@@ -645,6 +645,7 @@ func main() {
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 			return
 		case <-ticker.C:
+			agentMgr.CheckAndRestartCrashedAgents(ctx)
 			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, logger)
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 		case <-agentTickCh:

@@ -64,19 +64,19 @@ for agent in ci-maintainer outreach; do
   fi
 done
 
-# 3. Initialize supervisor as git repo with CLAUDE.md
+# 3. Initialize supervisor as git repo with policy file
 log "Setting up supervisor"
 cd "$AGENTS_HOME/supervisor"
-cp "$SCRIPT_DIR/supervisor-CLAUDE.md" CLAUDE.md
+cp "$SCRIPT_DIR/supervisor.md" CLAUDE.md
 if [ ! -d .git ]; then
-  git init -q && git add CLAUDE.md && git commit -q -m "init: supervisor CLAUDE.md"
+  git init -q && git add CLAUDE.md && git commit -q -m "init: supervisor policy"
 fi
 
-# 4. Copy executor CLAUDE.md files
-log "Installing CLAUDE.md for each executor"
+# 4. Copy executor policy files
+log "Installing policy files for each executor"
 for agent in "${WORKER_AGENTS[@]}"; do
   if [ -d "$AGENTS_HOME/$agent/console" ]; then
-    cp "$SCRIPT_DIR/${agent}-CLAUDE.md" "$AGENTS_HOME/$agent/console/CLAUDE.md"
+    cp "$SCRIPT_DIR/${agent}.md" "$AGENTS_HOME/$agent/console/CLAUDE.md"
     echo "  ✓ $agent"
   fi
 done

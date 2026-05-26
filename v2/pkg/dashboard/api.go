@@ -910,7 +910,7 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 	// Read restrictions from agent work dir files
 	restrictions := s.loadAgentRestrictions(name)
 
-	// Read prompt template from CLAUDE.md
+	// Read prompt template from agent policy file
 	promptTemplate := s.loadPromptTemplate(name)
 
 	// Read stat sources from config
@@ -1007,7 +1007,7 @@ func (s *Server) loadAgentRestrictions(name string) map[string]interface{} {
 	}
 	result["agent"] = agentRestrictions
 
-	// Read policy restrictions from CLAUDE.md
+	// Read policy restrictions from agent policy file
 	// Old hive extracts lines containing policy-relevant keywords, including
 	// markdown-formatted lines with ** bold markers and numbered list items.
 	policyRestrictions := []any{}
@@ -1053,14 +1053,14 @@ func (s *Server) loadAgentRestrictions(name string) map[string]interface{} {
 func (s *Server) findAgentCLAUDEMd(name string) string {
 	paths := []string{
 		fmt.Sprintf("/data/agents/%s/CLAUDE.md", name),
-		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s-CLAUDE.md", name),
+		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s.md", name),
 	}
 	if s.deps != nil && s.deps.Config != nil {
 		policyDir := s.deps.Config.Policies.LocalDir
 		if policyDir != "" {
 			paths = append(paths,
-				fmt.Sprintf("%s/examples/kubestellar/agents/%s-CLAUDE.md", policyDir, name),
-				fmt.Sprintf("%s/%s%s-CLAUDE.md", policyDir, s.deps.Config.Policies.Path, name),
+				fmt.Sprintf("%s/examples/kubestellar/agents/%s.md", policyDir, name),
+				fmt.Sprintf("%s/%s%s.md", policyDir, s.deps.Config.Policies.Path, name),
 			)
 		}
 	}
@@ -1459,9 +1459,9 @@ func (s *Server) handleAgentPrompt(w http.ResponseWriter, r *http.Request) {
 
 	sourceFiles := []map[string]string{}
 
-	// Policy file (CLAUDE.md)
+	// Policy file
 	claudeMdPath := s.findAgentCLAUDEMd(name)
-	policyRelPath := fmt.Sprintf("%s/%s-CLAUDE.md", agentDir, name)
+	policyRelPath := fmt.Sprintf("%s/%s.md", agentDir, name)
 	if claudeMdPath != "" {
 		sourceFiles = append(sourceFiles, map[string]string{
 			"label": "Policy",

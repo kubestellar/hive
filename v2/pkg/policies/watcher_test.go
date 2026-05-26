@@ -25,30 +25,30 @@ func TestPolicyFileToAgent(t *testing.T) {
 		want  string
 	}{
 		// Recognized suffixes are stripped
-		{"scanner-CLAUDE.md", "scanner"},
+		{"scanner.md", "scanner"},
 		{"ci-maintainer-policy.md", "ci-maintainer"},
 		{"architect_policy.md", "architect"},
-		{"outreach-claude.md", "outreach"},
+		{"outreach-claude.md", "outreach-claude"},
 
 		// No recognized suffix — returned as-is (minus extension)
 		{"plain.md", "plain"},
 		{"my-agent.md", "my-agent"},
 
 		// Path component should be ignored (filepath.Base is applied)
-		{"some/dir/scanner-CLAUDE.md", "scanner"},
+		{"some/dir/scanner.md", "scanner"},
 
 		// Suffix must not eat the whole name (idx > 0 guard)
-		// e.g. a file literally named "-CLAUDE.md" has idx == 0 → returned as "-CLAUDE"
-		{"-CLAUDE.md", "-CLAUDE"},
+		// e.g. a file literally named "-policy.md" where stripping "-policy" leaves nothing
+		{"-policy.md", "-policy"},
 
-		// Multiple potential suffixes: only the first matching one is stripped
-		{"agent-policy-CLAUDE.md", "agent-policy"}, // "-CLAUDE" hits first in the loop
+		// -policy suffix is stripped
+		{"agent-policy.md", "agent"},
 
 		// _policy variant
 		{"helper_policy.md", "helper"},
 
-		// -claude (lower-case) variant
-		{"builder-claude.md", "builder"},
+		// -claude is no longer a recognized suffix (backend-neutral)
+		{"builder-claude.md", "builder-claude"},
 	}
 
 	for _, tc := range cases {
@@ -82,7 +82,7 @@ func TestLoadPolicies_BasicMapping(t *testing.T) {
 	root := t.TempDir()
 
 	// Write three policy files using different supported suffix styles.
-	writeTempFile(t, root, "scanner-CLAUDE.md", "scanner policy content")
+	writeTempFile(t, root, "scanner.md", "scanner policy content")
 	writeTempFile(t, root, "ci-maintainer-policy.md", "ci-maintainer policy content")
 	writeTempFile(t, root, "architect_policy.md", "architect policy content")
 	writeTempFile(t, root, "plain.md", "plain content")
@@ -114,7 +114,7 @@ func TestLoadPolicies_BasicMapping(t *testing.T) {
 func TestLoadPolicies_SkipsNonMdFiles(t *testing.T) {
 	root := t.TempDir()
 
-	writeTempFile(t, root, "agent-CLAUDE.md", "real policy")
+	writeTempFile(t, root, "agent.md", "real policy")
 	writeTempFile(t, root, "notes.txt", "should be ignored")
 	writeTempFile(t, root, "README", "also ignored")
 	writeTempFile(t, root, "script.sh", "ignored too")
@@ -144,7 +144,7 @@ func TestLoadPolicies_SkipsDirectories(t *testing.T) {
 	}
 	writeTempFile(t, subDir, "inner.md", "should not be loaded")
 
-	writeTempFile(t, root, "top-CLAUDE.md", "top level policy")
+	writeTempFile(t, root, "top.md", "top level policy")
 
 	w := newWatcherWithDir(t, root, "")
 	if err := w.loadPolicies(); err != nil {
@@ -167,7 +167,7 @@ func TestLoadPolicies_SubPath(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 
-	writeTempFile(t, sub, "outreach-claude.md", "outreach text")
+	writeTempFile(t, sub, "outreach.md", "outreach text")
 
 	w := newWatcherWithDir(t, root, "policies")
 	if err := w.loadPolicies(); err != nil {
@@ -193,7 +193,7 @@ func TestLoadPolicies_MissingDir(t *testing.T) {
 
 func TestLoadPolicies_ReloadsOnSecondCall(t *testing.T) {
 	root := t.TempDir()
-	writeTempFile(t, root, "agent-CLAUDE.md", "v1")
+	writeTempFile(t, root, "agent.md", "v1")
 
 	w := newWatcherWithDir(t, root, "")
 	if err := w.loadPolicies(); err != nil {
@@ -206,7 +206,7 @@ func TestLoadPolicies_ReloadsOnSecondCall(t *testing.T) {
 	}
 
 	// Update the file and reload.
-	writeTempFile(t, root, "agent-CLAUDE.md", "v2")
+	writeTempFile(t, root, "agent.md", "v2")
 	if err := w.loadPolicies(); err != nil {
 		t.Fatalf("second load: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestLoadPolicies_ReloadsOnSecondCall(t *testing.T) {
 
 func TestGetPolicy_ExistingAgent(t *testing.T) {
 	root := t.TempDir()
-	writeTempFile(t, root, "myagent-CLAUDE.md", "hello policy")
+	writeTempFile(t, root, "myagent.md", "hello policy")
 
 	w := newWatcherWithDir(t, root, "")
 	if err := w.loadPolicies(); err != nil {
@@ -250,7 +250,7 @@ func TestGetPolicy_MissingAgent(t *testing.T) {
 
 func TestAllPolicies_ReturnsCopy(t *testing.T) {
 	root := t.TempDir()
-	writeTempFile(t, root, "alpha-CLAUDE.md", "alpha content")
+	writeTempFile(t, root, "alpha.md", "alpha content")
 	writeTempFile(t, root, "beta-policy.md", "beta content")
 
 	w := newWatcherWithDir(t, root, "")
@@ -333,7 +333,7 @@ func TestNewWatcher_FieldsSetCorrectly(t *testing.T) {
 
 func TestGetPolicyAndAllPolicies_Concurrent(t *testing.T) {
 	root := t.TempDir()
-	for _, name := range []string{"a-CLAUDE.md", "b-policy.md", "c_policy.md"} {
+	for _, name := range []string{"a.md", "b-policy.md", "c_policy.md"} {
 		writeTempFile(t, root, name, name+" content")
 	}
 
@@ -373,10 +373,10 @@ func TestLoadPolicies_UnreadableFileIsSkipped(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	writeTempFile(t, root, "readable-CLAUDE.md", "good content")
+	writeTempFile(t, root, "readable.md", "good content")
 
 	// Write a file then make it unreadable.
-	unreadable := filepath.Join(root, "secret-CLAUDE.md")
+	unreadable := filepath.Join(root, "secret.md")
 	if err := os.WriteFile(unreadable, []byte("secret"), 0644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -470,7 +470,7 @@ func setupBareRepo(t *testing.T) (bareURL string, workDir string) {
 	if err := os.MkdirAll(policiesDir, 0755); err != nil {
 		t.Fatalf("mkdir policies: %v", err)
 	}
-	writeFile(t, policiesDir, "scanner-CLAUDE.md", "scanner policy v1")
+	writeFile(t, policiesDir, "scanner.md", "scanner policy v1")
 	writeFile(t, policiesDir, "ci-maintainer-policy.md", "ci-maintainer policy v1")
 
 	runGit(t, workDir, "add", ".")
@@ -573,7 +573,7 @@ func TestStart_PollPicksUpNewCommit(t *testing.T) {
 	}
 
 	// Push a new commit to the bare repo.
-	addCommit(t, workDir, "builder-claude.md", "builder policy v1")
+	addCommit(t, workDir, "builder.md", "builder policy v1")
 
 	// Wait up to 5 s for the poll loop to pick it up.
 	const (
@@ -686,7 +686,7 @@ func TestPull_UpdatesPoliciesToLatest(t *testing.T) {
 	}
 
 	// Push a new policy file.
-	addCommit(t, workDir, "builder-claude.md", "builder policy v2")
+	addCommit(t, workDir, "builder.md", "builder policy v2")
 
 	// Call pull() — it should git pull and reload.
 	w.pull()

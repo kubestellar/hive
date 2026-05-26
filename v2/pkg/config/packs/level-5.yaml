@@ -66,7 +66,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: supervisor
-    kick_template: supervisor-CLAUDE.md
+    kick_template: supervisor.md
     include_repos: true
     stale_timeout: 1800
     interactions: >
@@ -85,7 +85,7 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: scanner-holdgated-CLAUDE.md
+    kick_template: scanner-holdgated.md
     include_repos: true
     stale_timeout: 1800
     lane_keywords: [bug, triage, fix, issue]
@@ -105,7 +105,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: ci-maintainer-holdgated-CLAUDE.md
+    kick_template: ci-maintainer-holdgated.md
     include_repos: true
     stale_timeout: 3600
     lane_keywords: [ci, build, pipeline, workflow, dependency]
@@ -125,7 +125,7 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: quality-holdgated-CLAUDE.md
+    kick_template: quality-holdgated.md
     include_repos: true
     stale_timeout: 3600
     interactions: >
@@ -144,7 +144,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: guide-holdgated-CLAUDE.md
+    kick_template: guide-holdgated.md
     include_repos: true
     stale_timeout: 3600
     interactions: >
@@ -163,7 +163,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: sec-check-holdgated-CLAUDE.md
+    kick_template: sec-check-holdgated.md
     include_repos: true
     stale_timeout: 3600
     lane_keywords: [security, cve, vulnerability, audit]
@@ -183,7 +183,7 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: architect-holdgated-CLAUDE.md
+    kick_template: architect-holdgated.md
     include_repos: true
     stale_timeout: 3600
     lane_keywords: [refactor, architecture, rfc, design, feature]
@@ -203,7 +203,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: strategist-CLAUDE.md
+    kick_template: strategist.md
     include_repos: false
     stale_timeout: 3600
     lane_keywords: [strategy, roadmap, planning]

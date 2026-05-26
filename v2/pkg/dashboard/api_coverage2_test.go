@@ -266,7 +266,7 @@ func TestFindAgentCLAUDEMd_PolicyDir(t *testing.T) {
 	// Create a CLAUDE.md file in the policy dir
 	policyAgentDir := filepath.Join(tmpDir, "examples", "kubestellar", "agents")
 	os.MkdirAll(policyAgentDir, 0o755)
-	claudeMd := filepath.Join(policyAgentDir, "scanner-CLAUDE.md")
+	claudeMd := filepath.Join(policyAgentDir, "scanner.md")
 	os.WriteFile(claudeMd, []byte("# Scanner Policy\nNEVER skip tests"), 0o644)
 
 	result := s.findAgentCLAUDEMd("scanner")
@@ -282,7 +282,7 @@ func TestLoadPromptTemplate_WithFile(t *testing.T) {
 
 	policyAgentDir := filepath.Join(tmpDir, "examples", "kubestellar", "agents")
 	os.MkdirAll(policyAgentDir, 0o755)
-	claudeMd := filepath.Join(policyAgentDir, "scanner-CLAUDE.md")
+	claudeMd := filepath.Join(policyAgentDir, "scanner.md")
 	os.WriteFile(claudeMd, []byte("Agent ${AGENT_NAME} in org ${PROJECT_ORG}"), 0o644)
 
 	result := s.loadPromptTemplate("scanner")

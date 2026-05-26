@@ -80,8 +80,8 @@ done
 ```bash
 cd ~/.hive-agents/supervisor
 git init
-# Copy supervisor-CLAUDE.md as CLAUDE.md
-cp /path/to/supervisor-CLAUDE.md CLAUDE.md
+# Copy supervisor policy as CLAUDE.md (the filename the CLI reads)
+cp /path/to/supervisor.md CLAUDE.md
 git add CLAUDE.md && git commit -m "init"
 
 # Symlink state.db
@@ -108,14 +108,14 @@ chmod +x ~/.hive-fix-loop/worker.sh
 # See docs/architecture.md for details.
 ```
 
-## Step 5: Copy CLAUDE.md + env files
+## Step 5: Copy policy files + env files
 
 ```bash
-# Copy CLAUDE.md for each executor into their console dir
-cp scanner-CLAUDE.md ~/.hive-agents/scanner/console/CLAUDE.md
-cp architect-CLAUDE.md ~/.hive-agents/architect/console/CLAUDE.md
-cp ci-maintainer-CLAUDE.md ~/.hive-agents/ci-maintainer/console/CLAUDE.md
-cp outreach-CLAUDE.md ~/.hive-agents/outreach/console/CLAUDE.md
+# Copy policy for each executor into their console dir as CLAUDE.md
+cp scanner.md ~/.hive-agents/scanner/console/CLAUDE.md
+cp architect.md ~/.hive-agents/architect/console/CLAUDE.md
+cp ci-maintainer.md ~/.hive-agents/ci-maintainer/console/CLAUDE.md
+cp outreach.md ~/.hive-agents/outreach/console/CLAUDE.md
 
 # Copy env files (adjust paths for Linux — /root/ instead of /Users/andan02/)
 # If using systemd:

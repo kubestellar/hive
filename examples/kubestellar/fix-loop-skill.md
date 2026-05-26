@@ -103,8 +103,8 @@ sqlite3 ~/.kubestellar-fix-loop/state.db "UPDATE cycles SET completed_at='$(date
 - **NEVER merge without green CI** (admin merge OK for flaky Playwright)
 - **NEVER send outreach with unvalidated links**
 - **DCO sign all commits**: `git commit -s`
-- **PR titles start with emoji**: Use the agent-specific prefix from your CLAUDE.md (e.g., 🏗 for architect, 🔍 for scanner). Fallback: ✨ feature | 🐛 bug | 📖 docs | 🌱 other
-- **Agent label**: Add your agent name as a label on every PR and issue (e.g., `--label architect`). Check your CLAUDE.md for the required label.
+- **PR titles start with emoji**: Use the agent-specific prefix from your policy file (e.g., 🏗 for architect, 🔍 for scanner). Fallback: ✨ feature | 🐛 bug | 📖 docs | 🌱 other
+- **Agent label**: Add your agent name as a label on every PR and issue (e.g., `--label architect`). Check your policy file for the required label.
 - **Track every action in SQLite** — no silent changes
 - **Send ntfy for every close/merge** with updated counts
 - Use sub-agents to parallelize repo scans

@@ -173,52 +173,34 @@ func (m *Manager) tmuxSessionExists(session string) bool {
 	return cmd.Run() == nil
 }
 
-// knownCLIBinaries are the executable names that count as "a CLI is running".
-var knownCLIBinaries = map[string]bool{
-	"claude": true, "copilot": true, "gemini": true, "goose": true, "aider": true,
+// cliPaneMarkers are strings that appear in a tmux pane when a CLI (claude,
+// copilot, gemini, goose, aider) is running. A bare bash prompt has none of
+// these. Checking pane content is more reliable than inspecting /proc/comm
+// because CLIs may run as node, python, or other interpreters whose process
+// name doesn't match the CLI binary.
+var cliPaneMarkers = []string{
+	"❯",
+	"esc cancel",
+	"/ commands",
+	"? help",
+	"Claude",
+	"Copilot",
+	"Gemini",
 }
 
-// tmuxPaneHasCLI reports whether a known CLI binary is running in the pane.
+// tmuxPaneHasCLI reports whether a CLI is running in the pane by inspecting
+// the visible pane content for known CLI UI markers.
 func (m *Manager) tmuxPaneHasCLI(session string) bool {
-	children, hasAny := m.paneChildInfo(session)
-	if !hasAny {
+	output := m.captureTmuxPane(session)
+	if output == "" {
 		return false
 	}
-	for _, pid := range children {
-		comm, err := os.ReadFile(fmt.Sprintf("/proc/%s/comm", pid))
-		if err != nil {
-			continue
-		}
-		name := strings.TrimSpace(string(comm))
-		if knownCLIBinaries[name] {
+	for _, marker := range cliPaneMarkers {
+		if strings.Contains(output, marker) {
 			return true
 		}
 	}
 	return false
-}
-
-// paneChildInfo returns the child PIDs of the tmux pane's shell and whether
-// any children exist at all.
-func (m *Manager) paneChildInfo(session string) ([]string, bool) {
-	cmd := exec.Command("tmux", "list-panes", "-t", session, "-F", "#{pane_pid}")
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, false
-	}
-	panePID := strings.TrimSpace(string(out))
-	if panePID == "" {
-		return nil, false
-	}
-	childrenPath := fmt.Sprintf("/proc/%s/task/%s/children", panePID, panePID)
-	childrenData, err := os.ReadFile(childrenPath)
-	if err != nil {
-		return nil, false
-	}
-	raw := strings.TrimSpace(string(childrenData))
-	if raw == "" {
-		return nil, false
-	}
-	return strings.Fields(raw), true
 }
 
 func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
@@ -577,7 +559,7 @@ func hashLines(lines []string) uint64 {
 }
 
 // waitForCLIReady polls the tmux pane until the CLI shows its ready prompt
-// (❯) or the timeout expires. Returns true if the CLI became ready.
+// or the timeout expires. Returns true if the CLI became ready.
 func (m *Manager) waitForCLIReady(session string) bool {
 	deadline := time.After(cliReadyTimeout)
 	ticker := time.NewTicker(cliReadyPollInterval)
@@ -588,8 +570,7 @@ func (m *Manager) waitForCLIReady(session string) bool {
 		case <-deadline:
 			return false
 		case <-ticker.C:
-			output := m.captureTmuxPane(session)
-			if strings.Contains(output, "❯") || strings.Contains(output, "help") {
+			if m.tmuxPaneHasCLI(session) {
 				return true
 			}
 		}

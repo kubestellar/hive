@@ -5,6 +5,23 @@
 
 set -euo pipefail
 
+# ── ACMM enforcement: block git push for advisory-only agents ──
+AGENT="${HIVE_AGENT:-}"
+ACMM="${HIVE_ACMM_LEVEL:-0}"
+
+if [ -n "$AGENT" ] && [ "$ACMM" -gt 0 ]; then
+  # L1/L2: no agent can push
+  if [ "$ACMM" -lt 3 ]; then
+    echo "⛔ git push blocked: ACMM L${ACMM} agents are advisory-only" >&2
+    exit 1
+  fi
+  # L3: only quality can push
+  if [ "$ACMM" -eq 3 ] && [ "$AGENT" != "quality" ]; then
+    echo "⛔ git push blocked: only quality agent can push at ACMM L3" >&2
+    exit 1
+  fi
+fi
+
 TOKEN_FILE="/var/run/hive-metrics/gh-app-token.cache"
 CACHE_MAX_AGE_SECONDS=3300
 

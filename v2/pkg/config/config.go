@@ -125,6 +125,7 @@ type AgentConfig struct {
 	BeadRole         string            `yaml:"bead_role" json:"bead_role,omitempty"`
 	StatsDisplay     []StatsDisplayEntry `yaml:"stats_display" json:"stats_display,omitempty"`
 	ACMMLevels       []int             `yaml:"acmm_levels" json:"acmm_levels,omitempty"`
+	Mode             string            `yaml:"mode" json:"mode,omitempty"`
 
 	// Managed is true for agents loaded from the overlay directory (not base config).
 	Managed bool `yaml:"-" json:"managed"`

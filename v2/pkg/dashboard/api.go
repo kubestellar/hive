@@ -941,6 +941,7 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 			"beadRole":        agentCfg.BeadRole,
 			"role":            agentCfg.Role,
 			"kickTemplate":    agentCfg.KickTemplate,
+			"mode":            agentCfg.Mode,
 			"includeRepos":    includeRepos,
 			"laneKeywords":    agentCfg.LaneKeywords,
 			"detectKeywords":  agentCfg.DetectKeywords,
@@ -1222,6 +1223,11 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 	if v, ok := body["kickTemplate"]; ok {
 		if s, ok := v.(string); ok {
 			agentCfg.KickTemplate = s
+		}
+	}
+	if v, ok := body["mode"]; ok {
+		if s, ok := v.(string); ok {
+			agentCfg.Mode = s
 		}
 	}
 	if v, ok := body["includeRepos"]; ok {

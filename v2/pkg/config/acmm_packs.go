@@ -40,6 +40,7 @@ type PackAgent struct {
 	KnowledgeUse string   `json:"knowledgeUse" yaml:"knowledge_use"`
 	Hidden       bool     `json:"hidden,omitempty" yaml:"hidden"`
 	StaleTimeout int      `json:"staleTimeout,omitempty" yaml:"stale_timeout,omitempty"`
+	Mode         string   `json:"mode,omitempty" yaml:"mode,omitempty"`
 }
 
 // PackGovernor describes the governor configuration recommended for a level.

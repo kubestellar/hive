@@ -87,6 +87,7 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 			KickTemplate: pa.KickTemplate,
 			IncludeRepos: &includeRepos,
 			LaneKeywords: pa.LaneKeywords,
+			Mode:         pa.Mode,
 			Managed:      true,
 		}
 

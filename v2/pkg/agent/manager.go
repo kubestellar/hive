@@ -55,6 +55,7 @@ type AgentProcess struct {
 	RestartCount    int
 	OutputBuffer    *RingBuffer
 	KickHistory     []KickRecord
+	LaunchedMode    AgentMode
 	tmuxSession     string
 	cancel          context.CancelFunc
 	forceRelaunch   bool
@@ -1037,17 +1038,60 @@ func normalizeModelName(model string) string {
 	return model
 }
 
+// agentMode returns the GitHub interaction mode for a given agent at the current ACMM level.
+// If the agent has an explicit Mode in its config (hive.yaml or pack YAML), that takes precedence.
+// Otherwise, the default table by ACMM level is used.
+func (m *Manager) agentMode(agent *AgentProcess) AgentMode {
+	if modeStr := agent.Config.Mode; modeStr != "" {
+		if parsed, ok := ParseAgentMode(modeStr); ok {
+			return parsed
+		}
+	}
+	return DefaultAgentMode(agent.Name, m.project.ACMMLevel)
+}
+
+// DefaultAgentMode returns the default mode for a given agent name and ACMM level,
+// ignoring any hive.yaml override. Used by the dashboard to show "(default)" indicators.
+func DefaultAgentMode(agentName string, level int) AgentMode {
+	if agentName == "supervisor" {
+		return ModeNoGitHub
+	}
+
+	switch level {
+	case 1:
+		return ModeAdvisory
+	case 2:
+		return ModeAdvisory
+	case 3:
+		if agentName == "quality" {
+			return ModeIssuesAndPRs
+		}
+		return ModeAdvisory
+	case 4:
+		switch agentName {
+		case "quality", "sec-check", "ci-maintainer":
+			return ModeIssuesAndPRs
+		case "scanner", "guide":
+			return ModeIssuesOnly
+		default:
+			return ModeAdvisory
+		}
+	case 5:
+		return ModeIssuesAndPRs
+	case 6:
+		if agentName == "scanner" {
+			return ModeIssuesPRsMerge
+		}
+		return ModeIssuesAndPRs
+	default:
+		return ModeAdvisory
+	}
+}
+
 // agentCanWrite returns true if this agent is allowed to push branches and create PRs.
+// Deprecated: use agentMode() for granular mode checks.
 func (m *Manager) agentCanWrite(agent *AgentProcess) bool {
-	level := m.project.ACMMLevel
-	if level == 0 || level >= 4 {
-		return true
-	}
-	if level < 3 {
-		return false
-	}
-	// L3: only quality can write
-	return agent.Name == "quality"
+	return m.agentMode(agent).CanPush()
 }
 
 // filteredEnv returns os.Environ() with write-capable tokens removed for advisory agents.
@@ -1126,6 +1170,11 @@ func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 		vars = append(vars, shellEnvVar("HIVE_ID", hiveID))
 	}
 	vars = append(vars, fmt.Sprintf("HIVE_ACMM_LEVEL=%d", m.project.ACMMLevel))
+
+	mode := m.agentMode(agent)
+	vars = append(vars, shellEnvVar("HIVE_AGENT_MODE", mode.String()))
+	modeFile := fmt.Sprintf("/tmp/.hive-mode-%s", agent.Name)
+	_ = os.WriteFile(modeFile, []byte(mode.String()), 0o644)
 	if sha := os.Getenv("HIVE_SHA"); sha != "" {
 		vars = append(vars, shellEnvVar("HIVE_SHA", sha))
 	}

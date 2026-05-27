@@ -189,6 +189,24 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			LiveSummary:   liveSummary,
 			StatsConfig:   loadStatsConfig(name),
 		}
+
+		acmmLevel := 0
+		if cfg.ACMMLevel != nil {
+			acmmLevel = *cfg.ACMMLevel
+		}
+		mode := agent.DefaultAgentMode(name, acmmLevel)
+		if modeStr := agentCfg.Mode; modeStr != "" {
+			if parsed, ok := agent.ParseAgentMode(modeStr); ok {
+				mode = parsed
+			}
+		}
+		defaultMode := agent.DefaultAgentMode(name, acmmLevel)
+		a.Mode = mode.String()
+		a.ModeEmoji = mode.Emoji()
+		a.DefaultMode = defaultMode.String()
+		a.IsCustomMode = mode != defaultMode
+		a.NeedsRestart = proc.LaunchedMode != mode
+
 		agents = append(agents, a)
 	}
 	return agents

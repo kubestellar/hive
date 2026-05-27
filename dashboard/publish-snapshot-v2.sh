@@ -124,55 +124,16 @@ PR_URL=$($REAL_GH pr create \
 PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
 echo "[${INSTANCE}] Created PR #${PR_NUM}: ${PR_URL}"
 
-NETLIFY_CHECK="netlify/kubestellar-docs/deploy-preview"
-NETLIFY_TIMEOUT_SECONDS=300
-NETLIFY_POLL_INTERVAL=15
-elapsed=0
-netlify_status="pending"
-
-echo "[${INSTANCE}] Waiting for Netlify deploy-preview..."
-while [ "$elapsed" -lt "$NETLIFY_TIMEOUT_SECONDS" ]; do
-  checks_output=$($REAL_GH pr checks "$PR_NUM" --repo "$DOCS_REPO_SLUG" 2>/dev/null || true)
-  netlify_line=$(echo "$checks_output" | grep -i "$NETLIFY_CHECK" || true)
-
-  if [ -n "$netlify_line" ]; then
-    if echo "$netlify_line" | grep -qi "pass"; then
-      netlify_status="pass"
-      break
-    elif echo "$netlify_line" | grep -qi "fail"; then
-      netlify_status="fail"
-      break
-    fi
-  fi
-
-  sleep "$NETLIFY_POLL_INTERVAL"
-  elapsed=$((elapsed + NETLIFY_POLL_INTERVAL))
-done
-
-if [ "$netlify_status" = "pass" ]; then
-  echo "[${INSTANCE}] Netlify passed."
-  if $REAL_GH pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --admin --squash --delete-branch 2>/dev/null; then
-    echo "[${INSTANCE}] Snapshot published via PR #${PR_NUM}."
-  else
-    $REAL_GH pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --squash --auto --delete-branch
-    echo "[${INSTANCE}] Auto-merge enabled on PR #${PR_NUM}."
-  fi
-elif [ "$netlify_status" = "fail" ]; then
-  echo "[${INSTANCE}] ERROR: Netlify FAILED for PR #${PR_NUM}. NOT merging."
-  if [ -n "${NTFY_TOPIC:-}" ]; then
-    curl -s -d "Netlify failed for ${INSTANCE} snapshot PR #${PR_NUM}" \
-      -H "Title: Hive snapshot blocked (${INSTANCE})" -H "Priority: high" \
-      "${NTFY_SERVER:-https://ntfy.sh}/${NTFY_TOPIC}" >/dev/null 2>&1 || true
-  fi
-  exit 1
+# Merge immediately — snapshot PRs are static HTML updates that don't need
+# Netlify validation. Waiting for deploy-preview caused chronic timeouts
+# and stale snapshot pileups.
+echo "[${INSTANCE}] Merging snapshot PR #${PR_NUM}..."
+if $REAL_GH pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --admin --squash --delete-branch 2>/dev/null; then
+  echo "[${INSTANCE}] Snapshot published via PR #${PR_NUM}."
 else
-  echo "[${INSTANCE}] WARNING: Netlify timed out for PR #${PR_NUM}. NOT merging."
-  if [ -n "${NTFY_TOPIC:-}" ]; then
-    curl -s -d "Netlify timed out for ${INSTANCE} snapshot PR #${PR_NUM}" \
-      -H "Title: Hive snapshot timeout (${INSTANCE})" -H "Priority: default" \
-      "${NTFY_SERVER:-https://ntfy.sh}/${NTFY_TOPIC}" >/dev/null 2>&1 || true
-  fi
-  exit 1
+  # --admin may fail if token lacks bypass permission; fall back to auto-merge
+  $REAL_GH pr merge "$PR_NUM" --repo "$DOCS_REPO_SLUG" --squash --auto --delete-branch
+  echo "[${INSTANCE}] Auto-merge enabled on PR #${PR_NUM}."
 fi
 
 git checkout main

@@ -380,9 +380,8 @@ var acmmLevelNames = map[int]string{
 
 func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 	// Look for policy files in priority order.
-	// 1. <policy_dir>/<agent>.md (project-specific)
-	// 2. /data/agents/<agent>/CLAUDE.md (per-agent runtime override)
-	// 3. Generic role definitions from the hive repo (baked into image or policy-synced)
+	// For advisory agents (non-quality at L3+), prefer <agent>-advisory.md
+	// over <agent>.md so they get the correct advisory-only instructions.
 	policyDir := m.project.PolicyDir
 	if policyDir == "" {
 		policyDir = "/data/policies/agents"
@@ -391,11 +390,24 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 	if policiesRoot == "." || policiesRoot == "" {
 		policiesRoot = "/data/policies"
 	}
-	paths := []string{
-		fmt.Sprintf("%s/%s.md", policyDir, agent.Name),
-		fmt.Sprintf("/data/agents/%s/CLAUDE.md", agent.Name),
-		filepath.Join(policiesRoot, "examples", "agents", agent.Name+".md"),
-		fmt.Sprintf("/opt/hive/examples/agents/%s.md", agent.Name),
+	isAdvisory := !m.agentCanWrite(agent) && m.project.ACMMLevel >= 3
+	var paths []string
+	if isAdvisory {
+		paths = []string{
+			fmt.Sprintf("%s/%s-advisory.md", policyDir, agent.Name),
+			fmt.Sprintf("%s/%s.md", policyDir, agent.Name),
+			fmt.Sprintf("/data/agents/%s/CLAUDE.md", agent.Name),
+			filepath.Join(policiesRoot, "examples", "agents", agent.Name+"-advisory.md"),
+			filepath.Join(policiesRoot, "examples", "agents", agent.Name+".md"),
+			fmt.Sprintf("/opt/hive/examples/agents/%s.md", agent.Name),
+		}
+	} else {
+		paths = []string{
+			fmt.Sprintf("%s/%s.md", policyDir, agent.Name),
+			fmt.Sprintf("/data/agents/%s/CLAUDE.md", agent.Name),
+			filepath.Join(policiesRoot, "examples", "agents", agent.Name+".md"),
+			fmt.Sprintf("/opt/hive/examples/agents/%s.md", agent.Name),
+		}
 	}
 	var policyPath string
 	for _, p := range paths {
@@ -428,7 +440,7 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 		}
 	}
 
-	base = m.buildProjectPreamble() + base
+	base = m.buildProjectPreamble(agent) + base
 	return base
 }
 
@@ -476,7 +488,7 @@ func (m *Manager) findACMMFragments() []string {
 }
 
 
-func (m *Manager) buildProjectPreamble() string {
+func (m *Manager) buildProjectPreamble(agent *AgentProcess) string {
 	p := m.project
 	if p.Org == "" || len(p.Repos) == 0 {
 		return ""
@@ -492,9 +504,13 @@ func (m *Manager) buildProjectPreamble() string {
 		levelName = fmt.Sprintf("Level %d", p.ACMMLevel)
 	}
 
-	prPolicy := "PRs allowed."
+	var prPolicy string
 	if !p.PRsAllowed {
 		prPolicy = "PRs NOT allowed."
+	} else if m.agentCanWrite(agent) {
+		prPolicy = "PRs allowed."
+	} else {
+		prPolicy = "Advisory only — beads, no issues/PRs."
 	}
 
 	return fmt.Sprintf("[PROJECT] Org: %s | Repos: %s | ACMM: L%d (%s) | %s ",

@@ -352,6 +352,10 @@ func main() {
 			cfg.ACMMLevel = saved.ACMMLevel
 			logger.Info("ACMM level restored", "level", *saved.ACMMLevel)
 		}
+		if saved.ConfigOverrides != nil {
+			applyConfigOverrides(cfg, saved.ConfigOverrides)
+			logger.Info("config overrides restored from persisted state")
+		}
 	}
 
 	if gov.GetBudget().WeeklyLimit == 0 && cfg.Governor.Budget.TotalTokens > 0 {
@@ -1115,6 +1119,8 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 		issueCosts = tc.IssueCosts()
 	}
 
+	configOverrides := buildConfigOverrides(cfg)
+
 	state := &snapshot.PersistedState{
 		Agents:           agents,
 		GovernorMode:     string(govState.Mode),
@@ -1130,6 +1136,7 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 		IssueCosts:       issueCosts,
 		LastEval:         govState.LastEval,
 		ACMMLevel:        cfg.ACMMLevel,
+		ConfigOverrides:  configOverrides,
 	}
 
 	if err := snapshot.SaveState(path, state, logger); err != nil {
@@ -1163,6 +1170,145 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 				_ = os.WriteFile("/data/token-sparkline-history.json", tokenData, 0o644)
 			}
 		}
+	}
+}
+
+func buildConfigOverrides(cfg *config.Config) *snapshot.ConfigOverrides {
+	o := &snapshot.ConfigOverrides{}
+
+	if len(cfg.Project.Repos) > 0 {
+		o.ProjectRepos = cfg.Project.Repos
+	}
+
+	evalInterval := cfg.Governor.EvalIntervalS
+	o.EvalIntervalS = &evalInterval
+
+	if len(cfg.Governor.Modes) > 0 {
+		o.Thresholds = make(map[string]int, len(cfg.Governor.Modes))
+		for name, mode := range cfg.Governor.Modes {
+			o.Thresholds[name] = mode.Threshold
+		}
+	}
+
+	if len(cfg.Governor.Sensing.GHRatePatterns) > 0 {
+		o.SensingGHRate = cfg.Governor.Sensing.GHRatePatterns
+	}
+	if len(cfg.Governor.Sensing.CLIExcludePatterns) > 0 {
+		o.SensingCLIExclude = cfg.Governor.Sensing.CLIExcludePatterns
+	}
+	if len(cfg.Governor.Sensing.LoginPatterns) > 0 {
+		o.SensingLogin = cfg.Governor.Sensing.LoginPatterns
+	}
+	ttl := cfg.Governor.Sensing.TTLSeconds
+	o.SensingTTL = &ttl
+	pullback := cfg.Governor.Sensing.PullbackSeconds
+	o.SensingPullback = &pullback
+
+	if len(cfg.Governor.Labels.Exempt) > 0 {
+		o.ExemptLabels = cfg.Governor.Labels.Exempt
+	}
+
+	if cfg.Notifications.Ntfy != nil {
+		o.NtfyServer = cfg.Notifications.Ntfy.Server
+		o.NtfyTopic = cfg.Notifications.Ntfy.Topic
+	}
+	if cfg.Notifications.Discord != nil {
+		o.DiscordWebhook = cfg.Notifications.Discord.Webhook
+	}
+
+	hcInterval := cfg.Governor.Health.HealthcheckInterval
+	o.HealthcheckInterval = &hcInterval
+	cooldown := cfg.Governor.Health.RestartCooldown
+	o.RestartCooldown = &cooldown
+	modelLock := cfg.Governor.Health.ModelLock
+	o.ModelLock = &modelLock
+
+	logSize := cfg.Governor.Logging.MaxSizeMB
+	o.LogMaxSizeMB = &logSize
+	logAge := cfg.Governor.Logging.MaxAgeDays
+	o.LogMaxAgeDays = &logAge
+	logBackups := cfg.Governor.Logging.MaxBackups
+	o.LogMaxBackups = &logBackups
+	logCompress := cfg.Governor.Logging.Compress
+	o.LogCompress = &logCompress
+	o.LogLevel = cfg.Governor.Logging.Level
+
+	return o
+}
+
+func applyConfigOverrides(cfg *config.Config, o *snapshot.ConfigOverrides) {
+	if len(o.ProjectRepos) > 0 {
+		cfg.Project.Repos = o.ProjectRepos
+	}
+	if o.EvalIntervalS != nil {
+		cfg.Governor.EvalIntervalS = *o.EvalIntervalS
+	}
+	if len(o.Thresholds) > 0 {
+		for name, threshold := range o.Thresholds {
+			if mode, ok := cfg.Governor.Modes[name]; ok {
+				mode.Threshold = threshold
+				cfg.Governor.Modes[name] = mode
+			}
+		}
+	}
+	if len(o.SensingGHRate) > 0 {
+		cfg.Governor.Sensing.GHRatePatterns = o.SensingGHRate
+	}
+	if len(o.SensingCLIExclude) > 0 {
+		cfg.Governor.Sensing.CLIExcludePatterns = o.SensingCLIExclude
+	}
+	if len(o.SensingLogin) > 0 {
+		cfg.Governor.Sensing.LoginPatterns = o.SensingLogin
+	}
+	if o.SensingTTL != nil {
+		cfg.Governor.Sensing.TTLSeconds = *o.SensingTTL
+	}
+	if o.SensingPullback != nil {
+		cfg.Governor.Sensing.PullbackSeconds = *o.SensingPullback
+	}
+	if len(o.ExemptLabels) > 0 {
+		cfg.Governor.Labels.Exempt = o.ExemptLabels
+	}
+	if o.NtfyServer != "" || o.NtfyTopic != "" {
+		if cfg.Notifications.Ntfy == nil {
+			cfg.Notifications.Ntfy = &config.NtfyConfig{}
+		}
+		if o.NtfyServer != "" {
+			cfg.Notifications.Ntfy.Server = o.NtfyServer
+		}
+		if o.NtfyTopic != "" {
+			cfg.Notifications.Ntfy.Topic = o.NtfyTopic
+		}
+	}
+	if o.DiscordWebhook != "" {
+		if cfg.Notifications.Discord == nil {
+			cfg.Notifications.Discord = &config.DiscordConfig{}
+		}
+		cfg.Notifications.Discord.Webhook = o.DiscordWebhook
+	}
+	if o.HealthcheckInterval != nil {
+		cfg.Governor.Health.HealthcheckInterval = *o.HealthcheckInterval
+	}
+	if o.RestartCooldown != nil {
+		cfg.Governor.Health.RestartCooldown = *o.RestartCooldown
+	}
+	if o.ModelLock != nil {
+		cfg.Governor.Health.ModelLock = *o.ModelLock
+	}
+	if o.LogMaxSizeMB != nil {
+		cfg.Governor.Logging.MaxSizeMB = *o.LogMaxSizeMB
+	}
+	if o.LogMaxAgeDays != nil {
+		cfg.Governor.Logging.MaxAgeDays = *o.LogMaxAgeDays
+	}
+	if o.LogMaxBackups != nil {
+		cfg.Governor.Logging.MaxBackups = *o.LogMaxBackups
+	}
+	if o.LogCompress != nil {
+		cfg.Governor.Logging.Compress = *o.LogCompress
+	}
+	if o.LogLevel != "" {
+		cfg.Governor.Logging.Level = o.LogLevel
 	}
 }
 

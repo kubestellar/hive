@@ -27,6 +27,7 @@ const (
 	proxyListenPort = 18443
 	modeFilePrefix  = "/tmp/.hive-mode-"
 	maxViolationLog = 1000
+	CACertPath      = "/data/proxy-ca.pem"
 )
 
 // GitHubProxy is an HTTP CONNECT proxy that performs MITM TLS
@@ -45,6 +46,11 @@ func NewGitHubProxy() (*GitHubProxy, error) {
 	caCert, caX509, err := generateCA()
 	if err != nil {
 		return nil, fmt.Errorf("generate CA: %w", err)
+	}
+
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caX509.Raw})
+	if err := os.WriteFile(CACertPath, caPEM, 0644); err != nil {
+		return nil, fmt.Errorf("write CA cert to %s: %w", CACertPath, err)
 	}
 
 	return &GitHubProxy{

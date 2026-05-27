@@ -32,6 +32,7 @@ import (
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 	"github.com/kubestellar/hive/v2/pkg/notify"
 	"github.com/kubestellar/hive/v2/pkg/policies"
+	"github.com/kubestellar/hive/v2/pkg/proxy"
 	"github.com/kubestellar/hive/v2/pkg/scheduler"
 	"github.com/kubestellar/hive/v2/pkg/snapshot"
 	"github.com/kubestellar/hive/v2/pkg/tokens"
@@ -576,6 +577,19 @@ func main() {
 		if err := watcher.Start(ctx); err != nil {
 			logger.Warn("policy watcher failed to start", "error", err)
 		}
+	}
+
+	githubProxy, err := proxy.NewGitHubProxy()
+	if err != nil {
+		logger.Error("failed to create github proxy", "error", err)
+	} else {
+		dashboard.SetProxyViolationsProvider(githubProxy.Violations)
+		go func() {
+			if err := githubProxy.Start(); err != nil {
+				logger.Error("github proxy failed", "error", err)
+			}
+		}()
+		logger.Info("github proxy started", "addr", githubProxy.ListenAddr())
 	}
 
 	go func() {

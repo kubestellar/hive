@@ -20,9 +20,17 @@ import (
 
 const defaultLookbackHours = 24
 
+// SetProxyViolationsProvider registers a function that returns per-agent
+// proxy violation counts, called during status builds.
+func SetProxyViolationsProvider(fn func() map[string]int) {
+	proxyViolationsFn = fn
+}
+
 var (
 	cachedHealth   map[string]any
 	cachedHealthMu sync.RWMutex
+
+	proxyViolationsFn func() map[string]int
 )
 
 // AgentStatusPayload is a lightweight payload containing only agent metadata,
@@ -206,6 +214,9 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 		a.DefaultMode = defaultMode.String()
 		a.IsCustomMode = mode != defaultMode
 		a.NeedsRestart = proc.LaunchedMode != mode
+		if proxyViolationsFn != nil {
+			a.ProxyViolations = proxyViolationsFn()[name]
+		}
 
 		agents = append(agents, a)
 	}

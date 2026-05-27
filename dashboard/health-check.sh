@@ -72,11 +72,11 @@ check_workflow() {
 # Build JSON object from configured workflows
 workflow_json=""
 if [ "$HIVE_CONFIG_LOADED" = "true" ] && command -v python3 &>/dev/null; then
-  workflow_count=$(python3 -c "import json; wfs=json.loads('${HEALTH_CHECK_WORKFLOWS}'); print(len(wfs))" 2>/dev/null || echo 0)
+  workflow_count=$(echo "${HEALTH_CHECK_WORKFLOWS}" | python3 -c "import sys,json; wfs=json.loads(sys.stdin.read()); print(len(wfs))" 2>/dev/null || echo 0)
   if [ "$workflow_count" -gt 0 ]; then
     for i in $(seq 0 $((workflow_count - 1))); do
-      wf_name=$(python3 -c "import json; print(json.loads('${HEALTH_CHECK_WORKFLOWS}')[$i]['name'])" 2>/dev/null)
-      wf_key=$(python3 -c "import json; wf=json.loads('${HEALTH_CHECK_WORKFLOWS}')[$i]; print(wf.get('key', wf['name'].lower().replace(' ','_').replace('-','_')))" 2>/dev/null)
+      wf_name=$(echo "${HEALTH_CHECK_WORKFLOWS}" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())[$i]['name'])" 2>/dev/null)
+      wf_key=$(echo "${HEALTH_CHECK_WORKFLOWS}" | python3 -c "import sys,json; wf=json.loads(sys.stdin.read())[$i]; print(wf.get('key', wf['name'].lower().replace(' ','_').replace('-','_')))" 2>/dev/null)
       result=$(check_workflow "$wf_name")
       workflow_json="${workflow_json}\"${wf_key}\":${result},"
     done
@@ -103,9 +103,9 @@ weekly_rel_ok=$(echo "$releases" | jq -r "[.[] | select(.prerelease == false and
 # Check for a "Weekly" type workflow from config, or fall back to hardcoded
 weekly_ok=-1
 if [ "$HIVE_CONFIG_LOADED" = "true" ] && command -v python3 &>/dev/null; then
-  weekly_wf=$(python3 -c "
-import json
-wfs = json.loads('${HEALTH_CHECK_WORKFLOWS}')
+  weekly_wf=$(echo "${HEALTH_CHECK_WORKFLOWS}" | python3 -c "
+import sys, json
+wfs = json.loads(sys.stdin.read())
 weekly = [w for w in wfs if w.get('type') == 'weekly']
 print(weekly[0]['name'] if weekly else '')
 " 2>/dev/null)
@@ -123,7 +123,7 @@ fi
 # ── Perf workflows — worst of all ───────────────────────────────────────────
 hourly_worst=1
 if [ "$HIVE_CONFIG_LOADED" = "true" ] && command -v python3 &>/dev/null; then
-  perf_wfs=$(python3 -c "import json; [print(w) for w in json.loads('${HEALTH_PERF_WORKFLOWS}')]" 2>/dev/null)
+  perf_wfs=$(echo "${HEALTH_PERF_WORKFLOWS}" | python3 -c "import sys,json; [print(w) for w in json.loads(sys.stdin.read())]" 2>/dev/null)
   if [ -n "$perf_wfs" ]; then
     while IFS= read -r wf; do
       result=$(gh run list --repo "$REPO" --workflow "$wf" --status completed --limit 1 \
@@ -149,10 +149,10 @@ if [ -n "$CI_WF" ]; then
 
   if [ -n "$deploy_run_id" ]; then
     if [ "$HIVE_CONFIG_LOADED" = "true" ] && command -v python3 &>/dev/null; then
-      job_count=$(python3 -c "import json; print(len(json.loads('${HEALTH_DEPLOY_JOBS}')))" 2>/dev/null || echo 0)
+      job_count=$(echo "${HEALTH_DEPLOY_JOBS}" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
       if [ "$job_count" -gt 0 ]; then
         for i in $(seq 0 $((job_count - 1))); do
-          job_name=$(python3 -c "import json; print(json.loads('${HEALTH_DEPLOY_JOBS}')[$i]['name'])" 2>/dev/null)
+          job_name=$(echo "${HEALTH_DEPLOY_JOBS}" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())[$i]['name'])" 2>/dev/null)
           job_key=$(echo "$job_name" | tr '-' '_')
           result=$(gh run view "$deploy_run_id" --repo "$REPO" --json jobs \
             --jq ".jobs[] | select(.name == \"${job_name}\") | .conclusion" 2>/dev/null || echo "none")

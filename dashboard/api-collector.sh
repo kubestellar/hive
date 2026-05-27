@@ -62,10 +62,9 @@ done
 # ── Read actionable counts from enumerate-actionable.sh output (REST-based, no extra API calls) ──
 ACTIONABLE_FILE="${CACHE_DIR}/actionable.json"
 if [ -f "$ACTIONABLE_FILE" ]; then
-  python3 -c "
+  cat "$ACTIONABLE_FILE" | python3 -c "
 import json, sys
-with open(sys.argv[1]) as f:
-    d = json.load(f)
+d = json.load(sys.stdin)
 items_i = d.get('issues', {}).get('items', [])
 items_p = d.get('prs', {}).get('items', [])
 repos = {}
@@ -79,7 +78,7 @@ for p in items_p:
     repos[r][1] += 1
 for rname, (ai, ap) in repos.items():
     print(f'{rname} {ai} {ap}')
-" "$ACTIONABLE_FILE" 2>/dev/null | while read -r rname ai ap; do
+" 2>/dev/null | while read -r rname ai ap; do
     echo "${ai} ${ap}" > "$tmpdir/actionable_${rname}"
   done
   # Ensure repos with zero actionable items get a file too
@@ -250,10 +249,10 @@ merged_prs_file="$tmpdir/merged_prs.json"
 $GH pr list --repo "$PRIMARY_REPO" --state merged --limit "$ITM_PR_LIMIT" --json number,body,mergedAt > "$merged_prs_file" 2>/dev/null || echo "[]" > "$merged_prs_file"
 
 # Extract issue refs and compute stats with jq + gh issue view
-python3 -c "
+cat "$merged_prs_file" | python3 -c "
 import json, sys, subprocess, time, os, math
 
-prs = json.load(open('$merged_prs_file'))
+prs = json.load(sys.stdin)
 import re
 fixes_re = re.compile(r'(?:fixes|closes|resolves)\s+#(\d+)', re.IGNORECASE)
 

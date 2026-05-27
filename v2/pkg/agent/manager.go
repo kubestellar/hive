@@ -159,7 +159,7 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 	}
 
 	cmd := exec.Command("tmux", "new-session", "-d", "-s", agent.tmuxSession, "-c", agentDir)
-	cmd.Env = append(os.Environ(), m.agentEnvVars(agent)...)
+	cmd.Env = append(m.filteredEnv(agent), m.agentEnvVars(agent)...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("creating tmux session for %s: %w", agent.Name, err)
 	}
@@ -945,6 +945,39 @@ func normalizeModelName(model string) string {
 		return model[:idx] + "." + suffix
 	}
 	return model
+}
+
+// agentCanWrite returns true if this agent is allowed to push branches and create PRs.
+func (m *Manager) agentCanWrite(agent *AgentProcess) bool {
+	level := m.project.ACMMLevel
+	if level == 0 || level >= 4 {
+		return true
+	}
+	if level < 3 {
+		return false
+	}
+	// L3: only quality can write
+	return agent.Name == "quality"
+}
+
+// filteredEnv returns os.Environ() with write-capable tokens removed for advisory agents.
+// This prevents Copilot CLI from using COPILOT_GITHUB_TOKEN to push branches or create PRs
+// via the GitHub API, bypassing the gh wrapper.
+func (m *Manager) filteredEnv(agent *AgentProcess) []string {
+	env := os.Environ()
+	if m.agentCanWrite(agent) {
+		return env
+	}
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		if strings.HasPrefix(e, "COPILOT_GITHUB_TOKEN=") ||
+			strings.HasPrefix(e, "GH_TOKEN=") ||
+			strings.HasPrefix(e, "GITHUB_TOKEN=") {
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+	return filtered
 }
 
 func (m *Manager) agentEnvVars(agent *AgentProcess) []string {

@@ -350,7 +350,13 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	now := time.Now()
 	agent.State = StateRunning
 	agent.StartedAt = &now
-	m.logger.Info("agent launched in tmux", "name", agent.Name, "backend", backend, "session", agent.tmuxSession)
+	m.logger.Info("agent launched in tmux",
+		"name", agent.Name,
+		"backend", backend,
+		"model", model,
+		"mode", mode.String(),
+		"session", agent.tmuxSession,
+	)
 
 	agentCtx, cancel := context.WithCancel(ctx)
 	agent.cancel = cancel
@@ -599,6 +605,25 @@ func (m *Manager) buildEnvPrefix(agent *AgentProcess) string {
 	return strings.Join(vars, " ") + " "
 }
 
+// outputSignalPatterns are substrings in agent output that indicate meaningful
+// events worth logging. Each pattern maps to a short event label.
+var outputSignalPatterns = map[string]string{
+	"[HEARTBEAT]":  "heartbeat",
+	"[STATUS]":     "status",
+	"[FINDING]":    "finding",
+	"[COMPLETE]":   "task_complete",
+	"[ERROR]":      "agent_error",
+	"PASS":         "pass_marker",
+	"git commit":   "git_commit",
+	"git checkout": "git_branch",
+	"git push":     "git_push",
+	"created file": "file_created",
+	"Wrote":        "file_written",
+	"test:":        "test_activity",
+	"FAIL":         "test_failure",
+	"coverage":     "coverage_report",
+}
+
 func (m *Manager) pollTmuxOutput(name, session string, buf *RingBuffer, ctx context.Context) {
 	const pollInterval = 3 * time.Second
 	ticker := time.NewTicker(pollInterval)
@@ -627,8 +652,29 @@ func (m *Manager) pollTmuxOutput(name, session string, buf *RingBuffer, ctx cont
 			newLines := diffNewLines(prevLines, filtered)
 			for _, l := range newLines {
 				buf.Write(l)
+				m.logOutputSignals(name, l)
 			}
 			prevLines = filtered
+		}
+	}
+}
+
+// logOutputSignals checks a line of agent output for meaningful patterns
+// and emits a structured slog entry for each match.
+func (m *Manager) logOutputSignals(agent, line string) {
+	for pattern, event := range outputSignalPatterns {
+		if strings.Contains(line, pattern) {
+			preview := line
+			const maxPreviewLen = 200
+			if len(preview) > maxPreviewLen {
+				preview = preview[:maxPreviewLen] + "..."
+			}
+			m.logger.Info("agent output signal",
+				"agent", agent,
+				"event", event,
+				"content", preview,
+			)
+			return
 		}
 	}
 }
@@ -814,11 +860,30 @@ func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) []string {
 			continue
 		}
 		if !m.tmuxSessionExists(agent.tmuxSession) {
-			m.logger.Warn("agent tmux session missing", "name", name, "session", agent.tmuxSession)
+			var uptimeSeconds float64
+			if agent.StartedAt != nil {
+				uptimeSeconds = time.Since(*agent.StartedAt).Seconds()
+			}
+			m.logger.Error("agent tmux session missing",
+				"name", name,
+				"session", agent.tmuxSession,
+				"restart_count", agent.RestartCount,
+				"uptime_seconds", int(uptimeSeconds),
+			)
 			crashed = append(crashed, name)
 			continue
 		}
 		if !m.tmuxPaneHasCLI(agent.tmuxSession) {
+			var uptimeSeconds float64
+			if agent.StartedAt != nil {
+				uptimeSeconds = time.Since(*agent.StartedAt).Seconds()
+			}
+			m.logger.Warn("agent CLI crashed (bare shell detected)",
+				"name", name,
+				"session", agent.tmuxSession,
+				"restart_count", agent.RestartCount,
+				"uptime_seconds", int(uptimeSeconds),
+			)
 			crashed = append(crashed, name)
 		}
 	}
@@ -826,10 +891,18 @@ func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) []string {
 
 	var restarted []string
 	for _, name := range crashed {
-		m.logger.Warn("agent CLI not running, restarting", "name", name)
+		m.logger.Info("restarting crashed agent", "name", name)
 		if err := m.Restart(ctx, name); err != nil {
 			m.logger.Error("failed to restart crashed agent", "name", name, "error", err)
 		} else {
+			m.mu.RLock()
+			agent := m.agents[name]
+			m.mu.RUnlock()
+			m.logger.Info("agent recovered from crash",
+				"name", name,
+				"restart_count", agent.RestartCount,
+				"backend", agent.Config.Backend,
+			)
 			restarted = append(restarted, name)
 		}
 	}
@@ -932,7 +1005,16 @@ func (m *Manager) SendKick(name string, message string) error {
 	}
 	agent.KickHistory = append(agent.KickHistory, record)
 
-	m.logger.Info("kick sent", "name", name, "message_len", len(message))
+	kickPreview := message
+	const maxKickPreviewLen = 200
+	if len(kickPreview) > maxKickPreviewLen {
+		kickPreview = kickPreview[:maxKickPreviewLen] + "..."
+	}
+	m.logger.Info("kick sent",
+		"name", name,
+		"message_len", len(message),
+		"preview", kickPreview,
+	)
 
 	return nil
 }
@@ -1244,7 +1326,11 @@ func (m *Manager) Pause(name string) error {
 		_ = cmd.Run()
 	}
 	agent.State = StatePaused
-	m.logger.Info("agent paused", "name", name)
+	m.logger.Info("agent paused",
+		"name", name,
+		"backend", agent.Config.Backend,
+		"restart_count", agent.RestartCount,
+	)
 	return nil
 }
 

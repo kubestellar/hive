@@ -12,30 +12,119 @@
 
 ## What is hive?
 
-Hive is an autonomous multi-agent CI/CD companion that watches your GitHub repos, triages issues and PRs, merges what's ready, and escalates what isn't. It runs 5 specialized agents (scanner, reviewer, architect, outreach, supervisor) coordinated by an adaptive governor that scales effort up and down based on queue depth.
+Hive is an autonomous multi-agent CI/CD companion that watches your GitHub repos, triages issues and PRs, merges what's ready, and escalates what isn't. It runs 7+ specialized agents (scanner, ci-maintainer, quality, architect, supervisor, outreach, guide) coordinated by an adaptive governor that scales effort up and down based on queue depth. The v2 branch packages everything into a single Docker container — one Go binary orchestrates agent tmux sessions, the governor loop, a real-time dashboard, and structured logging with rolling file retention.
 
 The core idea: **if a human would give the same answer every time, it belongs in infrastructure, not in a prompt.** A deterministic pipeline of shell scripts handles filtering, classification, merge-gating, and enforcement *before* any LLM agent sees the work. Agents only handle judgment calls — reading code, reasoning about fixes, writing PRs.
 
 ---
 
-## Setup
+## Setup (Docker — recommended)
+
+The v2 container packages everything: the Go orchestrator, dashboard, all CLI backends (Claude Code, Copilot, Gemini, Goose), tmux sessions, and a ttyd web terminal. One container, one config file, one volume.
+
+### 1. Create config and data directory
 
 ```bash
-# 1. install tmux
-sudo apt install tmux
-
-# 2. install hive
-curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/main/install.sh | sudo bash
-
-# 3. configure
-sudo cp config/hive-project.yaml.example /etc/hive/hive-project.yaml
-sudo nano /etc/hive/hive-project.yaml
-
-# 4. start
-hive supervisor
+mkdir -p /opt/hive/secrets
 ```
 
-`hive supervisor` installs missing tools, starts all agents in tmux sessions, launches the governor, and begins the supervisor loop. No tmux knowledge needed.
+Copy the example config and edit it for your project:
+
+```bash
+curl -sL https://raw.githubusercontent.com/kubestellar/hive/v2/v2/deploy/hive.yaml \
+  -o /opt/hive/hive.yaml
+```
+
+Edit `/opt/hive/hive.yaml` — set your org, repos, agents, and governor thresholds. See `v2/deploy/hive.yaml` for a full production reference.
+
+### 2. Run the container
+
+```bash
+docker run -d \
+  --name hive \
+  --restart unless-stopped \
+  -p 3001:3001 \
+  -v hive-data:/data \
+  -v /opt/hive/hive.yaml:/etc/hive/hive.yaml \
+  -v /opt/hive/secrets:/secrets:ro \
+  -e HIVE_GITHUB_TOKEN=ghp_... \
+  ghcr.io/kubestellar/hive:v2-latest
+```
+
+The dashboard is at `http://<host>:3001`.
+
+#### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `HIVE_GITHUB_TOKEN` | Yes (unless using GitHub App) | Personal access token or fine-grained token |
+| `HIVE_LEVEL` | No | ACMM level override (1–6) |
+| `HIVE_REPO` | No | Override the primary repo from config |
+| `ANTHROPIC_API_KEY` | For Claude backend | Anthropic API key |
+| `TZ` | No | Timezone (default: `America/New_York`) |
+
+#### GitHub App auth (recommended for production)
+
+Instead of a personal token, use a GitHub App for isolated rate limits:
+
+```bash
+docker run -d \
+  --name hive \
+  --restart unless-stopped \
+  -p 3001:3001 \
+  -v hive-data:/data \
+  -v /opt/hive/hive.yaml:/etc/hive/hive.yaml \
+  -v /path/to/gh-app-key.pem:/etc/hive/gh-app-key.pem:ro \
+  ghcr.io/kubestellar/hive:v2-latest
+```
+
+Set the `github_app` section in `hive.yaml`:
+
+```yaml
+github_app:
+  app_id: 12345
+  installation_id: 67890
+  private_key_file: /etc/hive/gh-app-key.pem
+```
+
+### 3. Auto-update with Watchtower
+
+Every push to the `v2` branch builds and publishes a new `ghcr.io/kubestellar/hive:v2-latest` image. Use [Watchtower](https://containrrr.dev/watchtower/) to automatically pull and restart the container when a new image is available:
+
+```bash
+docker run -d \
+  --name watchtower \
+  --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower \
+  --cleanup --interval 60 hive
+```
+
+This checks for a new `hive` image every 60 seconds, pulls it, recreates the container with the same configuration, and cleans up the old image. Merge a PR to `v2` and the change is live within ~2 minutes (CI build + Watchtower poll).
+
+### 4. Ports and volumes
+
+| Port | Purpose |
+|------|---------|
+| 3001 | Dashboard (public, supports auth token) |
+| 3002 | Internal API (not exposed by default) |
+| 7681 | ttyd web terminal (not exposed by default) |
+
+| Volume / Mount | Purpose |
+|----------------|---------|
+| `/data` | Persistent state: metrics, beads, logs, agent session data |
+| `/etc/hive/hive.yaml` | Configuration (bind mount) |
+| `/secrets` | GitHub App key, other secrets (read-only bind mount) |
+
+### Legacy setup (systemd)
+
+For bare-metal installs without Docker, the v1 systemd approach is still supported on the `main` branch:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/main/install.sh | sudo bash
+sudo cp config/hive-project.yaml.example /etc/hive/hive-project.yaml
+hive supervisor
+```
 
 ---
 
@@ -190,8 +279,12 @@ Classification patterns, clustering signals, severity keywords, and exempt label
 The dashboard runs as a systemd service (`hive-dashboard.service`) and auto-restarts on failure.
 
 ```bash
-open http://<hive-ip>:3001        # from LAN
+open http://<hive-ip>:3001        # from LAN (Docker: -p 3001:3001)
 open http://localhost:3001        # from hive itself
+
+# Optional: secure with auth token
+docker run -d ... -e HIVE_AUTH_TOKEN=your-secret ... ghcr.io/kubestellar/hive:v2-latest
+# Then access: http://<hive-ip>:3001?token=your-secret
 
 # Install Ubersicht widget (macOS)
 curl -sf http://<hive-ip>:3001/api/widget \
@@ -258,7 +351,18 @@ The token generator (`gh-app-token.sh`) creates 1-hour installation tokens, cach
 
 ## Auto-Deploy
 
-`hive-deploy.timer` runs every 60 seconds and keeps the live server in sync with the git repo:
+### Docker (v2) — Watchtower
+
+Every push to the `v2` branch triggers a CI build that publishes a multi-arch Docker image (`linux/amd64` + `linux/arm64`) to `ghcr.io/kubestellar/hive:v2-latest`. With Watchtower running alongside the hive container (see [Setup](#3-auto-update-with-watchtower)), the deploy cycle is:
+
+1. Merge PR to `v2`
+2. GitHub Actions builds and pushes the new image (~90 seconds)
+3. Watchtower detects the new digest and recreates the container (~60 seconds)
+4. Total: PR merge to live in ~2 minutes, zero SSH
+
+### Systemd (v1) — git pull timer
+
+For bare-metal installs, `hive-deploy.timer` runs every 60 seconds:
 
 1. `git pull --rebase origin main`
 2. Syncs changed scripts from `bin/` to `/usr/local/bin/`
@@ -266,8 +370,6 @@ The token generator (`gh-app-token.sh`) creates 1-hour installation tokens, cach
 4. Syncs systemd units and triggers `daemon-reload`
 5. Restarts dashboard and Discord bot if their files changed
 6. Drift-checks even if HEAD unchanged (catches manual edits)
-
-Merge a PR to `main` and the change is live within 60 seconds. No SSH needed.
 
 ---
 
@@ -421,7 +523,18 @@ For advanced configuration (pipeline stages, classification rules, health checks
 
 ## Services
 
-Hive installs these systemd units:
+### Docker (v2)
+
+The Docker container runs a single Go binary (`hive`) that manages everything internally: agent tmux sessions, the governor eval loop, the dashboard server, health checks, and token tracking. No systemd units needed — `docker run` with `--restart unless-stopped` handles process lifecycle, and Watchtower handles image updates.
+
+| Container | Image | Purpose |
+|-----------|-------|---------|
+| `hive` | `ghcr.io/kubestellar/hive:v2-latest` | Orchestrator + dashboard + agents |
+| `watchtower` | `containrrr/watchtower` | Auto-pulls new images on push to v2 |
+
+### Systemd (v1)
+
+The legacy systemd install uses these units:
 
 | Unit | Purpose |
 |------|---------|

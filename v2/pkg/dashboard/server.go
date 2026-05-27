@@ -114,6 +114,7 @@ type FrontendAgent struct {
 	DefaultMode      string `json:"defaultMode,omitempty"`
 	IsCustomMode     bool   `json:"isCustomMode,omitempty"`
 	NeedsRestart     bool   `json:"needsRestart,omitempty"`
+	ProxyViolations  int    `json:"proxyViolations"`
 }
 
 type FrontendGovernor struct {

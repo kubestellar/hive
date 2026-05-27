@@ -37,6 +37,7 @@ const (
 	kickHistoryCapacity  = 50
 	tmuxCaptureLines     = 2000
 	paneCaptureSleep     = 500 * time.Millisecond
+	proxyListenPort      = 18443
 )
 
 type AgentProcess struct {
@@ -1213,6 +1214,9 @@ func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 	vars = append(vars, shellEnvVar("HIVE_AGENT_MODE", mode.String()))
 	modeFile := fmt.Sprintf("/tmp/.hive-mode-%s", agent.Name)
 	_ = os.WriteFile(modeFile, []byte(mode.String()), 0o644)
+	vars = append(vars, shellEnvVar("HTTPS_PROXY", fmt.Sprintf("http://127.0.0.1:%d", proxyListenPort)))
+	vars = append(vars, shellEnvVar("HTTP_PROXY", fmt.Sprintf("http://127.0.0.1:%d", proxyListenPort)))
+	vars = append(vars, shellEnvVar("HIVE_PROXY_AGENT", agent.Name))
 	if sha := os.Getenv("HIVE_SHA"); sha != "" {
 		vars = append(vars, shellEnvVar("HIVE_SHA", sha))
 	}

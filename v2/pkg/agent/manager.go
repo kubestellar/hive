@@ -261,7 +261,10 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 		if m.agentCanWrite(agent) {
 			launchCmd = fmt.Sprintf("%s --model %s --allow-all --enable-all-github-mcp-tools", binary, copilotModel)
 		} else {
-			launchCmd = fmt.Sprintf("%s --model %s --allow-all", binary, copilotModel)
+			launchCmd = fmt.Sprintf("%s --model %s --allow-all"+
+				" --deny-tool='github(create_pull_request)'"+
+				" --deny-tool='github(create_issue)'"+
+				" --deny-tool='github(update_issue)'", binary, copilotModel)
 		}
 	case "gemini":
 		launchCmd = fmt.Sprintf("%s --model %s", binary, model)

@@ -706,6 +706,8 @@ func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) []string {
 			continue
 		}
 		if !m.tmuxSessionExists(agent.tmuxSession) {
+			m.logger.Warn("agent tmux session missing", "name", name, "session", agent.tmuxSession)
+			crashed = append(crashed, name)
 			continue
 		}
 		if !m.tmuxPaneHasCLI(agent.tmuxSession) {

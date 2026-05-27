@@ -50,6 +50,12 @@ if [ "$(id -u)" = "0" ]; then
     chown -R dev:node /data/beads /home/dev 2>/dev/null || true
   fi
 
+  # Persist Copilot CLI auth across container restarts
+  mkdir -p /data/config/github-copilot /home/dev/.config
+  ln -sfn /data/config/github-copilot /home/dev/.config/github-copilot
+  chown -R dev:node /data/config /home/dev/.config 2>/dev/null || true
+  echo "[entrypoint] Copilot config: ~/.config/github-copilot -> /data/config/github-copilot"
+
   # Drop to non-root user for all runtime processes.
   # Claude Code refuses --dangerously-skip-permissions as root.
   if command -v gosu >/dev/null 2>&1; then

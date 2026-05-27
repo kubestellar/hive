@@ -85,11 +85,10 @@ func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, proje
 		workDir = "/data/agents"
 	}
 
-	// Save COPILOT_GITHUB_TOKEN and remove it from the process env so the
-	// tmux server (and all sessions) never inherit it. Only quality gets
-	// the token, injected via inline env prefix in launchInTmux.
+	// Save COPILOT_GITHUB_TOKEN for explicit injection via tmux set-environment.
+	// The token stays in the process env so all agents can authenticate for AI
+	// completions; write access is gated by --enable-all-github-mcp-tools flag.
 	copilotToken := os.Getenv("COPILOT_GITHUB_TOKEN")
-	os.Unsetenv("COPILOT_GITHUB_TOKEN")
 
 	m := &Manager{
 		agents:           make(map[string]*AgentProcess),
@@ -183,14 +182,13 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 			_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, parts[0], parts[1]).Run()
 		}
 	}
-	// Strip write-capable tokens from advisory agent sessions.
-	// COPILOT_GITHUB_TOKEN must be stripped because Copilot CLI uses it for
-	// both AI auth AND GitHub API writes (push, PR create) — we cannot
-	// selectively block writes while keeping AI auth via this token.
+	// Strip gh/git tokens from advisory agent sessions (they use gh-wrapper
+	// and credential helper enforcement). COPILOT_GITHUB_TOKEN is kept for
+	// all agents — AI auth needs it; write access is gated by the
+	// --enable-all-github-mcp-tools flag (only passed for quality).
 	if !m.agentCanWrite(agent) {
 		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GH_TOKEN").Run()
 		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GITHUB_TOKEN").Run()
-		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "COPILOT_GITHUB_TOKEN").Run()
 	}
 
 	m.logger.Info("tmux session created", "name", agent.Name, "session", agent.tmuxSession)
@@ -260,7 +258,11 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	case "copilot":
 		// Copilot CLI uses dashes in model IDs (claude-opus-4-6), not dots (claude-opus-4.6)
 		copilotModel := strings.ReplaceAll(model, ".", "-")
-		launchCmd = fmt.Sprintf("%s --model %s --allow-all", binary, copilotModel)
+		if m.agentCanWrite(agent) {
+			launchCmd = fmt.Sprintf("%s --model %s --allow-all --enable-all-github-mcp-tools", binary, copilotModel)
+		} else {
+			launchCmd = fmt.Sprintf("%s --model %s --allow-all", binary, copilotModel)
+		}
 	case "gemini":
 		launchCmd = fmt.Sprintf("%s --model %s", binary, model)
 	case "goose":
@@ -992,9 +994,9 @@ func (m *Manager) agentCanWrite(agent *AgentProcess) bool {
 }
 
 // filteredEnv returns os.Environ() with write-capable tokens removed for advisory agents.
-// COPILOT_GITHUB_TOKEN must be stripped because Copilot CLI uses it for both AI
-// authentication AND GitHub API writes (push, PR create, issue create) — there is
-// no way to allow AI auth while blocking writes via this token.
+// COPILOT_GITHUB_TOKEN is kept for all agents (needed for AI auth); write access is
+// gated by --enable-all-github-mcp-tools flag. GH_TOKEN and GITHUB_TOKEN are stripped
+// from non-quality agents to enforce gh-wrapper and credential helper policies.
 func (m *Manager) filteredEnv(agent *AgentProcess) []string {
 	env := os.Environ()
 	if m.agentCanWrite(agent) {
@@ -1002,8 +1004,7 @@ func (m *Manager) filteredEnv(agent *AgentProcess) []string {
 	}
 	filtered := make([]string, 0, len(env))
 	for _, e := range env {
-		if strings.HasPrefix(e, "COPILOT_GITHUB_TOKEN=") ||
-			strings.HasPrefix(e, "GH_TOKEN=") ||
+		if strings.HasPrefix(e, "GH_TOKEN=") ||
 			strings.HasPrefix(e, "GITHUB_TOKEN=") {
 			continue
 		}
@@ -1074,7 +1075,7 @@ func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 	if advisory := os.Getenv("HIVE_ADVISORY_ISSUE"); advisory != "" {
 		vars = append(vars, shellEnvVar("HIVE_ADVISORY_ISSUE", advisory))
 	}
-	if m.agentCanWrite(agent) && m.copilotAuthToken != "" {
+	if m.copilotAuthToken != "" {
 		vars = append(vars, shellEnvVar("COPILOT_GITHUB_TOKEN", m.copilotAuthToken))
 	}
 	return vars

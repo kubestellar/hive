@@ -70,12 +70,13 @@ type ProjectContext struct {
 }
 
 type Manager struct {
-	agents    map[string]*AgentProcess
-	idToName  map[string]string
-	mu        sync.RWMutex
-	logger    *slog.Logger
-	workDir   string
-	project   ProjectContext
+	agents           map[string]*AgentProcess
+	idToName         map[string]string
+	mu               sync.RWMutex
+	logger           *slog.Logger
+	workDir          string
+	project          ProjectContext
+	copilotAuthToken string
 }
 
 func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, project ProjectContext) *Manager {
@@ -84,12 +85,19 @@ func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, proje
 		workDir = "/data/agents"
 	}
 
+	// Save COPILOT_GITHUB_TOKEN and remove it from the process env so the
+	// tmux server (and all sessions) never inherit it. Only quality gets
+	// the token, injected via inline env prefix in launchInTmux.
+	copilotToken := os.Getenv("COPILOT_GITHUB_TOKEN")
+	os.Unsetenv("COPILOT_GITHUB_TOKEN")
+
 	m := &Manager{
-		agents:   make(map[string]*AgentProcess),
-		idToName: make(map[string]string),
-		logger:   logger,
-		workDir:  workDir,
-		project:  project,
+		agents:           make(map[string]*AgentProcess),
+		idToName:         make(map[string]string),
+		logger:           logger,
+		workDir:          workDir,
+		project:          project,
+		copilotAuthToken: copilotToken,
 	}
 
 	for name, cfg := range agents {
@@ -1065,6 +1073,9 @@ func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 	}
 	if advisory := os.Getenv("HIVE_ADVISORY_ISSUE"); advisory != "" {
 		vars = append(vars, shellEnvVar("HIVE_ADVISORY_ISSUE", advisory))
+	}
+	if m.agentCanWrite(agent) && m.copilotAuthToken != "" {
+		vars = append(vars, shellEnvVar("COPILOT_GITHUB_TOKEN", m.copilotAuthToken))
 	}
 	return vars
 }

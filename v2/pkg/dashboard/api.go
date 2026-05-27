@@ -2782,7 +2782,22 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 		okResponse(w, map[string]string{"token": "(not set)", "configured": "false"})
 		return
 	}
-	okResponse(w, map[string]string{"token": maskSecret(token), "configured": "true"})
+	okResponse(w, map[string]string{"token": maskToken(token), "configured": "true"})
+}
+
+// maskToken replaces all but the last 4 characters with bullet characters.
+func maskToken(token string) string {
+	const visibleSuffix = 4
+	if len(token) <= visibleSuffix {
+		return token
+	}
+	masked := make([]byte, 0, len(token))
+	hideLen := len(token) - visibleSuffix
+	for i := 0; i < hideLen; i++ {
+		masked = append(masked, "•"...)
+	}
+	masked = append(masked, token[hideLen:]...)
+	return string(masked)
 }
 
 func (s *Server) handleBeadsReset(w http.ResponseWriter, r *http.Request) {

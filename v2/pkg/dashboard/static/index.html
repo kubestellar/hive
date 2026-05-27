@@ -68,27 +68,32 @@
     .oc-nav-label {
       font-size: 0.65rem; font-weight: 600; color: #b0b7c3;
       text-transform: uppercase; letter-spacing: 0.8px;
-      padding: 12px 20px 6px; user-select: none;
+      padding: 10px 14px 4px; user-select: none;
       display: flex; align-items: center; gap: 8px;
     }
     .oc-nav-label::after {
       content: ''; flex: 1; height: 1px; background: #e5e7eb;
     }
     .oc-nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 20px; font-size: 0.88rem; color: #4b5563;
-      cursor: pointer; text-decoration: none; border-radius: 8px;
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; font-size: 0.82rem; color: #4b5563;
+      cursor: pointer; text-decoration: none; border-radius: 6px;
       transition: background 0.15s, color 0.15s;
-      margin: 2px 10px;
+      margin: 1px 8px; position: relative;
+      height: 28px; overflow: hidden;
     }
+    .oc-nav-emoji { display: inline-flex; width: 18px; font-size: 0.9rem; flex-shrink: 0; justify-content: center; }
+    .oc-nav-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
     .oc-nav-item:hover { background: #f5f5f7; color: #374151; }
     .oc-nav-item .oc-nav-actions {
-      display: none; margin-left: auto; gap: 2px; flex-shrink: 0;
+      display: none; position: absolute; right: 4px; top: 50%;
+      transform: translateY(-50%); gap: 1px;
+      background: inherit; padding-left: 4px;
     }
     .oc-nav-item:hover .oc-nav-actions { display: flex; }
     .oc-nav-actions button {
-      background: none; border: none; cursor: pointer; padding: 4px 6px;
-      font-size: 0.85rem; color: #9ca3af; border-radius: 4px; line-height: 1;
+      background: none; border: none; cursor: pointer; padding: 2px 4px;
+      font-size: 0.75rem; color: #9ca3af; border-radius: 4px; line-height: 1;
     }
     .oc-nav-actions button:hover { background: #e5e7eb; color: #374151; }
     .oc-nav-actions .oc-nav-delete:hover { background: #fecaca; color: #dc2626; }
@@ -249,8 +254,8 @@
     .oc-sidebar-group { position: relative; }
     .oc-sidebar-group-header {
       display: flex; align-items: center; gap: 6px;
-      padding: 8px 20px 4px; font-size: 0.6rem; color: #9ca3af;
-      text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600;
+      padding: 8px 14px 4px; font-size: 0.65rem; color: #9ca3af;
+      text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
       cursor: pointer; user-select: none;
     }
     .oc-sidebar-group-header { cursor: grab; }
@@ -1572,9 +1577,9 @@
     </div>
     <div class="oc-nav-group">
       <div class="oc-nav-label">Control</div>
-      <a class="oc-nav-item active" data-section="governor" onclick="ocNavigate('governor')">📊 Governor</a>
-      <a class="oc-nav-item" data-section="advisory-section" onclick="ocNavigate('advisory-section')">📋 Advisory</a>
-      <a class="oc-nav-item" data-section="token-panel" onclick="ocNavigate('token-panel')">🪙 Tokens</a>
+      <a class="oc-nav-item active" data-section="governor" onclick="ocNavigate('governor')"><span class="oc-nav-emoji">📊</span><span class="oc-nav-text">Governor</span></a>
+      <a class="oc-nav-item" data-section="advisory-section" onclick="ocNavigate('advisory-section')"><span class="oc-nav-emoji">📋</span><span class="oc-nav-text">Advisory</span></a>
+      <a class="oc-nav-item" data-section="token-panel" onclick="ocNavigate('token-panel')"><span class="oc-nav-emoji">🪙</span><span class="oc-nav-text">Tokens</span></a>
     </div>
     <div class="oc-nav-group">
       <div class="oc-tree-toggle" onclick="ocToggleAgentTree(this)">
@@ -1586,10 +1591,10 @@
     </div>
     <div class="oc-nav-group">
       <div class="oc-nav-label">Resources</div>
-      <a class="oc-nav-item" data-section="repos-section" onclick="ocNavigate('repos-section')">📦 Repos</a>
-      <a class="oc-nav-item" data-section="beads-section" onclick="ocNavigate('beads-section')">🔮 Beads</a>
-      <a class="oc-nav-item" data-section="knowledge-section" onclick="ocNavigate('knowledge-section')">📚 Knowledge</a>
-      <a class="oc-nav-item" data-section="nous-section" onclick="ocNavigate('nous-section')">🧪 Strategy Lab</a>
+      <a class="oc-nav-item" data-section="repos-section" onclick="ocNavigate('repos-section')"><span class="oc-nav-emoji">📦</span><span class="oc-nav-text">Repos</span></a>
+      <a class="oc-nav-item" data-section="beads-section" onclick="ocNavigate('beads-section')"><span class="oc-nav-emoji">🔮</span><span class="oc-nav-text">Beads</span></a>
+      <a class="oc-nav-item" data-section="knowledge-section" onclick="ocNavigate('knowledge-section')"><span class="oc-nav-emoji">📚</span><span class="oc-nav-text">Knowledge</span></a>
+      <a class="oc-nav-item" data-section="nous-section" onclick="ocNavigate('nous-section')"><span class="oc-nav-emoji">🧪</span><span class="oc-nav-text">Strategy Lab</span></a>
     </div>
     <div class="oc-sidebar-footer">
     </div>
@@ -2202,7 +2207,7 @@
       const label = a.displayName || a.name;
       const emojiPrefix = a.emoji ? a.emoji + ' ' : '';
       const modeBadge = a.mode ? ` <span class="mode-badge" title="${esc(a.mode)}">${modeEmoji(a.mode)}</span>` : '';
-      return `<a class="oc-nav-item${isActive}" data-agent-nav="${esc(a.name)}" draggable="true" data-action="ocSelectAgent" data-agent="${esc(a.name)}" title="${esc(agentDesc)}"><span class="oc-agent-dot ${dotCls}"></span> ${emojiPrefix}${esc(label)}${modeBadge}<span class="oc-nav-actions"><button data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure">⚙</button><button class="oc-nav-delete" data-action="deleteAgentFromConfig" data-agent="${esc(a.name)}" title="Delete">✕</button></span></a>`;
+      return `<a class="oc-nav-item${isActive}" data-agent-nav="${esc(a.name)}" draggable="true" data-action="ocSelectAgent" data-agent="${esc(a.name)}" title="${esc(agentDesc)}"><span class="oc-agent-dot ${dotCls}"></span>${emojiPrefix ? `<span class="oc-nav-emoji">${emojiPrefix.trim()}</span>` : ''}<span class="oc-nav-text">${esc(label)}${modeBadge}</span><span class="oc-nav-actions"><button data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure">⚙</button><button class="oc-nav-delete" data-action="deleteAgentFromConfig" data-agent="${esc(a.name)}" title="Delete">✕</button></span></a>`;
     }
 
     function _sidebarBuildGroups(agents) {
@@ -2863,7 +2868,8 @@
       const session = TMUX_SESSION_PREFIX + agentName;
       const proto = window.location.protocol;
       const host = window.location.host;
-      return `${proto}//${host}/terminal/?arg=${encodeURIComponent(session)}`;
+      const t = localStorage.getItem('hive-token'); const tokenParam = t ? `&token=${encodeURIComponent(t)}` : '';
+      return `${proto}//${host}/terminal/?arg=${encodeURIComponent(session)}${tokenParam}`;
     }
 
     function renderAgents(agents) {

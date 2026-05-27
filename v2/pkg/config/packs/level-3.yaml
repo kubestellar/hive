@@ -52,7 +52,8 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: supervisor
-    kick_template: supervisor.md
+    mode: NO_GITHUB
+    kick_template: supervisor-nogithub.md
     include_repos: true
     stale_timeout: 1800
     interactions: >
@@ -73,6 +74,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
+    mode: ADVISORY
     kick_template: scanner-advisory.md
     include_repos: true
     stale_timeout: 7200
@@ -93,6 +95,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
+    mode: ADVISORY
     kick_template: ci-maintainer-advisory.md
     include_repos: true
     stale_timeout: 3600
@@ -115,7 +118,8 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: quality-measured.md
+    mode: ISSUES_AND_PRS
+    kick_template: quality-full.md
     include_repos: true
     stale_timeout: 3600
     interactions: >
@@ -136,6 +140,7 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
+    mode: ADVISORY
     kick_template: guide-advisory.md
     include_repos: true
     stale_timeout: 3600

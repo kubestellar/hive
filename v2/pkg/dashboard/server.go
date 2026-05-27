@@ -109,6 +109,11 @@ type FrontendAgent struct {
 	GovCostWeight    int    `json:"govCostWeight"`
 	GovReason        string `json:"govReason,omitempty"`
 	StatsConfig      []any  `json:"statsConfig"`
+	Mode             string `json:"mode,omitempty"`
+	ModeEmoji        string `json:"modeEmoji,omitempty"`
+	DefaultMode      string `json:"defaultMode,omitempty"`
+	IsCustomMode     bool   `json:"isCustomMode,omitempty"`
+	NeedsRestart     bool   `json:"needsRestart,omitempty"`
 }
 
 type FrontendGovernor struct {

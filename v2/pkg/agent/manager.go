@@ -55,6 +55,7 @@ type AgentProcess struct {
 	RestartCount    int
 	OutputBuffer    *RingBuffer
 	KickHistory     []KickRecord
+	LaunchedMode    AgentMode
 	tmuxSession     string
 	cancel          context.CancelFunc
 	forceRelaunch   bool
@@ -186,7 +187,7 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 	// and credential helper enforcement). COPILOT_GITHUB_TOKEN is kept for
 	// all agents — AI auth needs it; write access is gated by the
 	// --enable-all-github-mcp-tools flag (only passed for quality).
-	if !m.agentCanWrite(agent) {
+	if !m.agentMode(agent).CanPush() {
 		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GH_TOKEN").Run()
 		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GITHUB_TOKEN").Run()
 	}
@@ -252,19 +253,44 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 
 	bootstrapPrompt := m.buildBootstrapPrompt(agent)
 
+	mode := m.agentMode(agent)
+	agent.LaunchedMode = mode
+
 	switch backend {
 	case "claude":
-		launchCmd = fmt.Sprintf("%s --model %s --dangerously-skip-permissions", binary, model)
+		base := fmt.Sprintf("%s --model %s --dangerously-skip-permissions", binary, model)
+		switch {
+		case mode >= ModeIssuesAndPRs:
+			launchCmd = base
+		case mode == ModeIssuesOnly:
+			launchCmd = base +
+				" --disallowed-tools 'mcp__github__create_pull_request'" +
+				" --disallowed-tools 'mcp__github__merge_pull_request'"
+		default:
+			launchCmd = base +
+				" --disallowed-tools 'mcp__github__create_pull_request'" +
+				" --disallowed-tools 'mcp__github__create_issue'" +
+				" --disallowed-tools 'mcp__github__update_issue'" +
+				" --disallowed-tools 'mcp__github__merge_pull_request'"
+		}
 	case "copilot":
-		// Copilot CLI uses dashes in model IDs (claude-opus-4-6), not dots (claude-opus-4.6)
 		copilotModel := strings.ReplaceAll(model, ".", "-")
-		if m.agentCanWrite(agent) {
-			launchCmd = fmt.Sprintf("%s --model %s --allow-all --enable-all-github-mcp-tools", binary, copilotModel)
-		} else {
+		switch {
+		case mode >= ModeIssuesAndPRs:
+			launchCmd = fmt.Sprintf("%s --model %s --allow-all --enable-all-github-mcp-tools",
+				binary, copilotModel)
+		case mode == ModeIssuesOnly:
+			launchCmd = fmt.Sprintf("%s --model %s --allow-all --enable-all-github-mcp-tools"+
+				" --deny-tool='github(create_pull_request)'"+
+				" --deny-tool='github(merge_pull_request)'",
+				binary, copilotModel)
+		default:
 			launchCmd = fmt.Sprintf("%s --model %s --allow-all"+
 				" --deny-tool='github(create_pull_request)'"+
 				" --deny-tool='github(create_issue)'"+
-				" --deny-tool='github(update_issue)'", binary, copilotModel)
+				" --deny-tool='github(update_issue)'"+
+				" --deny-tool='github(merge_pull_request)'",
+				binary, copilotModel)
 		}
 	case "gemini":
 		launchCmd = fmt.Sprintf("%s --model %s", binary, model)
@@ -390,25 +416,21 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 	if policiesRoot == "." || policiesRoot == "" {
 		policiesRoot = "/data/policies"
 	}
-	isAdvisory := !m.agentCanWrite(agent) && m.project.ACMMLevel >= 3
+	mode := m.agentMode(agent)
+	suffix := mode.SuffixForLevel(m.project.ACMMLevel)
+
 	var paths []string
-	if isAdvisory {
-		paths = []string{
-			fmt.Sprintf("%s/%s-advisory.md", policyDir, agent.Name),
-			fmt.Sprintf("%s/%s.md", policyDir, agent.Name),
-			fmt.Sprintf("/data/agents/%s/CLAUDE.md", agent.Name),
-			filepath.Join(policiesRoot, "examples", "agents", agent.Name+"-advisory.md"),
-			filepath.Join(policiesRoot, "examples", "agents", agent.Name+".md"),
-			fmt.Sprintf("/opt/hive/examples/agents/%s.md", agent.Name),
-		}
-	} else {
-		paths = []string{
-			fmt.Sprintf("%s/%s.md", policyDir, agent.Name),
-			fmt.Sprintf("/data/agents/%s/CLAUDE.md", agent.Name),
-			filepath.Join(policiesRoot, "examples", "agents", agent.Name+".md"),
-			fmt.Sprintf("/opt/hive/examples/agents/%s.md", agent.Name),
-		}
+	if agent.Config.KickTemplate != "" {
+		paths = append(paths, fmt.Sprintf("%s/%s", policyDir, agent.Config.KickTemplate))
 	}
+	paths = append(paths,
+		fmt.Sprintf("%s/%s%s.md", policyDir, agent.Name, suffix),
+		fmt.Sprintf("%s/%s.md", policyDir, agent.Name),
+		fmt.Sprintf("/data/agents/%s/CLAUDE.md", agent.Name),
+		filepath.Join(policiesRoot, "examples", "agents", agent.Name+suffix+".md"),
+		filepath.Join(policiesRoot, "examples", "agents", agent.Name+".md"),
+		fmt.Sprintf("/opt/hive/examples/agents/%s.md", agent.Name),
+	)
 	var policyPath string
 	for _, p := range paths {
 		if _, err := os.Stat(p); err == nil {
@@ -504,17 +526,34 @@ func (m *Manager) buildProjectPreamble(agent *AgentProcess) string {
 		levelName = fmt.Sprintf("Level %d", p.ACMMLevel)
 	}
 
+	mode := m.agentMode(agent)
 	var prPolicy string
 	if !p.PRsAllowed {
-		prPolicy = "PRs NOT allowed."
-	} else if m.agentCanWrite(agent) {
-		prPolicy = "PRs allowed."
+		prPolicy = "PRs NOT allowed (project-wide)."
 	} else {
-		prPolicy = "Advisory only — beads, no issues/PRs."
+		switch mode {
+		case ModeNoGitHub:
+			prPolicy = "\U0001F507 NO GitHub interaction. Internal coordination only."
+		case ModeAdvisory:
+			prPolicy = "\U0001F4DD Advisory only — beads, no issues/PRs."
+		case ModeIssuesOnly:
+			prPolicy = "\U0001F3AB Issues ONLY — can open issues. NO PRs."
+		case ModeIssuesAndPRs:
+			if p.ACMMLevel == 5 {
+				prPolicy = "\U0001F527 Issues + PRs allowed (hold-labeled, human merges)."
+			} else {
+				prPolicy = "\U0001F527 Issues + PRs allowed."
+			}
+		case ModeIssuesPRsMerge:
+			prPolicy = "\U0001F680 Issues + PRs + auto-merge on green CI."
+		default:
+			prPolicy = "\U0001F4DD Advisory only — beads, no issues/PRs."
+		}
 	}
 
-	return fmt.Sprintf("[PROJECT] Org: %s | Repos: %s | ACMM: L%d (%s) | %s ",
-		p.Org, strings.Join(repos, ", "), p.ACMMLevel, levelName, prPolicy)
+	return fmt.Sprintf("[PROJECT] Org: %s | Repos: %s | ACMM: L%d (%s) | Mode: %s %s | %s ",
+		p.Org, strings.Join(repos, ", "), p.ACMMLevel, levelName,
+		mode.Emoji(), mode.String(), prPolicy)
 }
 
 const metricsCachePath = "/data/metrics/agent-metrics-cache.json"
@@ -1037,17 +1076,60 @@ func normalizeModelName(model string) string {
 	return model
 }
 
+// agentMode returns the GitHub interaction mode for a given agent at the current ACMM level.
+// If the agent has an explicit Mode in its config (hive.yaml or pack YAML), that takes precedence.
+// Otherwise, the default table by ACMM level is used.
+func (m *Manager) agentMode(agent *AgentProcess) AgentMode {
+	if modeStr := agent.Config.Mode; modeStr != "" {
+		if parsed, ok := ParseAgentMode(modeStr); ok {
+			return parsed
+		}
+	}
+	return DefaultAgentMode(agent.Name, m.project.ACMMLevel)
+}
+
+// DefaultAgentMode returns the default mode for a given agent name and ACMM level,
+// ignoring any hive.yaml override. Used by the dashboard to show "(default)" indicators.
+func DefaultAgentMode(agentName string, level int) AgentMode {
+	if agentName == "supervisor" {
+		return ModeNoGitHub
+	}
+
+	switch level {
+	case 1:
+		return ModeAdvisory
+	case 2:
+		return ModeAdvisory
+	case 3:
+		if agentName == "quality" {
+			return ModeIssuesAndPRs
+		}
+		return ModeAdvisory
+	case 4:
+		switch agentName {
+		case "quality", "sec-check", "ci-maintainer":
+			return ModeIssuesAndPRs
+		case "scanner", "guide":
+			return ModeIssuesOnly
+		default:
+			return ModeAdvisory
+		}
+	case 5:
+		return ModeIssuesAndPRs
+	case 6:
+		if agentName == "scanner" {
+			return ModeIssuesPRsMerge
+		}
+		return ModeIssuesAndPRs
+	default:
+		return ModeAdvisory
+	}
+}
+
 // agentCanWrite returns true if this agent is allowed to push branches and create PRs.
+// Deprecated: use agentMode() for granular mode checks.
 func (m *Manager) agentCanWrite(agent *AgentProcess) bool {
-	level := m.project.ACMMLevel
-	if level == 0 || level >= 4 {
-		return true
-	}
-	if level < 3 {
-		return false
-	}
-	// L3: only quality can write
-	return agent.Name == "quality"
+	return m.agentMode(agent).CanPush()
 }
 
 // filteredEnv returns os.Environ() with write-capable tokens removed for advisory agents.
@@ -1056,7 +1138,7 @@ func (m *Manager) agentCanWrite(agent *AgentProcess) bool {
 // from non-quality agents to enforce gh-wrapper and credential helper policies.
 func (m *Manager) filteredEnv(agent *AgentProcess) []string {
 	env := os.Environ()
-	if m.agentCanWrite(agent) {
+	if m.agentMode(agent).CanPush() {
 		return env
 	}
 	filtered := make([]string, 0, len(env))
@@ -1079,7 +1161,7 @@ var embeddedTokenRe = regexp.MustCompile(`^https://[^@]+@(github\.com/.+)$`)
 // directly in the remote URL when it clones, bypassing both the credential
 // helper (Layer 1) and env var filtering (Layer 2).
 func (m *Manager) sanitizeGitRemotes(agent *AgentProcess) {
-	if m.agentCanWrite(agent) {
+	if m.agentMode(agent).CanPush() {
 		return
 	}
 	agentDir := m.workDir + "/" + agent.Name
@@ -1126,6 +1208,11 @@ func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 		vars = append(vars, shellEnvVar("HIVE_ID", hiveID))
 	}
 	vars = append(vars, fmt.Sprintf("HIVE_ACMM_LEVEL=%d", m.project.ACMMLevel))
+
+	mode := m.agentMode(agent)
+	vars = append(vars, shellEnvVar("HIVE_AGENT_MODE", mode.String()))
+	modeFile := fmt.Sprintf("/tmp/.hive-mode-%s", agent.Name)
+	_ = os.WriteFile(modeFile, []byte(mode.String()), 0o644)
 	if sha := os.Getenv("HIVE_SHA"); sha != "" {
 		vars = append(vars, shellEnvVar("HIVE_SHA", sha))
 	}

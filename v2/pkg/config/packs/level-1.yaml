@@ -28,7 +28,8 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: guide.md
+    mode: ADVISORY
+    kick_template: guide-advisory.md
     include_repos: false
     stale_timeout: 7200
     interactions: "Standalone. Responds to user queries only."

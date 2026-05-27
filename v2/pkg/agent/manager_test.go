@@ -322,7 +322,7 @@ func TestAgentEnvVars_ContainsRequiredKeys(t *testing.T) {
 	}
 }
 
-const baseEnvVarCount = 5 // HIVE_AGENT, HIVE_AGENT_DISPLAY_NAME, HIVE_BACKEND, HIVE_MODEL, HIVE_ACMM_LEVEL
+const baseEnvVarCount = 6 // HIVE_AGENT, HIVE_AGENT_DISPLAY_NAME, HIVE_BACKEND, HIVE_MODEL, HIVE_ACMM_LEVEL, HIVE_AGENT_MODE
 
 func TestAgentEnvVars_BaseEntryCount(t *testing.T) {
 	ap := &AgentProcess{

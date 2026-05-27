@@ -59,13 +59,13 @@ func (m AgentMode) Suffix() string {
 }
 
 // SuffixForLevel returns the policy file suffix adjusted for ACMM level.
-// ISSUES_AND_PRS uses "-holdgated" at L5 (hold-labeled PRs) and "-full" at L6+.
+// ISSUES_AND_PRS uses "-holdgated" only at L5 (hold-labeled PRs) and "-full" at all other levels.
 func (m AgentMode) SuffixForLevel(level int) string {
 	if m == ModeIssuesAndPRs {
-		if level >= 6 {
-			return "-full"
+		if level == 5 {
+			return "-holdgated"
 		}
-		return "-holdgated"
+		return "-full"
 	}
 	return m.Suffix()
 }

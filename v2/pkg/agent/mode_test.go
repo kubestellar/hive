@@ -64,8 +64,8 @@ func TestSuffixForLevel(t *testing.T) {
 		level int
 		want  string
 	}{
-		{ModeIssuesAndPRs, 3, "-holdgated"},
-		{ModeIssuesAndPRs, 4, "-holdgated"},
+		{ModeIssuesAndPRs, 3, "-full"},
+		{ModeIssuesAndPRs, 4, "-full"},
 		{ModeIssuesAndPRs, 5, "-holdgated"},
 		{ModeIssuesAndPRs, 6, "-full"},
 		{ModeAdvisory, 3, "-advisory"},

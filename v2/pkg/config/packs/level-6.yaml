@@ -65,7 +65,8 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: supervisor
-    kick_template: supervisor.md
+    mode: NO_GITHUB
+    kick_template: supervisor-nogithub.md
     include_repos: true
     stale_timeout: 600
     interactions: >
@@ -86,7 +87,8 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: scanner.md
+    mode: ISSUES_PRS_MERGE
+    kick_template: scanner-automerge.md
     include_repos: true
     stale_timeout: 900
     lane_keywords: [bug, triage, fix, issue]
@@ -105,7 +107,8 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: ci-maintainer.md
+    mode: ISSUES_AND_PRS
+    kick_template: ci-maintainer-full.md
     include_repos: true
     stale_timeout: 900
     lane_keywords: [ci, build, pipeline, workflow, dependency]
@@ -125,7 +128,8 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: quality.md
+    mode: ISSUES_AND_PRS
+    kick_template: quality-full.md
     include_repos: true
     stale_timeout: 900
     interactions: >
@@ -143,7 +147,8 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: guide.md
+    mode: ISSUES_AND_PRS
+    kick_template: guide-full.md
     include_repos: true
     stale_timeout: 3600
     interactions: >
@@ -161,7 +166,8 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: sec-check.md
+    mode: ISSUES_AND_PRS
+    kick_template: sec-check-full.md
     include_repos: true
     stale_timeout: 900
     lane_keywords: [security, cve, vulnerability, audit]
@@ -181,7 +187,8 @@ agents:
     backend: copilot
     model: claude-opus-4-6
     bead_role: worker
-    kick_template: architect.md
+    mode: ISSUES_AND_PRS
+    kick_template: architect-full.md
     include_repos: true
     stale_timeout: 1800
     lane_keywords: [refactor, architecture, rfc, design, feature]
@@ -200,7 +207,8 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: strategist.md
+    mode: ISSUES_AND_PRS
+    kick_template: strategist-full.md
     include_repos: false
     stale_timeout: 1800
     lane_keywords: [strategy, roadmap, planning]
@@ -220,7 +228,8 @@ agents:
     backend: copilot
     model: claude-sonnet-4-6
     bead_role: worker
-    kick_template: outreach.md
+    mode: ISSUES_AND_PRS
+    kick_template: outreach-full.md
     include_repos: false
     stale_timeout: 1800
     lane_keywords: [community, adopters, outreach, ecosystem]

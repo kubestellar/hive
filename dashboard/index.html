@@ -5530,8 +5530,10 @@ function burnAreaChart() {
           if (m.text != null) {
             el.textContent = m.text;
           } else if (m.html != null) {
-            // Legacy format — escape before rendering
-            el.textContent = m.html.replace(/<[^>]*>/g, '');
+            // Legacy format — extract plain text safely via DOM parser
+            const tmp = document.createElement('div');
+            tmp.innerHTML = m.html;
+            el.textContent = tmp.textContent || '';
           }
           chatMessages.appendChild(el);
         });

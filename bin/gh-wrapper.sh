@@ -84,112 +84,124 @@ if { [ "$subcmd" = "issue" ] || [ "$subcmd" = "pr" ]; } && [ "$action" = "list" 
   exit 1
 fi
 
-# Block supervisor from creating issues (supervisor observes and reports only)
-if [ "$subcmd" = "issue" ] && [ "$action" = "create" ]; then
-  if [[ "${AGENT_ID:-}" == "supervisor" || "${HIVE_AGENT:-}" == "supervisor" ]]; then
-    echo "⛔ BLOCKED: supervisor cannot create issues. Supervisor observes and reports only." >&2
-    exit 1
-  fi
+# ── Mode-based enforcement (hot-reloadable via mode file) ──
+# Read mode from file first (updated by Manager on mode change), fallback to env var.
+AGENT_NAME_GW="${HIVE_AGENT:-${HIVE_AGENT_ID:-unknown}}"
+MODE_FILE="/tmp/.hive-mode-${AGENT_NAME_GW}"
+if [ -f "$MODE_FILE" ]; then
+  AGENT_MODE="$(cat "$MODE_FILE")"
+else
+  AGENT_MODE="${HIVE_AGENT_MODE:-}"
 fi
-
-# ── ACMM level enforcement ──
-# At L1/L2: block issue create, pr create, pr merge.
-# Exception: commenting on the advisory issue is always allowed.
 ACMM_LEVEL="${HIVE_ACMM_LEVEL:-0}"
 ADVISORY_ISSUE="${HIVE_ADVISORY_ISSUE:-}"
 
-if [ "$ACMM_LEVEL" -gt 0 ] && [ "$ACMM_LEVEL" -lt 3 ]; then
+# Helper: capture advisory finding to JSONL for governor digest
+_capture_advisory_finding() {
+  local _adv_title="" _adv_body="" _next_is_title=false _next_is_body=false
+  for arg in "${args[@]}"; do
+    if $_next_is_title; then _adv_title="$arg"; _next_is_title=false; continue; fi
+    if $_next_is_body;  then _adv_body="$arg";  _next_is_body=false;  continue; fi
+    case "$arg" in
+      --title)   _next_is_title=true ;;
+      --title=*) _adv_title="${arg#--title=}" ;;
+      --body)    _next_is_body=true ;;
+      --body=*)  _adv_body="${arg#--body=}" ;;
+      -t)        _next_is_title=true ;;
+      -b)        _next_is_body=true ;;
+    esac
+  done
+  local ADVISORY_DIR="/data/advisory"
+  mkdir -p "$ADVISORY_DIR"
+  python3 -c "
+import json, datetime, sys
+f = {
+    'agent': '${AGENT_NAME_GW}',
+    'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
+    'type': 'issue',
+    'severity': 'medium',
+    'title': sys.argv[1],
+    'detail': sys.argv[2][:500] if len(sys.argv[2]) > 500 else sys.argv[2]
+}
+with open('${ADVISORY_DIR}/${AGENT_NAME_GW}.jsonl', 'a') as fh:
+    fh.write(json.dumps(f) + '\n')
+" "${_adv_title:-untitled}" "${_adv_body:-}" 2>/dev/null || true
+}
+
+if [ -n "$AGENT_MODE" ]; then
+  # Mode-based enforcement (preferred path)
+  case "$AGENT_MODE" in
+    NO_GITHUB)
+      if [ "$subcmd" = "issue" ] || [ "$subcmd" = "pr" ]; then
+        echo "🔇 BLOCKED: ${AGENT_NAME_GW} is in NO_GITHUB mode. No GitHub interaction allowed." >&2
+        exit 1
+      fi
+      ;;
+    ADVISORY)
+      if [ "$subcmd" = "issue" ] && [ "$action" = "create" ]; then
+        _capture_advisory_finding
+        echo "📝 BLOCKED: ${AGENT_NAME_GW} is in ADVISORY mode. Finding saved to digest." >&2
+        [ -n "$ADVISORY_ISSUE" ] && echo "Will appear in advisory issue #${ADVISORY_ISSUE} at next governor cycle." >&2
+        exit 1
+      fi
+      if [ "$subcmd" = "pr" ] && { [ "$action" = "create" ] || [ "$action" = "merge" ]; }; then
+        echo "📝 BLOCKED: ${AGENT_NAME_GW} is in ADVISORY mode. No PRs allowed." >&2
+        exit 1
+      fi
+      ;;
+    ISSUES_ONLY)
+      if [ "$subcmd" = "pr" ] && { [ "$action" = "create" ] || [ "$action" = "merge" ]; }; then
+        echo "🎫 BLOCKED: ${AGENT_NAME_GW} is in ISSUES_ONLY mode. No PRs allowed." >&2
+        exit 1
+      fi
+      ;;
+    ISSUES_AND_PRS)
+      if [ "$subcmd" = "pr" ] && [ "$action" = "merge" ]; then
+        echo "🔧 BLOCKED: ${AGENT_NAME_GW} is in ISSUES_AND_PRS mode. Merging requires human approval." >&2
+        exit 1
+      fi
+      # Auto-add hold label for L5 PRs
+      if [ "$ACMM_LEVEL" = "5" ] && [ "$subcmd" = "pr" ] && [ "$action" = "create" ]; then
+        args+=("--label" "hold")
+      fi
+      ;;
+    ISSUES_PRS_MERGE)
+      # Everything allowed — merge-eligible gate still checked below
+      ;;
+  esac
+else
+  # Fallback: level-based enforcement (for containers without HIVE_AGENT_MODE)
   if [ "$subcmd" = "issue" ] && [ "$action" = "create" ]; then
-    # Extract --title and --body from args to save as advisory finding
-    _adv_title="" _adv_body="" _next_is_title=false _next_is_body=false
-    for arg in "${args[@]}"; do
-      if $_next_is_title; then _adv_title="$arg"; _next_is_title=false; continue; fi
-      if $_next_is_body;  then _adv_body="$arg";  _next_is_body=false;  continue; fi
-      case "$arg" in
-        --title)   _next_is_title=true ;;
-        --title=*) _adv_title="${arg#--title=}" ;;
-        --body)    _next_is_body=true ;;
-        --body=*)  _adv_body="${arg#--body=}" ;;
-        -t)        _next_is_title=true ;;
-        -b)        _next_is_body=true ;;
-      esac
-    done
-    # Write advisory finding to JSONL for governor digest
-    ADVISORY_DIR="/data/advisory"
-    mkdir -p "$ADVISORY_DIR"
-    AGENT_NAME="${HIVE_AGENT:-unknown}"
-    python3 -c "
-import json, datetime, sys
-f = {
-    'agent': '${AGENT_NAME}',
-    'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
-    'type': 'issue',
-    'severity': 'medium',
-    'title': sys.argv[1],
-    'detail': sys.argv[2][:500] if len(sys.argv[2]) > 500 else sys.argv[2]
-}
-with open('${ADVISORY_DIR}/${AGENT_NAME}.jsonl', 'a') as fh:
-    fh.write(json.dumps(f) + '\n')
-" "${_adv_title:-untitled}" "${_adv_body:-}" 2>/dev/null || true
-    echo "⛔ BLOCKED: gh issue create is not allowed at ACMM L${ACMM_LEVEL}." >&2
-    echo "L1/L2 agents are advisory-only. Finding saved to advisory digest." >&2
-    if [ -n "$ADVISORY_ISSUE" ]; then
-      echo "Finding will appear in advisory issue #${ADVISORY_ISSUE} at next governor cycle." >&2
+    if [[ "${AGENT_ID:-}" == "supervisor" || "${HIVE_AGENT:-}" == "supervisor" ]]; then
+      echo "⛔ BLOCKED: supervisor cannot create issues." >&2
+      exit 1
     fi
-    exit 1
   fi
-  if [ "$subcmd" = "pr" ] && { [ "$action" = "create" ] || [ "$action" = "merge" ]; }; then
-    echo "⛔ BLOCKED: gh pr ${action} is not allowed at ACMM L${ACMM_LEVEL}." >&2
-    echo "L1/L2 agents are advisory-only. No PRs allowed." >&2
-    exit 1
+  if [ "$ACMM_LEVEL" -gt 0 ] && [ "$ACMM_LEVEL" -lt 3 ]; then
+    if [ "$subcmd" = "issue" ] && [ "$action" = "create" ]; then
+      _capture_advisory_finding
+      echo "⛔ BLOCKED: gh issue create is not allowed at ACMM L${ACMM_LEVEL}. Finding saved." >&2
+      exit 1
+    fi
+    if [ "$subcmd" = "pr" ] && { [ "$action" = "create" ] || [ "$action" = "merge" ]; }; then
+      echo "⛔ BLOCKED: gh pr ${action} is not allowed at ACMM L${ACMM_LEVEL}." >&2
+      exit 1
+    fi
   fi
-fi
-# At L3: only quality agent can create issues and hold-gated PRs. All others are advisory.
-# Merging is blocked for ALL agents at L3.
-if [ "$ACMM_LEVEL" -eq 3 ]; then
-  AGENT_NAME_L3="${HIVE_AGENT:-${HIVE_AGENT_ID:-unknown}}"
-  if [ "$subcmd" = "pr" ] && [ "$action" = "merge" ]; then
-    echo "⛔ BLOCKED: gh pr merge is not allowed at ACMM L3." >&2
-    echo "L3 PRs are hold-gated — merging requires human approval." >&2
-    exit 1
-  fi
-  if [ "$subcmd" = "issue" ] && [ "$action" = "create" ] && [ "$AGENT_NAME_L3" != "quality" ]; then
-    _adv_title="" _adv_body="" _next_is_title=false _next_is_body=false
-    for arg in "${args[@]}"; do
-      if $_next_is_title; then _adv_title="$arg"; _next_is_title=false; continue; fi
-      if $_next_is_body;  then _adv_body="$arg";  _next_is_body=false;  continue; fi
-      case "$arg" in
-        --title)   _next_is_title=true ;;
-        --title=*) _adv_title="${arg#--title=}" ;;
-        --body)    _next_is_body=true ;;
-        --body=*)  _adv_body="${arg#--body=}" ;;
-        -t)        _next_is_title=true ;;
-        -b)        _next_is_body=true ;;
-      esac
-    done
-    ADVISORY_DIR="/data/advisory"
-    mkdir -p "$ADVISORY_DIR"
-    python3 -c "
-import json, datetime, sys
-f = {
-    'agent': '${AGENT_NAME_L3}',
-    'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
-    'type': 'issue',
-    'severity': 'medium',
-    'title': sys.argv[1],
-    'detail': sys.argv[2][:500] if len(sys.argv[2]) > 500 else sys.argv[2]
-}
-with open('${ADVISORY_DIR}/${AGENT_NAME_L3}.jsonl', 'a') as fh:
-    fh.write(json.dumps(f) + '\n')
-" "${_adv_title:-untitled}" "${_adv_body:-}" 2>/dev/null || true
-    echo "⛔ BLOCKED: only the quality agent can create issues at ACMM L3." >&2
-    echo "Agent '${AGENT_NAME_L3}' is advisory-only at L3. Finding saved to advisory digest." >&2
-    exit 1
-  fi
-  if [ "$subcmd" = "pr" ] && [ "$action" = "create" ] && [ "$AGENT_NAME_L3" != "quality" ]; then
-    echo "⛔ BLOCKED: only the quality agent can create PRs at ACMM L3." >&2
-    echo "Agent '${AGENT_NAME_L3}' is advisory-only at L3. No PRs allowed." >&2
-    exit 1
+  if [ "$ACMM_LEVEL" -eq 3 ]; then
+    if [ "$subcmd" = "pr" ] && [ "$action" = "merge" ]; then
+      echo "⛔ BLOCKED: gh pr merge is not allowed at ACMM L3." >&2
+      exit 1
+    fi
+    if [ "$subcmd" = "issue" ] && [ "$action" = "create" ] && [ "$AGENT_NAME_GW" != "quality" ]; then
+      _capture_advisory_finding
+      echo "⛔ BLOCKED: only quality can create issues at ACMM L3. Finding saved." >&2
+      exit 1
+    fi
+    if [ "$subcmd" = "pr" ] && [ "$action" = "create" ] && [ "$AGENT_NAME_GW" != "quality" ]; then
+      echo "⛔ BLOCKED: only quality can create PRs at ACMM L3." >&2
+      exit 1
+    fi
   fi
 fi
 

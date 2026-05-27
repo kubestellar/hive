@@ -5,20 +5,36 @@
 
 set -euo pipefail
 
-# ── ACMM enforcement: block git push for advisory-only agents ──
+# ── Mode-based enforcement: block git push for agents without push capability ──
 AGENT="${HIVE_AGENT:-}"
-ACMM="${HIVE_ACMM_LEVEL:-0}"
 
-if [ -n "$AGENT" ] && [ "$ACMM" -gt 0 ]; then
-  # L1/L2: no agent can push
-  if [ "$ACMM" -lt 3 ]; then
-    echo "⛔ git push blocked: ACMM L${ACMM} agents are advisory-only" >&2
-    exit 1
-  fi
-  # L3: only quality can push
-  if [ "$ACMM" -eq 3 ] && [ "$AGENT" != "quality" ]; then
-    echo "⛔ git push blocked: only quality agent can push at ACMM L3" >&2
-    exit 1
+# Read mode from file first (hot-reloadable), fallback to env var
+MODE_FILE="/tmp/.hive-mode-${AGENT}"
+if [ -f "$MODE_FILE" ]; then
+  AGENT_MODE="$(cat "$MODE_FILE")"
+else
+  AGENT_MODE="${HIVE_AGENT_MODE:-}"
+fi
+
+if [ -n "$AGENT_MODE" ]; then
+  case "$AGENT_MODE" in
+    NO_GITHUB|ADVISORY|ISSUES_ONLY)
+      echo "⛔ git push blocked: ${AGENT} is in ${AGENT_MODE} mode" >&2
+      exit 1
+      ;;
+  esac
+else
+  # Fallback: level-based enforcement
+  ACMM="${HIVE_ACMM_LEVEL:-0}"
+  if [ -n "$AGENT" ] && [ "$ACMM" -gt 0 ]; then
+    if [ "$ACMM" -lt 3 ]; then
+      echo "⛔ git push blocked: ACMM L${ACMM} agents are advisory-only" >&2
+      exit 1
+    fi
+    if [ "$ACMM" -eq 3 ] && [ "$AGENT" != "quality" ]; then
+      echo "⛔ git push blocked: only quality agent can push at ACMM L3" >&2
+      exit 1
+    fi
   fi
 fi
 

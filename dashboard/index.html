@@ -51,11 +51,20 @@
     body.light-mode .gh-rate-alert { border-radius: 8px; }
 
     /* Light sidebar */
+    :root { --sidebar-w: 232px; }
     .oc-sidebar {
-      position: fixed; top: 0; left: 0; bottom: 0; width: 232px;
+      position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
       background: #ffffff; border-right: 1px solid #e9ecef;
       display: flex; flex-direction: column; padding: 0;
       z-index: 100; overflow-y: auto;
+    }
+    .oc-sidebar-resize {
+      position: fixed; top: 0; bottom: 0; width: 5px;
+      left: calc(var(--sidebar-w) - 2px);
+      cursor: col-resize; z-index: 101;
+    }
+    .oc-sidebar-resize:hover, .oc-sidebar-resize.dragging {
+      background: rgba(220,38,38,0.25);
     }
     .oc-sidebar-logo {
       display: flex; align-items: center; gap: 10px;
@@ -75,12 +84,15 @@
       content: ''; flex: 1; height: 1px; background: #e5e7eb;
     }
     .oc-nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 20px; font-size: 0.88rem; color: #4b5563;
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 12px; font-size: 0.88rem; color: #4b5563;
       cursor: pointer; text-decoration: none; border-radius: 8px;
       transition: background 0.15s, color 0.15s;
-      margin: 2px 10px;
+      margin: 2px 10px; overflow: hidden;
     }
+    .oc-nav-emoji { display: inline-flex; width: 20px; font-size: 1rem; flex-shrink: 0; justify-content: center; }
+    .oc-nav-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+    .oc-nav-mode { flex-shrink: 0; font-size: 0.9rem; margin-left: 2px; }
     .oc-nav-item:hover { background: #f5f5f7; color: #374151; }
     .oc-nav-item .oc-nav-actions {
       display: none; margin-left: auto; gap: 2px; flex-shrink: 0;
@@ -109,7 +121,7 @@
 
     /* Light top bar */
     .oc-topbar {
-      position: fixed; top: 0; left: 232px; right: 0; height: 48px;
+      position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: 48px;
       background: #ffffff; border-bottom: 1px solid #e5e7eb;
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 20px; z-index: 99;
@@ -137,7 +149,7 @@
 
     /* Light main content area */
     body.light-mode {
-      padding: 64px 20px 24px 252px; margin: 0;
+      padding: 64px 20px 24px calc(var(--sidebar-w) + 20px); margin: 0;
       max-width: 100vw; overflow-x: hidden; box-sizing: border-box;
     }
     body.light-mode > .gh-rate-alert { margin-left: 0; }
@@ -1389,6 +1401,7 @@
   <div class="gh-rate-alert" id="gh-rate-alert"></div>
 
   <!-- Light sidebar (hidden by default) -->
+  <div class="oc-sidebar-resize" id="ocSidebarResize"></div>
   <nav id="oc-sidebar" class="oc-sidebar" style="display:none">
     <div class="oc-sidebar-logo">
       <span class="oc-logo-icon">🐝</span>
@@ -1893,7 +1906,9 @@
       const isActive = _ocSelectedAgent === a.name ? ' active' : '';
       const agentDesc = AGENT_DESCRIPTIONS[a.name] || '';
       const label = a.displayName || a.name;
-      return `<a class="oc-nav-item${isActive}" data-agent-nav="${esc(a.name)}" draggable="true" data-action="ocSelectAgent" data-agent="${esc(a.name)}" title="${esc(agentDesc)}"><span class="oc-agent-dot ${dotCls}"></span> ${esc(label)}<span class="oc-nav-actions"><button data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure">⚙</button><button class="oc-nav-delete" data-action="deleteAgentFromConfig" data-agent="${esc(a.name)}" title="Delete">✕</button></span></a>`;
+      const emojiHtml = a.emoji ? `<span class="oc-nav-emoji">${a.emoji}</span>` : '';
+      const modeHtml = a.modeEmoji ? `<span class="oc-nav-mode" title="${esc(a.mode || '')}">${a.modeEmoji}</span>` : '';
+      return `<a class="oc-nav-item${isActive}" data-agent-nav="${esc(a.name)}" draggable="true" data-action="ocSelectAgent" data-agent="${esc(a.name)}" title="${esc(agentDesc)}"><span class="oc-agent-dot ${dotCls}"></span>${emojiHtml}<span class="oc-nav-text">${esc(label)}</span>${modeHtml}<span class="oc-nav-actions"><button data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure">⚙</button><button class="oc-nav-delete" data-action="deleteAgentFromConfig" data-agent="${esc(a.name)}" title="Delete">✕</button></span></a>`;
     }
 
     function _sidebarBuildGroups(agents) {
@@ -5575,6 +5590,42 @@ function burnAreaChart() {
       handle.addEventListener('pointerup', () => {
         if (startH) localStorage.setItem(CHAT_HEIGHT_KEY, chatPanel.offsetHeight);
         startH = 0;
+      });
+    })();
+
+    // Sidebar resize handle — drag right edge to resize sidebar width
+    (function initSidebarResize() {
+      const SIDEBAR_WIDTH_KEY = 'hive-sidebar-width';
+      const SIDEBAR_MIN_W = 180;
+      const SIDEBAR_MAX_W = 400;
+      const SIDEBAR_DEFAULT_W = 232;
+      const saved = parseInt(localStorage.getItem(SIDEBAR_WIDTH_KEY), 10);
+      if (saved >= SIDEBAR_MIN_W && saved <= SIDEBAR_MAX_W) {
+        document.documentElement.style.setProperty('--sidebar-w', saved + 'px');
+      }
+      const handle = document.getElementById('ocSidebarResize');
+      if (!handle) return;
+      let startX = 0, startW = 0;
+      handle.addEventListener('pointerdown', (e) => {
+        startX = e.clientX;
+        const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w'), 10) || SIDEBAR_DEFAULT_W;
+        startW = cur;
+        handle.setPointerCapture(e.pointerId);
+        handle.classList.add('dragging');
+        e.preventDefault();
+      });
+      handle.addEventListener('pointermove', (e) => {
+        if (!startW) return;
+        const newW = Math.max(SIDEBAR_MIN_W, Math.min(SIDEBAR_MAX_W, startW + (e.clientX - startX)));
+        document.documentElement.style.setProperty('--sidebar-w', newW + 'px');
+      });
+      handle.addEventListener('pointerup', () => {
+        if (startW) {
+          const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w'), 10) || SIDEBAR_DEFAULT_W;
+          localStorage.setItem(SIDEBAR_WIDTH_KEY, cur);
+        }
+        startW = 0;
+        handle.classList.remove('dragging');
       });
     })();
 

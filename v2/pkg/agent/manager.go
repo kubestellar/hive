@@ -625,6 +625,27 @@ func (m *Manager) waitForCLIReady(session string) bool {
 	}
 }
 
+// waitForInputPrompt polls until the CLI shows its input prompt (❯),
+// indicating it is ready to accept a kick. This is stricter than
+// waitForCLIReady which matches any CLI marker (including trust prompts).
+func (m *Manager) waitForInputPrompt(session string) bool {
+	deadline := time.After(inputPromptTimeout)
+	ticker := time.NewTicker(inputPromptPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-deadline:
+			return false
+		case <-ticker.C:
+			output := m.captureTmuxPane(session)
+			if strings.Contains(output, "❯") {
+				return true
+			}
+		}
+	}
+}
+
 func (m *Manager) captureTmuxPane(session string) string {
 	cmd := exec.Command("tmux", "capture-pane", "-t", session, "-p",
 		"-S", fmt.Sprintf("-%d", tmuxCaptureLines))
@@ -792,6 +813,21 @@ func (m *Manager) SendKick(name string, message string) error {
 		}
 	}
 
+	// Wait for the input prompt (❯) before sending — the CLI may be
+	// showing a trust prompt or still initializing even though
+	// tmuxPaneHasCLI matched a broad marker like "Copilot".
+	session := agent.tmuxSession
+	m.mu.Unlock()
+	if !m.waitForInputPrompt(session) {
+		m.mu.Lock()
+		return fmt.Errorf("agent %s CLI did not reach input prompt", name)
+	}
+	m.mu.Lock()
+	agent, ok = m.agents[name]
+	if !ok {
+		return fmt.Errorf("agent %s disappeared while waiting for input prompt", name)
+	}
+
 	// Clear stale input before kick (Ctrl+C then Ctrl+U)
 	_ = exec.Command("tmux", "send-keys", "-t", agent.tmuxSession, "C-c").Run()
 	time.Sleep(staleCheckDelay)
@@ -865,8 +901,10 @@ const (
 	chunkSize             = 400
 	chunkDelay            = 1 * time.Second
 	staleCheckDelay       = 1 * time.Second
-	cliReadyPollInterval = 2 * time.Second
-	cliReadyTimeout      = 60 * time.Second
+	cliReadyPollInterval  = 2 * time.Second
+	cliReadyTimeout       = 60 * time.Second
+	inputPromptPollInterval = 2 * time.Second
+	inputPromptTimeout      = 30 * time.Second
 )
 
 func (m *Manager) SeedLastKick(name string, t time.Time) {

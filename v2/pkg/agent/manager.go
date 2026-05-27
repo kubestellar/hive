@@ -175,10 +175,14 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 			_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, parts[0], parts[1]).Run()
 		}
 	}
-	// Strip write-capable tokens from advisory agent sessions
+	// Strip write-capable tokens from advisory agent sessions.
+	// COPILOT_GITHUB_TOKEN must be stripped because Copilot CLI uses it for
+	// both AI auth AND GitHub API writes (push, PR create) — we cannot
+	// selectively block writes while keeping AI auth via this token.
 	if !m.agentCanWrite(agent) {
 		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GH_TOKEN").Run()
 		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GITHUB_TOKEN").Run()
+		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "COPILOT_GITHUB_TOKEN").Run()
 	}
 
 	m.logger.Info("tmux session created", "name", agent.Name, "session", agent.tmuxSession)
@@ -980,10 +984,9 @@ func (m *Manager) agentCanWrite(agent *AgentProcess) bool {
 }
 
 // filteredEnv returns os.Environ() with write-capable tokens removed for advisory agents.
-// GH_TOKEN and GITHUB_TOKEN are stripped because git and gh use them for push/PR operations.
-// COPILOT_GITHUB_TOKEN is kept for all agents — Copilot CLI requires it for AI authentication
-// (not GitHub write ops). Write blocking relies on the credential helper (Layer 1) and
-// remote URL sanitization (Layer 3).
+// COPILOT_GITHUB_TOKEN must be stripped because Copilot CLI uses it for both AI
+// authentication AND GitHub API writes (push, PR create, issue create) — there is
+// no way to allow AI auth while blocking writes via this token.
 func (m *Manager) filteredEnv(agent *AgentProcess) []string {
 	env := os.Environ()
 	if m.agentCanWrite(agent) {
@@ -991,7 +994,8 @@ func (m *Manager) filteredEnv(agent *AgentProcess) []string {
 	}
 	filtered := make([]string, 0, len(env))
 	for _, e := range env {
-		if strings.HasPrefix(e, "GH_TOKEN=") ||
+		if strings.HasPrefix(e, "COPILOT_GITHUB_TOKEN=") ||
+			strings.HasPrefix(e, "GH_TOKEN=") ||
 			strings.HasPrefix(e, "GITHUB_TOKEN=") {
 			continue
 		}

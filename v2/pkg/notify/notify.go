@@ -6,18 +6,27 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/config"
 )
 
-const httpTimeoutSeconds = 10
+const (
+	httpTimeoutSeconds      = 10
+	errorDedupeWindowSeconds = 60
+)
 
 type Notifier struct {
 	cfg    config.NotificationsConfig
 	hiveID string
 	client *http.Client
 	logger *slog.Logger
+
+	mu              sync.Mutex
+	lastNtfyErr     string
+	lastNtfyErrTime time.Time
+	ntfyErrCount    int
 }
 
 func New(cfg config.NotificationsConfig, logger *slog.Logger) *Notifier {
@@ -63,7 +72,7 @@ func (n *Notifier) sendNtfy(title, message string, priority Priority) {
 
 	req, err := http.NewRequest("POST", url, bytes.NewBufferString(message))
 	if err != nil {
-		n.logger.Warn("ntfy request creation failed", "error", err)
+		n.logNtfyError("ntfy request creation failed", err.Error())
 		return
 	}
 
@@ -72,14 +81,47 @@ func (n *Notifier) sendNtfy(title, message string, priority Priority) {
 
 	resp, err := n.client.Do(req)
 	if err != nil {
-		n.logger.Warn("ntfy send failed", "error", err)
+		n.logNtfyError("ntfy send failed", err.Error())
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		n.logger.Warn("ntfy returned error", "status", resp.StatusCode)
+		n.logNtfyError("ntfy returned error", fmt.Sprintf("status=%d", resp.StatusCode))
+		return
 	}
+
+	n.logger.Debug("ntfy sent", "title", title)
+}
+
+// logNtfyError deduplicates repeated ntfy errors within a window.
+// Logs the first occurrence immediately, then a summary when the error
+// class changes or the window expires.
+func (n *Notifier) logNtfyError(msg, errDetail string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	now := time.Now()
+	windowExpired := now.Sub(n.lastNtfyErrTime) > errorDedupeWindowSeconds*time.Second
+
+	if n.lastNtfyErr == msg && !windowExpired {
+		n.ntfyErrCount++
+		return
+	}
+
+	// Flush previous suppressed count
+	if n.ntfyErrCount > 0 {
+		n.logger.Warn("ntfy errors suppressed",
+			"message", n.lastNtfyErr,
+			"suppressed_count", n.ntfyErrCount,
+			"window_seconds", errorDedupeWindowSeconds,
+		)
+	}
+
+	n.logger.Warn(msg, "error", errDetail)
+	n.lastNtfyErr = msg
+	n.lastNtfyErrTime = now
+	n.ntfyErrCount = 0
 }
 
 func (n *Notifier) sendSlack(title, message string) {

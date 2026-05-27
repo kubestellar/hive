@@ -757,6 +757,19 @@ func runEvalCycle(
 				continue
 			}
 			gov.RecordKick(msg.Agent)
+
+			// Log token state at time of kick for cost attribution
+			if tokenCollector != nil {
+				if summary := tokenCollector.Summary(); summary != nil {
+					agentTokens := summary.ByAgent[msg.Agent]
+					logger.Info("kick token snapshot",
+						"agent", msg.Agent,
+						"agent_tokens", agentTokens,
+						"total_tokens", summary.TotalTokens,
+						"total_sessions", summary.SessionCount,
+					)
+				}
+			}
 		}
 	}
 
@@ -796,6 +809,17 @@ func runEvalCycle(
 		if err != nil {
 			logger.Warn("failed to read advisory findings", "error", err)
 		} else if len(findings) > 0 {
+			// Log each new finding for the audit trail
+			for _, f := range findings {
+				logger.Info("advisory finding ingested",
+					"agent", f.Agent,
+					"severity", f.Severity,
+					"type", f.Type,
+					"title", f.Title,
+					"file", f.File,
+					"line", f.Line,
+				)
+			}
 			if persisted := advisory.PersistAsBeads(findings, beadStores); persisted > 0 {
 				logger.Info("advisory findings persisted as beads", "count", persisted)
 			}
@@ -812,6 +836,25 @@ func runEvalCycle(
 		statusPayload.AdvisoryDigest = digest
 
 		if digest.TotalCount > 0 {
+			// Log severity breakdown and contributing agents
+			bySeverity := map[string]int{"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+			agentNames := make([]string, 0, len(digest.ByAgent))
+			for agentName, findings := range digest.ByAgent {
+				agentNames = append(agentNames, fmt.Sprintf("%s(%d)", agentName, len(findings)))
+				for _, f := range findings {
+					bySeverity[strings.ToLower(f.Severity)]++
+				}
+			}
+			logger.Info("advisory digest built",
+				"total_findings", digest.TotalCount,
+				"critical", bySeverity["critical"],
+				"high", bySeverity["high"],
+				"medium", bySeverity["medium"],
+				"low", bySeverity["low"],
+				"agents", strings.Join(agentNames, ", "),
+				"resolved_count", len(digest.RecentlyResolved),
+			)
+
 			md := advisory.FormatDigestMarkdown(digest)
 			if md != "" {
 				primaryRepo := cfg.Project.PrimaryRepo

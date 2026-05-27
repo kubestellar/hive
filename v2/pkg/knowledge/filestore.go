@@ -21,12 +21,13 @@ const (
 // and exposes them as knowledge facts. It supports search, read, list, and stats
 // operations compatible with the wiki Client interface.
 type FileStore struct {
-	rootDir     string
-	name        string
-	mu          sync.RWMutex
-	pages       map[string]filePage
-	lastIndexed time.Time
-	logger      *slog.Logger
+	rootDir       string
+	name          string
+	mu            sync.RWMutex
+	pages         map[string]filePage
+	lastIndexed   time.Time
+	logger        *slog.Logger
+	prevPageCount int
 }
 
 type filePage struct {
@@ -116,11 +117,20 @@ func (s *FileStore) reindex() {
 	}
 
 	s.mu.Lock()
+	prevCount := s.prevPageCount
 	s.pages = pages
 	s.lastIndexed = time.Now()
+	s.prevPageCount = len(pages)
 	s.mu.Unlock()
 
-	s.logger.Info("vault indexed", "name", s.name, "dir", s.rootDir, "pages", len(pages))
+	if len(pages) != prevCount {
+		s.logger.Info("vault indexed",
+			"name", s.name,
+			"dir", s.rootDir,
+			"pages", len(pages),
+			"page_delta", len(pages)-prevCount,
+		)
+	}
 }
 
 func (s *FileStore) refreshIfStale() {

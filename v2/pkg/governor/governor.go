@@ -138,12 +138,15 @@ func (g *Governor) Evaluate(queueIssues, queuePRs, queueHold, slaViolations int)
 	g.state.LastEval = time.Now()
 
 	newMode := g.computeMode(queueIssues)
-	if newMode != g.state.Mode {
+	modeChanged := newMode != g.state.Mode
+	if modeChanged {
 		g.logger.Info("governor mode change",
 			"from", g.state.Mode,
 			"to", newMode,
 			"issues", queueIssues,
 			"prs", queuePRs,
+			"hold", queueHold,
+			"sla_violations", slaViolations,
 		)
 		change := ModeChange{
 			Timestamp: time.Now(),
@@ -156,6 +159,23 @@ func (g *Governor) Evaluate(queueIssues, queuePRs, queueHold, slaViolations int)
 	}
 
 	g.updateCadences()
+
+	if modeChanged {
+		for agentName, cadence := range g.state.Cadences {
+			if cadence.Paused {
+				g.logger.Info("agent cadence: paused by mode",
+					"agent", agentName,
+					"mode", g.state.Mode,
+				)
+			} else if cadence.Interval > 0 {
+				g.logger.Info("agent cadence: active",
+					"agent", agentName,
+					"mode", g.state.Mode,
+					"interval", cadence.Interval.String(),
+				)
+			}
+		}
+	}
 
 	due := g.agentsDueForKick()
 

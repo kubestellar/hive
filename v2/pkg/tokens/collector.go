@@ -77,6 +77,9 @@ type Collector struct {
 	latest              *AggregateSummary
 	issueCosts          map[string]int64
 	scanInterval        time.Duration
+	prevSessionCount    int
+	prevTotalTokens     int64
+	prevByAgent         map[string]int64
 }
 
 func NewCollector(sessionsDir string, logger *slog.Logger) *Collector {
@@ -87,6 +90,7 @@ func NewCollector(sessionsDir string, logger *slog.Logger) *Collector {
 		logger:       logger,
 		issueCosts:   make(map[string]int64),
 		scanInterval: defaultScanInterval,
+		prevByAgent:  make(map[string]int64),
 	}
 	c.loadSnapshot()
 	return c
@@ -132,10 +136,6 @@ func (c *Collector) scan() {
 			c.logger.Warn("claude session scan failed", "error", err)
 		} else if claudeAgg != nil && claudeAgg.SessionCount > 0 {
 			MergeAggregates(agg, claudeAgg)
-			c.logger.Info("merged claude sessions",
-				"claude_sessions", claudeAgg.SessionCount,
-				"total_sessions", agg.SessionCount,
-			)
 		}
 	}
 
@@ -145,10 +145,35 @@ func (c *Collector) scan() {
 			c.logger.Warn("copilot session scan failed", "error", err)
 		} else if copilotAgg != nil && copilotAgg.SessionCount > 0 {
 			MergeAggregates(agg, copilotAgg)
-			c.logger.Info("merged copilot sessions",
-				"copilot_sessions", copilotAgg.SessionCount,
-				"total_sessions", agg.SessionCount,
-			)
+		}
+	}
+
+	sessionDelta := agg.SessionCount - c.prevSessionCount
+	tokenDelta := agg.TotalTokens - c.prevTotalTokens
+
+	if sessionDelta != 0 || tokenDelta != 0 {
+		attrs := []any{
+			"sessions", agg.SessionCount,
+			"session_delta", sessionDelta,
+			"total_tokens", agg.TotalTokens,
+			"token_delta", tokenDelta,
+		}
+
+		// Log per-agent token deltas for any agent whose count changed
+		for agent, tokens := range agg.ByAgent {
+			prev := c.prevByAgent[agent]
+			if tokens != prev {
+				attrs = append(attrs, "delta_"+agent, tokens-prev)
+			}
+		}
+
+		c.logger.Info("token summary updated", attrs...)
+
+		c.prevSessionCount = agg.SessionCount
+		c.prevTotalTokens = agg.TotalTokens
+		c.prevByAgent = make(map[string]int64, len(agg.ByAgent))
+		for k, v := range agg.ByAgent {
+			c.prevByAgent[k] = v
 		}
 	}
 

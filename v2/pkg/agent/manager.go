@@ -162,9 +162,23 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 	}
 
 	cmd := exec.Command("tmux", "new-session", "-d", "-s", agent.tmuxSession, "-c", agentDir)
-	cmd.Env = append(m.filteredEnv(agent), m.agentEnvVars(agent)...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("creating tmux session for %s: %w", agent.Name, err)
+	}
+
+	// Set per-session env vars via tmux set-environment. cmd.Env on tmux
+	// new-session only affects the tmux client process, not the shell spawned
+	// inside the session — all sessions share the tmux server's environment.
+	for _, envVar := range m.agentEnvVars(agent) {
+		parts := strings.SplitN(envVar, "=", 2)
+		if len(parts) == 2 {
+			_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, parts[0], parts[1]).Run()
+		}
+	}
+	// Strip write-capable tokens from advisory agent sessions
+	if !m.agentCanWrite(agent) {
+		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GH_TOKEN").Run()
+		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GITHUB_TOKEN").Run()
 	}
 
 	m.logger.Info("tmux session created", "name", agent.Name, "session", agent.tmuxSession)
@@ -966,8 +980,10 @@ func (m *Manager) agentCanWrite(agent *AgentProcess) bool {
 }
 
 // filteredEnv returns os.Environ() with write-capable tokens removed for advisory agents.
-// This prevents Copilot CLI from using COPILOT_GITHUB_TOKEN to push branches or create PRs
-// via the GitHub API, bypassing the gh wrapper.
+// GH_TOKEN and GITHUB_TOKEN are stripped because git and gh use them for push/PR operations.
+// COPILOT_GITHUB_TOKEN is kept for all agents — Copilot CLI requires it for AI authentication
+// (not GitHub write ops). Write blocking relies on the credential helper (Layer 1) and
+// remote URL sanitization (Layer 3).
 func (m *Manager) filteredEnv(agent *AgentProcess) []string {
 	env := os.Environ()
 	if m.agentCanWrite(agent) {
@@ -975,8 +991,7 @@ func (m *Manager) filteredEnv(agent *AgentProcess) []string {
 	}
 	filtered := make([]string, 0, len(env))
 	for _, e := range env {
-		if strings.HasPrefix(e, "COPILOT_GITHUB_TOKEN=") ||
-			strings.HasPrefix(e, "GH_TOKEN=") ||
+		if strings.HasPrefix(e, "GH_TOKEN=") ||
 			strings.HasPrefix(e, "GITHUB_TOKEN=") {
 			continue
 		}

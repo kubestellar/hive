@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -135,6 +136,8 @@ func (m *Manager) Start(ctx context.Context, name string) error {
 	if agent.State == StateRunning {
 		return fmt.Errorf("agent %s already running", name)
 	}
+
+	m.sanitizeGitRemotes(agent)
 
 	if err := m.ensureTmuxSession(agent); err != nil {
 		return err
@@ -978,6 +981,39 @@ func (m *Manager) filteredEnv(agent *AgentProcess) []string {
 		filtered = append(filtered, e)
 	}
 	return filtered
+}
+
+// embeddedTokenRe matches git remote URLs with embedded credentials:
+// https://x-access-token:TOKEN@github.com/org/repo.git
+var embeddedTokenRe = regexp.MustCompile(`^https://[^@]+@(github\.com/.+)$`)
+
+// sanitizeGitRemotes strips embedded tokens from git remote URLs in all repos
+// under the agent's work directory. Copilot CLI embeds the GitHub App token
+// directly in the remote URL when it clones, bypassing both the credential
+// helper (Layer 1) and env var filtering (Layer 2).
+func (m *Manager) sanitizeGitRemotes(agent *AgentProcess) {
+	if m.agentCanWrite(agent) {
+		return
+	}
+	agentDir := m.workDir + "/" + agent.Name
+	_ = filepath.WalkDir(agentDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.Name() != ".git" || !d.IsDir() {
+			return nil
+		}
+		repoDir := filepath.Dir(path)
+		out, err := exec.Command("git", "-C", repoDir, "remote", "get-url", "origin").Output()
+		if err != nil {
+			return filepath.SkipDir
+		}
+		url := strings.TrimSpace(string(out))
+		if match := embeddedTokenRe.FindStringSubmatch(url); match != nil {
+			clean := "https://" + match[1]
+			_ = exec.Command("git", "-C", repoDir, "remote", "set-url", "origin", clean).Run()
+			m.logger.Info("stripped embedded token from git remote",
+				"agent", agent.Name, "repo", repoDir)
+		}
+		return filepath.SkipDir
+	})
 }
 
 func (m *Manager) agentEnvVars(agent *AgentProcess) []string {

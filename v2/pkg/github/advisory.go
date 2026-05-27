@@ -47,8 +47,10 @@ func (c *Client) EnsureAdvisoryIssue(ctx context.Context, repo string) (int, err
 	}
 
 	body := "This issue collects advisory findings from Hive agents.\n\n" +
-		"At ACMM L1/L2, agents are advisory-only — they cannot create issues or PRs. " +
-		"Instead, the governor posts periodic digest comments here summarizing what agents found.\n\n" +
+		"At lower ACMM levels, some agents work in advisory mode — they analyze code and post findings " +
+		"here but do not create issues or PRs. At higher levels, designated agents (e.g. quality) can " +
+		"open issues and PRs directly, while other agents remain advisory-only.\n\n" +
+		"The governor posts periodic digest comments summarizing what advisory agents found.\n\n" +
 		"**Do not close this issue.** It is a living document."
 
 	req := &gh.IssueRequest{

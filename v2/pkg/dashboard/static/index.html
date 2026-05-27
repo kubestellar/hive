@@ -6245,6 +6245,7 @@ function burnAreaChart() {
     setInterval(fetchTimeline, TIMELINE_REFRESH_MS);
     // ── Configuration Dialog ──────────────────────────────────────────
     let _configState = { type: null, agent: null, tab: null, data: {}, dirty: {} };
+    const _configTabMemory = {};
 
     const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Pipeline', 'Hooks', 'Restrictions', 'Stats', 'Prompt Template', 'Last Prompt'];
     const AGENT_CREATE_TABS = ['General', 'Cadences'];
@@ -6281,14 +6282,17 @@ function burnAreaChart() {
         _configState.data = { general: { clearOnKick: true, restartStrategy: 'immediate', staleTimeout: 1200 }, cadences: {} };
         switchConfigTab(tabs[0]);
       } else {
-        switchConfigTab(tabs[0]);
+        const configKey = type === 'governor' ? '__governor__' : agentName;
+        const savedTab = _configTabMemory[configKey];
+        const initialTab = savedTab && tabs.includes(savedTab) ? savedTab : tabs[0];
+        document.getElementById('config-body').innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Loading…</div>';
         loadConfigData(type, agentName).finally(() => {
           if (!_configModalOpen) return;
           const dn = (_configState.data.general || {}).displayName;
           if (dn && type !== 'governor') {
             document.querySelector('.config-title').textContent = `${dn} Configuration`;
           }
-          switchConfigTab(_configState.tab || tabs[0]);
+          switchConfigTab(initialTab);
         });
       }
     }
@@ -6565,6 +6569,8 @@ function burnAreaChart() {
 
     function switchConfigTab(tabId) {
       _configState.tab = tabId;
+      const configKey = _configState.type === 'governor' ? '__governor__' : _configState.agent;
+      if (configKey) _configTabMemory[configKey] = tabId;
       document.querySelectorAll('.config-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.tab === tabId);
       });
@@ -6972,7 +6978,7 @@ function burnAreaChart() {
         </div>`;
     }
 
-    const THRESH_BAR_MAX = 40;
+    const THRESH_BAR_MAX = 200;
     const THRESH_COLORS = { idle: '#238636', quiet: '#58a6ff', busy: '#d29922', surge: '#f85149' };
 
     function renderGovThresholds(t) {

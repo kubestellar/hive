@@ -27,12 +27,21 @@ type Finding struct {
 	Line      int       `json:"line,omitempty"`
 }
 
+// ResolvedFinding is a closed advisory bead shown in the "Recently Resolved" section.
+type ResolvedFinding struct {
+	Agent    string    `json:"agent"`
+	Title    string    `json:"title"`
+	ClosedAt time.Time `json:"closed_at"`
+	File     string    `json:"file,omitempty"`
+}
+
 // Digest is a consolidated summary of findings across agents.
 type Digest struct {
-	GeneratedAt time.Time            `json:"generated_at"`
-	Mode        string               `json:"mode"`
-	ByAgent     map[string][]Finding `json:"by_agent"`
-	TotalCount  int                  `json:"total_count"`
+	GeneratedAt      time.Time            `json:"generated_at"`
+	Mode             string               `json:"mode"`
+	ByAgent          map[string][]Finding `json:"by_agent"`
+	TotalCount       int                  `json:"total_count"`
+	RecentlyResolved []ResolvedFinding    `json:"recently_resolved,omitempty"`
 }
 
 // Store manages advisory findings on disk.
@@ -133,22 +142,35 @@ func isAdvisoryBeadType(t beads.BeadType) bool {
 	}
 }
 
+const recentlyResolvedWindow = 48 * time.Hour
+
 // BuildDigestFromBeads creates a digest by reading open advisory beads from all
 // agent bead stores. Only advisory/bug/feature beads are included — task and
 // decision beads are internal agent work items, not findings for repo owners.
+// Beads closed within the last 48 hours are included in RecentlyResolved.
 func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
 	byAgent := make(map[string][]Finding)
+	var resolved []ResolvedFinding
 	total := 0
+	cutoff := time.Now().Add(-recentlyResolvedWindow)
 	for agentName, store := range stores {
 		seen := make(map[string]bool)
 		for _, b := range store.List(beads.ListFilter{}) {
-			if b.Status == beads.StatusClosed {
-				continue
-			}
 			if !isAdvisoryBeadType(b.Type) {
 				continue
 			}
 			if b.Title == "" {
+				continue
+			}
+			if b.Status == beads.StatusClosed {
+				if b.ClosedAt != nil && b.ClosedAt.After(cutoff) {
+					resolved = append(resolved, ResolvedFinding{
+						Agent:    agentName,
+						Title:    b.Title,
+						ClosedAt: *b.ClosedAt,
+						File:     b.ExternalRef,
+					})
+				}
 				continue
 			}
 			if seen[b.Title] {
@@ -174,11 +196,15 @@ func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
 			total++
 		}
 	}
+	sort.Slice(resolved, func(i, j int) bool {
+		return resolved[i].ClosedAt.After(resolved[j].ClosedAt)
+	})
 	return &Digest{
-		GeneratedAt: time.Now(),
-		Mode:        mode,
-		ByAgent:     byAgent,
-		TotalCount:  total,
+		GeneratedAt:      time.Now(),
+		Mode:             mode,
+		ByAgent:          byAgent,
+		TotalCount:       total,
+		RecentlyResolved: resolved,
 	}
 }
 
@@ -263,6 +289,19 @@ func FormatDigestMarkdown(d *Digest) string {
 		}
 		b.WriteString("\n")
 	}
+
+	if len(d.RecentlyResolved) > 0 {
+		b.WriteString(fmt.Sprintf("### ✅ Recently Resolved (%d)\n\n", len(d.RecentlyResolved)))
+		for _, r := range d.RecentlyResolved {
+			loc := ""
+			if r.File != "" {
+				loc = fmt.Sprintf(" `%s`", r.File)
+			}
+			b.WriteString(fmt.Sprintf("- ~~%s~~%s _%s — resolved %s_\n", r.Title, loc, r.Agent, r.ClosedAt.Format("Jan 2")))
+		}
+		b.WriteString("\n")
+	}
+
 	return b.String()
 }
 

@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -290,12 +291,25 @@ func (p *GitHubProxy) forwardPlain(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, resp.Body)
 }
 
-// extractAgentName reads the agent name from the Proxy-Authorization
-// header (format: "hive <agent-name>") or falls back to empty string.
+// extractAgentName reads the agent name from the Proxy-Authorization header.
+// Supports "hive <name>" (custom) and "Basic <b64>" (standard HTTP proxy auth
+// sent automatically when the proxy URL contains userinfo, e.g. http://quality@host:port).
 func extractAgentName(r *http.Request) string {
 	auth := r.Header.Get("Proxy-Authorization")
+	if auth == "" {
+		return ""
+	}
 	if strings.HasPrefix(auth, "hive ") {
 		return strings.TrimPrefix(auth, "hive ")
+	}
+	if strings.HasPrefix(auth, "Basic ") {
+		decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(auth, "Basic "))
+		if err != nil {
+			return ""
+		}
+		// Format is "username:password" — agent name is the username portion.
+		user, _, _ := strings.Cut(string(decoded), ":")
+		return user
 	}
 	return ""
 }

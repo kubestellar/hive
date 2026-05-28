@@ -1547,6 +1547,10 @@ func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 	if m.copilotAuthToken != "" {
 		vars = append(vars, shellEnvVar("COPILOT_GITHUB_TOKEN", m.copilotAuthToken))
 	}
+	// Per-agent UIDs share CLI auth/cache from /data/home
+	if agent.UID > 0 {
+		vars = append(vars, shellEnvVar("HOME", "/data/home"))
+	}
 	return vars
 }
 

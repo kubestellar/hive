@@ -50,17 +50,14 @@ if [ "$(id -u)" = "0" ]; then
     chown -R dev:node /data/beads /home/dev 2>/dev/null || true
   fi
 
-  # Persist Copilot/Claude CLI auth across container restarts
+  # Shared CLI auth/cache lives in /data/home (persistent volume).
+  # Make it group-writable so all agent UIDs (node group) can use it.
+  # The manager sets HOME=/data/home for agent tmux sessions.
   mkdir -p /data/home /data/config/github-copilot /home/dev/.config
   ln -sfn /data/config/github-copilot /home/dev/.config/github-copilot
-  for shared in .copilot .claude .claude.json .cache/copilot; do
-    if [ -e "/data/home/${shared}" ]; then
-      mkdir -p "/home/dev/$(dirname "${shared}")"
-      ln -sfn "/data/home/${shared}" "/home/dev/${shared}"
-    fi
-  done
+  chmod -R g+rw /data/home 2>/dev/null || true
   chown -R dev:node /data/config /data/home /home/dev/.config 2>/dev/null || true
-  echo "[entrypoint] CLI config linked from /data/home"
+  echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
 
   # ── Per-agent UID isolation ──────────────────────────────────────────
   # Extract agent names from config + pack YAML, create system users,
@@ -119,16 +116,7 @@ print('\n'.join(sorted(names)))
         useradd --system -u "$AGENT_UID" -g node -m -s /bin/bash "hive-${agent_name}" 2>/dev/null || true
       fi
       mkdir -p "/home/hive-${agent_name}" "/data/agents/${agent_name}"
-      # Share CLI auth/config from /data/home so all agent UIDs can authenticate
-      mkdir -p "/home/hive-${agent_name}/.config"
-      ln -sfn /data/config/github-copilot "/home/hive-${agent_name}/.config/github-copilot"
-      for shared in .copilot .claude .claude.json .cache/copilot; do
-        if [ -e "/data/home/${shared}" ]; then
-          mkdir -p "/home/hive-${agent_name}/$(dirname "${shared}")"
-          ln -sfn "/data/home/${shared}" "/home/hive-${agent_name}/${shared}"
-        fi
-      done
-      chown -R "hive-${agent_name}:node" "/home/hive-${agent_name}" "/data/agents/${agent_name}" 2>/dev/null || true
+      chown "hive-${agent_name}:node" "/home/hive-${agent_name}" "/data/agents/${agent_name}" 2>/dev/null || true
       echo "[entrypoint] Agent user: hive-${agent_name} (UID ${AGENT_UID})"
       UID_OFFSET=$((UID_OFFSET + 1))
     done

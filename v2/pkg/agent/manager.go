@@ -47,6 +47,7 @@ type AgentProcess struct {
 	Config          config.AgentConfig
 	State           ProcessState
 	PID             int
+	UID             int
 	StartedAt       *time.Time
 	LastKick        *time.Time
 	Paused          bool
@@ -59,6 +60,7 @@ type AgentProcess struct {
 	KickHistory     []KickRecord
 	LaunchedMode    AgentMode
 	tmuxSession     string
+	tmuxSocket      string
 	cancel          context.CancelFunc
 	forceRelaunch   bool
 }
@@ -80,6 +82,7 @@ type Manager struct {
 	workDir          string
 	project          ProjectContext
 	copilotAuthToken string
+	uidMap           *UIDMap
 }
 
 func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, project ProjectContext) *Manager {
@@ -93,6 +96,14 @@ func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, proje
 	// completions; write access is gated by --enable-all-github-mcp-tools flag.
 	copilotToken := os.Getenv("COPILOT_GITHUB_TOKEN")
 
+	var uidMap *UIDMap
+	if loaded, err := LoadUIDMap(UIDMapPath); err == nil {
+		uidMap = loaded
+		logger.Info("UID map loaded", "agents", len(uidMap.Agents), "iptables", uidMap.IptablesActive)
+	} else {
+		logger.Info("no UID map found, agents will share dev UID", "path", UIDMapPath)
+	}
+
 	m := &Manager{
 		agents:           make(map[string]*AgentProcess),
 		idToName:         make(map[string]string),
@@ -100,6 +111,7 @@ func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, proje
 		workDir:          workDir,
 		project:          project,
 		copilotAuthToken: copilotToken,
+		uidMap:           uidMap,
 	}
 
 	for name, cfg := range agents {
@@ -107,13 +119,23 @@ func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, proje
 		if agentID == "" {
 			agentID = name
 		}
+		agentUID := 0
+		tmuxSocket := ""
+		if uidMap != nil {
+			agentUID = uidMap.LookupByName(name)
+			if agentUID > 0 {
+				tmuxSocket = "hive-" + name
+			}
+		}
 		m.agents[name] = &AgentProcess{
 			Name:         name,
 			ID:           agentID,
 			Config:       cfg,
 			State:        StateStopped,
+			UID:          agentUID,
 			OutputBuffer: NewRingBuffer(outputBufferCapacity),
 			tmuxSession:  "hive-" + name,
+			tmuxSocket:   tmuxSocket,
 		}
 		m.idToName[agentID] = name
 	}
@@ -161,8 +183,24 @@ func (m *Manager) Start(ctx context.Context, name string) error {
 	return m.launchInTmux(ctx, agent)
 }
 
+// tmuxBaseArgs returns the base tmux command args for an agent. When the agent
+// has a per-agent tmux socket (UID isolation), it returns ["tmux", "-L", socketName].
+// Otherwise it returns ["tmux"] for the shared tmux server.
+func (m *Manager) tmuxBaseArgs(agent *AgentProcess) []string {
+	if agent.tmuxSocket != "" {
+		return []string{"tmux", "-L", agent.tmuxSocket}
+	}
+	return []string{"tmux"}
+}
+
+// tmuxCmd builds an exec.Cmd for tmux with agent-specific socket args + the given subcommand args.
+func (m *Manager) tmuxCmd(agent *AgentProcess, args ...string) *exec.Cmd {
+	base := m.tmuxBaseArgs(agent)
+	return exec.Command(base[0], append(base[1:], args...)...)
+}
+
 func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
-	if m.tmuxSessionExists(agent.tmuxSession) {
+	if m.tmuxSessionExistsForAgent(agent) {
 		return nil
 	}
 
@@ -171,35 +209,47 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 		return fmt.Errorf("creating agent work dir %s: %w", agentDir, err)
 	}
 
-	cmd := exec.Command("tmux", "new-session", "-d", "-s", agent.tmuxSession, "-c", agentDir)
+	// When UID isolation is active, launch the tmux session under the agent's UID
+	// using setpriv. This creates an isolated tmux server per agent.
+	var cmd *exec.Cmd
+	if agent.UID > 0 {
+		setprivArgs := []string{
+			"setpriv", "--reuid", fmt.Sprintf("%d", agent.UID),
+			"--regid", "1000", "--init-groups", "--",
+		}
+		tmuxArgs := append(m.tmuxBaseArgs(agent), "new-session", "-d", "-s", agent.tmuxSession, "-c", agentDir)
+		cmd = exec.Command(setprivArgs[0], append(setprivArgs[1:], tmuxArgs...)...)
+	} else {
+		cmd = exec.Command("tmux", "new-session", "-d", "-s", agent.tmuxSession, "-c", agentDir)
+	}
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("creating tmux session for %s: %w", agent.Name, err)
 	}
 
-	// Set per-session env vars via tmux set-environment. cmd.Env on tmux
-	// new-session only affects the tmux client process, not the shell spawned
-	// inside the session — all sessions share the tmux server's environment.
+	// Set per-session env vars via tmux set-environment.
 	for _, envVar := range m.agentEnvVars(agent) {
 		parts := strings.SplitN(envVar, "=", 2)
 		if len(parts) == 2 {
-			_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, parts[0], parts[1]).Run()
+			_ = m.tmuxCmd(agent, "set-environment", "-t", agent.tmuxSession, parts[0], parts[1]).Run()
 		}
 	}
-	// Strip gh/git tokens from advisory agent sessions (they use gh-wrapper
-	// and credential helper enforcement). COPILOT_GITHUB_TOKEN is kept for
-	// all agents — AI auth needs it; write access is gated by the
-	// --enable-all-github-mcp-tools flag (only passed for quality).
+	// Strip gh/git tokens from advisory agent sessions.
 	if !m.agentMode(agent).CanPush() {
-		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GH_TOKEN").Run()
-		_ = exec.Command("tmux", "set-environment", "-t", agent.tmuxSession, "-u", "GITHUB_TOKEN").Run()
+		_ = m.tmuxCmd(agent, "set-environment", "-t", agent.tmuxSession, "-u", "GH_TOKEN").Run()
+		_ = m.tmuxCmd(agent, "set-environment", "-t", agent.tmuxSession, "-u", "GITHUB_TOKEN").Run()
 	}
 
-	m.logger.Info("tmux session created", "name", agent.Name, "session", agent.tmuxSession)
+	m.logger.Info("tmux session created", "name", agent.Name, "session", agent.tmuxSession, "uid", agent.UID, "socket", agent.tmuxSocket)
 	return nil
 }
 
 func (m *Manager) tmuxSessionExists(session string) bool {
 	cmd := exec.Command("tmux", "has-session", "-t", session)
+	return cmd.Run() == nil
+}
+
+func (m *Manager) tmuxSessionExistsForAgent(agent *AgentProcess) bool {
+	cmd := m.tmuxCmd(agent, "has-session", "-t", agent.tmuxSession)
 	return cmd.Run() == nil
 }
 
@@ -222,6 +272,20 @@ var cliPaneMarkers = []string{
 // the visible pane content for known CLI UI markers.
 func (m *Manager) tmuxPaneHasCLI(session string) bool {
 	output := m.captureTmuxPane(session)
+	if output == "" {
+		return false
+	}
+	for _, marker := range cliPaneMarkers {
+		if strings.Contains(output, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// tmuxPaneHasCLIForAgent checks for CLI markers using the agent's tmux socket.
+func (m *Manager) tmuxPaneHasCLIForAgent(agent *AgentProcess) bool {
+	output := m.captureTmuxPaneForAgent(agent)
 	if output == "" {
 		return false
 	}
@@ -324,7 +388,7 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 		}
 	}
 
-	if !agent.forceRelaunch && m.tmuxPaneHasCLI(agent.tmuxSession) {
+	if !agent.forceRelaunch && m.tmuxPaneHasCLIForAgent(agent) {
 		m.logger.Info("CLI already running in tmux pane, skipping launch", "name", agent.Name, "session", agent.tmuxSession)
 		now := time.Now()
 		agent.State = StateRunning
@@ -332,10 +396,10 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 
 		agentCtx, cancel := context.WithCancel(ctx)
 		agent.cancel = cancel
-		go m.pollTmuxOutput(agent.Name, agent.tmuxSession, agent.OutputBuffer, agentCtx)
+		go m.pollTmuxOutputForAgent(agent, agentCtx)
 
 		if backend == "copilot" {
-			go m.watchForTrustPrompt(agent.tmuxSession, agentCtx)
+			go m.watchForTrustPromptForAgent(agent, agentCtx)
 		}
 		return nil
 	}
@@ -344,9 +408,9 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	envCmd := m.buildEnvPrefix(agent)
 	fullCmd := envCmd + launchCmd
 
-	m.tmuxSendLiteral(agent.tmuxSession, fullCmd)
+	m.tmuxSendLiteralForAgent(agent, fullCmd)
 	time.Sleep(textToEnterDelay)
-	m.tmuxSendEnters(agent.tmuxSession)
+	m.tmuxSendEntersForAgent(agent)
 
 	now := time.Now()
 	agent.State = StateRunning
@@ -361,13 +425,81 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 
 	agentCtx, cancel := context.WithCancel(ctx)
 	agent.cancel = cancel
-	go m.pollTmuxOutput(agent.Name, agent.tmuxSession, agent.OutputBuffer, agentCtx)
+	go m.pollTmuxOutputForAgent(agent, agentCtx)
 
 	if backend == "copilot" {
-		go m.watchForTrustPrompt(agent.tmuxSession, agentCtx)
+		go m.watchForTrustPromptForAgent(agent, agentCtx)
 	}
 
 	return nil
+}
+
+// pollTmuxOutputForAgent is pollTmuxOutput using the agent's tmux socket.
+func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Context) {
+	const pollInterval = 3 * time.Second
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	var prevLines []string
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			output := m.captureTmuxPaneForAgent(agent)
+			if output == "" {
+				continue
+			}
+			var filtered []string
+			for _, line := range strings.Split(output, "\n") {
+				trimmed := strings.TrimRight(line, " \t")
+				if trimmed != "" {
+					filtered = append(filtered, trimmed)
+				}
+			}
+			if len(filtered) == 0 {
+				continue
+			}
+			newLines := diffNewLines(prevLines, filtered)
+			for _, l := range newLines {
+				agent.OutputBuffer.Write(l)
+				m.logOutputSignals(agent.Name, l)
+			}
+			prevLines = filtered
+		}
+	}
+}
+
+// watchForTrustPromptForAgent monitors a tmux session for Copilot's "Confirm folder trust"
+// prompt using the agent's tmux socket.
+func (m *Manager) watchForTrustPromptForAgent(agent *AgentProcess, ctx context.Context) {
+	const (
+		trustPollInterval = 2 * time.Second
+		trustMaxWait      = 120 * time.Second
+		trustCooldown     = 3 * time.Second
+	)
+	deadline := time.After(trustMaxWait)
+	ticker := time.NewTicker(trustPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-deadline:
+			return
+		case <-ticker.C:
+			output := m.captureTmuxPaneForAgent(agent)
+			if strings.Contains(output, "Confirm folder trust") || strings.Contains(output, "Do you trust the files") {
+				time.Sleep(paneCaptureSleep)
+				m.tmuxSendKeysForAgent(agent, "2")
+				time.Sleep(enterDelay)
+				m.tmuxSendKeysForAgent(agent, "Enter")
+				m.logger.Info("auto-answered folder trust prompt", "agent", agent.Name)
+				time.Sleep(trustCooldown)
+			}
+		}
+	}
 }
 
 // watchForTrustPrompt monitors a tmux session for Copilot's "Confirm folder trust"
@@ -731,6 +863,45 @@ func (m *Manager) waitForCLIReady(session string) bool {
 	}
 }
 
+// waitForCLIReadyForAgent polls the agent's tmux pane (using its socket)
+// until the CLI shows its ready prompt or the timeout expires.
+func (m *Manager) waitForCLIReadyForAgent(agent *AgentProcess) bool {
+	deadline := time.After(cliReadyTimeout)
+	ticker := time.NewTicker(cliReadyPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-deadline:
+			return false
+		case <-ticker.C:
+			if m.tmuxPaneHasCLIForAgent(agent) {
+				return true
+			}
+		}
+	}
+}
+
+// waitForInputPromptForAgent polls until the CLI shows its input prompt (❯)
+// using the agent's tmux socket.
+func (m *Manager) waitForInputPromptForAgent(agent *AgentProcess) bool {
+	deadline := time.After(inputPromptTimeout)
+	ticker := time.NewTicker(inputPromptPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-deadline:
+			return false
+		case <-ticker.C:
+			output := m.captureTmuxPaneForAgent(agent)
+			if strings.Contains(output, "❯") {
+				return true
+			}
+		}
+	}
+}
+
 // waitForInputPrompt polls until the CLI shows its input prompt (❯),
 // indicating it is ready to accept a kick. This is stricter than
 // waitForCLIReady which matches any CLI marker (including trust prompts).
@@ -762,6 +933,17 @@ func (m *Manager) captureTmuxPane(session string) string {
 	return string(out)
 }
 
+// captureTmuxPaneForAgent captures pane content using the agent's tmux socket.
+func (m *Manager) captureTmuxPaneForAgent(agent *AgentProcess) string {
+	cmd := m.tmuxCmd(agent, "capture-pane", "-t", agent.tmuxSession, "-p",
+		"-S", fmt.Sprintf("-%d", tmuxCaptureLines))
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return string(out)
+}
+
 func (m *Manager) Stop(name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -779,8 +961,7 @@ func (m *Manager) Stop(name string) error {
 		agent.cancel()
 	}
 
-	cmd := exec.Command("tmux", "send-keys", "-t", agent.tmuxSession, "C-c", "")
-	_ = cmd.Run()
+	m.tmuxSendKeysForAgent(agent, "C-c", "")
 
 	agent.State = StateStopped
 	m.logger.Info("agent stopped", "name", name)
@@ -800,16 +981,27 @@ func (m *Manager) AddAgent(name string, cfg config.AgentConfig) {
 	if agentID == "" {
 		agentID = name
 	}
+	agentUID := 0
+	tmuxSocket := ""
+	if m.uidMap != nil {
+		agentUID = m.uidMap.AllocateUID(name)
+		if agentUID > 0 {
+			tmuxSocket = "hive-" + name
+		}
+		_ = m.uidMap.Save(UIDMapPath)
+	}
 	m.agents[name] = &AgentProcess{
 		Name:         name,
 		ID:           agentID,
 		Config:       cfg,
 		State:        StateStopped,
+		UID:          agentUID,
 		OutputBuffer: NewRingBuffer(outputBufferCapacity),
 		tmuxSession:  "hive-" + name,
+		tmuxSocket:   tmuxSocket,
 	}
 	m.idToName[agentID] = name
-	m.logger.Info("agent added", "name", name, "id", agentID)
+	m.logger.Info("agent added", "name", name, "id", agentID, "uid", agentUID)
 }
 
 // UpdateConfig updates the stored config for a running agent process so that
@@ -860,7 +1052,7 @@ func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) []string {
 		if agent.Paused {
 			continue
 		}
-		if !m.tmuxSessionExists(agent.tmuxSession) {
+		if !m.tmuxSessionExistsForAgent(agent) {
 			var uptimeSeconds float64
 			if agent.StartedAt != nil {
 				uptimeSeconds = time.Since(*agent.StartedAt).Seconds()
@@ -874,7 +1066,7 @@ func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) []string {
 			crashed = append(crashed, name)
 			continue
 		}
-		if !m.tmuxPaneHasCLI(agent.tmuxSession) {
+		if !m.tmuxPaneHasCLIForAgent(agent) {
 			var uptimeSeconds float64
 			if agent.StartedAt != nil {
 				uptimeSeconds = time.Since(*agent.StartedAt).Seconds()
@@ -923,19 +1115,19 @@ func (m *Manager) SendKick(name string, message string) error {
 		return fmt.Errorf("agent %s not running", name)
 	}
 
-	if !m.tmuxSessionExists(agent.tmuxSession) {
+	if !m.tmuxSessionExistsForAgent(agent) {
 		return fmt.Errorf("tmux session %s not found", agent.tmuxSession)
 	}
 
 	// Detect crashed CLI and restart before sending kick
-	if !m.tmuxPaneHasCLI(agent.tmuxSession) {
+	if !m.tmuxPaneHasCLIForAgent(agent) {
 		m.logger.Warn("agent CLI crashed, restarting before kick", "name", name)
 		m.mu.Unlock()
 		if err := m.Restart(context.Background(), name); err != nil {
 			m.mu.Lock()
 			return fmt.Errorf("failed to restart crashed agent %s: %w", name, err)
 		}
-		if !m.waitForCLIReady(agent.tmuxSession) {
+		if !m.waitForCLIReadyForAgent(agent) {
 			m.mu.Lock()
 			return fmt.Errorf("agent %s CLI did not become ready after restart", name)
 		}
@@ -949,9 +1141,8 @@ func (m *Manager) SendKick(name string, message string) error {
 	// Wait for the input prompt (❯) before sending — the CLI may be
 	// showing a trust prompt or still initializing even though
 	// tmuxPaneHasCLI matched a broad marker like "Copilot".
-	session := agent.tmuxSession
 	m.mu.Unlock()
-	if !m.waitForInputPrompt(session) {
+	if !m.waitForInputPromptForAgent(agent) {
 		m.mu.Lock()
 		return fmt.Errorf("agent %s CLI did not reach input prompt", name)
 	}
@@ -962,35 +1153,35 @@ func (m *Manager) SendKick(name string, message string) error {
 	}
 
 	// Clear stale input before kick (Ctrl+C then Ctrl+U)
-	_ = exec.Command("tmux", "send-keys", "-t", agent.tmuxSession, "C-c").Run()
+	m.tmuxSendKeysForAgent(agent, "C-c")
 	time.Sleep(staleCheckDelay)
-	_ = exec.Command("tmux", "send-keys", "-t", agent.tmuxSession, "C-u").Run()
+	m.tmuxSendKeysForAgent(agent, "C-u")
 	time.Sleep(staleCheckDelay)
 
 	if agent.Config.ClearOnKick {
-		m.tmuxSendLiteral(agent.tmuxSession, "/clear")
+		m.tmuxSendLiteralForAgent(agent, "/clear")
 		time.Sleep(textToEnterDelay)
-		m.tmuxSendEnters(agent.tmuxSession)
+		m.tmuxSendEntersForAgent(agent)
 		time.Sleep(clearBeforeKickDelay)
 	}
 
 	// Send message in chunks (old hive pattern: 400 char max per chunk)
 	if len(message) <= chunkSize {
-		m.tmuxSendLiteral(agent.tmuxSession, message)
+		m.tmuxSendLiteralForAgent(agent, message)
 	} else {
 		for offset := 0; offset < len(message); offset += chunkSize {
 			end := offset + chunkSize
 			if end > len(message) {
 				end = len(message)
 			}
-			m.tmuxSendLiteral(agent.tmuxSession, message[offset:end])
+			m.tmuxSendLiteralForAgent(agent, message[offset:end])
 			time.Sleep(chunkDelay)
 		}
 	}
 
 	// Text and Enter must always be separate calls with a delay between
 	time.Sleep(textToEnterDelay)
-	m.tmuxSendEnters(agent.tmuxSession)
+	m.tmuxSendEntersForAgent(agent)
 
 	now := time.Now()
 	agent.LastKick = &now
@@ -1025,6 +1216,11 @@ func (m *Manager) tmuxSendLiteral(session, text string) {
 	_ = exec.Command("tmux", "send-keys", "-t", session, "-l", text).Run()
 }
 
+// tmuxSendLiteralForAgent sends text using the agent's tmux socket.
+func (m *Manager) tmuxSendLiteralForAgent(agent *AgentProcess, text string) {
+	_ = m.tmuxCmd(agent, "send-keys", "-t", agent.tmuxSession, "-l", text).Run()
+}
+
 // tmuxSendEnters sends multiple Enter presses with delays between each (old hive: 3x, 300ms apart).
 func (m *Manager) tmuxSendEnters(session string) {
 	for i := 0; i < enterCount; i++ {
@@ -1033,6 +1229,22 @@ func (m *Manager) tmuxSendEnters(session string) {
 			time.Sleep(enterDelay)
 		}
 	}
+}
+
+// tmuxSendEntersForAgent sends Enter presses using the agent's tmux socket.
+func (m *Manager) tmuxSendEntersForAgent(agent *AgentProcess) {
+	for i := 0; i < enterCount; i++ {
+		_ = m.tmuxCmd(agent, "send-keys", "-t", agent.tmuxSession, "Enter").Run()
+		if i < enterCount-1 {
+			time.Sleep(enterDelay)
+		}
+	}
+}
+
+// tmuxSendKeysForAgent sends key sequences (C-c, C-u, etc.) using the agent's tmux socket.
+func (m *Manager) tmuxSendKeysForAgent(agent *AgentProcess, keys ...string) {
+	args := append([]string{"send-keys", "-t", agent.tmuxSession}, keys...)
+	_ = m.tmuxCmd(agent, args...).Run()
 }
 
 const (
@@ -1102,6 +1314,7 @@ func (a *AgentProcess) snapshot() AgentProcess {
 		Config:          a.Config,
 		State:           a.State,
 		PID:             a.PID,
+		UID:             a.UID,
 		StartedAt:       a.StartedAt,
 		LastKick:        a.LastKick,
 		Paused:          a.Paused,
@@ -1112,6 +1325,7 @@ func (a *AgentProcess) snapshot() AgentProcess {
 		RestartCount:    a.RestartCount,
 		KickHistory:     history,
 		tmuxSession:     a.tmuxSession,
+		tmuxSocket:      a.tmuxSocket,
 		OutputBuffer:    a.OutputBuffer,
 	}
 }
@@ -1333,8 +1547,7 @@ func (m *Manager) Pause(name string) error {
 
 	agent.Paused = true
 	if agent.State == StateRunning {
-		cmd := exec.Command("tmux", "send-keys", "-t", agent.tmuxSession, "C-c", "")
-		_ = cmd.Run()
+		m.tmuxSendKeysForAgent(agent, "C-c", "")
 	}
 	agent.State = StatePaused
 	m.logger.Info("agent paused",
@@ -1375,15 +1588,13 @@ func (m *Manager) Restart(ctx context.Context, name string) error {
 	}
 
 	if agent.State == StateRunning {
-		cmd := exec.Command("tmux", "send-keys", "-t", agent.tmuxSession, "C-c", "")
-		_ = cmd.Run()
+		m.tmuxSendKeysForAgent(agent, "C-c", "")
 		if agent.cancel != nil {
 			agent.cancel()
 		}
 	}
 
-	killCmd := exec.Command("tmux", "kill-session", "-t", agent.tmuxSession)
-	_ = killCmd.Run()
+	_ = m.tmuxCmd(agent, "kill-session", "-t", agent.tmuxSession).Run()
 
 	agent.RestartCount++
 	agent.forceRelaunch = true

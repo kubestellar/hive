@@ -12,7 +12,7 @@ FROM node:24-slim
 
 # --- Layer 1: system packages (rarely changes) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ca-certificates bash curl tmux bzip2 gosu \
+    git ca-certificates bash curl tmux bzip2 gosu iptables \
  && rm -rf /var/lib/apt/lists/*
 
 # Non-root user for agent processes (Claude Code refuses --dangerously-skip-permissions as root)

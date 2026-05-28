@@ -56,6 +56,114 @@ if [ "$(id -u)" = "0" ]; then
   chown -R dev:node /data/config /home/dev/.config 2>/dev/null || true
   echo "[entrypoint] Copilot config: ~/.config/github-copilot -> /data/config/github-copilot"
 
+  # ── Per-agent UID isolation ──────────────────────────────────────────
+  # Extract agent names from config + pack YAML, create system users,
+  # write UID map, and set up iptables to force all outbound :443
+  # through the MITM proxy (so agents can't bypass it via unset HTTPS_PROXY).
+  HIVE_CONFIG="${HIVE_CONFIG:-/etc/hive/hive.yaml}"
+  HIVE_UID_BASE=2001
+  PROXY_UID=1001
+
+  # Collect agent names from hive.yaml (map keys) and pack YAML (list items)
+  AGENT_NAMES=""
+  if [ -f "$HIVE_CONFIG" ]; then
+    AGENT_NAMES=$(python3 -c "
+import yaml, sys, os
+names = set()
+with open('$HIVE_CONFIG') as f:
+    cfg = yaml.safe_load(f) or {}
+agents = cfg.get('agents', {})
+if isinstance(agents, dict):
+    names.update(agents.keys())
+elif isinstance(agents, list):
+    for a in agents:
+        if isinstance(a, dict) and 'name' in a:
+            names.add(a['name'])
+# Also check pack YAML if HIVE_LEVEL is set
+level = os.environ.get('HIVE_LEVEL', '')
+if level:
+    import glob
+    for p in glob.glob('/opt/hive/packs/level-*.yaml') + glob.glob('/data/packs/level-*.yaml'):
+        try:
+            with open(p) as pf:
+                pack = yaml.safe_load(pf) or {}
+            pack_agents = pack.get('agents', [])
+            if isinstance(pack_agents, list):
+                for a in pack_agents:
+                    if isinstance(a, dict) and 'name' in a:
+                        names.add(a['name'])
+            elif isinstance(pack_agents, dict):
+                names.update(pack_agents.keys())
+        except Exception:
+            pass
+print('\n'.join(sorted(names)))
+" 2>/dev/null) || true
+  fi
+
+  if [ -n "$AGENT_NAMES" ]; then
+    echo "[entrypoint] Creating per-agent users for UID isolation..."
+    mkdir -p /var/run/hive
+    UID_OFFSET=0
+    UID_JSON='{"agents":{'
+    FIRST=true
+    echo "$AGENT_NAMES" | while read -r agent_name; do
+      [ -z "$agent_name" ] && continue
+      AGENT_UID=$((HIVE_UID_BASE + UID_OFFSET))
+      if ! id "hive-${agent_name}" >/dev/null 2>&1; then
+        useradd --system -u "$AGENT_UID" -g node -M -s /usr/sbin/nologin "hive-${agent_name}" 2>/dev/null || true
+      fi
+      mkdir -p "/data/agents/${agent_name}"
+      chown "hive-${agent_name}:node" "/data/agents/${agent_name}" 2>/dev/null || true
+      echo "[entrypoint] Agent user: hive-${agent_name} (UID ${AGENT_UID})"
+      UID_OFFSET=$((UID_OFFSET + 1))
+    done
+
+    # Write uid-map.json using python for proper JSON
+    python3 -c "
+import json, os
+names = '''$AGENT_NAMES'''.strip().split('\n')
+names = [n for n in names if n]
+agents = {}
+for i, name in enumerate(sorted(names)):
+    agents[name] = $HIVE_UID_BASE + i
+uid_map = {
+    'agents': agents,
+    'proxy_uid': $PROXY_UID,
+    'base_uid': $HIVE_UID_BASE,
+    'iptables_active': False
+}
+os.makedirs('/var/run/hive', exist_ok=True)
+with open('/var/run/hive/uid-map.json', 'w') as f:
+    json.dump(uid_map, f, indent=2)
+print('[entrypoint] UID map written to /var/run/hive/uid-map.json')
+" 2>/dev/null || echo "[entrypoint] WARN: Failed to write UID map"
+
+    # Set up iptables: redirect all outbound :443 to the MITM proxy port,
+    # except traffic from the proxy itself (UID 1001 / dev user).
+    PROXY_PORT=18443
+    if command -v iptables >/dev/null 2>&1; then
+      if iptables -t nat -N HIVE_PROXY 2>/dev/null; then
+        iptables -t nat -A HIVE_PROXY -m owner --uid-owner "$PROXY_UID" -j RETURN
+        iptables -t nat -A HIVE_PROXY -p tcp --dport 443 -j REDIRECT --to-ports "$PROXY_PORT"
+        iptables -t nat -A OUTPUT -j HIVE_PROXY
+        echo "[entrypoint] iptables: outbound :443 -> :${PROXY_PORT} (proxy UID ${PROXY_UID} exempt)"
+        # Update uid-map to record iptables active
+        python3 -c "
+import json
+with open('/var/run/hive/uid-map.json') as f:
+    m = json.load(f)
+m['iptables_active'] = True
+with open('/var/run/hive/uid-map.json', 'w') as f:
+    json.dump(m, f, indent=2)
+" 2>/dev/null || true
+      else
+        echo "[entrypoint] WARN: iptables chain creation failed (need NET_ADMIN capability)"
+      fi
+    else
+      echo "[entrypoint] WARN: iptables not found, proxy enforcement is advisory-only"
+    fi
+  fi
+
   # Drop to non-root user for all runtime processes.
   # Claude Code refuses --dangerously-skip-permissions as root.
   if command -v gosu >/dev/null 2>&1; then

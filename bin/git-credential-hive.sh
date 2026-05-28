@@ -5,8 +5,36 @@
 
 set -euo pipefail
 
+# ── UID-based identity verification (defense-in-depth) ──
+# When running under a per-agent UID (>= 2001), derive the agent name from
+# the UID map instead of trusting the HIVE_AGENT env var (which the agent
+# could unset or spoof).
+UID_MAP_FILE="/var/run/hive/uid-map.json"
+CURRENT_UID=$(id -u)
+AGENT_UID_BASE=2001
+
+if [ "$CURRENT_UID" -ge "$AGENT_UID_BASE" ] && [ -f "$UID_MAP_FILE" ]; then
+  UID_AGENT=$(python3 -c "
+import json, sys
+with open('$UID_MAP_FILE') as f:
+    m = json.load(f)
+for name, uid in m.get('agents', {}).items():
+    if uid == $CURRENT_UID:
+        print(name)
+        sys.exit(0)
+sys.exit(1)
+" 2>/dev/null) || true
+  if [ -n "$UID_AGENT" ]; then
+    AGENT="$UID_AGENT"
+  else
+    echo "⛔ git push blocked: unknown agent UID ${CURRENT_UID}" >&2
+    exit 1
+  fi
+else
+  AGENT="${HIVE_AGENT:-}"
+fi
+
 # ── Mode-based enforcement: block git push for agents without push capability ──
-AGENT="${HIVE_AGENT:-}"
 
 # Read mode from file first (hot-reloadable), fallback to env var
 MODE_FILE="/tmp/.hive-mode-${AGENT}"

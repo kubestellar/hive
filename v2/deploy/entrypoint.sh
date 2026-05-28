@@ -110,10 +110,10 @@ print('\n'.join(sorted(names)))
       [ -z "$agent_name" ] && continue
       AGENT_UID=$((HIVE_UID_BASE + UID_OFFSET))
       if ! id "hive-${agent_name}" >/dev/null 2>&1; then
-        useradd --system -u "$AGENT_UID" -g node -M -s /bin/bash "hive-${agent_name}" 2>/dev/null || true
+        useradd --system -u "$AGENT_UID" -g node -m -s /bin/bash "hive-${agent_name}" 2>/dev/null || true
       fi
-      mkdir -p "/data/agents/${agent_name}"
-      chown "hive-${agent_name}:node" "/data/agents/${agent_name}" 2>/dev/null || true
+      mkdir -p "/home/hive-${agent_name}" "/data/agents/${agent_name}"
+      chown "hive-${agent_name}:node" "/home/hive-${agent_name}" "/data/agents/${agent_name}" 2>/dev/null || true
       echo "[entrypoint] Agent user: hive-${agent_name} (UID ${AGENT_UID})"
       UID_OFFSET=$((UID_OFFSET + 1))
     done

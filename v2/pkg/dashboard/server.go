@@ -287,7 +287,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 			"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
-		if s.authToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" {
+		if s.authToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" && r.URL.Path != "/api/auth/token" {
 			token := r.Header.Get("Authorization")
 			if token == "" {
 				token = r.URL.Query().Get("token")

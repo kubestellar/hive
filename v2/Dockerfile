@@ -12,9 +12,17 @@ FROM node:24-slim
 
 # --- Layer 1: system packages (rarely changes) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ca-certificates bash curl tmux bzip2 gosu iptables \
- && rm -rf /var/lib/apt/lists/* \
- && chmod u+s /usr/sbin/gosu
+    git ca-certificates bash curl tmux bzip2 gosu iptables gcc libc6-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+# su-exec: lightweight setuid exec for UID switching from non-root.
+# gosu rejects SUID mode, so we use su-exec (which is designed for it)
+# for the manager's dev→agent UID switches.
+RUN curl -sL -o /tmp/su-exec.c https://raw.githubusercontent.com/ncopa/su-exec/master/su-exec.c \
+ && gcc -Wall -o /usr/local/bin/su-exec /tmp/su-exec.c \
+ && chmod u+s /usr/local/bin/su-exec \
+ && rm /tmp/su-exec.c \
+ && apt-get purge -y gcc libc6-dev && apt-get autoremove -y
 
 # Non-root user for agent processes (Claude Code refuses --dangerously-skip-permissions as root)
 # node:24-slim already has group 1000 (node), so reuse it

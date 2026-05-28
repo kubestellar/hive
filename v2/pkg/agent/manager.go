@@ -193,15 +193,13 @@ func (m *Manager) tmuxBaseArgs(agent *AgentProcess) []string {
 	return []string{"tmux"}
 }
 
-// tmuxCmd builds an exec.Cmd for tmux with agent-specific socket args + the given subcommand args.
-// When UID isolation is active, wraps in gosu so the dev user can access the agent's tmux socket.
 func (m *Manager) tmuxCmd(agent *AgentProcess, args ...string) *exec.Cmd {
 	base := m.tmuxBaseArgs(agent)
 	tmuxArgs := append(base[1:], args...)
 	if agent.UID > 0 {
 		agentUser := fmt.Sprintf("hive-%s", agent.Name)
-		gosuArgs := append([]string{agentUser, base[0]}, tmuxArgs...)
-		return exec.Command("gosu", gosuArgs...)
+		suExecArgs := append([]string{agentUser, base[0]}, tmuxArgs...)
+		return exec.Command("su-exec", suExecArgs...)
 	}
 	return exec.Command(base[0], tmuxArgs...)
 }
@@ -216,15 +214,12 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 		return fmt.Errorf("creating agent work dir %s: %w", agentDir, err)
 	}
 
-	// When UID isolation is active, launch the tmux session under the agent's UID
-	// using gosu (SUID root, works from non-root). This creates an isolated tmux
-	// server per agent.
 	var cmd *exec.Cmd
 	if agent.UID > 0 {
 		agentUser := fmt.Sprintf("hive-%s", agent.Name)
-		gosuArgs := []string{"gosu", agentUser}
+		suExecArgs := []string{"su-exec", agentUser}
 		tmuxArgs := append(m.tmuxBaseArgs(agent), "new-session", "-d", "-s", agent.tmuxSession, "-c", agentDir)
-		cmd = exec.Command(gosuArgs[0], append(gosuArgs[1:], tmuxArgs...)...)
+		cmd = exec.Command(suExecArgs[0], append(suExecArgs[1:], tmuxArgs...)...)
 	} else {
 		cmd = exec.Command("tmux", "new-session", "-d", "-s", agent.tmuxSession, "-c", agentDir)
 	}

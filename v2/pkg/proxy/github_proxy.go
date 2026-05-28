@@ -193,8 +193,38 @@ func (p *GitHubProxy) proxyHTTP(client net.Conn, upstream net.Conn, agentName st
 			return // client closed or error
 		}
 
-		if !AllowedByMode(mode, req.Method, req.URL.Path) {
-			p.recordViolation(agentName, req.Method, req.URL.Path)
+		blocked := false
+		blockReason := ""
+
+		if req.Method == "POST" && IsGraphQLPath(req.URL.Path) {
+			body, readErr := io.ReadAll(io.LimitReader(req.Body, graphQLBodyLimit))
+			if req.Body != nil {
+				req.Body.Close()
+			}
+			if readErr != nil {
+				return
+			}
+			allowed, isMutation := GraphQLAllowed(mode, body)
+			if !allowed {
+				blocked = true
+				if isMutation {
+					blockReason = "graphql mutation"
+				} else {
+					blockReason = "graphql"
+				}
+			}
+			req.Body = io.NopCloser(strings.NewReader(string(body)))
+			req.ContentLength = int64(len(body))
+		} else if !AllowedByMode(mode, req.Method, req.URL.Path) {
+			blocked = true
+		}
+
+		if blocked {
+			detail := req.URL.Path
+			if blockReason != "" {
+				detail = blockReason
+			}
+			p.recordViolation(agentName, req.Method, detail)
 
 			resp := &http.Response{
 				StatusCode: http.StatusForbidden,
@@ -202,7 +232,7 @@ func (p *GitHubProxy) proxyHTTP(client net.Conn, upstream net.Conn, agentName st
 				ProtoMajor: 1,
 				ProtoMinor: 1,
 				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("⛔ ACMM proxy: %s (%s) blocked %s %s\n", agentName, mode, req.Method, req.URL.Path))),
+				Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("⛔ ACMM proxy: %s (%s) blocked %s %s\n", agentName, mode, req.Method, detail))),
 			}
 			resp.Header.Set("Content-Type", "text/plain")
 			resp.Header.Set("X-Hive-Proxy-Blocked", "true")

@@ -1,7 +1,9 @@
 package proxy
 
 import (
+	"encoding/json"
 	"regexp"
+	"strings"
 
 	"github.com/kubestellar/hive/v2/pkg/agent"
 )
@@ -67,4 +69,38 @@ func AllowedByMode(mode agent.AgentMode, method, path string) bool {
 		}
 	}
 	return false
+}
+
+// IsGraphQLPath returns true if the path is the GitHub GraphQL endpoint.
+func IsGraphQLPath(path string) bool {
+	return path == "/graphql"
+}
+
+const graphQLBodyLimit = 64 * 1024
+
+type graphQLRequest struct {
+	Query string `json:"query"`
+}
+
+// GraphQLAllowed inspects a GraphQL request body and returns whether the
+// operation is allowed for the given mode. Queries (reads) are allowed at
+// ADVISORY and above. Mutations (writes) require ISSUES_ONLY and above.
+// Returns (allowed, isMutation). Body must be the raw JSON request body.
+func GraphQLAllowed(mode agent.AgentMode, body []byte) (bool, bool) {
+	if mode < agent.ModeAdvisory {
+		return false, false
+	}
+
+	var req graphQLRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		return false, false
+	}
+
+	query := strings.TrimSpace(req.Query)
+	isMutation := strings.HasPrefix(query, "mutation")
+
+	if isMutation {
+		return mode >= agent.ModeIssuesOnly, true
+	}
+	return true, false
 }

@@ -1141,13 +1141,13 @@
     }
     .config-info:hover { background: var(--blue); color: #fff; }
     .config-info .config-tooltip {
-      display: none; position: absolute; top: calc(100% + 6px); left: 50%;
-      transform: translateX(-50%); background: var(--bg); border: 1px solid var(--border);
+      display: none; position: fixed; background: var(--bg); border: 1px solid var(--border);
       border-radius: 6px; padding: 6px 10px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       font-size: 0.7rem; font-weight: 400; text-transform: none; letter-spacing: normal;
       color: var(--text); white-space: normal; width: 240px; z-index: 10001;
       box-shadow: 0 4px 12px rgba(0,0,0,0.4); line-height: 1.4;
+      pointer-events: none;
     }
     .config-info:hover .config-tooltip { display: block; }
 
@@ -5855,6 +5855,21 @@ function burnAreaChart() {
         .replace(/\r/g, '');
     }
 
+    document.addEventListener('mouseover', (e) => {
+      const info = e.target.closest('.config-info');
+      if (!info) return;
+      const tip = info.querySelector('.config-tooltip');
+      if (!tip) return;
+      const rect = info.getBoundingClientRect();
+      const tipW = 240;
+      let left = rect.left + rect.width / 2 - tipW / 2;
+      const EDGE_PAD = 8;
+      if (left < EDGE_PAD) left = EDGE_PAD;
+      if (left + tipW > window.innerWidth - EDGE_PAD) left = window.innerWidth - EDGE_PAD - tipW;
+      tip.style.top = (rect.bottom + 6) + 'px';
+      tip.style.left = left + 'px';
+    });
+
     // ── Event delegation for actions with user-controlled data ──
     // Eliminates XSS via inline onclick="func('${unsafeValue}')" injection.
     // All agent/group names are read from data-* attributes (HTML-decoded by the browser).
@@ -7430,9 +7445,13 @@ function burnAreaChart() {
       markDirty('restrictions', 'rules', _configState.data.restrictions.agent);
     }
 
+    function normalizeRepoInput(raw) {
+      return raw.replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
+    }
+
     function addListItem(section, key, inputId) {
       const input = document.getElementById(inputId);
-      const val = input.value.trim();
+      let val = input.value.trim();
       if (!val) return;
       if (section === 'hooks') {
         if (!_configState.data.hooks) _configState.data.hooks = {};
@@ -7444,6 +7463,7 @@ function burnAreaChart() {
         _configState.data.labels.push(val);
         markDirty('labels', 'labels', _configState.data.labels);
       } else if (section === 'repos') {
+        val = normalizeRepoInput(val);
         if (!_configState.data.repos) _configState.data.repos = [];
         _configState.data.repos.push(val);
         markDirty('repos', 'repos', _configState.data.repos);

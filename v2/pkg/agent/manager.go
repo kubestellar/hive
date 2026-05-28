@@ -229,9 +229,12 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 
 	// tmux creates /tmp/tmux-{uid}/ with mode 700; ttyd runs as dev (uid 1001,
 	// node group) and needs to traverse into these dirs to attach to sockets.
+	// os.Chmod doesn't work here because the Go binary runs as dev, not as the
+	// agent user who owns the directory. Use su-exec to chmod as the agent.
 	if agent.UID > 0 {
 		tmuxDir := fmt.Sprintf("/tmp/tmux-%d", agent.UID)
-		_ = os.Chmod(tmuxDir, 0o710)
+		agentUser := fmt.Sprintf("hive-%s", agent.Name)
+		_ = exec.Command("su-exec", agentUser, "chmod", "710", tmuxDir).Run()
 	}
 
 	// Set per-session env vars via tmux set-environment.

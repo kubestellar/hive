@@ -134,8 +134,8 @@ func TestHandleAuthToken_FromEnv(t *testing.T) {
 	}
 	var body map[string]string
 	json.Unmarshal(rec.Body.Bytes(), &body)
-	if body["token"] != "••••••••••••-abc" {
-		t.Errorf("token = %q, want masked value", body["token"])
+	if body["token"] != "secret-token-abc" {
+		t.Errorf("token = %q, want real token", body["token"])
 	}
 	if body["configured"] != "true" {
 		t.Errorf("configured = %q, want true", body["configured"])
@@ -149,11 +149,25 @@ func TestHandleAuthToken_FromServer(t *testing.T) {
 	rec := doGet(s, "/api/auth/token")
 	var body map[string]string
 	json.Unmarshal(rec.Body.Bytes(), &body)
-	if body["token"] != "••••••••••••-xyz" {
-		t.Errorf("token = %q, want masked value", body["token"])
+	if body["token"] != "server-token-xyz" {
+		t.Errorf("token = %q, want real token", body["token"])
 	}
 	if body["configured"] != "true" {
 		t.Errorf("configured = %q, want true", body["configured"])
+	}
+}
+
+func TestHandleAuthToken_ISO88591Safe(t *testing.T) {
+	s, _ := apiServer(t)
+	s.authToken = "test-token-for-header-safety"
+
+	rec := doGet(s, "/api/auth/token")
+	var body map[string]string
+	json.Unmarshal(rec.Body.Bytes(), &body)
+	for _, r := range body["token"] {
+		if r > 0xFF {
+			t.Fatalf("token contains non-ISO-8859-1 character U+%04X — this breaks HTTP Authorization headers in fetch()", r)
+		}
 	}
 }
 

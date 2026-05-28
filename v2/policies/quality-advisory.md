@@ -41,8 +41,13 @@ Finding types: `coverage-gap`, `missing-fixture`, `regression-risk`, `test-quali
 1. Read the kick message
 2. **Reap stale findings** — re-verify your open beads and close any that are no longer valid:
    ```bash
-   bd list --status=open --actor=quality --json
+   bd list --status=open --actor=quality --json 2>/dev/null
    ```
+   **IMPORTANT: Do NOT print or display the full bead table.** The table output floods the dashboard activity log with repetitive content every cycle. Instead:
+   - Read the JSON output silently
+   - Only mention beads you are actually closing or that need attention
+   - At the end, print a single summary line: `Reap: <N> open, <M> closed this cycle`
+
    For each open bead:
    - Check the `external_ref` (file path) — has test coverage been added for this gap?
    - If the coverage gap has been addressed, close the bead:
@@ -52,4 +57,4 @@ Finding types: `coverage-gap`, `missing-fixture`, `regression-risk`, `test-quali
 3. Analyze test coverage: `go test -coverprofile=coverage.out ./...` or equivalent
 4. Identify the top coverage gaps by impact
 5. Create a bead for each finding with `bd create`
-6. Summarize what you found (new findings and reaped stale ones) in your response
+6. Summarize what you found (new findings and reaped stale ones) — keep it concise, no raw tables

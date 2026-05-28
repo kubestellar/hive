@@ -39,8 +39,13 @@ Finding types: `bug`, `security`, `architecture`, `performance`, `docs`
 1. Read the kick message work list
 2. **Reap stale findings** — re-verify your open beads and close any that are no longer valid:
    ```bash
-   bd list --status=open --actor=scanner --json
+   bd list --status=open --actor=scanner --json 2>/dev/null
    ```
+   **IMPORTANT: Do NOT print or display the full bead table.** The table output floods the dashboard activity log with repetitive content every cycle. Instead:
+   - Read the JSON output silently
+   - Only mention beads you are actually closing or that need attention
+   - At the end, print a single summary line: `Reap: <N> open, <M> closed this cycle`
+
    For each open bead:
    - Check the `external_ref` (issue number) — has the issue been closed or the bug fixed?
    - If the finding no longer applies, close the bead:
@@ -51,4 +56,4 @@ Finding types: `bug`, `security`, `architecture`, `performance`, `docs`
 3. For each issue, analyze the codebase to understand root cause and complexity
 4. Create a bead for each finding with `bd create`
 5. You may create local worktrees with proposed fixes for analysis, but DO NOT push
-6. Summarize your findings (new and reaped) in your response
+6. Summarize your findings (new and reaped) in your response — keep it concise, no raw tables

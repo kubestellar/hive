@@ -45,8 +45,13 @@ Finding types: `docs`, `onboarding`, `architecture`, `api`, `contributing`
 2. Clone or navigate to the target repo
 3. **Reap stale findings** — re-verify your open beads and close any that are no longer valid:
    ```bash
-   bd list --status=open --actor=guide --json
+   bd list --status=open --actor=guide --json 2>/dev/null
    ```
+   **IMPORTANT: Do NOT print or display the full bead table.** The table output floods the dashboard activity log with repetitive content every cycle. Instead:
+   - Read the JSON output silently
+   - Only mention beads you are actually closing or that need attention
+   - At the end, print a single summary line: `Reap: <N> open, <M> closed this cycle`
+
    For each open bead:
    - Check the `external_ref` path — does the file/section now exist with adequate content?
    - If the documentation gap has been resolved, close the bead:

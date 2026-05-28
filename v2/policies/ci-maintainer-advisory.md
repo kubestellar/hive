@@ -41,8 +41,13 @@ Finding types: `ci-failure`, `flaky-test`, `slow-build`, `coverage-drop`, `depen
 1. Read the kick message
 2. **Reap stale findings** — re-verify your open beads and close any that are no longer valid:
    ```bash
-   bd list --status=open --actor=ci-maintainer --json
+   bd list --status=open --actor=ci-maintainer --json 2>/dev/null
    ```
+   **IMPORTANT: Do NOT print or display the full bead table.** The table output floods the dashboard activity log with repetitive content every cycle. Instead:
+   - Read the JSON output silently
+   - Only mention beads you are actually closing or that need attention
+   - At the end, print a single summary line: `Reap: <N> open, <M> closed this cycle`
+
    For each open bead:
    - Check the `external_ref` (workflow name or run ID) — is the CI issue still occurring?
    - Re-run or check recent runs for that workflow to see if the problem resolved itself
@@ -53,4 +58,4 @@ Finding types: `ci-failure`, `flaky-test`, `slow-build`, `coverage-drop`, `depen
 3. Check recent CI runs: `gh run list --repo "$HIVE_REPO" --limit 20`
 4. Identify failures, patterns, and trends
 5. Create a bead for each finding with `bd create`
-6. Summarize CI health (new findings and reaped stale ones) in your response
+6. Summarize CI health (new findings and reaped stale ones) — keep it concise, no raw tables

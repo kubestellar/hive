@@ -650,6 +650,19 @@ func (m *Manager) pollTmuxOutput(name, session string, buf *RingBuffer, ctx cont
 			if len(filtered) == 0 {
 				continue
 			}
+			if prevLines == nil {
+				// First capture after (re)start — seed prevLines so subsequent
+				// diffs work. Only write to the buffer if it's empty (fresh
+				// start); skip if it already has content (restart) to avoid
+				// duplicating the scrollback.
+				if buf.Count() == 0 {
+					for _, l := range filtered {
+						buf.Write(l)
+					}
+				}
+				prevLines = filtered
+				continue
+			}
 			newLines := diffNewLines(prevLines, filtered)
 			for _, l := range newLines {
 				buf.Write(l)

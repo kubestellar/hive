@@ -5635,10 +5635,21 @@ function burnAreaChart() {
       if (!_ocViewRestored) {
         _ocViewRestored = true;
         if (_ocSelectedAgent) {
-          ocSelectAgent(_ocSelectedAgent);
+          const restoreName = _ocSelectedAgent;
+          ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll();
+          requestAnimationFrame(() => {
+            const detail = document.getElementById('oc-agent-detail');
+            if (detail) {
+              detail.classList.add('active');
+              const y = detail.getBoundingClientRect().top + window.scrollY - OC_TOPBAR_HEIGHT;
+              window.scrollTo({ top: y, behavior: 'instant' });
+            }
+          });
         } else {
           const savedSection = localStorage.getItem('hive-oc-section');
-          if (savedSection) { ocNavigate(savedSection); }
+          if (savedSection) {
+            requestAnimationFrame(() => { ocNavigate(savedSection); });
+          }
         }
       } else if (_ocSelectedAgent) {
         ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll();

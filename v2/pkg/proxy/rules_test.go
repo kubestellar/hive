@@ -78,6 +78,37 @@ func TestAllowedByMode(t *testing.T) {
 	}
 }
 
+func TestGraphQLAllowed(t *testing.T) {
+	tests := []struct {
+		name       string
+		mode       agent.AgentMode
+		body       string
+		wantAllow  bool
+		wantMutate bool
+	}{
+		{"advisory allows query", agent.ModeAdvisory, `{"query":"query { repository(owner:\"org\",name:\"repo\") { issues { totalCount } } }"}`, true, false},
+		{"advisory blocks mutation", agent.ModeAdvisory, `{"query":"mutation { createIssue(input:{repositoryId:\"R_1\",title:\"test\"}) { issue { id } } }"}`, false, true},
+		{"issues-only allows mutation", agent.ModeIssuesOnly, `{"query":"mutation { createIssue(input:{repositoryId:\"R_1\",title:\"test\"}) { issue { id } } }"}`, true, true},
+		{"issues-and-prs allows mutation", agent.ModeIssuesAndPRs, `{"query":"mutation { createIssue(input:{}) { issue { id } } }"}`, true, true},
+		{"no-github blocks query", agent.ModeNoGitHub, `{"query":"query { viewer { login } }"}`, false, false},
+		{"no-github blocks mutation", agent.ModeNoGitHub, `{"query":"mutation { addStar(input:{}) { starrable { id } } }"}`, false, false},
+		{"advisory blocks malformed json", agent.ModeAdvisory, `not json`, false, false},
+		{"advisory allows empty query", agent.ModeAdvisory, `{"query":"{ viewer { login } }"}`, true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			allowed, isMutation := GraphQLAllowed(tt.mode, []byte(tt.body))
+			if allowed != tt.wantAllow {
+				t.Errorf("GraphQLAllowed(%v) allowed = %v, want %v", tt.mode, allowed, tt.wantAllow)
+			}
+			if isMutation != tt.wantMutate {
+				t.Errorf("GraphQLAllowed(%v) isMutation = %v, want %v", tt.mode, isMutation, tt.wantMutate)
+			}
+		})
+	}
+}
+
 func TestIsGitHubHost(t *testing.T) {
 	tests := []struct {
 		host string

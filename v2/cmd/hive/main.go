@@ -354,7 +354,12 @@ func main() {
 		}
 		if saved.ConfigOverrides != nil {
 			applyConfigOverrides(cfg, saved.ConfigOverrides)
-			logger.Info("config overrides restored from persisted state")
+			ghClient.SetRepos(cfg.Project.Repos)
+			if uc := userGHClient.Load(); uc != nil {
+				uc.SetRepos(cfg.Project.Repos)
+			}
+			logger.Info("config overrides restored from persisted state",
+				"repos", cfg.Project.Repos)
 		}
 	}
 

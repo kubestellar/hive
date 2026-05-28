@@ -1804,6 +1804,7 @@
     const OC_TOPBAR_HEIGHT = 64;
     let _ocSelectedAgent = localStorage.getItem('hive-oc-agent') || null;
     let _ocPaneTimer = null;
+    let _ocViewRestored = false;
     const OC_PANE_POLL_MS = 3000;
     const OC_PANE_LINES = 2000;
 
@@ -1833,17 +1834,20 @@
       } catch {}
     }
 
-    function ocNavigate(section) {
+    function ocNavigate(section, skipScroll) {
       _ocSelectedAgent = null;
       localStorage.setItem('hive-oc-agent', '');
+      localStorage.setItem('hive-oc-section', section);
       ocStopPanePoll();
       const detail = document.getElementById('oc-agent-detail');
       if (detail) { detail.classList.remove('active'); detail.innerHTML = ''; }
       ocUpdateFocusedState();
-      const el = document.getElementById(section);
-      if (el) {
-        const y = el.getBoundingClientRect().top + window.scrollY - OC_TOPBAR_HEIGHT;
-        window.scrollTo({ top: y, behavior: 'smooth' });
+      if (!skipScroll) {
+        const el = document.getElementById(section);
+        if (el) {
+          const y = el.getBoundingClientRect().top + window.scrollY - OC_TOPBAR_HEIGHT;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
       }
       document.querySelectorAll('.oc-nav-item').forEach(i => i.classList.remove('active'));
       const active = document.querySelector(`.oc-nav-item[data-section="${section}"]`);
@@ -1876,6 +1880,7 @@
     function ocSelectAgent(name) {
       _ocSelectedAgent = name;
       localStorage.setItem('hive-oc-agent', name || '');
+      localStorage.setItem('hive-oc-section', '');
       document.querySelectorAll('.oc-nav-item').forEach(i => i.classList.remove('active'));
       const active = document.querySelector(`.oc-nav-item[data-agent-nav="${name}"]`);
       if (active) active.classList.add('active');
@@ -5625,7 +5630,17 @@ function burnAreaChart() {
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
       ocUpdateSidebarAgents();
-      if (_ocSelectedAgent) { ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll(); }
+      if (!_ocViewRestored) {
+        _ocViewRestored = true;
+        if (_ocSelectedAgent) {
+          ocSelectAgent(_ocSelectedAgent);
+        } else {
+          const savedSection = localStorage.getItem('hive-oc-section');
+          if (savedSection) ocNavigate(savedSection);
+        }
+      } else if (_ocSelectedAgent) {
+        ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll();
+      }
       renderDebugSection();
       updateACMMBadge(data.acmmLevel || 0, data.acmmPackAgents || null);
       window.scrollTo(0, scrollY);

@@ -583,7 +583,7 @@ func main() {
 		}
 	}
 
-	githubProxy, err := proxy.NewGitHubProxy()
+	githubProxy, err := proxy.NewGitHubProxy(logger)
 	if err != nil {
 		logger.Error("failed to create github proxy", "error", err)
 	} else {

@@ -7430,9 +7430,13 @@ function burnAreaChart() {
       markDirty('restrictions', 'rules', _configState.data.restrictions.agent);
     }
 
+    function normalizeRepoInput(raw) {
+      return raw.replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
+    }
+
     function addListItem(section, key, inputId) {
       const input = document.getElementById(inputId);
-      const val = input.value.trim();
+      let val = input.value.trim();
       if (!val) return;
       if (section === 'hooks') {
         if (!_configState.data.hooks) _configState.data.hooks = {};
@@ -7444,6 +7448,7 @@ function burnAreaChart() {
         _configState.data.labels.push(val);
         markDirty('labels', 'labels', _configState.data.labels);
       } else if (section === 'repos') {
+        val = normalizeRepoInput(val);
         if (!_configState.data.repos) _configState.data.repos = [];
         _configState.data.repos.push(val);
         markDirty('repos', 'repos', _configState.data.repos);

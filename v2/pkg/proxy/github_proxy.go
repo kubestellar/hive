@@ -11,7 +11,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"math/big"
 	"net"
 	"net/http"
@@ -36,13 +36,14 @@ type GitHubProxy struct {
 	listenAddr string
 	caCert     tls.Certificate
 	caX509     *x509.Certificate
+	logger     *slog.Logger
 
 	mu         sync.RWMutex
 	violations map[string]int // agent name -> blocked request count
 }
 
 // NewGitHubProxy creates a proxy with a self-signed CA for MITM.
-func NewGitHubProxy() (*GitHubProxy, error) {
+func NewGitHubProxy(logger *slog.Logger) (*GitHubProxy, error) {
 	caCert, caX509, err := generateCA()
 	if err != nil {
 		return nil, fmt.Errorf("generate CA: %w", err)
@@ -57,6 +58,7 @@ func NewGitHubProxy() (*GitHubProxy, error) {
 		listenAddr: fmt.Sprintf("127.0.0.1:%d", proxyListenPort),
 		caCert:     caCert,
 		caX509:     caX509,
+		logger:     logger,
 		violations: make(map[string]int),
 	}, nil
 }
@@ -88,7 +90,7 @@ func (p *GitHubProxy) Start() error {
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", p.listenAddr, err)
 	}
-	log.Printf("[proxy] listening on %s", p.listenAddr)
+	p.logger.Info("proxy listening", "addr", p.listenAddr)
 
 	srv := &http.Server{
 		Handler:      p,
@@ -142,7 +144,7 @@ func (p *GitHubProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	clientConn, _, err := hijacker.Hijack()
 	if err != nil {
-		log.Printf("[proxy] hijack error: %v", err)
+		p.logger.Error("proxy hijack error", "error", err)
 		return
 	}
 	defer clientConn.Close()
@@ -150,7 +152,7 @@ func (p *GitHubProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	// Generate a cert for the target host signed by our CA.
 	tlsCert, err := p.forgeCert(host)
 	if err != nil {
-		log.Printf("[proxy] forge cert for %s: %v", host, err)
+		p.logger.Error("proxy forge cert failed", "host", host, "error", err)
 		return
 	}
 
@@ -160,7 +162,7 @@ func (p *GitHubProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	tlsClientConn := tls.Server(clientConn, tlsConfig)
 	if err := tlsClientConn.Handshake(); err != nil {
-		log.Printf("[proxy] client TLS handshake: %v", err)
+		p.logger.Warn("proxy client TLS handshake failed", "error", err)
 		return
 	}
 	defer tlsClientConn.Close()
@@ -170,7 +172,7 @@ func (p *GitHubProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 		ServerName: host,
 	})
 	if err != nil {
-		log.Printf("[proxy] upstream dial %s: %v", r.Host, err)
+		p.logger.Error("proxy upstream dial failed", "host", r.Host, "error", err)
 		return
 	}
 	defer upstreamConn.Close()
@@ -231,7 +233,7 @@ func (p *GitHubProxy) proxyHTTP(client net.Conn, upstream net.Conn, agentName st
 }
 
 func (p *GitHubProxy) recordViolation(agentName, method, path string) {
-	log.Printf("[proxy] ⛔ BLOCKED: %s → %s %s", agentName, method, path)
+	p.logger.Warn("proxy request blocked", "agent", agentName, "method", method, "path", path)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if len(p.violations) < maxViolationLog {

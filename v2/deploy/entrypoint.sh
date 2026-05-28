@@ -55,7 +55,7 @@ if [ "$(id -u)" = "0" ]; then
   # The manager sets HOME=/data/home for agent tmux sessions.
   mkdir -p /data/home /data/config/github-copilot /home/dev/.config
   ln -sfn /data/config/github-copilot /home/dev/.config/github-copilot
-  chmod -R g+rw /data/home 2>/dev/null || true
+  chmod -R g+rwX /data/home 2>/dev/null || true
   chown -R dev:node /data/config /data/home /home/dev/.config 2>/dev/null || true
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
 

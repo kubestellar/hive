@@ -31,6 +31,11 @@ func IsGitHubHost(host string) bool {
 // Order matters: more-specific patterns must come before less-specific ones
 // for the same method, because evaluation is first-match-wins.
 var rules = []ProxyRule{
+	// ── OAuth / device-flow login — all modes ──
+	// Copilot CLI /login needs these to authenticate via GitHub device flow.
+	{regexp.MustCompile(`^/login/device/code$`), "POST", agent.ModeAdvisory},
+	{regexp.MustCompile(`^/login/oauth/access_token$`), "POST", agent.ModeAdvisory},
+
 	// ── Merge — ISSUES_PRS_MERGE only ──
 	// Must come before the generic pulls PATCH/PUT rules.
 	{regexp.MustCompile(`^/repos/[^/]+/[^/]+/pulls/\d+/merge$`), "PUT", agent.ModeIssuesPRsMerge},

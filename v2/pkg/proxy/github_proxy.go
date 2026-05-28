@@ -424,15 +424,20 @@ func (p *GitHubProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Tell client the tunnel is established.
-	w.WriteHeader(http.StatusOK)
-
 	clientConn, _, err := hijacker.Hijack()
 	if err != nil {
 		p.logger.Error("proxy hijack error", "error", err)
 		return
 	}
 	defer clientConn.Close()
+
+	// Tell client the tunnel is established — must be written directly
+	// on the hijacked connection, not via ResponseWriter (which may not
+	// flush before hijack).
+	if _, err := fmt.Fprintf(clientConn, "HTTP/1.1 200 Connection established\r\n\r\n"); err != nil {
+		p.logger.Error("proxy CONNECT response write failed", "error", err)
+		return
+	}
 
 	// Generate a cert for the target host signed by our CA.
 	tlsCert, err := p.forgeCert(host)
@@ -570,13 +575,13 @@ func (p *GitHubProxy) tunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-
 	clientConn, _, err := hijacker.Hijack()
 	if err != nil {
 		upstream.Close()
 		return
 	}
+
+	fmt.Fprintf(clientConn, "HTTP/1.1 200 Connection established\r\n\r\n")
 
 	go transfer(upstream, clientConn)
 	go transfer(clientConn, upstream)

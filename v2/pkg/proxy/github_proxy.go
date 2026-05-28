@@ -38,6 +38,7 @@ type GitHubProxy struct {
 	caCert     tls.Certificate
 	caX509     *x509.Certificate
 	logger     *slog.Logger
+	uidMap     *agent.UIDMap
 
 	mu         sync.RWMutex
 	violations map[string]int // agent name -> blocked request count
@@ -55,11 +56,18 @@ func NewGitHubProxy(logger *slog.Logger) (*GitHubProxy, error) {
 		return nil, fmt.Errorf("write CA cert to %s: %w", CACertPath, err)
 	}
 
+	var uidMap *agent.UIDMap
+	if loaded, loadErr := agent.LoadUIDMap(agent.UIDMapPath); loadErr == nil {
+		uidMap = loaded
+		logger.Info("proxy loaded UID map", "agents", len(uidMap.Agents), "iptables", uidMap.IptablesActive)
+	}
+
 	return &GitHubProxy{
 		listenAddr: fmt.Sprintf("127.0.0.1:%d", proxyListenPort),
 		caCert:     caCert,
 		caX509:     caX509,
 		logger:     logger,
+		uidMap:     uidMap,
 		violations: make(map[string]int),
 	}, nil
 }
@@ -86,6 +94,8 @@ func (p *GitHubProxy) AgentViolations(agentName string) int {
 }
 
 // Start begins listening. Blocks until the listener is closed.
+// Handles both explicit HTTP CONNECT proxy requests and transparent
+// iptables-redirected TLS connections (detected by TLS ClientHello).
 func (p *GitHubProxy) Start() error {
 	ln, err := net.Listen("tcp", p.listenAddr)
 	if err != nil {
@@ -93,13 +103,254 @@ func (p *GitHubProxy) Start() error {
 	}
 	p.logger.Info("proxy listening", "addr", p.listenAddr)
 
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return fmt.Errorf("accept: %w", err)
+		}
+		go p.handleConn(conn)
+	}
+}
+
+// handleConn peeks at the first byte to distinguish HTTP CONNECT requests
+// (explicit proxy) from raw TLS ClientHello (iptables-redirected traffic).
+func (p *GitHubProxy) handleConn(conn net.Conn) {
+	defer conn.Close()
+
+	peeked := make([]byte, 1)
+	conn.SetReadDeadline(time.Now().Add(transparentProxyTimeout))
+	n, err := conn.Read(peeked)
+	conn.SetReadDeadline(time.Time{})
+	if err != nil || n == 0 {
+		return
+	}
+
+	// TLS ClientHello starts with byte 0x16 (ContentType handshake).
+	// HTTP methods start with ASCII letters (C for CONNECT, G for GET, etc.).
+	const tlsHandshakeContentType = 0x16
+	if peeked[0] == tlsHandshakeContentType {
+		p.handleTransparentTLS(conn, peeked)
+		return
+	}
+
+	// Re-wrap the peeked byte and handle as HTTP.
+	prefixed := &prefixConn{Conn: conn, prefix: peeked[:n]}
 	srv := &http.Server{
 		Handler:      p,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		ReadTimeout:  httpReadTimeout,
+		WriteTimeout: httpWriteTimeout,
 	}
-	return srv.Serve(ln)
+	srv.Serve(&singleConnListener{conn: prefixed})
 }
+
+const (
+	transparentProxyTimeout = 5 * time.Second
+	httpReadTimeout         = 30 * time.Second
+	httpWriteTimeout        = 60 * time.Second
+)
+
+// handleTransparentTLS handles iptables-redirected connections. The agent
+// tried to connect to github.com:443 but iptables sent it here instead.
+// We extract the SNI hostname from the TLS ClientHello, then MITM the connection.
+func (p *GitHubProxy) handleTransparentTLS(conn net.Conn, peeked []byte) {
+	// Read enough of the ClientHello to extract SNI.
+	buf := make([]byte, tlsClientHelloMaxSize)
+	copy(buf, peeked)
+	conn.SetReadDeadline(time.Now().Add(transparentProxyTimeout))
+	n, err := conn.Read(buf[len(peeked):])
+	conn.SetReadDeadline(time.Time{})
+	if err != nil {
+		return
+	}
+	fullBuf := buf[:len(peeked)+n]
+
+	host := extractSNI(fullBuf)
+	if host == "" {
+		host = "github.com"
+	}
+
+	// Identify agent by UID from /proc/net/tcp
+	agentName := ""
+	if p.uidMap != nil && p.uidMap.IptablesActive {
+		_, portStr, splitErr := net.SplitHostPort(conn.RemoteAddr().String())
+		if splitErr == nil {
+			port := 0
+			for _, c := range portStr {
+				port = port*10 + int(c-'0')
+			}
+			uid, lookupErr := LookupUIDByLocalPort(port)
+			if lookupErr == nil {
+				agentName = p.uidMap.LookupByUID(uid)
+			}
+		}
+	}
+
+	if !IsGitHubHost(host) {
+		// Non-GitHub: tunnel directly to the intended host.
+		upstream, err := net.DialTimeout("tcp", host+":443", transparentProxyTimeout)
+		if err != nil {
+			return
+		}
+		defer upstream.Close()
+		upstream.Write(fullBuf)
+		go io.Copy(upstream, conn)
+		io.Copy(conn, upstream)
+		return
+	}
+
+	mode := readAgentMode(agentName)
+	if mode == agent.ModeNoGitHub {
+		p.recordViolation(agentName, "TRANSPARENT", host)
+		return
+	}
+
+	// MITM: forge a cert, TLS-wrap the client, connect to real upstream.
+	tlsCert, err := p.forgeCert(host)
+	if err != nil {
+		p.logger.Error("transparent proxy forge cert failed", "host", host, "error", err)
+		return
+	}
+
+	tlsConfig := &tls.Config{Certificates: []tls.Certificate{tlsCert}}
+	prefixed := &prefixConn{Conn: conn, prefix: fullBuf}
+	tlsClientConn := tls.Server(prefixed, tlsConfig)
+	if err := tlsClientConn.Handshake(); err != nil {
+		p.logger.Warn("transparent proxy TLS handshake failed", "error", err)
+		return
+	}
+	defer tlsClientConn.Close()
+
+	upstreamConn, err := tls.Dial("tcp", host+":443", &tls.Config{ServerName: host})
+	if err != nil {
+		p.logger.Error("transparent proxy upstream dial failed", "host", host, "error", err)
+		return
+	}
+	defer upstreamConn.Close()
+
+	p.proxyHTTP(tlsClientConn, upstreamConn, agentName, mode)
+}
+
+const tlsClientHelloMaxSize = 4096
+
+// extractSNI reads the SNI hostname from a TLS ClientHello message.
+func extractSNI(data []byte) string {
+	if len(data) < 5 {
+		return ""
+	}
+	// TLS record: type(1) + version(2) + length(2) + handshake
+	recordLen := int(data[3])<<8 | int(data[4])
+	if len(data) < 5+recordLen {
+		// Partial read — use what we have
+		recordLen = len(data) - 5
+	}
+	handshake := data[5 : 5+recordLen]
+	if len(handshake) < 4 {
+		return ""
+	}
+	// Handshake: type(1) + length(3) + ClientHello
+	hsLen := int(handshake[1])<<16 | int(handshake[2])<<8 | int(handshake[3])
+	if len(handshake) < 4+hsLen {
+		hsLen = len(handshake) - 4
+	}
+	ch := handshake[4 : 4+hsLen]
+	if len(ch) < 34 {
+		return ""
+	}
+	// Skip: version(2) + random(32)
+	pos := 34
+	// Session ID
+	if pos >= len(ch) {
+		return ""
+	}
+	sessLen := int(ch[pos])
+	pos += 1 + sessLen
+	// Cipher suites
+	if pos+2 > len(ch) {
+		return ""
+	}
+	csLen := int(ch[pos])<<8 | int(ch[pos+1])
+	pos += 2 + csLen
+	// Compression methods
+	if pos >= len(ch) {
+		return ""
+	}
+	cmLen := int(ch[pos])
+	pos += 1 + cmLen
+	// Extensions
+	if pos+2 > len(ch) {
+		return ""
+	}
+	extLen := int(ch[pos])<<8 | int(ch[pos+1])
+	pos += 2
+	extEnd := pos + extLen
+	if extEnd > len(ch) {
+		extEnd = len(ch)
+	}
+	for pos+4 <= extEnd {
+		extType := int(ch[pos])<<8 | int(ch[pos+1])
+		eLen := int(ch[pos+2])<<8 | int(ch[pos+3])
+		pos += 4
+		if pos+eLen > extEnd {
+			break
+		}
+		if extType == 0 { // SNI extension
+			sniData := ch[pos : pos+eLen]
+			if len(sniData) < 2 {
+				break
+			}
+			sniListLen := int(sniData[0])<<8 | int(sniData[1])
+			_ = sniListLen
+			sniPos := 2
+			for sniPos+3 <= len(sniData) {
+				nameType := sniData[sniPos]
+				nameLen := int(sniData[sniPos+1])<<8 | int(sniData[sniPos+2])
+				sniPos += 3
+				if sniPos+nameLen > len(sniData) {
+					break
+				}
+				if nameType == 0 { // host_name
+					return string(sniData[sniPos : sniPos+nameLen])
+				}
+				sniPos += nameLen
+			}
+		}
+		pos += eLen
+	}
+	return ""
+}
+
+// prefixConn wraps a net.Conn and prepends already-read bytes to the stream.
+type prefixConn struct {
+	net.Conn
+	prefix []byte
+	offset int
+}
+
+func (c *prefixConn) Read(b []byte) (int, error) {
+	if c.offset < len(c.prefix) {
+		n := copy(b, c.prefix[c.offset:])
+		c.offset += n
+		return n, nil
+	}
+	return c.Conn.Read(b)
+}
+
+// singleConnListener wraps a single connection as a net.Listener for http.Server.Serve.
+type singleConnListener struct {
+	conn net.Conn
+	done bool
+}
+
+func (l *singleConnListener) Accept() (net.Conn, error) {
+	if l.done {
+		return nil, io.EOF
+	}
+	l.done = true
+	return l.conn, nil
+}
+
+func (l *singleConnListener) Close() error   { return nil }
+func (l *singleConnListener) Addr() net.Addr { return l.conn.LocalAddr() }
 
 // ServeHTTP handles both CONNECT (for HTTPS MITM) and plain HTTP requests.
 func (p *GitHubProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -111,13 +362,46 @@ func (p *GitHubProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.forwardPlain(w, r)
 }
 
+// identifyAgent determines the agent name for a request. It prefers UID-based
+// identification (unforgeable) when iptables is active, falling back to
+// Proxy-Authorization headers for non-iptables deployments.
+func (p *GitHubProxy) identifyAgent(r *http.Request) string {
+	if p.uidMap != nil && p.uidMap.IptablesActive {
+		if name := p.identifyAgentByUID(r.RemoteAddr); name != "" {
+			return name
+		}
+	}
+	return extractAgentName(r)
+}
+
+// identifyAgentByUID reads /proc/net/tcp to find the UID of the process
+// that owns the socket connected to the proxy, then looks up the agent name.
+func (p *GitHubProxy) identifyAgentByUID(remoteAddr string) string {
+	_, portStr, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return ""
+	}
+	port := 0
+	for _, c := range portStr {
+		if c < '0' || c > '9' {
+			return ""
+		}
+		port = port*10 + int(c-'0')
+	}
+	uid, err := LookupUIDByLocalPort(port)
+	if err != nil {
+		return ""
+	}
+	return p.uidMap.LookupByUID(uid)
+}
+
 func (p *GitHubProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host, _, err := net.SplitHostPort(r.Host)
 	if err != nil {
 		host = r.Host
 	}
 
-	agentName := extractAgentName(r)
+	agentName := p.identifyAgent(r)
 
 	// Non-GitHub hosts: tunnel without inspection.
 	if !IsGitHubHost(host) {

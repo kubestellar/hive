@@ -1802,7 +1802,16 @@
       applyLayout(next);
     }
     const OC_TOPBAR_HEIGHT = 64;
-    let _ocSelectedAgent = localStorage.getItem('hive-oc-agent') || null;
+    function _ocAgentFromHash() {
+      const h = location.hash.replace('#', '');
+      if (!h || h.startsWith('section-')) return null;
+      return h;
+    }
+    function _ocSectionFromHash() {
+      const h = location.hash.replace('#', '');
+      return h && h.startsWith('section-') ? h.replace('section-', '') : null;
+    }
+    let _ocSelectedAgent = _ocAgentFromHash();
     let _ocPaneTimer = null;
     let _ocViewRestored = false;
     const OC_PANE_POLL_MS = 3000;
@@ -1836,8 +1845,7 @@
 
     function ocNavigate(section, skipScroll) {
       _ocSelectedAgent = null;
-      localStorage.setItem('hive-oc-agent', '');
-      localStorage.setItem('hive-oc-section', section);
+      history.replaceState(null, '', '#section-' + section);
       ocStopPanePoll();
       const detail = document.getElementById('oc-agent-detail');
       if (detail) { detail.classList.remove('active'); detail.innerHTML = ''; }
@@ -1879,8 +1887,7 @@
 
     function ocSelectAgent(name) {
       _ocSelectedAgent = name;
-      localStorage.setItem('hive-oc-agent', name || '');
-      localStorage.setItem('hive-oc-section', '');
+      history.replaceState(null, '', name ? '#' + name : location.pathname);
       document.querySelectorAll('.oc-nav-item').forEach(i => i.classList.remove('active'));
       const active = document.querySelector(`.oc-nav-item[data-agent-nav="${name}"]`);
       if (active) active.classList.add('active');
@@ -5646,7 +5653,7 @@ function burnAreaChart() {
             }
           });
         } else {
-          const savedSection = localStorage.getItem('hive-oc-section');
+          const savedSection = _ocSectionFromHash();
           if (savedSection) {
             requestAnimationFrame(() => { ocNavigate(savedSection); });
           }

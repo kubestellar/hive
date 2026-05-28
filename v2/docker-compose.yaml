@@ -27,6 +27,8 @@ services:
         GIT_SHORT: ${GIT_SHORT:-unknown}
     container_name: hive
     restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
     expose:
       - "3001"
       - "7681"

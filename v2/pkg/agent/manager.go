@@ -227,6 +227,13 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 		return fmt.Errorf("creating tmux session for %s: %w", agent.Name, err)
 	}
 
+	// tmux creates /tmp/tmux-{uid}/ with mode 700; ttyd runs as dev (uid 1001,
+	// node group) and needs to traverse into these dirs to attach to sockets.
+	if agent.UID > 0 {
+		tmuxDir := fmt.Sprintf("/tmp/tmux-%d", agent.UID)
+		_ = os.Chmod(tmuxDir, 0o710)
+	}
+
 	// Set per-session env vars via tmux set-environment.
 	for _, envVar := range m.agentEnvVars(agent) {
 		parts := strings.SplitN(envVar, "=", 2)

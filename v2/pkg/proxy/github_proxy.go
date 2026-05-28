@@ -133,14 +133,22 @@ func (p *GitHubProxy) handleConn(conn net.Conn) {
 		return
 	}
 
-	// Re-wrap the peeked byte and handle as HTTP.
+	// Parse the HTTP request directly instead of using http.Server.Serve,
+	// which closes the connection on shutdown — racing with hijacked CONNECT
+	// handlers.
 	prefixed := &prefixConn{Conn: conn, prefix: peeked[:n]}
-	srv := &http.Server{
-		Handler:      p,
-		ReadTimeout:  httpReadTimeout,
-		WriteTimeout: httpWriteTimeout,
+	conn.SetReadDeadline(time.Now().Add(httpReadTimeout))
+	req, err := http.ReadRequest(bufio.NewReader(prefixed))
+	conn.SetReadDeadline(time.Time{})
+	if err != nil {
+		return
 	}
-	srv.Serve(&singleConnListener{conn: prefixed})
+
+	if req.Method == http.MethodConnect {
+		p.handleConnectDirect(conn, req)
+	} else {
+		p.forwardPlainDirect(conn, req)
+	}
 }
 
 const (
@@ -335,37 +343,11 @@ func (c *prefixConn) Read(b []byte) (int, error) {
 	return c.Conn.Read(b)
 }
 
-// singleConnListener wraps a single connection as a net.Listener for http.Server.Serve.
-type singleConnListener struct {
-	conn net.Conn
-	done bool
-}
 
-func (l *singleConnListener) Accept() (net.Conn, error) {
-	if l.done {
-		return nil, io.EOF
-	}
-	l.done = true
-	return l.conn, nil
-}
-
-func (l *singleConnListener) Close() error   { return nil }
-func (l *singleConnListener) Addr() net.Addr { return l.conn.LocalAddr() }
-
-// ServeHTTP handles both CONNECT (for HTTPS MITM) and plain HTTP requests.
-func (p *GitHubProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodConnect {
-		p.handleConnect(w, r)
-		return
-	}
-	// Plain HTTP passthrough (non-GitHub or non-CONNECT).
-	p.forwardPlain(w, r)
-}
-
-// identifyAgent determines the agent name for a request. It prefers UID-based
+// identifyAgentFromReq determines the agent name for a request. It prefers UID-based
 // identification (unforgeable) when iptables is active, falling back to
 // Proxy-Authorization headers for non-iptables deployments.
-func (p *GitHubProxy) identifyAgent(r *http.Request) string {
+func (p *GitHubProxy) identifyAgentFromReq(r *http.Request) string {
 	if p.uidMap != nil && p.uidMap.IptablesActive {
 		if name := p.identifyAgentByUID(r.RemoteAddr); name != "" {
 			return name
@@ -395,17 +377,18 @@ func (p *GitHubProxy) identifyAgentByUID(remoteAddr string) string {
 	return p.uidMap.LookupByUID(uid)
 }
 
-func (p *GitHubProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
+// handleConnectDirect handles CONNECT requests on a raw connection (no http.Server).
+func (p *GitHubProxy) handleConnectDirect(conn net.Conn, r *http.Request) {
 	host, _, err := net.SplitHostPort(r.Host)
 	if err != nil {
 		host = r.Host
 	}
 
-	agentName := p.identifyAgent(r)
+	agentName := p.identifyAgentFromReq(r)
 
 	// Non-GitHub hosts: tunnel without inspection.
 	if !IsGitHubHost(host) {
-		p.tunnel(w, r)
+		p.tunnelDirect(conn, r)
 		return
 	}
 
@@ -413,28 +396,12 @@ func (p *GitHubProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	mode := readAgentMode(agentName)
 	if mode == agent.ModeNoGitHub {
 		p.recordViolation(agentName, "CONNECT", r.Host)
-		http.Error(w, "blocked by ACMM proxy: NO_GITHUB mode", http.StatusForbidden)
+		fmt.Fprintf(conn, "HTTP/1.1 403 Forbidden\r\n\r\nblocked by ACMM proxy: NO_GITHUB mode\n")
 		return
 	}
 
-	// MITM: hijack, present forged cert, inspect HTTP traffic.
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		http.Error(w, "hijack not supported", http.StatusInternalServerError)
-		return
-	}
-
-	clientConn, _, err := hijacker.Hijack()
-	if err != nil {
-		p.logger.Error("proxy hijack error", "error", err)
-		return
-	}
-	defer clientConn.Close()
-
-	// Tell client the tunnel is established — must be written directly
-	// on the hijacked connection, not via ResponseWriter (which may not
-	// flush before hijack).
-	if _, err := fmt.Fprintf(clientConn, "HTTP/1.1 200 Connection established\r\n\r\n"); err != nil {
+	// Tell client the tunnel is established.
+	if _, err := fmt.Fprintf(conn, "HTTP/1.1 200 Connection established\r\n\r\n"); err != nil {
 		p.logger.Error("proxy CONNECT response write failed", "error", err)
 		return
 	}
@@ -447,10 +414,9 @@ func (p *GitHubProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TLS handshake with client (presenting our forged cert).
-	tlsConfig := &tls.Config{
+	tlsClientConn := tls.Server(conn, &tls.Config{
 		Certificates: []tls.Certificate{tlsCert},
-	}
-	tlsClientConn := tls.Server(clientConn, tlsConfig)
+	})
 	if err := tlsClientConn.Handshake(); err != nil {
 		p.logger.Warn("proxy client TLS handshake failed", "error", err)
 		return
@@ -561,30 +527,18 @@ func (p *GitHubProxy) recordViolation(agentName, method, path string) {
 	}
 }
 
-// tunnel creates a raw TCP tunnel for non-GitHub CONNECT requests.
-func (p *GitHubProxy) tunnel(w http.ResponseWriter, r *http.Request) {
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		http.Error(w, "hijack not supported", http.StatusInternalServerError)
-		return
-	}
-
+// tunnelDirect creates a raw TCP tunnel for non-GitHub CONNECT requests.
+func (p *GitHubProxy) tunnelDirect(conn net.Conn, r *http.Request) {
 	upstream, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("dial %s: %v", r.Host, err), http.StatusBadGateway)
+		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\n\r\ndial %s: %v\n", r.Host, err)
 		return
 	}
 
-	clientConn, _, err := hijacker.Hijack()
-	if err != nil {
-		upstream.Close()
-		return
-	}
+	fmt.Fprintf(conn, "HTTP/1.1 200 Connection established\r\n\r\n")
 
-	fmt.Fprintf(clientConn, "HTTP/1.1 200 Connection established\r\n\r\n")
-
-	go transfer(upstream, clientConn)
-	go transfer(clientConn, upstream)
+	go transfer(upstream, conn)
+	io.Copy(conn, upstream)
 }
 
 func transfer(dst, src net.Conn) {
@@ -593,21 +547,15 @@ func transfer(dst, src net.Conn) {
 	io.Copy(dst, src)
 }
 
-// forwardPlain handles non-CONNECT (plain HTTP) requests.
-func (p *GitHubProxy) forwardPlain(w http.ResponseWriter, r *http.Request) {
+// forwardPlainDirect handles non-CONNECT (plain HTTP) requests on a raw connection.
+func (p *GitHubProxy) forwardPlainDirect(conn net.Conn, r *http.Request) {
 	resp, err := http.DefaultTransport.RoundTrip(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\n\r\n%s\n", err.Error())
 		return
 	}
 	defer resp.Body.Close()
-	for k, vv := range resp.Header {
-		for _, v := range vv {
-			w.Header().Add(k, v)
-		}
-	}
-	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+	resp.Write(conn)
 }
 
 // extractAgentName reads the agent name from the Proxy-Authorization header.

@@ -1805,6 +1805,7 @@
     let _ocSelectedAgent = localStorage.getItem('hive-oc-agent') || null;
     let _ocPaneTimer = null;
     let _ocViewRestored = false;
+    let _ocSkipScrollRestore = false;
     const OC_PANE_POLL_MS = 3000;
     const OC_PANE_LINES = 2000;
 
@@ -5633,17 +5634,19 @@ function burnAreaChart() {
       if (!_ocViewRestored) {
         _ocViewRestored = true;
         if (_ocSelectedAgent) {
+          _ocSkipScrollRestore = true;
           ocSelectAgent(_ocSelectedAgent);
         } else {
           const savedSection = localStorage.getItem('hive-oc-section');
-          if (savedSection) ocNavigate(savedSection);
+          if (savedSection) { _ocSkipScrollRestore = true; ocNavigate(savedSection); }
         }
       } else if (_ocSelectedAgent) {
         ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll();
       }
       renderDebugSection();
       updateACMMBadge(data.acmmLevel || 0, data.acmmPackAgents || null);
-      window.scrollTo(0, scrollY);
+      if (!_ocSkipScrollRestore) window.scrollTo(0, scrollY);
+      _ocSkipScrollRestore = false;
     }
 
     const HEALTH_LABEL_DEFAULTS = {

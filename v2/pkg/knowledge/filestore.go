@@ -20,6 +20,10 @@ const (
 // FileStore reads markdown files from a local directory (e.g. an Obsidian vault)
 // and exposes them as knowledge facts. It supports search, read, list, and stats
 // operations compatible with the wiki Client interface.
+//
+// Search uses Fisher-Rao geodesic distance on diagonal Gaussian embeddings for
+// ranking, graduated by per-fact access count. Cold facts fall back to cosine
+// similarity; established facts get the richer geometric distance.
 type FileStore struct {
 	rootDir       string
 	name          string
@@ -28,15 +32,18 @@ type FileStore struct {
 	lastIndexed   time.Time
 	logger        *slog.Logger
 	prevPageCount int
+	embedCache    *EmbeddingCache
+	accessCounts  map[string]int
 }
 
 type filePage struct {
-	Slug     string
-	Title    string
-	Body     string
-	Tags     []string
-	Path     string
-	ModTime  time.Time
+	Slug      string
+	Title     string
+	Body      string
+	Tags      []string
+	Path      string
+	ModTime   time.Time
+	Embedding []float64
 }
 
 // NewFileStore creates a store that indexes markdown files under rootDir.
@@ -49,11 +56,14 @@ func NewFileStore(rootDir string, name string, logger *slog.Logger) (*FileStore,
 		return nil, fmt.Errorf("vault path %s is not a directory", rootDir)
 	}
 
+	embedder := NewEmbeddingCache(NewTFEmbedder(EmbeddingDim))
 	s := &FileStore{
-		rootDir: rootDir,
-		name:    name,
-		pages:   make(map[string]filePage),
-		logger:  logger,
+		rootDir:      rootDir,
+		name:         name,
+		pages:        make(map[string]filePage),
+		logger:       logger,
+		embedCache:   embedder,
+		accessCounts: make(map[string]int),
 	}
 
 	s.reindex()
@@ -100,13 +110,17 @@ func (s *FileStore) reindex() {
 
 		title, body, tags := parseObsidianFile(string(data), filepath.Base(slug))
 
+		embeddingText := title + " " + strings.Join(tags, " ") + " " + body
+		embedding := s.embedCache.Embed(embeddingText)
+
 		pages[slug] = filePage{
-			Slug:    slug,
-			Title:   title,
-			Body:    body,
-			Tags:    tags,
-			Path:    path,
-			ModTime: info.ModTime(),
+			Slug:      slug,
+			Title:     title,
+			Body:      body,
+			Tags:      tags,
+			Path:      path,
+			ModTime:   info.ModTime(),
+			Embedding: embedding,
 		}
 
 		return nil
@@ -116,6 +130,7 @@ func (s *FileStore) reindex() {
 		s.logger.Warn("vault reindex error", "dir", s.rootDir, "error", err)
 	}
 
+	s.embedCache.Clear()
 	s.mu.Lock()
 	prevCount := s.prevPageCount
 	s.pages = pages
@@ -142,7 +157,13 @@ func (s *FileStore) refreshIfStale() {
 	}
 }
 
-// Search finds pages matching the query via simple substring matching.
+// defaultSigmaInitial is the initial per-dimension standard deviation for
+// Gaussian embeddings. Shrinks as more access data accumulates.
+const defaultSigmaInitial = 1.0
+
+// Search finds pages matching the query using Fisher-Rao geodesic distance
+// on diagonal Gaussian embeddings. Scoring graduates from cosine similarity
+// (cold facts) to full Fisher-Rao (frequently accessed facts).
 func (s *FileStore) Search(query string, limit int) []Fact {
 	s.refreshIfStale()
 	s.mu.RLock()
@@ -152,11 +173,13 @@ func (s *FileStore) Search(query string, limit int) []Fact {
 		limit = 20
 	}
 
-	queryLower := strings.ToLower(query)
-	terms := strings.Fields(queryLower)
+	terms := strings.Fields(strings.ToLower(query))
 	if len(terms) == 0 {
 		return nil
 	}
+
+	queryEmbedding := s.embedCache.Embed(query)
+	queryGaussian := NewGaussianFromEmbedding(queryEmbedding, defaultSigmaInitial)
 
 	type scored struct {
 		page  filePage
@@ -165,27 +188,20 @@ func (s *FileStore) Search(query string, limit int) []Fact {
 
 	var matches []scored
 	for _, p := range s.pages {
-		titleLower := strings.ToLower(p.Title)
-		bodyLower := strings.ToLower(p.Body)
-		combined := titleLower + " " + bodyLower
+		accessCount := s.accessCounts[p.Slug]
 
-		var score float64
-		for _, term := range terms {
-			if strings.Contains(titleLower, term) {
-				score += 2.0
-			}
-			if strings.Contains(bodyLower, term) {
-				score += 1.0
-			}
-			for _, tag := range p.Tags {
-				if strings.Contains(strings.ToLower(tag), term) {
-					score += 1.5
-				}
-			}
-		}
-		_ = combined
+		// Sigma narrows with usage — well-accessed facts have tighter distributions.
+		sigma := defaultSigmaInitial / (1.0 + 0.1*float64(accessCount))
+		factGaussian := GaussianParams{Mean: p.Embedding, Sigma: makeSigmaVec(len(p.Embedding), sigma)}
 
-		if score > 0 {
+		score := GraduatedScore(queryGaussian, factGaussian, accessCount)
+
+		// Exact term matches in title/tags get a bonus on top of the geometric score.
+		bonus := termMatchBonus(p, terms)
+		score = clampScore(score + bonus)
+
+		const minScoreThreshold = 0.05
+		if score > minScoreThreshold {
 			matches = append(matches, scored{page: p, score: score})
 		}
 	}
@@ -210,15 +226,57 @@ func (s *FileStore) Search(query string, limit int) []Fact {
 			Title:      m.page.Title,
 			Type:       FactPattern,
 			Body:       snippet,
-			Confidence: m.score / float64(len(terms)*3),
+			Confidence: m.score,
 			Tags:       m.page.Tags,
 			Layer:      LayerPersonal,
 		}
-		if facts[i].Confidence > 1.0 {
-			facts[i].Confidence = 1.0
-		}
 	}
 	return facts
+}
+
+// RecordAccess increments the access counter for a fact, which shifts its
+// scoring from cosine toward Fisher-Rao over time.
+func (s *FileStore) RecordAccess(slug string) {
+	s.mu.Lock()
+	s.accessCounts[slug]++
+	s.mu.Unlock()
+}
+
+// AccessCount returns how many times a fact has been accessed.
+func (s *FileStore) AccessCount(slug string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.accessCounts[slug]
+}
+
+// termMatchBonus adds a small score bonus for exact keyword matches in
+// title and tags, so keyword relevance isn't lost in the geometric score.
+func termMatchBonus(p filePage, terms []string) float64 {
+	const (
+		titleMatchWeight = 0.15
+		tagMatchWeight   = 0.10
+	)
+	titleLower := strings.ToLower(p.Title)
+	var bonus float64
+	for _, term := range terms {
+		if strings.Contains(titleLower, term) {
+			bonus += titleMatchWeight
+		}
+		for _, tag := range p.Tags {
+			if strings.Contains(strings.ToLower(tag), term) {
+				bonus += tagMatchWeight
+			}
+		}
+	}
+	return bonus
+}
+
+func makeSigmaVec(dim int, sigma float64) []float64 {
+	v := make([]float64, dim)
+	for i := range v {
+		v[i] = sigma
+	}
+	return v
 }
 
 // ReadPage returns a single page by slug.

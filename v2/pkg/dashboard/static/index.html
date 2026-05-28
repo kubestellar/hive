@@ -6303,7 +6303,13 @@ function burnAreaChart() {
           if (dn && type !== 'governor') {
             document.querySelector('.config-title').textContent = `${dn} Configuration`;
           }
-          switchConfigTab(initialTab);
+          try {
+            switchConfigTab(initialTab);
+          } catch (err) {
+            document.getElementById('config-body').innerHTML =
+              '<div style="text-align:center;padding:40px;color:#f85149">Failed to render tab: ' + err.message + '</div>';
+            showToast('Config render error: ' + err.message, 'error');
+          }
         });
       }
     }
@@ -6700,7 +6706,7 @@ function burnAreaChart() {
           <label>Operating Mode <span class="config-info">i<span class="config-tooltip">Controls what GitHub actions this agent can take. NO_GITHUB: internal only. ADVISORY: beads only. ISSUES_ONLY: open issues, no PRs. ISSUES_AND_PRS: issues + PRs. ISSUES_PRS_MERGE: full auto-merge. Leave blank to use the ACMM level default.</span></span></label>
           ${(() => {
             const allModes = ['NO_GITHUB','ADVISORY','ISSUES_ONLY','ISSUES_AND_PRS','ISSUES_PRS_MERGE'];
-            const statusAgent = (lastData && lastData.agents || []).find(sa => sa.name === agentName);
+            const statusAgent = ((window._lastStatus || {}).agents || []).find(sa => sa.name === agentName);
             const dflt = statusAgent ? statusAgent.defaultMode : '';
             const current = g.mode || '';
             return '<select id="cfg-agent-mode" onchange="markDirty(\'general\',\'mode\',this.value)">'
@@ -7146,15 +7152,15 @@ function burnAreaChart() {
       return `
         <div class="config-field">
           <label>Ntfy Server ${ntfyHint} <span class="config-info">i<span class="config-tooltip">URL of the ntfy.sh server for push notifications. The governor sends alerts for mode changes, budget warnings, agent crashes, and rate limits. Leave empty to disable ntfy notifications. Default: https://ntfy.sh</span></span></label>
-          <input type="text" value="" onchange="markDirty('notifications','ntfyServer',this.value)" placeholder="${esc(n.ntfyServer || 'https://ntfy.sh')}">
+          <input type="text" value="${esc(n.ntfyServer || '')}" onchange="markDirty('notifications','ntfyServer',this.value)" placeholder="https://ntfy.sh">
         </div>
         <div class="config-field">
           <label>Ntfy Topic <span class="config-info">i<span class="config-tooltip">Topic name on the ntfy server. Subscribe to this topic in the ntfy app or web UI to receive governor notifications on your phone or desktop.</span></span></label>
-          <input type="text" value="" onchange="markDirty('notifications','ntfyTopic',this.value)" placeholder="${esc(n.ntfyTopic || 'my-topic')}">
+          <input type="text" value="${esc(n.ntfyTopic || '')}" onchange="markDirty('notifications','ntfyTopic',this.value)" placeholder="my-topic">
         </div>
         <div class="config-field">
           <label>Discord Webhook ${discordHint} <span class="config-info">i<span class="config-tooltip">Discord webhook URL for posting governor notifications to a channel. Create a webhook in your Discord server settings under Integrations. Leave empty to disable Discord notifications.</span></span></label>
-          <input type="text" value="" onchange="markDirty('notifications','discordWebhook',this.value)" placeholder="${esc(n.discordWebhook || 'https://discord.com/api/webhooks/...')}">
+          <input type="text" value="${n.hasDiscord ? '••••••••' : ''}" onchange="markDirty('notifications','discordWebhook',this.value)" placeholder="https://discord.com/api/webhooks/...">
         </div>`;
     }
 

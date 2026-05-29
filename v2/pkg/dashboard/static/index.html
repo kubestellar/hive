@@ -1396,7 +1396,9 @@
     .kb-layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; min-height: 320px; }
     .kb-sidebar { display: flex; flex-direction: column; gap: 10px; }
     .kb-layer-list { display: flex; flex-direction: column; gap: 4px; }
-    .kb-layer-btn { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--fg); font-size: 0.78rem; cursor: pointer; transition: all 0.15s; }
+    .kb-layer-btn { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--fg); font-size: 0.78rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; overflow: hidden; gap: 6px; }
+    .kb-layer-btn .kb-layer-label { display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .kb-layer-btn .kb-health-indicator { width: 8px; height: 8px; min-width: 8px; border-radius: 50%; display: inline-block; }
     .kb-layer-btn:hover { border-color: var(--accent); }
     .kb-layer-btn.active { background: rgba(88,166,255,0.12); border-color: var(--accent); color: var(--accent); font-weight: 600; }
     .kb-layer-count { font-size: 0.7rem; color: var(--muted); padding: 2px 6px; background: var(--bg); border-radius: 4px; }
@@ -4919,8 +4921,16 @@ function burnAreaChart() {
         const label = KB_LAYER_LABELS[l.type] || l.type;
         const active = _kbSelectedLayer === l.type ? ' active' : '';
         const count = l.total_pages || 0;
-        const dot = l.healthy ? '🟢' : '🔴';
-        html += `<button class="kb-layer-btn${active}" onclick="kbSelectLayer('${escapeHtml(l.type)}')">${icon} ${escapeHtml(label)} ${dot}<span class="kb-layer-count">${count}</span></button>`;
+        const dotColor = l.healthy ? '#16a34a' : '#dc2626';
+        const isGitSource = l.type && l.type.startsWith('git_source:');
+        const repoUrl = isGitSource && l.url ? (l.subpath ? l.url + '/tree/' + 'main/' + l.subpath : l.url) : '';
+        html += `<button class="kb-layer-btn${active}" onclick="kbSelectLayer('${escapeHtml(l.type)}')">`;
+        html += `<span class="kb-layer-label">${icon} ${escapeHtml(label)} <span class="kb-health-indicator" style="background:${dotColor}"></span></span>`;
+        html += `<span class="kb-layer-count">${count}</span>`;
+        html += `</button>`;
+        if (isGitSource && repoUrl) {
+          html += `<a href="${escapeHtml(repoUrl)}" target="_blank" rel="noopener" style="font-size:0.68rem;color:var(--accent);text-decoration:none;padding:0 12px 4px;display:block" title="Open source repo">↗ ${escapeHtml(l.url + (l.subpath ? '/' + l.subpath : ''))}</a>`;
+        }
       }
       html += '</div>';
 

@@ -622,14 +622,22 @@ func (s *Scheduler) primeKnowledge(issues []github.Issue) string {
 
 	keywords := extractKeywords(issues[:limit])
 	if len(keywords) == 0 {
+		s.logger.Debug("knowledge primer: no keywords extracted from issues", "issue_count", len(issues))
 		return ""
 	}
 
+	s.logger.Info("knowledge primer: searching", "keywords", len(keywords), "sample", keywordSample(keywords))
 	primed := s.primer.Prime(context.Background(), nil, keywords)
-	return primed.FormatForPrompt()
+	result := primed.FormatForPrompt()
+	if result != "" {
+		s.logger.Info("knowledge primer: injecting facts into kick", "facts", len(primed.Facts), "chars", len(result))
+	}
+	return result
 }
 
 // extractKeywords pulls searchable terms from issue labels and titles.
+// Title words are included because labels alone are often all noise
+// (triage/accepted, kind/bug) and produce zero keywords after filtering.
 func extractKeywords(issues []github.Issue) []string {
 	seen := make(map[string]bool)
 	var keywords []string
@@ -650,9 +658,57 @@ func extractKeywords(issues []github.Issue) []string {
 				seen[tier] = true
 			}
 		}
+
+		for _, word := range splitTitleWords(issue.Title) {
+			if !seen[word] && !isNoiseWord(word) {
+				keywords = append(keywords, word)
+				seen[word] = true
+			}
+		}
 	}
 
 	return keywords
+}
+
+// splitTitleWords extracts lowercase words from an issue title, dropping
+// short words and punctuation.
+func splitTitleWords(title string) []string {
+	const minWordLen = 3
+	var words []string
+	for _, word := range strings.Fields(strings.ToLower(title)) {
+		clean := strings.TrimFunc(word, func(r rune) bool {
+			return !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_')
+		})
+		if len(clean) >= minWordLen {
+			words = append(words, clean)
+		}
+	}
+	return words
+}
+
+var noiseWords = map[string]bool{
+	"the": true, "and": true, "for": true, "not": true,
+	"are": true, "but": true, "with": true, "this": true,
+	"that": true, "from": true, "have": true, "has": true,
+	"was": true, "were": true, "been": true, "being": true,
+	"does": true, "did": true, "will": true, "would": true,
+	"should": true, "could": true, "can": true, "may": true,
+	"add": true, "fix": true, "update": true, "remove": true,
+	"issue": true, "bug": true, "error": true, "when": true,
+	"after": true, "before": true, "into": true, "about": true,
+}
+
+func isNoiseWord(word string) bool {
+	return noiseWords[word]
+}
+
+func keywordSample(keywords []string) string {
+	const maxSampleKeywords = 8
+	n := len(keywords)
+	if n > maxSampleKeywords {
+		n = maxSampleKeywords
+	}
+	return strings.Join(keywords[:n], ", ")
 }
 
 var noiseLabels = map[string]bool{

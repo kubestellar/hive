@@ -120,6 +120,9 @@ func (s *Scheduler) substituteTemplate(template string, actionable *github.Actio
 	}
 
 	agentIssues := filterByLane(issues, agentName)
+	if len(agentIssues) == 0 && actionable != nil && len(actionable.Issues.Items) > 0 {
+		agentIssues = actionable.Issues.Items
+	}
 	knowledgeSection := s.primeKnowledge(agentIssues)
 
 	replacer := strings.NewReplacer(

@@ -485,7 +485,9 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 			if prevLines == nil {
 				if agent.OutputBuffer.Count() == 0 {
 					for _, l := range filtered {
-						agent.OutputBuffer.Write(l)
+						if !isBufferNoise(l) {
+							agent.OutputBuffer.Write(l)
+						}
 					}
 				}
 				prevLines = filtered
@@ -493,7 +495,9 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 			}
 			newLines := diffNewLines(prevLines, filtered)
 			for _, l := range newLines {
-				agent.OutputBuffer.Write(l)
+				if !isBufferNoise(l) {
+					agent.OutputBuffer.Write(l)
+				}
 				m.logOutputSignals(agent.Name, l)
 			}
 			prevLines = filtered
@@ -1441,6 +1445,40 @@ func isCLIChrome(s string) bool {
 				return true
 			}
 		}
+	}
+	return false
+}
+
+func isBufferNoise(s string) bool {
+	if isCLIChrome(s) || isVisualNoise(s) {
+		return true
+	}
+	t := strings.TrimSpace(s)
+	if t == "❯" || t == "›" || t == ">" {
+		return true
+	}
+	for _, banner := range []string{"╭─╮", "╰─╯", "█ ▘▝ █", "▔▔▔▔", "Copilot v", "Check for mistakes"} {
+		if strings.Contains(t, banner) {
+			return true
+		}
+	}
+	if strings.HasPrefix(t, "● Tip:") || strings.HasPrefix(t, "└ ") || strings.HasPrefix(t, "↑/↓ to navigate") {
+		return true
+	}
+	if strings.Contains(t, "copilot-instructions.md") && strings.Contains(t, "/init") {
+		return true
+	}
+	if strings.Contains(t, "Do you trust the files in this folder") {
+		return true
+	}
+	if strings.HasPrefix(t, "› ") && (strings.Contains(t, "Yes") || strings.Contains(t, "No (Esc)")) {
+		return true
+	}
+	if strings.HasPrefix(t, "●") && strings.Contains(t, "Folder") && strings.Contains(t, "trusted") {
+		return true
+	}
+	if strings.HasPrefix(t, "✗ Model") && strings.Contains(t, "not available") {
+		return true
 	}
 	return false
 }

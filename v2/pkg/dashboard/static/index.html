@@ -2011,6 +2011,25 @@
         _ocSummaryScrollTop = existingSummary.scrollTop;
       }
 
+      // Fast path: if the detail panel already shows this agent, update only the
+      // summary text + status dot to avoid full DOM rebuild (prevents scroll jumps).
+      if (existingSummary && detail.dataset.agent === a.name) {
+        const newText = (a.detailSummary || a.liveSummary) ? escBlock(a.detailSummary || a.liveSummary) : '<span style="color:#9ca3af">No activity summary</span>';
+        if (existingSummary.innerHTML !== newText) {
+          existingSummary.innerHTML = newText;
+        }
+        if (_ocSummaryTailing) {
+          existingSummary.scrollTop = existingSummary.scrollHeight;
+        }
+        const dot = detail.querySelector('.status-dot');
+        if (dot) { dot.className = 'status-dot ' + dotCls; }
+        const stateSpan = detail.querySelector('.oc-agent-detail-header > span:last-child');
+        if (stateSpan) { stateSpan.textContent = stateLabel; }
+        detail.className = 'oc-agent-detail active state-' + dotCls;
+        return;
+      }
+      detail.dataset.agent = a.name;
+
       const gov = window._lastStatus?.governor || {};
       const govMode = (gov.mode || 'unknown').toLowerCase();
       const govModeClass = 'mode-' + (['idle','quiet','busy','surge'].includes(govMode) ? govMode : 'quiet');

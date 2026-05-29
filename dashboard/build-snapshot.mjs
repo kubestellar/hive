@@ -42,7 +42,7 @@ async function fetchJson(endpoint, fallback = '{}') {
 async function main() {
   console.log(`Fetching data from ${dashboardUrl} (mode: ${snapshotMode})...`);
 
-  const [statusRaw, historyRaw, trendsRaw, timelineRaw, configRaw, versionRaw, nousStatusRaw, nousLedgerRaw, nousPrinciplesRaw] = await Promise.all([
+  const [statusRaw, historyRaw, trendsRaw, timelineRaw, configRaw, versionRaw, nousStatusRaw, nousLedgerRaw, nousPrinciplesRaw, kbStatsRaw, kbFactsRaw] = await Promise.all([
     fetchJson('/api/status'),
     fetchJson('/api/history', '[]'),
     fetchJson('/api/trends?range=week', '[]'),
@@ -52,6 +52,8 @@ async function main() {
     fetchJson('/api/nous/status'),
     fetchJson('/api/nous/ledger', '[]'),
     fetchJson('/api/nous/principles', '[]'),
+    fetchJson('/api/knowledge/stats'),
+    fetchJson('/api/knowledge', '{"facts":[]}'),
   ]);
 
   // Validate status
@@ -213,6 +215,16 @@ async function main() {
     };
     renderNous();
 
+    // Knowledge Base
+    _kbCache = ${kbStatsRaw};
+    if (_kbCache && _kbCache.enabled) _kbSetupView = 'none';
+    _kbInitialLoad = false;
+    _kbRendered = true;
+    renderKnowledge();
+    var _snapKbData = ${kbFactsRaw};
+    _kbFacts = Array.isArray(_snapKbData) ? _snapKbData : (_snapKbData.facts || []);
+    renderKnowledgeFacts();
+
     // Git version
     const _v = ${versionRaw};
     const _gv = document.getElementById('git-version');
@@ -265,6 +277,10 @@ async function main() {
     function closeConfigDialog() {}
     function saveConfig() {}
     function toggleLayout() {}
+    function toggleKnowledge() {}
+    function kbSearch() {}
+    function kbReadFact() {}
+    function fetchKnowledgeStats() {}
     function nousSetMode() {}
     function nousSetScope() {}
     function nousApprove() {}

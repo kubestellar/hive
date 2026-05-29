@@ -59,6 +59,7 @@ type AgentProcess struct {
 	OutputBuffer    *RingBuffer
 	KickHistory     []KickRecord
 	LaunchedMode    AgentMode
+	HasLaunched     bool
 	tmuxSession     string
 	tmuxSocket      string
 	cancel          context.CancelFunc
@@ -332,6 +333,7 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 
 	mode := m.agentMode(agent)
 	agent.LaunchedMode = mode
+	agent.HasLaunched = true
 
 	switch backend {
 	case "claude":

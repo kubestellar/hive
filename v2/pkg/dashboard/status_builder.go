@@ -213,7 +213,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 		a.ModeEmoji = mode.Emoji()
 		a.DefaultMode = defaultMode.String()
 		a.IsCustomMode = mode != defaultMode
-		a.NeedsRestart = proc.LaunchedMode != mode
+		a.NeedsRestart = proc.HasLaunched && proc.LaunchedMode != mode
 		if proxyViolationsFn != nil {
 			a.ProxyViolations = proxyViolationsFn()[name]
 		}

@@ -18,7 +18,7 @@ import (
 
 const (
 	jwtExpiry          = 10 * time.Minute
-	tokenRefreshBuffer = 5 * time.Minute
+	tokenRefreshBuffer = 20 * time.Minute
 	TokenCachePath     = "/var/run/hive-metrics/gh-app-token.cache"
 	DocsTokenCachePath = "/var/run/hive-metrics/gh-app-token-docs.cache"
 	tokenCachePerms    = 0o640

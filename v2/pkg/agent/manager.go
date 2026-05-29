@@ -57,6 +57,8 @@ type AgentProcess struct {
 	BackendOverride string
 	RestartCount    int
 	OutputBuffer    *RingBuffer
+	lastPaneCapture []string
+	paneMu          sync.RWMutex
 	KickHistory     []KickRecord
 	LaunchedMode    AgentMode
 	HasLaunched     bool
@@ -473,6 +475,9 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 			if len(filtered) == 0 {
 				continue
 			}
+			agent.paneMu.Lock()
+			agent.lastPaneCapture = filtered
+			agent.paneMu.Unlock()
 			if prevLines == nil {
 				if agent.OutputBuffer.Count() == 0 {
 					for _, l := range filtered {
@@ -1363,6 +1368,22 @@ func (a *AgentProcess) snapshot() AgentProcess {
 		tmuxSocket:      a.tmuxSocket,
 		OutputBuffer:    a.OutputBuffer,
 	}
+}
+
+// PaneLines returns the last n lines from the most recent tmux pane capture.
+func (a *AgentProcess) PaneLines(n int) []string {
+	a.paneMu.RLock()
+	defer a.paneMu.RUnlock()
+	if len(a.lastPaneCapture) == 0 {
+		return nil
+	}
+	start := 0
+	if len(a.lastPaneCapture) > n {
+		start = len(a.lastPaneCapture) - n
+	}
+	out := make([]string, len(a.lastPaneCapture)-start)
+	copy(out, a.lastPaneCapture[start:])
+	return out
 }
 
 func backendBinary(backend string) (string, error) {

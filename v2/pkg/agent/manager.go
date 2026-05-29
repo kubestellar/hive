@@ -1376,7 +1376,8 @@ func (a *AgentProcess) snapshot() AgentProcess {
 }
 
 // PaneLines returns the last n lines from the most recent tmux pane capture,
-// trimmed to only the current CLI session (after the last ❯ prompt line).
+// preferring content from the current CLI session (after the last ❯ prompt).
+// Falls back to showing the full tail if the current session has too few lines.
 func (a *AgentProcess) PaneLines(n int) []string {
 	a.paneMu.RLock()
 	defer a.paneMu.RUnlock()
@@ -1385,7 +1386,6 @@ func (a *AgentProcess) PaneLines(n int) []string {
 	}
 	lines := a.lastPaneCapture
 	// Find the last idle prompt (❯) to detect session boundaries.
-	// Content after the last ❯ is the current session; content before is stale.
 	lastPrompt := -1
 	for i := len(lines) - 1; i >= 0; i-- {
 		trimmed := strings.TrimSpace(lines[i])
@@ -1394,8 +1394,12 @@ func (a *AgentProcess) PaneLines(n int) []string {
 			break
 		}
 	}
+	const minSessionLines = 5
 	if lastPrompt >= 0 && lastPrompt < len(lines)-1 {
-		lines = lines[lastPrompt+1:]
+		afterPrompt := lines[lastPrompt+1:]
+		if len(afterPrompt) >= minSessionLines {
+			lines = afterPrompt
+		}
 	}
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]

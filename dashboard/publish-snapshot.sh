@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Build dashboard snapshots (light + classic) and push to the docs repo.
+# Build dashboard snapshots (light + classic + JSON) and push to the docs repo.
 # Creates a PR and merges with --admin to satisfy branch protection.
 #
-# Produces:
-#   public/live/hive/index.html        — default (light mode)
-#   public/live/hive/light/index.html   — light mode
-#   public/live/hive/classic/index.html — classic mode
+# Produces (under LIVE_DIR):
+#   index.html          — default (light mode)
+#   light/index.html    — light mode
+#   classic/index.html  — classic mode
+#   snapshot.json       — raw /api/status JSON for API consumers
 #
 # Usage: ./publish-snapshot.sh
 # Env vars:
 #   HIVE_DASHBOARD_URL  — dashboard URL (default: http://localhost:3001)
 #   DOCS_REPO_DIR       — local clone of kubestellar/docs (default: /tmp/kubestellar-docs-snapshot)
+#   HIVE_DOCS_SUBDIR    — subdir under public/live/hive/ (e.g. "bluefin"); default: empty (root)
 
 set -euo pipefail
 
@@ -18,6 +20,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DASHBOARD_URL="${HIVE_DASHBOARD_URL:-http://localhost:3001}"
 DOCS_REPO="${DOCS_REPO_DIR:-/tmp/kubestellar-docs-snapshot}"
 DOCS_REPO_SLUG="kubestellar/docs"
+
+# Optional subdir under public/live/hive/ (e.g. HIVE_DOCS_SUBDIR=bluefin)
+_subdir="${HIVE_DOCS_SUBDIR:-}"
+LIVE_DIR="public/live/hive${_subdir:+/$_subdir}"
 
 # Use the real gh binary to bypass the agent gh-wrapper (blocks pr list/merge)
 GH_REAL="/usr/bin/gh"
@@ -55,14 +61,18 @@ for pr in $open_prs; do
 done
 
 # Build all three snapshots from the same API data
-mkdir -p public/live/hive/light public/live/hive/classic
+mkdir -p "${LIVE_DIR}/light" "${LIVE_DIR}/classic"
 
-node "${SCRIPT_DIR}/build-snapshot.mjs" --mode light "$DASHBOARD_URL" public/live/hive/light/index.html
-node "${SCRIPT_DIR}/build-snapshot.mjs" --mode classic "$DASHBOARD_URL" public/live/hive/classic/index.html
-cp public/live/hive/light/index.html public/live/hive/index.html
+node "${SCRIPT_DIR}/build-snapshot.mjs" --mode light   "$DASHBOARD_URL" "${LIVE_DIR}/light/index.html"
+node "${SCRIPT_DIR}/build-snapshot.mjs" --mode classic "$DASHBOARD_URL" "${LIVE_DIR}/classic/index.html"
+cp "${LIVE_DIR}/light/index.html" "${LIVE_DIR}/index.html"
+
+# Also publish raw JSON for API consumers (e.g. docs.projectbluefin.io/hive)
+curl -sf "${DASHBOARD_URL}/api/status" -o "${LIVE_DIR}/snapshot.json" \
+  || echo "WARN: could not fetch /api/status — snapshot.json not updated"
 
 # Check if anything changed
-if git diff --quiet -- public/live/hive/; then
+if git diff --quiet -- "${LIVE_DIR}/"; then
   echo "No changes to snapshot — skipping."
   exit 0
 fi
@@ -78,7 +88,7 @@ git stash pop
 SNAPSHOT_BRANCH="chore/hive-snapshot-$(date -u '+%Y%m%d-%H%M%S')"
 
 git checkout -b "$SNAPSHOT_BRANCH"
-git add public/live/hive/
+git add "${LIVE_DIR}/"
 git commit -s -m "chore: update hive dashboard snapshot $TIMESTAMP"
 git push origin "$SNAPSHOT_BRANCH"
 

@@ -1499,6 +1499,45 @@ func deduplicateBlocks(lines []string) []string {
 	return lines
 }
 
+func (a *AgentProcess) FilteredPaneLines(n int) []string {
+	a.paneMu.RLock()
+	defer a.paneMu.RUnlock()
+	if len(a.lastPaneCapture) == 0 {
+		return nil
+	}
+	lines := a.lastPaneCapture
+	lastPrompt := -1
+	for i := len(lines) - 1; i >= 0; i-- {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "❯" || trimmed == "›" || trimmed == ">" {
+			lastPrompt = i
+			break
+		}
+	}
+	if lastPrompt >= 0 && lastPrompt < len(lines)-1 {
+		lines = lines[lastPrompt+1:]
+	}
+	var cleaned []string
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if len(trimmed) > 0 && strings.Trim(trimmed, "─━─") == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "/data/agents/") && !strings.Contains(trimmed, " ") {
+			continue
+		}
+		cleaned = append(cleaned, l)
+	}
+	lines = cleaned
+	lines = deduplicateBlocks(lines)
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	out := make([]string, len(lines))
+	copy(out, lines)
+	return out
+}
+
 func backendBinary(backend string) (string, error) {
 	binaries := map[string]string{
 		"claude":  "claude",
@@ -1898,7 +1937,7 @@ func (m *Manager) GetOutput(name string, lines int) ([]string, error) {
 		return nil, fmt.Errorf("agent %s not found", name)
 	}
 
-	if pane := agent.PaneLines(lines); len(pane) > 0 {
+	if pane := agent.FilteredPaneLines(lines); len(pane) > 0 {
 		return pane, nil
 	}
 

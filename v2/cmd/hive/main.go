@@ -495,6 +495,41 @@ func main() {
 			}
 		}
 	}
+
+	// Auto-connect configured git sources (remote repos indexed as knowledge)
+	for _, gsc := range cfg.Knowledge.GitSources {
+		if knowledgeAPI == nil {
+			// Knowledge not enabled but git sources configured — auto-enable
+			knowledgeAPI = knowledge.NewKnowledgeAPI(nil, knowledge.KnowledgeConfig{
+				Enabled: true,
+				Engine:  "file",
+			}, logger)
+			logger.Info("auto-enabled knowledge API for git sources")
+		}
+		gsConfig := knowledge.GitSourceConfig{
+			Name:    gsc.Name,
+			URL:     gsc.URL,
+			Branch:  gsc.Branch,
+			Subpath: gsc.Subpath,
+			Layer:   knowledge.LayerType(gsc.Layer),
+		}
+		if err := knowledgeAPI.ConnectGitSource(ctx, gsConfig); err != nil {
+			logger.Warn("failed to connect git source",
+				"name", gsc.Name,
+				"url", gsc.URL,
+				"subpath", gsc.Subpath,
+				"error", err,
+			)
+		} else {
+			logger.Info("git source connected",
+				"name", gsc.Name,
+				"url", gsc.URL,
+				"subpath", gsc.Subpath,
+				"layer", gsc.Layer,
+			)
+		}
+	}
+
 	go gitSyncer.Start(ctx)
 
 	os.MkdirAll(nousSnapshotDir, 0o755)

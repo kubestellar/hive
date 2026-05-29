@@ -1,6 +1,7 @@
 import express from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
@@ -91,10 +92,26 @@ const ttydProxy = createProxyMiddleware({
 });
 app.use('/terminal', ttydProxy);
 
-app.use(express.static(STATIC_DIR));
-app.get('/{*splat}', (req, res) => {
-  res.sendFile(path.join(STATIC_DIR, 'index.html'));
-});
+app.use(express.static(STATIC_DIR, { index: false }));
+
+const indexPath = path.join(STATIC_DIR, 'index.html');
+let indexHtml = '';
+try { indexHtml = fs.readFileSync(indexPath, 'utf8'); } catch { /* built at startup */ }
+
+function serveIndex(_req, res) {
+  if (!indexHtml) {
+    try { indexHtml = fs.readFileSync(indexPath, 'utf8'); } catch { /* ignore */ }
+  }
+  if (DASHBOARD_TOKEN && indexHtml) {
+    const injection = `<script>if(!localStorage.getItem('hive-token'))localStorage.setItem('hive-token',${JSON.stringify(DASHBOARD_TOKEN)});</script>`;
+    res.type('html').send(indexHtml.replace('</head>', injection + '</head>'));
+  } else {
+    res.sendFile(indexPath);
+  }
+}
+
+app.get('/', serveIndex);
+app.get('/{*splat}', serveIndex);
 
 const server = app.listen(PROXY_PORT, () => {
   console.log(`[hive-proxy] Dashboard proxy on :${PROXY_PORT} → Go API at ${GO_API_URL}`);

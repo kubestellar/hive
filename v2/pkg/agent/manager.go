@@ -1416,7 +1416,7 @@ func (a *AgentProcess) PaneLines(n int) []string {
 	lastPrompt := -1
 	for i := len(lines) - 1; i >= 0; i-- {
 		trimmed := strings.TrimSpace(lines[i])
-		if trimmed == "❯" || trimmed == ">" {
+		if trimmed == "❯" || trimmed == "›" || trimmed == ">" {
 			lastPrompt = i
 			break
 		}
@@ -1454,12 +1454,49 @@ func (a *AgentProcess) PaneLines(n int) []string {
 	if !hasCLIOutput {
 		return nil
 	}
+	// Deduplicate: if the same block of lines repeats, keep only the last copy.
+	lines = deduplicateBlocks(lines)
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
 	out := make([]string, len(lines))
 	copy(out, lines)
 	return out
+}
+
+// deduplicateBlocks removes repeated blocks from pane output.
+// It finds the longest suffix that also appears earlier and removes the earlier copy.
+func deduplicateBlocks(lines []string) []string {
+	if len(lines) < 4 {
+		return lines
+	}
+	// Try block sizes from half the total down to 2 lines.
+	maxBlock := len(lines) / 2
+	for blockSize := maxBlock; blockSize >= 2; blockSize-- {
+		// Extract the last blockSize lines as the candidate block.
+		candidate := lines[len(lines)-blockSize:]
+		// Scan backwards for an earlier occurrence.
+		for start := len(lines) - blockSize - 1; start >= 0; start-- {
+			if start+blockSize > len(lines)-blockSize {
+				continue
+			}
+			match := true
+			for j := 0; j < blockSize; j++ {
+				if strings.TrimSpace(lines[start+j]) != strings.TrimSpace(candidate[j]) {
+					match = false
+					break
+				}
+			}
+			if match {
+				// Remove the earlier duplicate block.
+				result := make([]string, 0, len(lines)-blockSize)
+				result = append(result, lines[:start]...)
+				result = append(result, lines[start+blockSize:]...)
+				return deduplicateBlocks(result)
+			}
+		}
+	}
+	return lines
 }
 
 func backendBinary(backend string) (string, error) {

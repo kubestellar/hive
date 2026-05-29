@@ -1898,8 +1898,8 @@ func (m *Manager) GetOutput(name string, lines int) ([]string, error) {
 		return nil, fmt.Errorf("agent %s not found", name)
 	}
 
-	if agent.OutputBuffer != nil {
-		return agent.OutputBuffer.Last(lines), nil
+	if pane := agent.PaneLines(lines); len(pane) > 0 {
+		return pane, nil
 	}
 
 	return nil, nil

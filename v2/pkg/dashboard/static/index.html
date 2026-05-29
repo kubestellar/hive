@@ -1619,7 +1619,7 @@
     <div class="oc-topbar-center">
       <span class="oc-tb-link" onclick="openConfigDialog('governor')">⚙️ Config</span>
       <span class="oc-tb-link" onclick="ocNavigate('debug-section')">🔍 Debug</span>
-      <span class="oc-tb-link" onclick="ocNavigate('logs-section')">📋 Logs</span>
+      <!-- Agent Logs hidden (redundant with per-agent output) -->
       <button class="layout-toggle" onclick="toggleLayout()" title="Switch to Classic layout — dark theme with compact agent cards in a grid. Best for quick overview of all agents at once.">☰ Classic View</button>
     </div>
     <div class="oc-topbar-right">
@@ -6608,7 +6608,7 @@ function burnAreaChart() {
         const nousSidebarCfg = document.getElementById('nous-sidebar-config');
         level >= ACMM_NOUS_MIN_LEVEL ? show(nousSidebarCfg, '') : hide(nousSidebarCfg);
         level >= ACMM_DEBUG_MIN_LEVEL ? show(debugSection, '') : hide(debugSection);
-        level >= ACMM_LOGS_MIN_LEVEL ? show(logsSection, '') : hide(logsSection);
+        hide(logsSection);
 
         if (level < ACMM_GOVERNOR_MIN_LEVEL) {
           sidebarGroups.forEach(g => {

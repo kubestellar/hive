@@ -2015,10 +2015,14 @@
 
       // Fast path: if the detail panel already shows this agent, update only the
       // summary text + status dot to avoid full DOM rebuild (prevents scroll jumps).
+      // Only update summary when detailSummary is available — never replace long
+      // ring buffer content with short liveSummary fallback.
       if (existingSummary && detail.dataset.agent === a.name) {
-        const newText = (a.detailSummary || a.liveSummary) ? escBlock(a.detailSummary || a.liveSummary) : '<span style="color:#9ca3af">No activity summary</span>';
-        if (existingSummary.innerHTML !== newText) {
-          existingSummary.innerHTML = newText;
+        if (a.detailSummary) {
+          const newText = escBlock(a.detailSummary);
+          if (existingSummary.innerHTML !== newText) {
+            existingSummary.innerHTML = newText;
+          }
         }
         if (_ocSummaryTailing) {
           existingSummary.scrollTop = existingSummary.scrollHeight;

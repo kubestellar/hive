@@ -8,12 +8,24 @@ RUN GIT_HASH=$(git -C /repo rev-parse HEAD 2>/dev/null || echo "unknown") && \
     CGO_ENABLED=0 go build -ldflags "-X main.gitHash=${GIT_HASH} -X main.gitShort=${GIT_SHORT}" -o /hive ./cmd/hive
 RUN CGO_ENABLED=0 go build -o /bd ./cmd/bd
 
+# --- tmux from source (cached until TMUX_VERSION changes) ---
+FROM node:24-slim AS tmux-builder
+ARG TMUX_VERSION=3.5a
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl gcc make pkg-config libevent-dev libncurses-dev bison ca-certificates \
+ && curl -sL "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" | tar xz -C /tmp \
+ && cd /tmp/tmux-${TMUX_VERSION} && ./configure --prefix=/usr/local && make -j$(nproc) && make install \
+ && rm -rf /tmp/tmux-${TMUX_VERSION}
+
 FROM node:24-slim
 
 # --- Layer 1: system packages (rarely changes) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ca-certificates bash curl tmux bzip2 gosu iptables gcc libc6-dev \
+    git ca-certificates bash curl bzip2 gosu iptables libevent-core-2.1-7 \
+    gcc libc6-dev \
  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=tmux-builder /usr/local/bin/tmux /usr/local/bin/tmux
 
 # su-exec: lightweight setuid exec for UID switching from non-root.
 # gosu rejects SUID mode, so we use su-exec (which is designed for it)

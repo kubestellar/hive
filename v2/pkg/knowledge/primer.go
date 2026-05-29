@@ -16,15 +16,23 @@ import (
 // Fisher-Rao geodesic distance on term-frequency embeddings. This catches
 // semantic matches that keyword search misses.
 type Primer struct {
-	layers   []layerClient
-	config   PrimerConfig
-	logger   *slog.Logger
-	embedder *EmbeddingCache
+	layers     []layerClient
+	fileStores []localStore
+	config     PrimerConfig
+	logger     *slog.Logger
+	embedder   *EmbeddingCache
 }
 
 type layerClient struct {
 	layerType LayerType
 	client    *Client
+}
+
+// localStore pairs a FileStore with the layer it belongs to.
+type localStore struct {
+	layerType LayerType
+	store     *FileStore
+	name      string
 }
 
 // NewPrimer creates a primer from the configured wiki layers. Layers that are
@@ -57,6 +65,17 @@ func NewPrimer(layers []LayerConfig, config PrimerConfig, logger *slog.Logger) *
 	}
 }
 
+// AddFileStore registers a local FileStore (from a git source or vault) so
+// the primer includes its facts alongside HTTP wiki layer results.
+func (p *Primer) AddFileStore(name string, store *FileStore, layer LayerType) {
+	p.fileStores = append(p.fileStores, localStore{
+		layerType: layer,
+		store:     store,
+		name:      name,
+	})
+	p.logger.Info("primer: added file store", "name", name, "layer", layer)
+}
+
 // Prime queries all reachable wiki layers for facts relevant to the given
 // file paths and keywords, merges with precedence, and returns a result ready
 // for prompt injection.
@@ -68,7 +87,7 @@ func (p *Primer) Prime(ctx context.Context, filePaths []string, keywords []strin
 		return &PrimedKnowledge{}
 	}
 
-	// Query each layer; collect results tagged with their layer.
+	// Query each HTTP wiki layer; collect results tagged with their layer.
 	var allFacts []Fact
 	for _, lc := range p.layers {
 		results, err := lc.client.Search(ctx, query, "", p.config.MaxFacts)
@@ -94,6 +113,15 @@ func (p *Primer) Prime(ctx context.Context, filePaths []string, keywords []strin
 		}
 	}
 
+	// Query local FileStores (git sources, vaults).
+	for _, ls := range p.fileStores {
+		facts := ls.store.Search(query, p.config.MaxFacts)
+		for i := range facts {
+			facts[i].Layer = ls.layerType
+		}
+		allFacts = append(allFacts, facts...)
+	}
+
 	merged := p.mergeWithPrecedence(allFacts)
 	reranked := p.rerankFisherRao(query, merged)
 	prioritized := p.applyPriority(reranked)
@@ -105,7 +133,8 @@ func (p *Primer) Prime(ctx context.Context, filePaths []string, keywords []strin
 	elapsed := time.Since(start).Milliseconds()
 	p.logger.Info("knowledge primed",
 		"facts", len(prioritized),
-		"layers_queried", len(p.layers),
+		"http_layers", len(p.layers),
+		"file_stores", len(p.fileStores),
 		"query_ms", elapsed,
 	)
 

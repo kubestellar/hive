@@ -34,6 +34,11 @@ func (s *Scheduler) SetPrimer(p *knowledge.Primer) {
 	s.primer = p
 }
 
+// GetPrimer returns the attached primer, or nil if none is set.
+func (s *Scheduler) GetPrimer() *knowledge.Primer {
+	return s.primer
+}
+
 // loadPromptTemplate searches standard paths for an agent's policy template.
 // It checks on-disk paths first, then falls back to embedded default policies.
 func (s *Scheduler) loadPromptTemplate(agentName string) string {

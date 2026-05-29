@@ -1413,6 +1413,19 @@ func (a *AgentProcess) PaneLines(n int) []string {
 	return filterPaneOutput(a.lastPaneCapture, n)
 }
 
+func isTerminalChrome(s string) bool {
+	t := strings.TrimSpace(s)
+	return t == "" ||
+		strings.HasPrefix(t, "/ commands") ||
+		strings.HasPrefix(t, "? help") ||
+		strings.Contains(t, "Claude ") ||
+		strings.Contains(t, "Copilot v") ||
+		strings.Contains(t, "Gemini ") ||
+		strings.Contains(t, "@ files") ||
+		(len(t) > 0 && strings.Trim(t, "─━─") == "") ||
+		(strings.HasPrefix(t, "/data/agents/") && !strings.Contains(t, " "))
+}
+
 func filterPaneOutput(lines []string, n int) []string {
 	lastPrompt := -1
 	for i := len(lines) - 1; i >= 0; i-- {
@@ -1423,18 +1436,25 @@ func filterPaneOutput(lines []string, n int) []string {
 		}
 	}
 	if lastPrompt >= 0 && lastPrompt < len(lines)-1 {
-		lines = lines[lastPrompt+1:]
+		afterPrompt := lines[lastPrompt+1:]
+		hasContent := false
+		for _, l := range afterPrompt {
+			if !isTerminalChrome(l) {
+				hasContent = true
+				break
+			}
+		}
+		if hasContent {
+			lines = afterPrompt
+		} else {
+			lines = lines[:lastPrompt]
+		}
 	}
 	var cleaned []string
 	for _, l := range lines {
-		trimmed := strings.TrimSpace(l)
-		if len(trimmed) > 0 && strings.Trim(trimmed, "─━─") == "" {
-			continue
+		if !isTerminalChrome(l) {
+			cleaned = append(cleaned, l)
 		}
-		if strings.HasPrefix(trimmed, "/data/agents/") && !strings.Contains(trimmed, " ") {
-			continue
-		}
-		cleaned = append(cleaned, l)
 	}
 	lines = cleaned
 	lines = deduplicateBlocks(lines)

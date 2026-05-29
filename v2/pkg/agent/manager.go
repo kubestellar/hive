@@ -1412,6 +1412,7 @@ func (a *AgentProcess) PaneLines(n int) []string {
 	}
 	lines := a.lastPaneCapture
 	// Find the last idle prompt (❯) to detect session boundaries.
+	// Always trim to after the last prompt — never show prior session content.
 	lastPrompt := -1
 	for i := len(lines) - 1; i >= 0; i-- {
 		trimmed := strings.TrimSpace(lines[i])
@@ -1420,13 +1421,19 @@ func (a *AgentProcess) PaneLines(n int) []string {
 			break
 		}
 	}
-	const minSessionLines = 5
 	if lastPrompt >= 0 && lastPrompt < len(lines)-1 {
-		afterPrompt := lines[lastPrompt+1:]
-		if len(afterPrompt) >= minSessionLines {
-			lines = afterPrompt
-		}
+		lines = lines[lastPrompt+1:]
 	}
+	// Strip horizontal rule lines (tmux separator bars like ────)
+	var cleaned []string
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if len(trimmed) > 0 && strings.Trim(trimmed, "─━─") == "" {
+			continue
+		}
+		cleaned = append(cleaned, l)
+	}
+	lines = cleaned
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}

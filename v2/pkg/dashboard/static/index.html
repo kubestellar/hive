@@ -4931,11 +4931,10 @@ function burnAreaChart() {
         const isGitSource = l.type && l.type.startsWith('git_source:');
         const repoUrl = isGitSource && l.url ? (l.subpath ? l.url + '/tree/' + 'main/' + l.subpath : l.url) : '';
         html += `<button class="kb-layer-btn${active}" onclick="kbSelectLayer('${escapeHtml(l.type)}')">`;
-        html += `<span class="kb-layer-label">${icon} ${escapeHtml(label)} <span class="kb-health-indicator" style="background:${dotColor}"></span>`;
+        html += `<span class="kb-layer-label">${icon} ${escapeHtml(label)} <span class="kb-health-indicator" style="background:${dotColor}"></span></span>`;
         if (isGitSource && repoUrl) {
-          html += `<a href="${escapeHtml(repoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:0.72rem;margin-left:2px" title="Open source repo">↗</a>`;
+          html += `<a href="${escapeHtml(repoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:0.82rem;flex-shrink:0" title="Open source repo in new tab">↗</a>`;
         }
-        html += `</span>`;
         html += `<span class="kb-layer-count">${count}</span>`;
         html += `</button>`;
       }

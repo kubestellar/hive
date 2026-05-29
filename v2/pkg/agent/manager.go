@@ -473,6 +473,15 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 			if len(filtered) == 0 {
 				continue
 			}
+			if prevLines == nil {
+				if agent.OutputBuffer.Count() == 0 {
+					for _, l := range filtered {
+						agent.OutputBuffer.Write(l)
+					}
+				}
+				prevLines = filtered
+				continue
+			}
 			newLines := diffNewLines(prevLines, filtered)
 			for _, l := range newLines {
 				agent.OutputBuffer.Write(l)

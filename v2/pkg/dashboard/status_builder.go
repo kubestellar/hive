@@ -159,7 +159,9 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			liveSummary = strings.Join(pane, "\n")
 		}
 		var detailSummary string
-		if pane := proc.FilteredPaneLines(0); len(pane) > 0 {
+		if buf := proc.OutputBuffer; buf != nil && buf.Count() > 0 {
+			detailSummary = strings.Join(buf.Last(buf.Count()), "\n")
+		} else if pane := proc.FilteredPaneLines(0); len(pane) > 0 {
 			detailSummary = strings.Join(pane, "\n")
 		}
 

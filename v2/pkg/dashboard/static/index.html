@@ -4643,7 +4643,7 @@ function burnAreaChart() {
         const r = await fetch(url);
         if (!r.ok) { _kbFacts = []; renderKnowledgeFacts(); return; }
         const data = await r.json();
-        _kbFacts = Array.isArray(data) ? data : (data.facts || []);
+        _kbFacts = Array.isArray(data) ? data : (data.results || data.facts || []);
         _kbSelectedFact = null;
         renderKnowledgeFacts();
       } catch (e) { _kbFacts = []; renderKnowledgeFacts(); }

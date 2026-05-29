@@ -48,16 +48,21 @@ assert_contains "$ENTRYPOINT" \
   'chmod -R g+rwX /data/home' \
   "/data/home is group-writable"
 
-# 6. agent-launch.sh reads PAT from /data volume for Copilot auth
+# 6. Entrypoint loads Copilot PAT for Go binary
+assert_contains "$ENTRYPOINT" \
+  'COPILOT_GITHUB_TOKEN' \
+  "Entrypoint exports COPILOT_GITHUB_TOKEN"
+
+# 7. PAT file path references /data volume (not hardcoded secret)
+assert_contains "$ENTRYPOINT" \
+  '/data/copilot-token-pat' \
+  "PAT read from /data volume file"
+
+# 8. agent-launch.sh also loads PAT as fallback
 LAUNCH_SCRIPT="$(cd "$(dirname "$0")/../../bin" && pwd)/agent-launch.sh"
 assert_contains "$LAUNCH_SCRIPT" \
   'COPILOT_GITHUB_TOKEN' \
   "agent-launch.sh exports COPILOT_GITHUB_TOKEN"
-
-# 7. PAT file path references /data volume (not hardcoded secret)
-assert_contains "$LAUNCH_SCRIPT" \
-  '/data/copilot-token-pat' \
-  "PAT read from /data volume file"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

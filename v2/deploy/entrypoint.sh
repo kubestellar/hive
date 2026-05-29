@@ -220,6 +220,15 @@ if [ -n "${GH_APP_ID:-}" ] && [ -n "${GH_APP_INSTALLATION_ID:-}" ]; then
   export HIVE_GITHUB_TOKEN="$(cat /var/run/hive-metrics/gh-app-token.cache 2>/dev/null || true)"
 fi
 
+# Load Copilot PAT from persistent volume so the Go binary can inject it
+# into agent tmux sessions via COPILOT_GITHUB_TOKEN env var.
+COPILOT_PAT_FILE="/data/copilot-token-pat"
+if [ -f "$COPILOT_PAT_FILE" ] && [ -s "$COPILOT_PAT_FILE" ]; then
+  export COPILOT_GITHUB_TOKEN
+  COPILOT_GITHUB_TOKEN="$(cat "$COPILOT_PAT_FILE")"
+  echo "[entrypoint] Copilot PAT loaded from $COPILOT_PAT_FILE"
+fi
+
 echo "[entrypoint] Starting Go binary on :${HIVE_API_PORT} (uid=$(id -u))"
 hive "$@" &
 HIVE_PID=$!

@@ -241,7 +241,17 @@ PROXY_PID=$!
 
 TTYD_PORT="${HIVE_TTYD_PORT:-7681}"
 echo "[entrypoint] Starting ttyd on :${TTYD_PORT}"
-ttyd -W -a -p "${TTYD_PORT}" -t fontSize=14 -t disableLeaveAlert=true /usr/local/bin/ttyd-tmux.sh &
+# Wrap ttyd in a respawn loop: ttyd exits on SIGHUP (its close signal),
+# and orphaned LISTEN sockets block rebind, so we wait before retrying.
+TTYD_RESPAWN_DELAY_SECS=5
+(
+  trap '' HUP
+  while true; do
+    ttyd -W -a -p "${TTYD_PORT}" -t fontSize=14 -t disableLeaveAlert=true /usr/local/bin/ttyd-tmux.sh
+    echo "[entrypoint] ttyd exited (rc=$?), respawning in ${TTYD_RESPAWN_DELAY_SECS}s..."
+    sleep "$TTYD_RESPAWN_DELAY_SECS"
+  done
+) &
 TTYD_PID=$!
 
 cleanup() {

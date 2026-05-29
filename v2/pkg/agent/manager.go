@@ -1517,7 +1517,7 @@ func filterPaneOutput(lines []string, n int) []string {
 	}
 	lines = cleaned
 	lines = deduplicateBlocks(lines)
-	if len(lines) > n {
+	if n > 0 && len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
 	out := make([]string, len(lines))

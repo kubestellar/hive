@@ -154,13 +154,12 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 		pinnedModel := proc.PinnedModel != ""
 
 		const summaryLines = 20
-		const detailLines = 50
 		var liveSummary string
 		if pane := proc.PaneLines(summaryLines); len(pane) > 0 {
 			liveSummary = strings.Join(pane, "\n")
 		}
 		var detailSummary string
-		if pane := proc.PaneLines(detailLines); len(pane) > 0 {
+		if pane := proc.FilteredPaneLines(0); len(pane) > 0 {
 			detailSummary = strings.Join(pane, "\n")
 		}
 

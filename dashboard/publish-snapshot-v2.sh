@@ -23,6 +23,16 @@
 set -euo pipefail
 
 export PATH="/usr/local/bin:$PATH"
+
+# Hive's ACMM proxy intercepts TLS with its own CA. Append the proxy CA
+# to the system bundle so git and node can verify HTTPS connections.
+PROXY_CA="/data/proxy-ca.pem"
+if [ -f "$PROXY_CA" ]; then
+  COMBINED_CA="/tmp/ca-combined.pem"
+  cat /etc/ssl/certs/ca-certificates.crt "$PROXY_CA" > "$COMBINED_CA" 2>/dev/null || true
+  export GIT_SSL_CAINFO="$COMBINED_CA"
+  export NODE_EXTRA_CA_CERTS="$COMBINED_CA"
+fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Use the real gh binary, not the agent wrapper at /usr/local/bin/gh.

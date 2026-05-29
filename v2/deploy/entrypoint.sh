@@ -48,6 +48,7 @@ if [ "$(id -u)" = "0" ]; then
       fi
     done
     chown -R dev:node /data/beads /home/dev 2>/dev/null || true
+    chmod -R g+rwX /data/beads 2>/dev/null || true
   fi
 
   # Shared CLI auth/cache lives in /data/home (persistent volume).
@@ -117,7 +118,11 @@ print('\n'.join(sorted(names)))
         useradd --system -u "$AGENT_UID" -g node -d /data/home -M -s /bin/bash "hive-${agent_name}" 2>/dev/null || true
       fi
       mkdir -p "/data/agents/${agent_name}"
-      chown "hive-${agent_name}:node" "/data/agents/${agent_name}" 2>/dev/null || true
+      chown -R "hive-${agent_name}:node" "/data/agents/${agent_name}" 2>/dev/null || true
+      # Also fix beads dir ownership so agent can write beads.json
+      if [ -d "/data/beads/${agent_name}" ]; then
+        chown -R "hive-${agent_name}:node" "/data/beads/${agent_name}" 2>/dev/null || true
+      fi
       echo "[entrypoint] Agent user: hive-${agent_name} (UID ${AGENT_UID})"
       UID_OFFSET=$((UID_OFFSET + 1))
     done

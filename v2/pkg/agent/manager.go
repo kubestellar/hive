@@ -1437,6 +1437,23 @@ func (a *AgentProcess) PaneLines(n int) []string {
 		cleaned = append(cleaned, l)
 	}
 	lines = cleaned
+	// If the pane only contains the launch command (no CLI output yet), return nil.
+	// CLI output is detected by status line markers from copilot/claude/gemini.
+	hasCLIOutput := false
+	for _, l := range lines {
+		if strings.Contains(l, "esc cancel") || strings.Contains(l, "Copilot v") ||
+			strings.Contains(l, "Claude ") || strings.Contains(l, "Gemini ") ||
+			strings.Contains(l, "@ files") || strings.Contains(l, "/ commands") ||
+			strings.Contains(l, "Loading:") || strings.Contains(l, "Working") ||
+			strings.Contains(l, "● ") || strings.Contains(l, "◎ ") ||
+			strings.Contains(l, "○ ") || strings.Contains(l, "◉ ") {
+			hasCLIOutput = true
+			break
+		}
+	}
+	if !hasCLIOutput {
+		return nil
+	}
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}

@@ -4882,7 +4882,7 @@ function burnAreaChart() {
       html += '<div style="display:flex;gap:8px;margin-bottom:14px">';
       html += '<button class="nous-btn" style="background:var(--accent);color:white" onclick="kbOpenCreate()" title="Create a new knowledge fact manually. Choose a layer (personal, project, org, community), type, and enter the fact content.">+ New Fact</button>';
       html += '<button class="nous-btn" style="background:var(--surface);color:var(--fg);border:1px solid var(--border)" onclick="kbOpenImport()" title="Import facts from a file or external knowledge base. Supports JSON and YAML formats.">📥 Import</button>';
-      html += '<button class="nous-btn" style="background:var(--surface);color:var(--fg);border:1px solid var(--border)" onclick="kbOpenSubscriptions()" title="Manage subscriptions to external knowledge sources. Subscribed facts auto-sync on a schedule.">🔗 Subscriptions</button>';
+      html += '<button class="nous-btn" style="background:var(--surface);color:var(--fg);border:1px solid var(--border)" onclick="kbOpenSubscriptions()" title="Manage git sources and wiki subscriptions that feed knowledge to agents.">🔗 Knowledge Sources</button>';
       html += '<button class="nous-btn" style="background:var(--surface);color:var(--fg);border:1px solid var(--border)" onclick="kbOpenVaults()" title="Manage knowledge vaults — collections of facts organized by topic or project. Vaults can be shared across hive instances.">📂 Vaults</button>';
       html += '<button class="nous-btn" style="background:var(--surface);color:var(--fg);border:1px solid var(--border)" onclick="kbOpenHowItWorks()">📖 How it works</button>';
       html += '<button class="nous-btn" style="background:var(--surface);color:var(--fg);border:1px solid var(--border)" onclick="kbOpenObsidianSetup()" title="View step-by-step instructions for connecting Obsidian via Git sync or webhook.">🔮 Obsidian Setup</button>';
@@ -5296,7 +5296,7 @@ function burnAreaChart() {
     }
 
     function kbOpenSubscriptions() {
-      kbShowModal('🔗 Subscriptions', '<div id="kb-subs-content"><div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div></div>');
+      kbShowModal('🔗 Knowledge Sources', '<div id="kb-subs-content"><div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div></div>');
       kbLoadSubscriptions();
     }
 
@@ -5305,27 +5305,95 @@ function burnAreaChart() {
       if (!el) return;
 
       try {
-        const r = await fetch('/api/knowledge/subscriptions');
-        const subs = await r.json();
+        const [subsR, gsR] = await Promise.all([
+          fetch('/api/knowledge/subscriptions'),
+          fetch('/api/knowledge/git-sources'),
+        ]);
+        const subs = await subsR.json();
+        const gitSources = await gsR.json();
 
         let html = '';
+
+        // Explainer
+        html += '<div style="font-size:0.75rem;color:var(--muted);line-height:1.5;margin-bottom:14px;padding:10px;background:var(--surface);border-radius:6px;border:1px solid var(--border)">';
+        html += '<strong style="color:var(--fg)">How agents use knowledge sources</strong><br>';
+        html += 'Before each kick, the primer queries all connected sources and injects the most relevant facts into the agent\'s prompt. Agents never talk to sources directly &mdash; knowledge is primed deterministically by file paths and keywords.';
+        html += '</div>';
+
+        // ── Git Sources section ──
+        html += '<div style="margin-bottom:18px">';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+        html += '<span style="font-size:0.92rem;font-weight:600;color:var(--fg)">Git Sources</span>';
+        html += '<span style="font-size:0.68rem;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px">cloned &amp; indexed locally</span>';
+        html += '</div>';
+        html += '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px">A GitHub repo (or subdirectory) containing markdown files. Hive clones it locally, indexes the content with Fisher-Rao scored search, and syncs every 5 minutes. No running service needed on the other end.</div>';
+
+        if (gitSources && gitSources.length > 0) {
+          for (const gs of gitSources) {
+            const statusColor = gs.ready ? '#16a34a' : '#eab308';
+            const statusText = gs.ready ? 'ready' : 'initializing';
+            html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px">';
+            html += '<div style="min-width:0;flex:1">';
+            html += `<div style="font-size:0.82rem;font-weight:600;color:var(--fg);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden">`;
+            html += `<span style="width:7px;height:7px;min-width:7px;border-radius:50%;background:${statusColor};display:inline-block"></span>`;
+            html += `<span style="overflow:hidden;text-overflow:ellipsis">${escapeHtml(gs.name)}</span></div>`;
+            const repoHref = gs.subpath ? gs.url + '/tree/' + (gs.branch || 'main') + '/' + gs.subpath : gs.url;
+            html += `<div style="font-size:0.7rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">`;
+            html += `<a href="${escapeHtml(repoHref)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none" title="Open repo in new tab">${escapeHtml(gs.url)}`;
+            if (gs.subpath) html += ` / ${escapeHtml(gs.subpath)}`;
+            html += ` ↗</a>`;
+            html += ` &middot; ${escapeHtml(gs.layer)} &middot; ${gs.pages} pages &middot; ${statusText}</div>`;
+            html += '</div>';
+            html += `<button class="nous-btn" style="background:#dc2626;color:white;font-size:0.7rem;padding:4px 8px;flex-shrink:0;margin-left:8px" onclick="kbRemoveGitSource('${escapeHtml(gs.url)}','${escapeHtml(gs.subpath || '')}')">Remove</button>`;
+            html += '</div>';
+          }
+        } else {
+          html += '<div style="text-align:center;padding:12px;color:var(--muted);font-size:0.75rem;border:1px dashed var(--border);border-radius:6px">No git sources yet.</div>';
+        }
+
+        html += '<details style="margin-top:10px"><summary style="cursor:pointer;font-size:0.78rem;font-weight:600;color:var(--fg)">Add Git Source</summary>';
+        html += '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">';
+        html += '<input id="kb-gs-url" type="text" class="kb-search-box" placeholder="https://github.com/org/repo">';
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+        html += '<input id="kb-gs-name" type="text" class="kb-search-box" placeholder="Display name">';
+        html += '<input id="kb-gs-subpath" type="text" class="kb-search-box" placeholder="Subpath (e.g. docs/skills)">';
+        html += '</div>';
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+        html += '<input id="kb-gs-branch" type="text" class="kb-search-box" placeholder="Branch (default: main)">';
+        html += `<select id="kb-gs-layer" style="padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);font-size:0.78rem">
+          <option value="project">Project</option>
+          <option value="personal">Personal</option>
+          <option value="org">Org</option>
+          <option value="community">Community</option>
+        </select>`;
+        html += '</div>';
+        html += '<div style="display:flex;justify-content:flex-end">';
+        html += '<button class="nous-btn" style="background:var(--accent);color:white" onclick="kbAddGitSource()">Clone &amp; Index</button>';
+        html += '</div></div></details>';
+        html += '</div>';
+
+        // ── Wiki Subscriptions section ──
+        html += '<div style="border-top:1px solid var(--border);padding-top:14px">';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+        html += '<span style="font-size:0.92rem;font-weight:600;color:var(--fg)">Wiki Subscriptions</span>';
+        html += '<span style="font-size:0.68rem;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px">remote llm-wiki endpoint</span>';
+        html += '</div>';
+        html += '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px">A running llm-wiki HTTP service hosted by your team or the community. Hive queries it via the MCP protocol at prime time &mdash; facts stay on the remote server, only search results are fetched.</div>';
+
         if (subs && subs.length > 0) {
-          html += '<div style="margin-bottom:14px">';
           for (const s of subs) {
-            html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px">`;
+            html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px">';
             html += `<div><div style="font-size:0.82rem;font-weight:600;color:var(--fg)">${escapeHtml(s.name || s.url)}</div>`;
-            html += `<div style="font-size:0.7rem;color:var(--muted)">${escapeHtml(s.url)} · ${escapeHtml(s.layer || 'org')}</div></div>`;
+            html += `<div style="font-size:0.7rem;color:var(--muted)">${escapeHtml(s.url)} &middot; ${escapeHtml(s.layer || 'org')}</div></div>`;
             html += `<button class="nous-btn" style="background:#dc2626;color:white;font-size:0.7rem;padding:4px 8px" onclick="kbRemoveSub('${escapeHtml(s.url)}')">Remove</button>`;
             html += '</div>';
           }
-          html += '</div>';
         } else {
-          html += '<div style="text-align:center;padding:16px;color:var(--muted);font-size:0.78rem">No subscriptions yet. Add an org or community wiki endpoint.</div>';
+          html += '<div style="text-align:center;padding:12px;color:var(--muted);font-size:0.75rem;border:1px dashed var(--border);border-radius:6px">No subscriptions yet.</div>';
         }
 
-        html += '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">';
-        html += '<div style="font-size:0.82rem;font-weight:600;color:var(--fg);margin-bottom:8px">Add Subscription</div>';
-        html += '<div style="display:flex;flex-direction:column;gap:8px">';
+        html += '<details style="margin-top:10px"><summary style="cursor:pointer;font-size:0.78rem;font-weight:600;color:var(--fg)">Add Subscription</summary>';
+        html += '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">';
         html += '<input id="kb-sub-url" type="text" class="kb-search-box" placeholder="https://wiki.example.com/mcp">';
         html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
         html += `<input id="kb-sub-name" type="text" class="kb-search-box" placeholder="Display name">`;
@@ -5336,12 +5404,54 @@ function burnAreaChart() {
         html += '</div>';
         html += '<div style="display:flex;justify-content:flex-end">';
         html += '<button class="nous-btn" style="background:var(--accent);color:white" onclick="kbAddSub()">Add</button>';
-        html += '</div></div></div>';
+        html += '</div></div></details>';
+        html += '</div>';
 
         el.innerHTML = html;
       } catch (e) {
-        el.innerHTML = '<div style="color:#dc2626;padding:12px">Failed to load subscriptions: ' + escapeHtml(e.message) + '</div>';
+        el.innerHTML = '<div style="color:#dc2626;padding:12px">Failed to load knowledge sources: ' + escapeHtml(e.message) + '</div>';
       }
+    }
+
+    async function kbAddGitSource() {
+      const url = document.getElementById('kb-gs-url')?.value?.trim();
+      const name = document.getElementById('kb-gs-name')?.value?.trim();
+      const subpath = document.getElementById('kb-gs-subpath')?.value?.trim();
+      const branch = document.getElementById('kb-gs-branch')?.value?.trim();
+      const layer = document.getElementById('kb-gs-layer')?.value;
+
+      if (!url) { await hiveAlert('Repository URL is required'); return; }
+      if (!name) { await hiveAlert('Display name is required'); return; }
+
+      const btn = document.querySelector('#kb-subs-content button[onclick="kbAddGitSource()"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Cloning...'; }
+
+      try {
+        const r = await fetch('/api/knowledge/git-sources', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, name, subpath: subpath || '', branch: branch || 'main', layer }),
+        });
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to add git source'); return; }
+        kbLoadSubscriptions();
+        fetchKnowledgeStats();
+      } catch (e) {
+        await hiveAlert('Error: ' + e.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Clone & Index'; }
+      }
+    }
+
+    async function kbRemoveGitSource(url, subpath) {
+      if (!(await hiveConfirm('Remove git source ' + url + (subpath ? ' (' + subpath + ')' : '') + '?'))) return;
+      try {
+        const r = await fetch('/api/knowledge/git-sources', {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, subpath }),
+        });
+        if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to remove'); return; }
+        kbLoadSubscriptions();
+        fetchKnowledgeStats();
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function kbAddSub() {

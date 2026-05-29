@@ -89,36 +89,13 @@ if [[ ${#EXTRA_ARGS[@]} -gt 0 ]]; then
   FULL_CMD+=("${EXTRA_ARGS[@]}")
 fi
 
-# Copilot CLI overwrites config.json on startup, wiping copilotTokens.
-# Restore from backup before launch so the agent doesn't need /login.
+# Copilot CLI: use a fine-grained PAT via env var to bypass /login entirely.
+# The PAT file lives on the persistent /data volume, never in source control.
 if [[ "$BACKEND" == "copilot" ]]; then
-  TOKEN_BACKUP="/data/copilot-token.json"
-  COPILOT_CONFIG="${HOME}/.copilot/config.json"
-  if [[ -f "$TOKEN_BACKUP" && -f "$COPILOT_CONFIG" ]]; then
-    python3 -c "
-import json, sys, os, fcntl
-backup = json.load(open('$TOKEN_BACKUP'))
-cfg_path = '$COPILOT_CONFIG'
-fd = os.open(cfg_path, os.O_RDWR)
-fcntl.flock(fd, fcntl.LOCK_EX)
-try:
-    raw = os.pread(fd, 65536, 0).decode()
-    lines = raw.split('\n')
-    json_lines = [l for l in lines if not l.strip().startswith('//')]
-    cfg = json.loads('\n'.join(json_lines)) if any(json_lines) else {}
-    cfg['copilotTokens'] = backup.get('copilotTokens', {})
-    if 'lastLoggedInUser' in backup:
-        cfg['lastLoggedInUser'] = backup['lastLoggedInUser']
-    if 'loggedInUsers' in backup:
-        cfg['loggedInUsers'] = backup['loggedInUsers']
-    out = '// User settings belong in settings.json.\n// This file is managed automatically.\n' + json.dumps(cfg, indent=2) + '\n'
-    os.ftruncate(fd, 0)
-    os.lseek(fd, 0, 0)
-    os.write(fd, out.encode())
-finally:
-    fcntl.flock(fd, fcntl.LOCK_UN)
-    os.close(fd)
-" 2>/dev/null || true
+  COPILOT_PAT_FILE="/data/copilot-token-pat"
+  if [[ -f "$COPILOT_PAT_FILE" && -s "$COPILOT_PAT_FILE" ]]; then
+    export COPILOT_GITHUB_TOKEN
+    COPILOT_GITHUB_TOKEN="$(cat "$COPILOT_PAT_FILE")"
   fi
 fi
 

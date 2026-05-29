@@ -48,20 +48,16 @@ assert_contains "$ENTRYPOINT" \
   'chmod -R g+rwX /data/home' \
   "/data/home is group-writable"
 
-# 6. Token backup file path defined
-assert_contains "$ENTRYPOINT" \
-  'TOKEN_BACKUP="/data/copilot-token.json"' \
-  "Token backup path defined"
+# 6. agent-launch.sh reads PAT from /data volume for Copilot auth
+LAUNCH_SCRIPT="$(cd "$(dirname "$0")/../../bin" && pwd)/agent-launch.sh"
+assert_contains "$LAUNCH_SCRIPT" \
+  'COPILOT_GITHUB_TOKEN' \
+  "agent-launch.sh exports COPILOT_GITHUB_TOKEN"
 
-# 7. Token restore from backup before agents start
-assert_contains "$ENTRYPOINT" \
-  'copilotTokens' \
-  "copilotTokens restore logic present"
-
-# 8. Background token watcher loop
-assert_contains "$ENTRYPOINT" \
-  'copilot-token-watcher' \
-  "Background token watcher present"
+# 7. PAT file path references /data volume (not hardcoded secret)
+assert_contains "$LAUNCH_SCRIPT" \
+  '/data/copilot-token-pat' \
+  "PAT read from /data volume file"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

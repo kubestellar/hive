@@ -62,68 +62,6 @@ if [ "$(id -u)" = "0" ]; then
   chown -R dev:node /data/config /data/home /home/dev/.config 2>/dev/null || true
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
 
-  # ── Copilot token persistence ───────────────────────────────────────────
-  # Copilot CLI overwrites config.json on every agent startup, wiping
-  # copilotTokens. We back up the token to a separate file that Copilot
-  # never touches, and a background watcher keeps the backup fresh.
-  TOKEN_BACKUP="/data/copilot-token.json"
-  COPILOT_CONFIG="/data/home/.copilot/config.json"
-
-  # Restore token into config.json if backup exists (runs before agents start)
-  if [ -f "$TOKEN_BACKUP" ] && [ -s "$TOKEN_BACKUP" ]; then
-    python3 -c "
-import json, os
-backup = json.load(open('$TOKEN_BACKUP'))
-tokens = backup.get('copilotTokens', {})
-if tokens:
-    cfg = {}
-    if os.path.exists('$COPILOT_CONFIG'):
-        try:
-            raw = open('$COPILOT_CONFIG').read()
-            lines = [l for l in raw.split('\n') if not l.strip().startswith('//')]
-            cfg = json.loads('\n'.join(lines))
-        except: pass
-    cfg['copilotTokens'] = tokens
-    if 'lastLoggedInUser' in backup: cfg['lastLoggedInUser'] = backup['lastLoggedInUser']
-    if 'loggedInUsers' in backup: cfg['loggedInUsers'] = backup['loggedInUsers']
-    out = '// User settings belong in settings.json.\n// This file is managed automatically.\n' + json.dumps(cfg, indent=2) + '\n'
-    open('$COPILOT_CONFIG', 'w').write(out)
-    print('[entrypoint] Copilot token restored from backup')
-" 2>/dev/null || true
-  fi
-
-  # Background watcher: backs up copilotTokens whenever they appear in config.json
-  (
-    while true; do
-      sleep 30
-      if [ -f "$COPILOT_CONFIG" ]; then
-        python3 -c "
-import json, os, sys
-raw = open('$COPILOT_CONFIG').read()
-lines = [l for l in raw.split('\n') if not l.strip().startswith('//')]
-try:
-    cfg = json.loads('\n'.join(lines))
-except: sys.exit(0)
-tokens = cfg.get('copilotTokens', {})
-if not tokens: sys.exit(0)
-backup = {'copilotTokens': tokens}
-if 'lastLoggedInUser' in cfg: backup['lastLoggedInUser'] = cfg['lastLoggedInUser']
-if 'loggedInUsers' in cfg: backup['loggedInUsers'] = cfg['loggedInUsers']
-# Only write if changed
-existing = {}
-if os.path.exists('$TOKEN_BACKUP'):
-    try: existing = json.load(open('$TOKEN_BACKUP'))
-    except: pass
-if existing != backup:
-    open('$TOKEN_BACKUP', 'w').write(json.dumps(backup, indent=2) + '\n')
-    os.chmod('$TOKEN_BACKUP', 0o660)
-    print('[copilot-token-watcher] Token backed up')
-" 2>/dev/null || true
-      fi
-    done
-  ) &
-  echo "[entrypoint] Copilot token watcher started (pid $!)"
-
   # ── Per-agent UID isolation ──────────────────────────────────────────
   # Extract agent names from config + pack YAML, create system users,
   # write UID map, and set up iptables to force all outbound :443

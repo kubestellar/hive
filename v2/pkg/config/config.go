@@ -26,12 +26,23 @@ type Config struct {
 }
 
 type KnowledgeConfig struct {
-	Enabled bool                `yaml:"enabled"`
-	Engine  string              `yaml:"engine"`
-	Layers  []KnowledgeLayer    `yaml:"layers"`
-	Vaults  []VaultConfig       `yaml:"vaults"`
-	Curator KnowledgeCurator    `yaml:"curator"`
-	Primer  KnowledgePrimer     `yaml:"primer"`
+	Enabled    bool                `yaml:"enabled"`
+	Engine     string              `yaml:"engine"`
+	Layers     []KnowledgeLayer    `yaml:"layers"`
+	Vaults     []VaultConfig       `yaml:"vaults"`
+	GitSources []GitSourceConfigYAML `yaml:"git_sources"`
+	Curator    KnowledgeCurator    `yaml:"curator"`
+	Primer     KnowledgePrimer     `yaml:"primer"`
+}
+
+// GitSourceConfigYAML describes a remote git repo (or subdirectory) to index
+// as a knowledge source. Any layer level can have git sources.
+type GitSourceConfigYAML struct {
+	Name    string `yaml:"name"`
+	URL     string `yaml:"url"`
+	Branch  string `yaml:"branch,omitempty"`
+	Subpath string `yaml:"subpath,omitempty"`
+	Layer   string `yaml:"layer"`
 }
 
 // VaultConfig describes a file-based Obsidian vault to auto-connect on startup.

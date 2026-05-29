@@ -48,11 +48,12 @@ func (l LayerConfig) Endpoint() string {
 
 // KnowledgeConfig is the top-level knowledge section of hive.yaml.
 type KnowledgeConfig struct {
-	Enabled bool            `yaml:"enabled" json:"enabled"`
-	Engine  string          `yaml:"engine"  json:"engine"`
-	Layers  []LayerConfig   `yaml:"layers"  json:"layers"`
-	Curator CuratorConfig   `yaml:"curator" json:"curator"`
-	Primer  PrimerConfig    `yaml:"primer"  json:"primer"`
+	Enabled    bool              `yaml:"enabled"     json:"enabled"`
+	Engine     string            `yaml:"engine"      json:"engine"`
+	Layers     []LayerConfig     `yaml:"layers"      json:"layers"`
+	GitSources []GitSourceConfig `yaml:"git_sources" json:"git_sources,omitempty"`
+	Curator    CuratorConfig     `yaml:"curator"     json:"curator"`
+	Primer     PrimerConfig      `yaml:"primer"      json:"primer"`
 }
 
 // CuratorConfig controls automated knowledge extraction from merged PRs.

@@ -21,6 +21,7 @@ type KnowledgeAPI struct {
 	promoter      *Promoter
 	subscriptions []Subscription
 	vaults        []*FileStore
+	gitSources    []*GitSource
 	logger        *slog.Logger
 }
 
@@ -193,6 +194,18 @@ func (k *KnowledgeAPI) Stats(ctx context.Context) map[string]interface{} {
 			"type":        v.Name(),
 			"healthy":     true,
 			"total_pages": vs.TotalPages,
+		})
+	}
+
+	for _, gs := range k.gitSources {
+		info := gs.Info()
+		layerStats = append(layerStats, map[string]interface{}{
+			"type":        "git_source:" + info.Name,
+			"layer":       info.Layer,
+			"url":         info.URL,
+			"subpath":     info.Subpath,
+			"healthy":     info.Ready,
+			"total_pages": info.Pages,
 		})
 	}
 
@@ -465,7 +478,7 @@ func (k *KnowledgeAPI) ReindexVault(rootDir string) error {
 	return fmt.Errorf("vault not found: %s", rootDir)
 }
 
-// SearchAllWithVaults queries both wiki layers and file-based vaults.
+// SearchAllWithVaults queries wiki layers, file-based vaults, and git sources.
 func (k *KnowledgeAPI) SearchAllWithVaults(ctx context.Context, query string, typeFilter string, limit int) []Fact {
 	results := k.SearchAll(ctx, query, typeFilter, limit)
 
@@ -475,6 +488,18 @@ func (k *KnowledgeAPI) SearchAllWithVaults(ctx context.Context, query string, ty
 		} else {
 			results = append(results, v.Search(query, limit)...)
 		}
+	}
+
+	for _, gs := range k.gitSources {
+		if !gs.Ready() {
+			continue
+		}
+		store := gs.Store()
+		facts := store.Search(query, limit)
+		for i := range facts {
+			facts[i].Layer = gs.Config().Layer
+		}
+		results = append(results, facts...)
 	}
 
 	return results
@@ -512,6 +537,56 @@ func (k *KnowledgeAPI) Layers() []LayerType {
 		}
 	}
 	return result
+}
+
+// ConnectGitSource adds a remote git repo as a knowledge source. It clones the
+// repo (sparse if subpath is set), indexes the markdown files, and starts a
+// periodic sync loop. Any layer level can have git sources.
+func (k *KnowledgeAPI) ConnectGitSource(ctx context.Context, config GitSourceConfig) error {
+	for _, gs := range k.gitSources {
+		if gs.Config().URL == config.URL && gs.Config().Subpath == config.Subpath {
+			return fmt.Errorf("git source already connected: %s (subpath: %s)", config.URL, config.Subpath)
+		}
+	}
+
+	gs := NewGitSource(config, localKnowledgeDir, k.logger)
+	if err := gs.Init(ctx); err != nil {
+		return err
+	}
+
+	k.gitSources = append(k.gitSources, gs)
+
+	go gs.StartSyncLoop(ctx)
+
+	return nil
+}
+
+// DisconnectGitSource removes a git source by URL and subpath.
+func (k *KnowledgeAPI) DisconnectGitSource(url, subpath string) error {
+	found := false
+	newSources := make([]*GitSource, 0, len(k.gitSources))
+	for _, gs := range k.gitSources {
+		if gs.Config().URL == url && gs.Config().Subpath == subpath {
+			found = true
+			continue
+		}
+		newSources = append(newSources, gs)
+	}
+	if !found {
+		return fmt.Errorf("git source not found: %s (subpath: %s)", url, subpath)
+	}
+	k.gitSources = newSources
+	k.logger.Info("git source disconnected", "url", url, "subpath", subpath)
+	return nil
+}
+
+// GitSources returns info about all connected git sources.
+func (k *KnowledgeAPI) GitSources() []GitSourceInfo {
+	infos := make([]GitSourceInfo, len(k.gitSources))
+	for i, gs := range k.gitSources {
+		infos[i] = gs.Info()
+	}
+	return infos
 }
 
 // ObsidianSyncRequest is the payload from the Obsidian Post Webhook plugin.

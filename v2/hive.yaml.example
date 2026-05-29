@@ -196,6 +196,16 @@ knowledge:
       - ci_failures
       - review_comments
     auto_promote_threshold: 0.9              # Confidence to auto-promote project→org
+  git_sources:                               # Remote git repos indexed as knowledge
+    # - name: dakota-skills                  # Display name for this source
+    #   url: https://github.com/projectbluefin/dakota
+    #   branch: main                         # Default: main
+    #   subpath: docs/skills                 # Only index this subdirectory
+    #   layer: project                       # Which layer: personal, project, org, community
+    # - name: k8s-patterns
+    #   url: https://github.com/your-org/knowledge-base
+    #   subpath: patterns
+    #   layer: org
   primer:
     max_facts: 25                            # Max facts injected per agent kick
     priority:                                # Fact types, highest priority first

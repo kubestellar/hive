@@ -11,10 +11,15 @@ import (
 // Primer queries wiki layers and merges results with precedence for injection
 // into agent kick prompts. It runs during kick preparation — agents never talk
 // to the wiki directly.
+//
+// After collecting BM25 results from wiki layers, the primer reranks them using
+// Fisher-Rao geodesic distance on term-frequency embeddings. This catches
+// semantic matches that keyword search misses.
 type Primer struct {
-	layers []layerClient
-	config PrimerConfig
-	logger *slog.Logger
+	layers   []layerClient
+	config   PrimerConfig
+	logger   *slog.Logger
+	embedder *EmbeddingCache
 }
 
 type layerClient struct {
@@ -45,9 +50,10 @@ func NewPrimer(layers []LayerConfig, config PrimerConfig, logger *slog.Logger) *
 	}
 
 	return &Primer{
-		layers: clients,
-		config: config,
-		logger: logger,
+		layers:   clients,
+		config:   config,
+		logger:   logger,
+		embedder: NewEmbeddingCache(NewTFEmbedder(EmbeddingDim)),
 	}
 }
 
@@ -89,7 +95,8 @@ func (p *Primer) Prime(ctx context.Context, filePaths []string, keywords []strin
 	}
 
 	merged := p.mergeWithPrecedence(allFacts)
-	prioritized := p.applyPriority(merged)
+	reranked := p.rerankFisherRao(query, merged)
+	prioritized := p.applyPriority(reranked)
 
 	if len(prioritized) > p.config.MaxFacts {
 		prioritized = prioritized[:p.config.MaxFacts]
@@ -106,6 +113,37 @@ func (p *Primer) Prime(ctx context.Context, filePaths []string, keywords []strin
 		Facts:     prioritized,
 		QueryTime: elapsed,
 	}
+}
+
+// rerankFisherRao reranks facts using Fisher-Rao similarity between the query
+// embedding and each fact's title+body embedding. The Confidence field is updated
+// to reflect the geometric score, which the downstream priority sort uses as a
+// tiebreaker within the same fact type.
+func (p *Primer) rerankFisherRao(query string, facts []Fact) []Fact {
+	if len(facts) == 0 {
+		return facts
+	}
+
+	queryEmb := p.embedder.Embed(query)
+	queryGaussian := NewGaussianFromEmbedding(queryEmb, defaultSigmaInitial)
+
+	for i := range facts {
+		factText := facts[i].Title + " " + facts[i].Body
+		factEmb := p.embedder.Embed(factText)
+		factGaussian := NewGaussianFromEmbedding(factEmb, defaultSigmaInitial)
+
+		frScore := GraduatedScore(queryGaussian, factGaussian, facts[i].UsageCount)
+
+		// Blend with the original wiki confidence so BM25 signal isn't lost.
+		const bm25Weight = 0.4
+		facts[i].Confidence = clampScore(bm25Weight*facts[i].Confidence + (1-bm25Weight)*frScore)
+	}
+
+	sort.Slice(facts, func(i, j int) bool {
+		return facts[i].Confidence > facts[j].Confidence
+	})
+
+	return facts
 }
 
 // mergeWithPrecedence deduplicates facts by slug, keeping the version from the

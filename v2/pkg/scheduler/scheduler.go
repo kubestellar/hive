@@ -16,9 +16,10 @@ import (
 )
 
 type Scheduler struct {
-	cfg    *config.Config
-	primer *knowledge.Primer
-	logger *slog.Logger
+	cfg            *config.Config
+	primer         *knowledge.Primer
+	lastActionable *github.ActionableResult
+	logger         *slog.Logger
 }
 
 func New(cfg *config.Config, logger *slog.Logger) *Scheduler {
@@ -37,6 +38,17 @@ func (s *Scheduler) SetPrimer(p *knowledge.Primer) {
 // GetPrimer returns the attached primer, or nil if none is set.
 func (s *Scheduler) GetPrimer() *knowledge.Primer {
 	return s.primer
+}
+
+// SetLastActionable caches the latest actionable result so manual kicks
+// (via the dashboard API) can prime knowledge from the same issue set.
+func (s *Scheduler) SetLastActionable(a *github.ActionableResult) {
+	s.lastActionable = a
+}
+
+// GetLastActionable returns the most recently cached actionable result.
+func (s *Scheduler) GetLastActionable() *github.ActionableResult {
+	return s.lastActionable
 }
 
 // loadPromptTemplate searches standard paths for an agent's policy template.

@@ -64,6 +64,7 @@ type AgentProcess struct {
 	HasLaunched     bool
 	tmuxSession     string
 	tmuxSocket      string
+	vtScreen        *VTScreen
 	cancel          context.CancelFunc
 	forceRelaunch   bool
 }
@@ -311,7 +312,35 @@ func (m *Manager) tmuxPaneHasCLIForAgent(agent *AgentProcess) bool {
 	return false
 }
 
+// setupVTScreen creates a VTScreen backed by a FIFO and attaches it to the
+// tmux session via pipe-pane. If a previous VTScreen exists it is closed first.
+func (m *Manager) setupVTScreen(agent *AgentProcess) {
+	if agent.vtScreen != nil {
+		// Detach old pipe-pane before closing
+		_ = m.tmuxCmd(agent, "pipe-pane", "-t", agent.tmuxSession).Run()
+		agent.vtScreen.Close()
+		agent.vtScreen = nil
+	}
+
+	fifoPath := fmt.Sprintf("/tmp/.hive-vt-%s.fifo", agent.Name)
+	vts, err := NewVTScreen(fifoPath)
+	if err != nil {
+		m.logger.Warn("failed to create VTScreen", "name", agent.Name, "error", err)
+		return
+	}
+	agent.vtScreen = vts
+
+	pipeCmd := fmt.Sprintf("cat > %s", fifoPath)
+	if err := m.tmuxCmd(agent, "pipe-pane", "-t", agent.tmuxSession, pipeCmd).Run(); err != nil {
+		m.logger.Warn("failed to attach pipe-pane", "name", agent.Name, "error", err)
+		vts.Close()
+		agent.vtScreen = nil
+	}
+}
+
 func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
+	m.setupVTScreen(agent)
+
 	backend := agent.Config.Backend
 	if agent.BackendOverride != "" {
 		backend = agent.BackendOverride
@@ -461,20 +490,31 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// Visible-only capture for dashboard .doing display (no scrollback repetition)
-			visible := m.captureVisiblePaneForAgent(agent)
-			if visible != "" {
-				var visFiltered []string
-				for _, line := range strings.Split(visible, "\n") {
-					trimmed := strings.TrimRight(line, " \t")
-					if trimmed != "" {
-						visFiltered = append(visFiltered, trimmed)
-					}
-				}
-				if len(visFiltered) > 0 {
+			// Visible-only capture for dashboard .doing display
+			if agent.vtScreen != nil {
+				// Use VTScreen (pipe-pane + vt100 emulator) for accurate screen state
+				vtLines := agent.vtScreen.Lines()
+				if len(vtLines) > 0 {
 					agent.paneMu.Lock()
-					agent.lastPaneCapture = visFiltered
+					agent.lastPaneCapture = vtLines
 					agent.paneMu.Unlock()
+				}
+			} else {
+				// Fallback to capture-pane if VTScreen is not available
+				visible := m.captureVisiblePaneForAgent(agent)
+				if visible != "" {
+					var visFiltered []string
+					for _, line := range strings.Split(visible, "\n") {
+						trimmed := strings.TrimRight(line, " \t")
+						if trimmed != "" {
+							visFiltered = append(visFiltered, trimmed)
+						}
+					}
+					if len(visFiltered) > 0 {
+						agent.paneMu.Lock()
+						agent.lastPaneCapture = visFiltered
+						agent.paneMu.Unlock()
+					}
 				}
 			}
 
@@ -1002,7 +1042,7 @@ func (m *Manager) captureTmuxPaneForAgent(agent *AgentProcess) string {
 
 // captureVisiblePaneForAgent captures only the visible pane (no scrollback).
 func (m *Manager) captureVisiblePaneForAgent(agent *AgentProcess) string {
-	cmd := m.tmuxCmd(agent, "capture-pane", "-t", agent.tmuxSession, "-p")
+	cmd := m.tmuxCmd(agent, "capture-pane", "-t", agent.tmuxSession, "-p", "-J", "-T")
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -1025,6 +1065,12 @@ func (m *Manager) Stop(name string) error {
 
 	if agent.cancel != nil {
 		agent.cancel()
+	}
+
+	if agent.vtScreen != nil {
+		_ = m.tmuxCmd(agent, "pipe-pane", "-t", agent.tmuxSession).Run()
+		agent.vtScreen.Close()
+		agent.vtScreen = nil
 	}
 
 	m.tmuxSendKeysForAgent(agent, "C-c", "")
@@ -1788,6 +1834,12 @@ func (m *Manager) Restart(ctx context.Context, name string) error {
 		if agent.cancel != nil {
 			agent.cancel()
 		}
+	}
+
+	if agent.vtScreen != nil {
+		_ = m.tmuxCmd(agent, "pipe-pane", "-t", agent.tmuxSession).Run()
+		agent.vtScreen.Close()
+		agent.vtScreen = nil
 	}
 
 	_ = m.tmuxCmd(agent, "kill-session", "-t", agent.tmuxSession).Run()

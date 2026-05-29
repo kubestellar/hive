@@ -57,3 +57,5 @@ Finding types: `bug`, `security`, `architecture`, `performance`, `docs`
 4. Create a bead for each finding with `bd create`
 5. You may create local worktrees with proposed fixes for analysis, but DO NOT push
 6. Summarize your findings (new and reaped) in your response — keep it concise, no raw tables
+
+${KNOWLEDGE}

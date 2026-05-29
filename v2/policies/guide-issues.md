@@ -60,3 +60,5 @@ Priority: 0 (no README/build instructions), 1 (missing setup/stale arch docs), 2
 5. Create a GitHub issue for each significant gap
 6. Create a bead for each finding
 7. Summarize findings in your response
+
+${KNOWLEDGE}

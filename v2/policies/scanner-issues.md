@@ -60,3 +60,5 @@ Priority: 0 (critical/security), 1 (high/bug), 2 (medium/quality), 3 (low/style)
 4. Create a GitHub issue for each confirmed finding
 5. Create a bead linking to the GitHub issue
 6. Summarize findings in your response
+
+${KNOWLEDGE}

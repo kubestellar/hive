@@ -75,3 +75,5 @@ Priority: 0 (critical/RCE/secret-exposed), 1 (high/auth-bypass), 2 (medium/info-
 6. For findings with a clear safe fix, create a worktree and open a PR
 7. Create a bead for each finding
 8. Summarize security posture in your response
+
+${KNOWLEDGE}

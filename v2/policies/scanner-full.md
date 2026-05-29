@@ -53,3 +53,5 @@ bd create --title "<specific finding title>" \
 5. For findings with a clear fix, create a worktree, implement, and open a PR
 6. Create a bead for each finding
 7. Summarize completed work
+
+${KNOWLEDGE}

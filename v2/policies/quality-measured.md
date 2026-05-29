@@ -114,3 +114,5 @@ bd update <bead-id> --set-metadata file="path/to/file.go"
 5. For high-priority findings, open a GitHub issue
 6. For findings with a clear fix, also open a hold-gated PR with the test code
 7. Summarize what you found in your response
+
+${KNOWLEDGE}

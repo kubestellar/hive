@@ -58,3 +58,5 @@ Finding types: `coverage-gap`, `missing-fixture`, `regression-risk`, `test-quali
 4. Identify the top coverage gaps by impact
 5. Create a bead for each finding with `bd create`
 6. Summarize what you found (new findings and reaped stale ones) — keep it concise, no raw tables
+
+${KNOWLEDGE}

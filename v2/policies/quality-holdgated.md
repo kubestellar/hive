@@ -71,3 +71,5 @@ Priority: 0 (critical untested path), 1 (major logic gap), 2 (significant gap), 
 5. For high-priority findings, open a GitHub issue
 6. For findings with a clear fix, open a hold-gated PR with the test code
 7. Summarize findings in your response
+
+${KNOWLEDGE}

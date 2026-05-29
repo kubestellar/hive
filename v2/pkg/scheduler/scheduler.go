@@ -119,6 +119,9 @@ func (s *Scheduler) substituteTemplate(template string, actionable *github.Actio
 		displayName = ac.DisplayName
 	}
 
+	agentIssues := filterByLane(issues, agentName)
+	knowledgeSection := s.primeKnowledge(agentIssues)
+
 	replacer := strings.NewReplacer(
 		"${AGENT_NAME}", agentName,
 		"${AGENT_DISPLAY_NAME}", displayName,
@@ -142,6 +145,7 @@ func (s *Scheduler) substituteTemplate(template string, actionable *github.Actio
 		"${AGENT_LIST}", agentList,
 		"${AGENT_ROLES}", agentRoles,
 		"${ENABLED_AGENTS}", agentList,
+		"${KNOWLEDGE}", knowledgeSection,
 	)
 	return replacer.Replace(template)
 }

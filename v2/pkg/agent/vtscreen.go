@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	vtRows = 50
+	vtRows = 200
 	vtCols = 200
 )
 

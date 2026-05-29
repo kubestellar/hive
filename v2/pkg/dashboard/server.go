@@ -101,6 +101,7 @@ type FrontendAgent struct {
 	NextKick         string `json:"nextKick,omitempty"`
 	Restarts         int    `json:"restarts"`
 	LiveSummary      string `json:"liveSummary,omitempty"`
+	DetailSummary    string `json:"detailSummary,omitempty"`
 	StructuredStatus string `json:"structuredStatus,omitempty"`
 	StatusEvidence   string `json:"statusEvidence,omitempty"`
 	SummaryUpdated   string `json:"summaryUpdated,omitempty"`

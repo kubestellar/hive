@@ -2096,7 +2096,7 @@
         </div>
         <div class="oc-detail-indicators">${agentIndicators(a.name)}</div>
         <div class="oc-detail-summary-wrap">
-          <div class="oc-detail-summary" id="oc-summary-scroll">${a.liveSummary ? escBlock(a.liveSummary) : '<span style="color:#9ca3af">No activity summary</span>'}</div>
+          <div class="oc-detail-summary" id="oc-summary-scroll">${(a.detailSummary || a.liveSummary) ? escBlock(a.detailSummary || a.liveSummary) : '<span style="color:#9ca3af">No activity summary</span>'}</div>
           <button class="oc-summary-follow-btn" id="oc-summary-follow" title="Follow new output" onclick="ocSummaryResumeTail()">⬇</button>
         </div>
         <div class="oc-chat-prompt">

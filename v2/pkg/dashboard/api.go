@@ -109,6 +109,9 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("DELETE /api/knowledge/vaults", s.handleVaultsDisconnect)
 	s.mux.HandleFunc("POST /api/knowledge/vaults/reindex", s.handleVaultsReindex)
 	s.mux.HandleFunc("GET /api/knowledge/vaults/{name}/facts", s.handleVaultFacts)
+	s.mux.HandleFunc("GET /api/knowledge/git-sources", s.handleGitSourcesList)
+	s.mux.HandleFunc("POST /api/knowledge/git-sources", s.handleGitSourcesConnect)
+	s.mux.HandleFunc("DELETE /api/knowledge/git-sources", s.handleGitSourcesDisconnect)
 	s.mux.HandleFunc("POST /api/knowledge/obsidian/sync", s.handleObsidianSync)
 
 	s.mux.HandleFunc("GET /api/hive-id", s.handleHiveIDGet)
@@ -2021,6 +2024,7 @@ func (s *Server) handleKnowledgeStats(w http.ResponseWriter, r *http.Request) {
 	}
 	stats := s.deps.Knowledge.Stats(s.deps.Ctx)
 	stats["vaults"] = s.deps.Knowledge.Vaults()
+	stats["git_sources"] = s.deps.Knowledge.GitSources()
 	jsonResponse(w, stats)
 }
 
@@ -2384,6 +2388,81 @@ func (s *Server) handleVaultFacts(w http.ResponseWriter, r *http.Request) {
 		facts = []knowledge.Fact{}
 	}
 	jsonResponse(w, facts)
+}
+
+// --- Git source endpoints ---
+
+func (s *Server) handleGitSourcesList(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Knowledge == nil {
+		jsonResponse(w, []interface{}{})
+		return
+	}
+	jsonResponse(w, s.deps.Knowledge.GitSources())
+}
+
+func (s *Server) handleGitSourcesConnect(w http.ResponseWriter, r *http.Request) {
+	if !s.ensureKnowledge() {
+		jsonError(w, "knowledge not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		Name    string `json:"name"`
+		URL     string `json:"url"`
+		Branch  string `json:"branch"`
+		Subpath string `json:"subpath"`
+		Layer   string `json:"layer"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.URL == "" || req.Name == "" {
+		jsonError(w, "name and url are required", http.StatusBadRequest)
+		return
+	}
+	if req.Layer == "" {
+		req.Layer = "project"
+	}
+
+	gsConfig := knowledge.GitSourceConfig{
+		Name:    req.Name,
+		URL:     req.URL,
+		Branch:  req.Branch,
+		Subpath: req.Subpath,
+		Layer:   knowledge.LayerType(req.Layer),
+	}
+	if err := s.deps.Knowledge.ConnectGitSource(s.deps.Ctx, gsConfig); err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, map[string]interface{}{"ok": true, "name": req.Name, "url": req.URL})
+}
+
+func (s *Server) handleGitSourcesDisconnect(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Knowledge == nil {
+		jsonError(w, "knowledge not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		URL     string `json:"url"`
+		Subpath string `json:"subpath"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.URL == "" {
+		jsonError(w, "url is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.deps.Knowledge.DisconnectGitSource(req.URL, req.Subpath); err != nil {
+		jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	jsonResponse(w, map[string]interface{}{"ok": true, "removed": req.URL})
 }
 
 // --- Obsidian sync endpoint ---

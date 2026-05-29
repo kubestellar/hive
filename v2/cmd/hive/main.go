@@ -527,6 +527,19 @@ func main() {
 				"subpath", gsc.Subpath,
 				"layer", gsc.Layer,
 			)
+			// Register the FileStore with the scheduler's primer so agents
+			// get primed with facts from this git source during kicks.
+			if primer := sched.GetPrimer(); primer != nil {
+				for _, gs := range knowledgeAPI.GitSources() {
+					if gs.Name == gsc.Name && gs.Ready {
+						store := knowledgeAPI.GetGitSourceStore(gsc.Name)
+						if store != nil {
+							primer.AddFileStore(gsc.Name, store, knowledge.LayerType(gsc.Layer))
+						}
+						break
+					}
+				}
+			}
 		}
 	}
 

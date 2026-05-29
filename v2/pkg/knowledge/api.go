@@ -561,6 +561,16 @@ func (k *KnowledgeAPI) ConnectGitSource(ctx context.Context, config GitSourceCon
 	return nil
 }
 
+// GetGitSourceStore returns the underlying FileStore for a git source by name.
+func (k *KnowledgeAPI) GetGitSourceStore(name string) *FileStore {
+	for _, gs := range k.gitSources {
+		if gs.Config().Name == name && gs.Ready() {
+			return gs.Store()
+		}
+	}
+	return nil
+}
+
 // DisconnectGitSource removes a git source by URL and subpath.
 func (k *KnowledgeAPI) DisconnectGitSource(url, subpath string) error {
 	found := false

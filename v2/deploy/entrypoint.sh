@@ -152,6 +152,7 @@ print('[entrypoint] UID map written to /var/run/hive/uid-map.json')
     PROXY_PORT=18443
     if command -v iptables >/dev/null 2>&1; then
       if iptables -t nat -N HIVE_PROXY 2>/dev/null; then
+        iptables -t nat -A HIVE_PROXY -m owner --uid-owner 0 -j RETURN
         iptables -t nat -A HIVE_PROXY -m owner --uid-owner "$PROXY_UID" -j RETURN
         iptables -t nat -A HIVE_PROXY -p tcp --dport 443 -j REDIRECT --to-ports "$PROXY_PORT"
         iptables -t nat -A OUTPUT -j HIVE_PROXY

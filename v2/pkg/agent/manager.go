@@ -1424,11 +1424,14 @@ func (a *AgentProcess) PaneLines(n int) []string {
 	if lastPrompt >= 0 && lastPrompt < len(lines)-1 {
 		lines = lines[lastPrompt+1:]
 	}
-	// Strip horizontal rule lines (tmux separator bars like ────)
+	// Strip visual noise: horizontal rules, bare working directory paths
 	var cleaned []string
 	for _, l := range lines {
 		trimmed := strings.TrimSpace(l)
 		if len(trimmed) > 0 && strings.Trim(trimmed, "─━─") == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "/data/agents/") && !strings.Contains(trimmed, " ") {
 			continue
 		}
 		cleaned = append(cleaned, l)

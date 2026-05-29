@@ -2985,6 +2985,7 @@
           const prev = document.getElementById(focusedId);
           if (prev) prev.focus();
         }
+        el.querySelectorAll('.doing').forEach(d => { d.scrollTop = d.scrollHeight; });
       }
     }
 

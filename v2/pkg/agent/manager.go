@@ -1348,6 +1348,10 @@ func (m *Manager) AllStatuses() map[string]*AgentProcess {
 func (a *AgentProcess) snapshot() AgentProcess {
 	history := make([]KickRecord, len(a.KickHistory))
 	copy(history, a.KickHistory)
+	a.paneMu.RLock()
+	pane := make([]string, len(a.lastPaneCapture))
+	copy(pane, a.lastPaneCapture)
+	a.paneMu.RUnlock()
 	return AgentProcess{
 		Name:            a.Name,
 		ID:              a.ID,
@@ -1367,6 +1371,7 @@ func (a *AgentProcess) snapshot() AgentProcess {
 		tmuxSession:     a.tmuxSession,
 		tmuxSocket:      a.tmuxSocket,
 		OutputBuffer:    a.OutputBuffer,
+		lastPaneCapture: pane,
 	}
 }
 

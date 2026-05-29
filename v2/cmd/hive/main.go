@@ -816,6 +816,7 @@ func runEvalCycle(
 	// in this mode" — it does NOT force-pause the agent. Manual pause/resume
 	// via the dashboard is always respected; the governor only controls kicks.
 
+	sched.SetLastActionable(actionable)
 	if len(agentsDue) > 0 {
 		messages := sched.BuildKickMessages(actionable, agentsDue)
 		for _, msg := range messages {

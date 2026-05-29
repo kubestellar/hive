@@ -64,8 +64,7 @@ type AgentProcess struct {
 	HasLaunched     bool
 	tmuxSession     string
 	tmuxSocket      string
-	vtScreen        *VTScreen
-	cancel          context.CancelFunc
+	cancel context.CancelFunc
 	forceRelaunch   bool
 }
 
@@ -312,39 +311,8 @@ func (m *Manager) tmuxPaneHasCLIForAgent(agent *AgentProcess) bool {
 	return false
 }
 
-// setupVTScreen creates a VTScreen backed by a FIFO and attaches it to the
-// tmux session via pipe-pane. If a previous VTScreen exists it is closed first.
-func (m *Manager) setupVTScreen(agent *AgentProcess) {
-	if agent.vtScreen != nil {
-		// Detach old pipe-pane before closing
-		_ = m.tmuxCmd(agent, "pipe-pane", "-t", agent.tmuxSession).Run()
-		agent.vtScreen.Close()
-		agent.vtScreen = nil
-	}
-
-	fifoPath := fmt.Sprintf("/tmp/.hive-vt-%s.fifo", agent.Name)
-	vts, err := NewVTScreen(fifoPath)
-	if err != nil {
-		m.logger.Warn("failed to create VTScreen", "name", agent.Name, "error", err)
-		return
-	}
-	// Ensure the FIFO is world-writable so agent UIDs can write to it
-	_ = os.Chmod(fifoPath, 0o666)
-	agent.vtScreen = vts
-
-	pipeCmd := fmt.Sprintf("cat > %s", fifoPath)
-	if err := m.tmuxCmd(agent, "pipe-pane", "-t", agent.tmuxSession, pipeCmd).Run(); err != nil {
-		m.logger.Warn("failed to attach pipe-pane", "name", agent.Name, "error", err)
-		vts.Close()
-		agent.vtScreen = nil
-	} else {
-		m.logger.Info("pipe-pane attached", "name", agent.Name, "fifo", fifoPath)
-	}
-}
 
 func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
-	m.setupVTScreen(agent)
-
 	backend := agent.Config.Backend
 	if agent.BackendOverride != "" {
 		backend = agent.BackendOverride
@@ -495,31 +463,19 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 			return
 		case <-ticker.C:
 			// Visible-only capture for dashboard .doing display
-			var captured bool
-			if agent.vtScreen != nil {
-				vtLines := agent.vtScreen.Lines()
-				if len(vtLines) > 0 {
-					agent.paneMu.Lock()
-					agent.lastPaneCapture = vtLines
-					agent.paneMu.Unlock()
-					captured = true
+			visible := m.captureVisiblePaneForAgent(agent)
+			if visible != "" {
+				var visFiltered []string
+				for _, line := range strings.Split(visible, "\n") {
+					trimmed := strings.TrimRight(line, " \t")
+					if trimmed != "" {
+						visFiltered = append(visFiltered, trimmed)
+					}
 				}
-			}
-			if !captured {
-				visible := m.captureVisiblePaneForAgent(agent)
-				if visible != "" {
-					var visFiltered []string
-					for _, line := range strings.Split(visible, "\n") {
-						trimmed := strings.TrimRight(line, " \t")
-						if trimmed != "" {
-							visFiltered = append(visFiltered, trimmed)
-						}
-					}
-					if len(visFiltered) > 0 {
-						agent.paneMu.Lock()
-						agent.lastPaneCapture = visFiltered
-						agent.paneMu.Unlock()
-					}
+				if len(visFiltered) > 0 {
+					agent.paneMu.Lock()
+					agent.lastPaneCapture = visFiltered
+					agent.paneMu.Unlock()
 				}
 			}
 
@@ -1047,7 +1003,7 @@ func (m *Manager) captureTmuxPaneForAgent(agent *AgentProcess) string {
 
 // captureVisiblePaneForAgent captures only the visible pane (no scrollback).
 func (m *Manager) captureVisiblePaneForAgent(agent *AgentProcess) string {
-	cmd := m.tmuxCmd(agent, "capture-pane", "-t", agent.tmuxSession, "-p", "-J", "-T")
+	cmd := m.tmuxCmd(agent, "capture-pane", "-t", agent.tmuxSession, "-p")
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -1070,12 +1026,6 @@ func (m *Manager) Stop(name string) error {
 
 	if agent.cancel != nil {
 		agent.cancel()
-	}
-
-	if agent.vtScreen != nil {
-		_ = m.tmuxCmd(agent, "pipe-pane", "-t", agent.tmuxSession).Run()
-		agent.vtScreen.Close()
-		agent.vtScreen = nil
 	}
 
 	m.tmuxSendKeysForAgent(agent, "C-c", "")
@@ -1480,13 +1430,31 @@ func isVisualNoise(s string) bool {
 
 func isCLIChrome(s string) bool {
 	t := strings.TrimSpace(s)
-	return t == "" ||
-		strings.HasPrefix(t, "/ commands") ||
+	if t == "" {
+		return true
+	}
+	if strings.HasPrefix(t, "/ commands") ||
 		strings.HasPrefix(t, "? help") ||
 		strings.HasPrefix(t, "@ files") ||
-		(strings.Contains(t, "Claude ") && !strings.Contains(t, "Claude Code") && len(t) < 40) ||
-		(strings.Contains(t, "Copilot v") && len(t) < 40) ||
-		(strings.Contains(t, "Gemini ") && len(t) < 40)
+		strings.HasPrefix(t, "# issues") {
+		return true
+	}
+	// Copilot/Claude/Gemini status bar: contains "esc cancel" or model name
+	if strings.Contains(t, "esc cancel") {
+		return true
+	}
+	// Model name in status bar (short line with model identifier)
+	if (strings.Contains(t, "Claude ") && !strings.Contains(t, "Claude Code")) ||
+		strings.Contains(t, "Copilot v") ||
+		strings.Contains(t, "Gemini ") {
+		// Only match if it looks like a status bar (has spinner or command hints)
+		for _, prefix := range []string{"◎", "◉", "●", "○", "◐", "◑", "◒", "◓"} {
+			if strings.Contains(t, prefix) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func filterPaneOutput(lines []string, n int) []string {
@@ -1841,12 +1809,6 @@ func (m *Manager) Restart(ctx context.Context, name string) error {
 		}
 	}
 
-	if agent.vtScreen != nil {
-		_ = m.tmuxCmd(agent, "pipe-pane", "-t", agent.tmuxSession).Run()
-		agent.vtScreen.Close()
-		agent.vtScreen = nil
-	}
-
 	_ = m.tmuxCmd(agent, "kill-session", "-t", agent.tmuxSession).Run()
 
 	agent.RestartCount++
@@ -1980,6 +1942,10 @@ func (m *Manager) GetOutput(name string, lines int) ([]string, error) {
 
 	if pane := agent.FilteredPaneLines(lines); len(pane) > 0 {
 		return pane, nil
+	}
+
+	if agent.OutputBuffer != nil {
+		return agent.OutputBuffer.Last(lines), nil
 	}
 
 	return nil, nil

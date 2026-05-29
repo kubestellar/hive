@@ -54,9 +54,10 @@ if [ "$(id -u)" = "0" ]; then
   # Shared CLI auth/cache lives in /data/home (persistent volume).
   # Make it group-writable so all agent UIDs (node group) can use it.
   # The manager sets HOME=/data/home for agent tmux sessions.
-  mkdir -p /data/home/.config /data/config/github-copilot /home/dev/.config
+  mkdir -p /data/home/.config /data/home/.copilot /data/config/github-copilot /home/dev/.config
   ln -sfn /data/config/github-copilot /home/dev/.config/github-copilot
   ln -sfn /data/config/github-copilot /data/home/.config/github-copilot
+  ln -sfn /data/home/.copilot /home/dev/.copilot
   chmod -R g+rwX /data/home 2>/dev/null || true
   chown -R dev:node /data/config /data/home /home/dev/.config 2>/dev/null || true
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"

@@ -328,6 +328,8 @@ func (m *Manager) setupVTScreen(agent *AgentProcess) {
 		m.logger.Warn("failed to create VTScreen", "name", agent.Name, "error", err)
 		return
 	}
+	// Ensure the FIFO is world-writable so agent UIDs can write to it
+	_ = os.Chmod(fifoPath, 0o666)
 	agent.vtScreen = vts
 
 	pipeCmd := fmt.Sprintf("cat > %s", fifoPath)
@@ -335,6 +337,8 @@ func (m *Manager) setupVTScreen(agent *AgentProcess) {
 		m.logger.Warn("failed to attach pipe-pane", "name", agent.Name, "error", err)
 		vts.Close()
 		agent.vtScreen = nil
+	} else {
+		m.logger.Info("pipe-pane attached", "name", agent.Name, "fifo", fifoPath)
 	}
 }
 

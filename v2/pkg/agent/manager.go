@@ -1413,17 +1413,29 @@ func (a *AgentProcess) PaneLines(n int) []string {
 	return filterPaneOutput(a.lastPaneCapture, n)
 }
 
-func isTerminalChrome(s string) bool {
+func isVisualNoise(s string) bool {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return true
+	}
+	if strings.Trim(t, "─━─") == "" {
+		return true
+	}
+	if strings.HasPrefix(t, "/data/agents/") && !strings.Contains(t, " ") {
+		return true
+	}
+	return false
+}
+
+func isCLIChrome(s string) bool {
 	t := strings.TrimSpace(s)
 	return t == "" ||
 		strings.HasPrefix(t, "/ commands") ||
 		strings.HasPrefix(t, "? help") ||
-		strings.Contains(t, "Claude ") ||
-		strings.Contains(t, "Copilot v") ||
-		strings.Contains(t, "Gemini ") ||
-		strings.Contains(t, "@ files") ||
-		(len(t) > 0 && strings.Trim(t, "─━─") == "") ||
-		(strings.HasPrefix(t, "/data/agents/") && !strings.Contains(t, " "))
+		strings.HasPrefix(t, "@ files") ||
+		(strings.Contains(t, "Claude ") && !strings.Contains(t, "Claude Code") && len(t) < 40) ||
+		(strings.Contains(t, "Copilot v") && len(t) < 40) ||
+		(strings.Contains(t, "Gemini ") && len(t) < 40)
 }
 
 func filterPaneOutput(lines []string, n int) []string {
@@ -1439,7 +1451,7 @@ func filterPaneOutput(lines []string, n int) []string {
 		afterPrompt := lines[lastPrompt+1:]
 		hasContent := false
 		for _, l := range afterPrompt {
-			if !isTerminalChrome(l) {
+			if !isCLIChrome(l) && !isVisualNoise(l) {
 				hasContent = true
 				break
 			}
@@ -1452,7 +1464,7 @@ func filterPaneOutput(lines []string, n int) []string {
 	}
 	var cleaned []string
 	for _, l := range lines {
-		if !isTerminalChrome(l) {
+		if !isVisualNoise(l) {
 			cleaned = append(cleaned, l)
 		}
 	}

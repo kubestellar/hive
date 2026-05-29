@@ -1830,6 +1830,8 @@
     }
     async function ocFetchPane() {
       if (!_ocSelectedAgent) return;
+      const selAgent = (window._lastStatus?.agents || []).find(a => a.name === _ocSelectedAgent);
+      if (selAgent && selAgent.detailSummary) return;
       try {
         const r = await fetch('/api/pane/' + encodeURIComponent(_ocSelectedAgent) + '?lines=' + OC_PANE_LINES);
         if (!r.ok) return;

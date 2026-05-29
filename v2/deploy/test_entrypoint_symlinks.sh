@@ -48,6 +48,21 @@ assert_contains "$ENTRYPOINT" \
   'chmod -R g+rwX /data/home' \
   "/data/home is group-writable"
 
+# 6. Token backup file path defined
+assert_contains "$ENTRYPOINT" \
+  'TOKEN_BACKUP="/data/copilot-token.json"' \
+  "Token backup path defined"
+
+# 7. Token restore from backup before agents start
+assert_contains "$ENTRYPOINT" \
+  'copilotTokens' \
+  "copilotTokens restore logic present"
+
+# 8. Background token watcher loop
+assert_contains "$ENTRYPOINT" \
+  'copilot-token-watcher' \
+  "Background token watcher present"
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1

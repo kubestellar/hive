@@ -1405,14 +1405,17 @@ func (a *AgentProcess) snapshot() AgentProcess {
 // preferring content from the current CLI session (after the last ❯ prompt).
 // Falls back to showing the full tail if the current session has too few lines.
 func (a *AgentProcess) PaneLines(n int) []string {
-	a.paneMu.RLock()
-	defer a.paneMu.RUnlock()
-	if len(a.lastPaneCapture) == 0 {
+	if a.OutputBuffer == nil {
 		return nil
 	}
-	lines := a.lastPaneCapture
-	// Find the last idle prompt (❯) to detect session boundaries.
-	// Always trim to after the last prompt — never show prior session content.
+	raw := a.OutputBuffer.Last(n * 3)
+	if len(raw) == 0 {
+		return nil
+	}
+	return filterPaneOutput(raw, n)
+}
+
+func filterPaneOutput(lines []string, n int) []string {
 	lastPrompt := -1
 	for i := len(lines) - 1; i >= 0; i-- {
 		trimmed := strings.TrimSpace(lines[i])
@@ -1424,7 +1427,6 @@ func (a *AgentProcess) PaneLines(n int) []string {
 	if lastPrompt >= 0 && lastPrompt < len(lines)-1 {
 		lines = lines[lastPrompt+1:]
 	}
-	// Strip visual noise: horizontal rules, bare working directory paths
 	var cleaned []string
 	for _, l := range lines {
 		trimmed := strings.TrimSpace(l)
@@ -1437,24 +1439,6 @@ func (a *AgentProcess) PaneLines(n int) []string {
 		cleaned = append(cleaned, l)
 	}
 	lines = cleaned
-	// If the pane only contains the launch command (no CLI output yet), return nil.
-	// CLI output is detected by status line markers from copilot/claude/gemini.
-	hasCLIOutput := false
-	for _, l := range lines {
-		if strings.Contains(l, "esc cancel") || strings.Contains(l, "Copilot v") ||
-			strings.Contains(l, "Claude ") || strings.Contains(l, "Gemini ") ||
-			strings.Contains(l, "@ files") || strings.Contains(l, "/ commands") ||
-			strings.Contains(l, "Loading:") || strings.Contains(l, "Working") ||
-			strings.Contains(l, "● ") || strings.Contains(l, "◎ ") ||
-			strings.Contains(l, "○ ") || strings.Contains(l, "◉ ") {
-			hasCLIOutput = true
-			break
-		}
-	}
-	if !hasCLIOutput {
-		return nil
-	}
-	// Deduplicate: if the same block of lines repeats, keep only the last copy.
 	lines = deduplicateBlocks(lines)
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
@@ -1500,42 +1484,14 @@ func deduplicateBlocks(lines []string) []string {
 }
 
 func (a *AgentProcess) FilteredPaneLines(n int) []string {
-	a.paneMu.RLock()
-	defer a.paneMu.RUnlock()
-	if len(a.lastPaneCapture) == 0 {
+	if a.OutputBuffer == nil {
 		return nil
 	}
-	lines := a.lastPaneCapture
-	lastPrompt := -1
-	for i := len(lines) - 1; i >= 0; i-- {
-		trimmed := strings.TrimSpace(lines[i])
-		if trimmed == "❯" || trimmed == "›" || trimmed == ">" {
-			lastPrompt = i
-			break
-		}
+	raw := a.OutputBuffer.Last(n * 3)
+	if len(raw) == 0 {
+		return nil
 	}
-	if lastPrompt >= 0 && lastPrompt < len(lines)-1 {
-		lines = lines[lastPrompt+1:]
-	}
-	var cleaned []string
-	for _, l := range lines {
-		trimmed := strings.TrimSpace(l)
-		if len(trimmed) > 0 && strings.Trim(trimmed, "─━─") == "" {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "/data/agents/") && !strings.Contains(trimmed, " ") {
-			continue
-		}
-		cleaned = append(cleaned, l)
-	}
-	lines = cleaned
-	lines = deduplicateBlocks(lines)
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
-	}
-	out := make([]string, len(lines))
-	copy(out, lines)
-	return out
+	return filterPaneOutput(raw, n)
 }
 
 func backendBinary(backend string) (string, error) {

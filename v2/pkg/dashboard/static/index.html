@@ -5543,9 +5543,12 @@ function burnAreaChart() {
           </div>
 
           <div style="margin-bottom:18px">
-            <h3 style="font-size:0.92rem;margin:0 0 8px 0;color:var(--accent)">Adding & Removing Pages</h3>
-            <p style="margin:0 0 6px 0">Click <strong>+ New Fact</strong> to create a page — give it a title, pick a layer, add tags, and write your content. To remove a page, click the trash icon next to it in the list.</p>
-            <p style="margin:0;color:var(--muted);font-size:0.78rem">You can also bulk-add pages using the <strong>Import</strong> button or by connecting an Obsidian vault.</p>
+            <h3 style="font-size:0.92rem;margin:0 0 8px 0;color:var(--accent)">Knowledge Sources</h3>
+            <p style="margin:0 0 6px 0">Knowledge comes from four types of sources, all managed through the <strong>Knowledge Sources</strong> modal:</p>
+            <p style="margin:0 0 4px 0"><strong>Wiki pages</strong> — Created directly in Hive with <strong>+ New Fact</strong>. Give each page a title, layer, tags, and content. Bulk-add with the <strong>Import</strong> button.</p>
+            <p style="margin:0 0 4px 0"><strong>Obsidian vaults</strong> — Connect a vault or any directory of markdown files. Hive reads all <code style="background:var(--surface);padding:1px 4px;border-radius:3px">.md</code> files, picks up <code style="background:var(--surface);padding:1px 4px;border-radius:3px">#tags</code>, and re-scans every 30 seconds.</p>
+            <p style="margin:0 0 4px 0"><strong>Git sources</strong> — Clone a GitHub repo (or a subdirectory within it) and index its markdown files locally. Configure git sources in <code style="background:var(--surface);padding:1px 4px;border-radius:3px">hive.yaml</code> or add them through the Knowledge Sources modal. Git sources sync every 5 minutes to pick up upstream changes.</p>
+            <p style="margin:0;color:var(--muted);font-size:0.78rem"><strong>Wiki subscriptions</strong> — Follow a remote Hive instance or knowledge feed. New content syncs automatically on a periodic schedule.</p>
           </div>
 
           <div style="margin-bottom:18px">
@@ -5554,31 +5557,29 @@ function burnAreaChart() {
           </div>
 
           <div style="margin-bottom:18px">
-            <h3 style="font-size:0.92rem;margin:0 0 8px 0;color:var(--accent)">Subscribing to Remote Sources</h3>
-            <p style="margin:0 0 6px 0">Click <strong>Subscriptions</strong> to follow a remote knowledge source. Paste the URL of another Hive instance or knowledge feed, and new content will sync automatically.</p>
-            <p style="margin:0;color:var(--muted);font-size:0.78rem">Subscriptions are checked periodically so your knowledge stays up to date without manual refreshes.</p>
-          </div>
-
-          <div style="margin-bottom:18px">
-            <h3 style="font-size:0.92rem;margin:0 0 8px 0;color:var(--accent)">Obsidian Vault Integration</h3>
-            <p style="margin:0 0 6px 0">Click <strong>Vaults</strong>, enter the path to your Obsidian vault folder, and click <strong>Connect</strong>. Hive will read all your <code style="background:var(--surface);padding:1px 4px;border-radius:3px">.md</code> files, pick up any <code style="background:var(--surface);padding:1px 4px;border-radius:3px">#tags</code>, and re-scan automatically every 30 seconds.</p>
-            <p style="margin:0;color:var(--muted);font-size:0.78rem">Your vault pages appear alongside wiki pages in the knowledge list.</p>
+            <h3 style="font-size:0.92rem;margin:0 0 8px 0;color:var(--accent)">Fisher-Rao Scoring</h3>
+            <p style="margin:0 0 6px 0">Search uses <strong>Fisher-Rao geodesic distance</strong> on diagonal Gaussian embeddings to find the most relevant facts. This replaces simple substring matching with a richer geometric similarity measure.</p>
+            <p style="margin:0;color:var(--muted);font-size:0.78rem">Cold facts (fewer than 10 accesses) use cosine similarity. As facts are accessed more frequently, they graduate to the full Fisher-Rao distance, which captures both the direction and uncertainty of the embedding for more accurate ranking.</p>
           </div>
 
           <div style="margin-bottom:18px">
             <h3 style="font-size:0.92rem;margin:0 0 8px 0;color:var(--accent)">How Sources Combine</h3>
-            <p style="margin:0 0 6px 0">Pages from all sources (wiki pages, vaults, and subscriptions) are merged together. If two pages share the same title, the one from the higher-priority layer is used.</p>
+            <p style="margin:0 0 6px 0">Pages from all sources (wiki pages, vaults, git sources, and subscriptions) are merged together. If two pages share the same title, the one from the higher-priority layer is used.</p>
             <p style="margin:0;color:var(--muted);font-size:0.78rem">Priority order: personal &gt; project &gt; org &gt; community.</p>
           </div>
 
           <div style="margin-bottom:18px">
             <h3 style="font-size:0.92rem;margin:0 0 8px 0;color:var(--accent)">Sharing Knowledge</h3>
-            <p style="margin:0">Point multiple Hive instances at the same vault folder, or use subscriptions to share knowledge across teams and environments. Everyone sees the same facts without copying files around.</p>
+            <p style="margin:0">Point multiple Hive instances at the same vault folder, use wiki subscriptions to share across teams, or add shared git sources so every instance indexes the same upstream docs. Everyone sees the same facts without copying files around.</p>
           </div>
 
           <div style="margin-bottom:4px">
-            <h3 style="font-size:0.92rem;margin:0 0 8px 0;color:var(--accent)">How Agents Use Knowledge</h3>
-            <p style="margin:0">Before each agent run, Hive automatically finds knowledge pages that match the agent's domain and includes them as context. This means your agents get smarter as you add knowledge — no prompt editing required.</p>
+            <h3 style="font-size:0.92rem;margin:0 0 8px 0;color:var(--accent)">How Agents Use Knowledge (Priming)</h3>
+            <p style="margin:0 0 6px 0">Before each agent kick, the <strong>knowledge primer</strong> runs a pipeline to inject relevant facts into the agent's context:</p>
+            <p style="margin:0 0 4px 0"><strong>1. Keyword extraction</strong> — The primer extracts keywords from the issue title assigned to the agent.</p>
+            <p style="margin:0 0 4px 0"><strong>2. Fisher-Rao search</strong> — Those keywords are searched across all connected sources (wiki layers, vaults, git sources) using Fisher-Rao scoring to find the most relevant facts.</p>
+            <p style="margin:0 0 4px 0"><strong>3. Injection</strong> — Matching facts are injected into the kick message via the <code style="background:var(--surface);padding:1px 4px;border-radius:3px">\${KNOWLEDGE}</code> template variable. The agent receives a "Relevant Knowledge" section containing patterns, gotchas, and decisions relevant to its current work.</p>
+            <p style="margin:0;color:var(--muted);font-size:0.78rem">This means your agents get smarter as you add knowledge — no prompt editing required. Add a fact about a common mistake and every agent working on a related issue will see it automatically.</p>
           </div>
         </div>
       `;

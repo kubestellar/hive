@@ -1405,14 +1405,12 @@ func (a *AgentProcess) snapshot() AgentProcess {
 // preferring content from the current CLI session (after the last ❯ prompt).
 // Falls back to showing the full tail if the current session has too few lines.
 func (a *AgentProcess) PaneLines(n int) []string {
-	if a.OutputBuffer == nil {
+	a.paneMu.RLock()
+	defer a.paneMu.RUnlock()
+	if len(a.lastPaneCapture) == 0 {
 		return nil
 	}
-	raw := a.OutputBuffer.Last(n * 3)
-	if len(raw) == 0 {
-		return nil
-	}
-	return filterPaneOutput(raw, n)
+	return filterPaneOutput(a.lastPaneCapture, n)
 }
 
 func filterPaneOutput(lines []string, n int) []string {
@@ -1484,14 +1482,12 @@ func deduplicateBlocks(lines []string) []string {
 }
 
 func (a *AgentProcess) FilteredPaneLines(n int) []string {
-	if a.OutputBuffer == nil {
+	a.paneMu.RLock()
+	defer a.paneMu.RUnlock()
+	if len(a.lastPaneCapture) == 0 {
 		return nil
 	}
-	raw := a.OutputBuffer.Last(n * 3)
-	if len(raw) == 0 {
-		return nil
-	}
-	return filterPaneOutput(raw, n)
+	return filterPaneOutput(a.lastPaneCapture, n)
 }
 
 func backendBinary(backend string) (string, error) {

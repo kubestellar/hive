@@ -57,3 +57,5 @@ bd create --title "<specific documentation gap title>" \
 5. For gaps with a clear fix, create a worktree and open a hold-gated PR
 6. Create a bead for each finding
 7. Summarize findings in your response
+
+${KNOWLEDGE}

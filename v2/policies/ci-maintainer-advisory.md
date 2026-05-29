@@ -59,3 +59,5 @@ Finding types: `ci-failure`, `flaky-test`, `slow-build`, `coverage-drop`, `depen
 4. Identify failures, patterns, and trends
 5. Create a bead for each finding with `bd create`
 6. Summarize CI health (new findings and reaped stale ones) — keep it concise, no raw tables
+
+${KNOWLEDGE}

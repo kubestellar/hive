@@ -58,3 +58,5 @@ Priority: 0 (CI broken/blocking), 1 (persistent failure/coverage drop), 2 (flaky
 6. For problems with a clear fix, create a worktree and open a PR
 7. Create a bead for each finding
 8. Summarize CI health in your response
+
+${KNOWLEDGE}

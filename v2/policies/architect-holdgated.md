@@ -75,3 +75,5 @@ Priority: 0 (critical structural risk), 1 (high coupling/broken abstraction), 2 
 6. For problems with a clear refactor, create a worktree and open a hold-gated PR
 7. Create a bead for each finding
 8. Summarize architectural health in your response
+
+${KNOWLEDGE}

@@ -61,3 +61,5 @@ bd create --title "<specific finding title>" \
 5. Create a PR for each fix; poll CI; merge when green
 6. Create a bead for each finding
 7. Summarize completed work including merged PRs
+
+${KNOWLEDGE}

@@ -491,16 +491,17 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 			return
 		case <-ticker.C:
 			// Visible-only capture for dashboard .doing display
+			var captured bool
 			if agent.vtScreen != nil {
-				// Use VTScreen (pipe-pane + vt100 emulator) for accurate screen state
 				vtLines := agent.vtScreen.Lines()
 				if len(vtLines) > 0 {
 					agent.paneMu.Lock()
 					agent.lastPaneCapture = vtLines
 					agent.paneMu.Unlock()
+					captured = true
 				}
-			} else {
-				// Fallback to capture-pane if VTScreen is not available
+			}
+			if !captured {
 				visible := m.captureVisiblePaneForAgent(agent)
 				if visible != "" {
 					var visFiltered []string

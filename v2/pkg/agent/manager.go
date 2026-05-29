@@ -461,6 +461,24 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// Visible-only capture for dashboard .doing display (no scrollback repetition)
+			visible := m.captureVisiblePaneForAgent(agent)
+			if visible != "" {
+				var visFiltered []string
+				for _, line := range strings.Split(visible, "\n") {
+					trimmed := strings.TrimRight(line, " \t")
+					if trimmed != "" {
+						visFiltered = append(visFiltered, trimmed)
+					}
+				}
+				if len(visFiltered) > 0 {
+					agent.paneMu.Lock()
+					agent.lastPaneCapture = visFiltered
+					agent.paneMu.Unlock()
+				}
+			}
+
+			// Scrollback capture for ring buffer diff and output signal detection
 			output := m.captureTmuxPaneForAgent(agent)
 			if output == "" {
 				continue
@@ -475,9 +493,6 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 			if len(filtered) == 0 {
 				continue
 			}
-			agent.paneMu.Lock()
-			agent.lastPaneCapture = filtered
-			agent.paneMu.Unlock()
 			if prevLines == nil {
 				if agent.OutputBuffer.Count() == 0 {
 					for _, l := range filtered {
@@ -974,9 +989,20 @@ func (m *Manager) captureTmuxPane(session string) string {
 }
 
 // captureTmuxPaneForAgent captures pane content using the agent's tmux socket.
+// Includes scrollback for diff-based output signal detection.
 func (m *Manager) captureTmuxPaneForAgent(agent *AgentProcess) string {
 	cmd := m.tmuxCmd(agent, "capture-pane", "-t", agent.tmuxSession, "-p",
 		"-S", fmt.Sprintf("-%d", tmuxCaptureLines))
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return string(out)
+}
+
+// captureVisiblePaneForAgent captures only the visible pane (no scrollback).
+func (m *Manager) captureVisiblePaneForAgent(agent *AgentProcess) string {
+	cmd := m.tmuxCmd(agent, "capture-pane", "-t", agent.tmuxSession, "-p")
 	out, err := cmd.Output()
 	if err != nil {
 		return ""

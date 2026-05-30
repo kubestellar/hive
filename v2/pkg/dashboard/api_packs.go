@@ -263,16 +263,5 @@ func detectACMMLevel(cfg *config.Config) int {
 	if cfg.ACMMLevel != nil {
 		return *cfg.ACMMLevel
 	}
-
-	agentCount := len(cfg.Agents)
-	switch {
-	case agentCount <= 1:
-		return 1
-	case agentCount == 2:
-		return 2
-	case agentCount <= 4:
-		return 3
-	default:
-		return 4
-	}
+	return 1
 }

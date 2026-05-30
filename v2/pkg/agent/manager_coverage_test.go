@@ -140,10 +140,10 @@ func TestPinModel_SetsModelOverride(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// agentEnvVars with HIVE_ID
+// agentEnvPairs with HIVE_ID
 // ---------------------------------------------------------------------------
 
-func TestAgentEnvVars_WithHiveID(t *testing.T) {
+func TestAgentEnvPairs_WithHiveID(t *testing.T) {
 	t.Setenv("HIVE_ID", "test-hive-123")
 
 	m := NewManager(map[string]config.AgentConfig{
@@ -155,11 +155,11 @@ func TestAgentEnvVars_WithHiveID(t *testing.T) {
 		Config: config.AgentConfig{Backend: "claude", Model: "sonnet"},
 	}
 
-	vars := m.agentEnvVars(ap)
+	pairs := m.agentEnvPairs(ap)
 
 	foundHiveID := false
-	for _, v := range vars {
-		if v == "HIVE_ID='test-hive-123'" {
+	for _, p := range pairs {
+		if p.Key == "HIVE_ID" && p.Value == "test-hive-123" {
 			foundHiveID = true
 		}
 	}
@@ -168,7 +168,7 @@ func TestAgentEnvVars_WithHiveID(t *testing.T) {
 	}
 }
 
-func TestAgentEnvVars_WithOverrides(t *testing.T) {
+func TestAgentEnvPairs_WithOverrides(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"scanner": {Backend: "claude", Model: "sonnet"},
 	}, discardLogger(), ProjectContext{})
@@ -180,15 +180,15 @@ func TestAgentEnvVars_WithOverrides(t *testing.T) {
 		BackendOverride: "gemini",
 	}
 
-	vars := m.agentEnvVars(ap)
+	pairs := m.agentEnvPairs(ap)
 
 	foundModel := false
 	foundBackend := false
-	for _, v := range vars {
-		if v == "HIVE_MODEL='opus'" {
+	for _, p := range pairs {
+		if p.Key == "HIVE_MODEL" && p.Value == "opus" {
 			foundModel = true
 		}
-		if v == "HIVE_BACKEND='gemini'" {
+		if p.Key == "HIVE_BACKEND" && p.Value == "gemini" {
 			foundBackend = true
 		}
 	}

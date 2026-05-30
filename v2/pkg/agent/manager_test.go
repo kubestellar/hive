@@ -15,11 +15,11 @@ import (
 
 var stubBinDir string
 
-func testEnvVars(ap *AgentProcess) []string {
+func testEnvPairs(ap *AgentProcess) []agentEnvPair {
 	m := NewManager(map[string]config.AgentConfig{
 		ap.Name: ap.Config,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)), ProjectContext{})
-	return m.agentEnvVars(ap)
+	return m.agentEnvPairs(ap)
 }
 
 func TestMain(m *testing.M) {
@@ -285,7 +285,7 @@ func TestBackendBinary_ReturnsAbsolutePath(t *testing.T) {
 // agentEnvVars
 // ---------------------------------------------------------------------------
 
-func TestAgentEnvVars_ContainsRequiredKeys(t *testing.T) {
+func TestAgentEnvPairs_ContainsRequiredKeys(t *testing.T) {
 	ap := &AgentProcess{
 		Name: "test-agent",
 		Config: config.AgentConfig{
@@ -294,62 +294,90 @@ func TestAgentEnvVars_ContainsRequiredKeys(t *testing.T) {
 		},
 	}
 
-	vars := testEnvVars(ap)
+	pairs := testEnvPairs(ap)
 
 	want := map[string]string{
-		"HIVE_AGENT":   "'test-agent'",
-		"HIVE_BACKEND": "'claude'",
-		"HIVE_MODEL":   "'claude-3-5-sonnet'",
+		"HIVE_AGENT":   "test-agent",
+		"HIVE_BACKEND": "claude",
+		"HIVE_MODEL":   "claude-3-5-sonnet",
 	}
 
-	for _, v := range vars {
-		parts := strings.SplitN(v, "=", 2)
-		if len(parts) != 2 {
-			t.Errorf("env var %q is not in KEY=VALUE form", v)
-			continue
-		}
-		key, val := parts[0], parts[1]
-		if expected, ok := want[key]; ok {
-			if val != expected {
-				t.Errorf("env var %q = %q, want %q", key, val, expected)
+	for _, p := range pairs {
+		if expected, ok := want[p.Key]; ok {
+			if p.Value != expected {
+				t.Errorf("env var %q = %q, want %q", p.Key, p.Value, expected)
 			}
-			delete(want, key)
+			delete(want, p.Key)
 		}
 	}
 
 	for missing := range want {
-		t.Errorf("env var %q missing from agentEnvVars output", missing)
+		t.Errorf("env var %q missing from agentEnvPairs output", missing)
 	}
 }
 
 const baseEnvVarCount = 10 // HIVE_AGENT, HIVE_AGENT_DISPLAY_NAME, HIVE_BACKEND, HIVE_MODEL, HIVE_ACMM_LEVEL, HIVE_AGENT_MODE, HTTPS_PROXY, HTTP_PROXY, HIVE_PROXY_AGENT, NODE_EXTRA_CA_CERTS
 
-func TestAgentEnvVars_BaseEntryCount(t *testing.T) {
+func TestAgentEnvPairs_BaseEntryCount(t *testing.T) {
 	ap := &AgentProcess{
 		Name:   "agent",
 		Config: config.AgentConfig{Backend: "gemini", Model: "pro"},
 	}
-	vars := testEnvVars(ap)
-	if len(vars) != baseEnvVarCount {
-		t.Errorf("testEnvVars() returned %d vars, want %d", len(vars), baseEnvVarCount)
+	pairs := testEnvPairs(ap)
+	if len(pairs) != baseEnvVarCount {
+		t.Errorf("testEnvPairs() returned %d vars, want %d", len(pairs), baseEnvVarCount)
 	}
 }
 
-func TestAgentEnvVars_EmptyModelAllowed(t *testing.T) {
+func TestAgentEnvPairs_EmptyModelAllowed(t *testing.T) {
 	ap := &AgentProcess{
 		Name:   "nomodel",
 		Config: config.AgentConfig{Backend: "goose", Model: ""},
 	}
-	vars := testEnvVars(ap)
+	pairs := testEnvPairs(ap)
 
 	found := false
-	for _, v := range vars {
-		if v == "HIVE_MODEL=''" {
+	for _, p := range pairs {
+		if p.Key == "HIVE_MODEL" && p.Value == "" {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("expected HIVE_MODEL='' (empty) to be present when model is unset")
+		t.Error("expected HIVE_MODEL with empty value to be present when model is unset")
+	}
+}
+
+func TestCopilotToken_NotInEnvPrefix(t *testing.T) {
+	m := NewManager(map[string]config.AgentConfig{
+		"worker": {Backend: "copilot", Model: "sonnet"},
+	}, discardLogger(), ProjectContext{})
+	m.copilotAuthToken = "github_pat_secret123"
+
+	ap := &AgentProcess{
+		Name:   "worker",
+		Config: config.AgentConfig{Backend: "copilot", Model: "sonnet"},
+	}
+
+	prefix := m.buildEnvPrefix(ap)
+	if strings.Contains(prefix, "COPILOT_GITHUB_TOKEN") {
+		t.Error("COPILOT_GITHUB_TOKEN must not appear in inline env prefix (visible in ps output)")
+	}
+	if strings.Contains(prefix, "github_pat_secret123") {
+		t.Error("token value must not appear in inline env prefix")
+	}
+
+	pairs := m.agentEnvPairs(ap)
+	found := false
+	for _, p := range pairs {
+		if p.Key == "COPILOT_GITHUB_TOKEN" {
+			found = true
+			if !p.Secret {
+				t.Error("COPILOT_GITHUB_TOKEN must be marked as Secret")
+			}
+		}
+	}
+	if !found {
+		t.Error("COPILOT_GITHUB_TOKEN should be in agentEnvPairs when token is set")
 	}
 }
 
@@ -661,17 +689,16 @@ func TestStart_EnvIncludesHiveVars(t *testing.T) {
 		Name:   "env-test",
 		Config: config.AgentConfig{Backend: "claude", Model: "opus"},
 	}
-	extra := testEnvVars(ap)
-	combined := append(os.Environ(), extra...)
+	pairs := testEnvPairs(ap)
 
 	found := false
-	for _, v := range combined {
-		if v == "HIVE_AGENT='env-test'" {
+	for _, p := range pairs {
+		if p.Key == "HIVE_AGENT" && p.Value == "env-test" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("HIVE_AGENT='env-test' not found in combined env")
+		t.Error("HIVE_AGENT=env-test not found in env pairs")
 	}
 }

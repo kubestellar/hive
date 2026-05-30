@@ -240,12 +240,9 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 		_ = exec.Command("su-exec", agentUser, "chmod", "710", tmuxDir).Run()
 	}
 
-	// Set per-session env vars via tmux set-environment.
-	for _, envVar := range m.agentEnvVars(agent) {
-		parts := strings.SplitN(envVar, "=", 2)
-		if len(parts) == 2 {
-			_ = m.tmuxCmd(agent, "set-environment", "-t", agent.tmuxSession, parts[0], parts[1]).Run()
-		}
+	// Set per-session env vars via tmux set-environment (raw values, no shell quoting).
+	for _, p := range m.agentEnvPairs(agent) {
+		_ = m.tmuxCmd(agent, "set-environment", "-t", agent.tmuxSession, p.Key, p.Value).Run()
 	}
 	// Strip gh/git tokens from advisory agent sessions.
 	if !m.agentMode(agent).CanPush() {
@@ -766,11 +763,18 @@ func shellEnvVar(key, value string) string {
 }
 
 func (m *Manager) buildEnvPrefix(agent *AgentProcess) string {
-	vars := m.agentEnvVars(agent)
-	if len(vars) == 0 {
+	pairs := m.agentEnvPairs(agent)
+	var parts []string
+	for _, p := range pairs {
+		if p.Secret {
+			continue
+		}
+		parts = append(parts, shellEnvVar(p.Key, p.Value))
+	}
+	if len(parts) == 0 {
 		return ""
 	}
-	return strings.Join(vars, " ") + " "
+	return strings.Join(parts, " ") + " "
 }
 
 // outputSignalPatterns are substrings in agent output that indicate meaningful
@@ -1728,7 +1732,15 @@ func (m *Manager) sanitizeGitRemotes(agent *AgentProcess) {
 	})
 }
 
-func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
+// agentEnvPair is an unquoted key-value environment variable.
+type agentEnvPair struct {
+	Key   string
+	Value string
+	// Secret vars are set via tmux set-environment only, never on the command line.
+	Secret bool
+}
+
+func (m *Manager) agentEnvPairs(agent *AgentProcess) []agentEnvPair {
 	model := agent.Config.Model
 	if agent.ModelOverride != "" {
 		model = agent.ModelOverride
@@ -1741,38 +1753,37 @@ func (m *Manager) agentEnvVars(agent *AgentProcess) []string {
 	if displayName == "" {
 		displayName = agent.Name
 	}
-	vars := []string{
-		shellEnvVar("HIVE_AGENT", agent.Name),
-		shellEnvVar("HIVE_AGENT_DISPLAY_NAME", displayName),
-		shellEnvVar("HIVE_BACKEND", backend),
-		shellEnvVar("HIVE_MODEL", model),
+	vars := []agentEnvPair{
+		{"HIVE_AGENT", agent.Name, false},
+		{"HIVE_AGENT_DISPLAY_NAME", displayName, false},
+		{"HIVE_BACKEND", backend, false},
+		{"HIVE_MODEL", model, false},
 	}
 	if hiveID := os.Getenv("HIVE_ID"); hiveID != "" {
-		vars = append(vars, shellEnvVar("HIVE_ID", hiveID))
+		vars = append(vars, agentEnvPair{"HIVE_ID", hiveID, false})
 	}
-	vars = append(vars, fmt.Sprintf("HIVE_ACMM_LEVEL=%d", m.project.ACMMLevel))
+	vars = append(vars, agentEnvPair{"HIVE_ACMM_LEVEL", fmt.Sprintf("%d", m.project.ACMMLevel), false})
 
 	mode := m.agentMode(agent)
-	vars = append(vars, shellEnvVar("HIVE_AGENT_MODE", mode.String()))
+	vars = append(vars, agentEnvPair{"HIVE_AGENT_MODE", mode.String(), false})
 	modeFile := fmt.Sprintf("/tmp/.hive-mode-%s", agent.Name)
 	_ = os.WriteFile(modeFile, []byte(mode.String()), 0o644)
 	proxyURL := fmt.Sprintf("http://%s@127.0.0.1:%d", agent.Name, proxyListenPort)
-	vars = append(vars, shellEnvVar("HTTPS_PROXY", proxyURL))
-	vars = append(vars, shellEnvVar("HTTP_PROXY", proxyURL))
-	vars = append(vars, shellEnvVar("HIVE_PROXY_AGENT", agent.Name))
-	vars = append(vars, shellEnvVar("NODE_EXTRA_CA_CERTS", proxyCACertPath))
+	vars = append(vars, agentEnvPair{"HTTPS_PROXY", proxyURL, false})
+	vars = append(vars, agentEnvPair{"HTTP_PROXY", proxyURL, false})
+	vars = append(vars, agentEnvPair{"HIVE_PROXY_AGENT", agent.Name, false})
+	vars = append(vars, agentEnvPair{"NODE_EXTRA_CA_CERTS", proxyCACertPath, false})
 	if sha := os.Getenv("HIVE_SHA"); sha != "" {
-		vars = append(vars, shellEnvVar("HIVE_SHA", sha))
+		vars = append(vars, agentEnvPair{"HIVE_SHA", sha, false})
 	}
 	if advisory := os.Getenv("HIVE_ADVISORY_ISSUE"); advisory != "" {
-		vars = append(vars, shellEnvVar("HIVE_ADVISORY_ISSUE", advisory))
+		vars = append(vars, agentEnvPair{"HIVE_ADVISORY_ISSUE", advisory, false})
 	}
 	if m.copilotAuthToken != "" {
-		vars = append(vars, shellEnvVar("COPILOT_GITHUB_TOKEN", m.copilotAuthToken))
+		vars = append(vars, agentEnvPair{"COPILOT_GITHUB_TOKEN", m.copilotAuthToken, true})
 	}
-	// Per-agent UIDs share CLI auth/cache from /data/home
 	if agent.UID > 0 {
-		vars = append(vars, shellEnvVar("HOME", "/data/home"))
+		vars = append(vars, agentEnvPair{"HOME", "/data/home", false})
 	}
 	return vars
 }

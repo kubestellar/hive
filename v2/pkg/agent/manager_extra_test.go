@@ -218,7 +218,7 @@ func TestBuildEnvPrefix_EmptyVars(t *testing.T) {
 
 	agent := &AgentProcess{Name: "test"}
 	prefix := m.buildEnvPrefix(agent)
-	// agentEnvVars returns at least HIVE_AGENT, so prefix should be non-empty
+	// agentEnvPairs returns at least HIVE_AGENT, so prefix should be non-empty
 	if prefix == "" {
 		t.Error("expected env prefix to at least include HIVE_AGENT")
 	}

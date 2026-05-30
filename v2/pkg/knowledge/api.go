@@ -495,7 +495,12 @@ func (k *KnowledgeAPI) SearchAllWithVaults(ctx context.Context, query string, ty
 			continue
 		}
 		store := gs.Store()
-		facts := store.Search(query, limit)
+		var facts []Fact
+		if query == "" {
+			facts = store.ListPages(typeFilter)
+		} else {
+			facts = store.Search(query, limit)
+		}
 		for i := range facts {
 			facts[i].Layer = gs.Config().Layer
 		}

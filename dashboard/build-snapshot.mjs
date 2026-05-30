@@ -151,9 +151,21 @@ async function main() {
     .oc-chat-prompt { display: none !important; }
     .oc-detail-actions { display: none !important; }
     button[onclick] { pointer-events: none !important; opacity: 0.5 !important; }
-    /* Re-enable read-only knowledge buttons (How it works modal, layer nav, type filters, modal close) */
-    #knowledge-panel button[onclick],
-    .nous-config-overlay button[onclick] { pointer-events: auto !important; opacity: 1 !important; }
+    /* Hide interactive KB action buttons in snapshot */
+    button[onclick*="kbOpenImport"],
+    button[onclick*="kbOpenSubscriptions"],
+    button[onclick*="kbOpenVaults"],
+    button[onclick*="kbOpenObsidianSetup"],
+    button[onclick*="kbOpenCreate"],
+    button[onclick*="toggleKnowledge"],
+    button[onclick*="kbOpenEdit"],
+    button[onclick*="kbDelete"],
+    button[onclick*="kbPromote"] { display: none !important; }
+    /* Re-enable read-only KB buttons (How it works, layer nav, fact select, modal close) */
+    button[onclick*="kbOpenHowItWorks"],
+    #knowledge-panel .kb-layer-btn,
+    .kb-fact-item,
+    .nous-config-overlay button[onclick*="kbCloseModal"] { pointer-events: auto !important; opacity: 1 !important; }
     .snapshot-banner {
       ${bannerBg}
       border-radius: 8px;

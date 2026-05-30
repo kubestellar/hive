@@ -842,6 +842,7 @@ func (c *Config) AgentByID(id string) (AgentConfig, bool) {
 
 // Save marshals the current config back to its source YAML file.
 // This ensures dashboard mutations (repos, thresholds, etc.) survive container restarts.
+// Uses open+truncate instead of WriteFile to work with bind-mounted files in containers.
 func (c *Config) Save() error {
 	if c.SourcePath == "" {
 		return fmt.Errorf("config has no source path")
@@ -850,9 +851,17 @@ func (c *Config) Save() error {
 	if err != nil {
 		return fmt.Errorf("marshaling config: %w", err)
 	}
-	const yamlFileMode = 0o644
-	if err := os.WriteFile(c.SourcePath, data, yamlFileMode); err != nil {
-		return fmt.Errorf("writing config %s: %w", c.SourcePath, err)
+	f, err := os.OpenFile(c.SourcePath, os.O_WRONLY|os.O_TRUNC, 0)
+	if err != nil {
+		return fmt.Errorf("opening config %s: %w", c.SourcePath, err)
+	}
+	_, writeErr := f.Write(data)
+	closeErr := f.Close()
+	if writeErr != nil {
+		return fmt.Errorf("writing config %s: %w", c.SourcePath, writeErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("closing config %s: %w", c.SourcePath, closeErr)
 	}
 	return nil
 }

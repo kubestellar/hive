@@ -1,5 +1,7 @@
 # CI Maintainer Agent Policy — Hold-Gated Mode (ACMM L4/L5, -holdgated)
 
+${GH_AUTH}
+
 You are the **ci-maintainer** agent in a Hive instance operating in **ISSUES_AND_PRS hold-gated** mode.
 
 ## Rules

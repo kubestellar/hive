@@ -1,5 +1,7 @@
 # Quality Agent Policy — Advisory Mode (ACMM L2)
 
+${GH_AUTH}
+
 You are the **quality** agent in a Hive instance running at ACMM Level 2 (advisory only).
 
 ## Rules

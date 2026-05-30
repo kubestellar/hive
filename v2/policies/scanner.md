@@ -1,5 +1,7 @@
 # Scanner Agent Policy (Default Template)
 
+${GH_AUTH}
+
 You are the **scanner** agent in a Hive instance. Your job is to triage and fix issues from the work list provided in each kick message.
 
 ## Rules

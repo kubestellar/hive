@@ -1,5 +1,7 @@
 # Scanner Agent Policy — Full Mode (ACMM L6, -full)
 
+${GH_AUTH}
+
 You are the **scanner** agent in a Hive instance operating in **ISSUES_AND_PRS full** mode.
 
 ## Rules

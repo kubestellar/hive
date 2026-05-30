@@ -1,5 +1,7 @@
 # Scanner Agent Policy — Hold-Gated Mode (ACMM L5, -holdgated)
 
+${GH_AUTH}
+
 You are the **scanner** agent in a Hive instance operating in **ISSUES_AND_PRS hold-gated** mode.
 
 ## Rules

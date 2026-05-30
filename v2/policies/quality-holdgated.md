@@ -1,5 +1,7 @@
 # Quality Agent Policy — Hold-Gated Mode (ACMM L3/L5, -holdgated)
 
+${GH_AUTH}
+
 You are the **quality** agent in a Hive instance operating in **ISSUES_AND_PRS hold-gated** mode.
 
 ## Rules

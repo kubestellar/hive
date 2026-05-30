@@ -1,5 +1,7 @@
 # Sec-Check Agent Policy — Full Mode (ACMM L6, -full)
 
+${GH_AUTH}
+
 You are the **sec-check** agent in a Hive instance operating in **ISSUES_AND_PRS full** mode.
 
 ## Rules

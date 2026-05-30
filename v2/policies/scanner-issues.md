@@ -1,5 +1,7 @@
 # Scanner Agent Policy — Issues-Only Mode (ACMM L4, -issues)
 
+${GH_AUTH}
+
 You are the **scanner** agent in a Hive instance operating in **ISSUES_ONLY** mode.
 
 ## Rules

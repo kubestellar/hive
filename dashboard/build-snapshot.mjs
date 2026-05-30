@@ -230,15 +230,15 @@ async function main() {
     };
     renderNous();
 
-    // Knowledge Base
+    // Knowledge Base — assign facts BEFORE renderKnowledge() because it
+    // internally calls renderKnowledgeFacts() which reads _kbFacts.
+    var _snapKbData = ${kbFactsRaw};
+    _kbFacts = Array.isArray(_snapKbData) ? _snapKbData : (_snapKbData.facts || []);
     _kbCache = ${kbStatsRaw};
     if (_kbCache && _kbCache.enabled) _kbSetupView = 'none';
     _kbInitialLoad = false;
     _kbRendered = true;
     renderKnowledge();
-    var _snapKbData = ${kbFactsRaw};
-    _kbFacts = Array.isArray(_snapKbData) ? _snapKbData : (_snapKbData.facts || []);
-    renderKnowledgeFacts();
 
     // Git version
     const _v = ${versionRaw};

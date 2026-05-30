@@ -279,7 +279,23 @@ func (s *Scheduler) BuildAgentMessage(agentName string, issues []github.Issue, a
 		}
 	}
 
-	// 2. Convention: look for <agent>.md template file
+	// 2. ACMM pack default: if acmm_level is set, use the pack's template for this agent
+	if s.cfg.ACMMLevel != nil && *s.cfg.ACMMLevel > 0 {
+		if pack, err := config.ACMMPackByLevel(*s.cfg.ACMMLevel); err == nil {
+			for _, pa := range pack.Agents {
+				if pa.Name == agentName && pa.KickTemplate != "" {
+					if template := s.loadNamedTemplate(pa.KickTemplate); template != "" {
+						s.logger.Info("using ACMM pack template", "agent", agentName, "level", *s.cfg.ACMMLevel, "template", pa.KickTemplate)
+						msg := fmt.Sprintf("[agent:%s] [KICK]\n\n", agentName)
+						msg += s.substituteTemplate(template, actionable, agentName, issues)
+						return msg
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Convention: look for <agent>.md template file
 	if template := s.loadPromptTemplate(agentName); template != "" {
 		s.logger.Info("using prompt template for kick", "agent", agentName)
 		msg := fmt.Sprintf("[agent:%s] [KICK]\n\n", agentName)

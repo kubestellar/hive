@@ -1615,6 +1615,25 @@ func normalizeModelName(model string) string {
 	return model
 }
 
+// SyncModeFiles rewrites /tmp/.hive-mode-* for all running agents to reflect the given ACMM level.
+func (m *Manager) SyncModeFiles(level int) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for name, agent := range m.agents {
+		if agent.Paused || agent.State != StateRunning {
+			continue
+		}
+		mode := DefaultAgentMode(name, level)
+		if modeStr := agent.Config.Mode; modeStr != "" {
+			if parsed, ok := ParseAgentMode(modeStr); ok {
+				mode = parsed
+			}
+		}
+		modeFile := fmt.Sprintf("/tmp/.hive-mode-%s", name)
+		_ = os.WriteFile(modeFile, []byte(mode.String()), 0o644)
+	}
+}
+
 // agentMode returns the GitHub interaction mode for a given agent at the current ACMM level.
 // If the agent has an explicit Mode in its config (hive.yaml or pack YAML), that takes precedence.
 // Otherwise, the default table by ACMM level is used.

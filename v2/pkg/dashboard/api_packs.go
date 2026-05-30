@@ -203,8 +203,12 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 
 	level := body.Level
 	s.deps.Config.ACMMLevel = &level
+
+	s.deps.AgentMgr.SyncModeFiles(level)
+	paused, resumed := s.syncAgentVisibility(level)
+
 	s.persistOnly()
-	go s.refreshAsync()
+	s.refreshAsync()
 
 	pack, packErr := config.ACMMPackByLevel(level)
 	var packAgentNames []string
@@ -216,11 +220,13 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.logger.Info("ACMM level preview set", "level", body.Level)
+	s.logger.Info("ACMM level set", "level", body.Level, "paused", len(paused), "resumed", len(resumed))
 	jsonResponse(w, map[string]interface{}{
 		"ok":         true,
 		"level":      body.Level,
 		"packAgents": packAgentNames,
+		"paused":     paused,
+		"resumed":    resumed,
 	})
 }
 

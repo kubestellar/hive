@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -840,9 +841,10 @@ func (c *Config) AgentByID(id string) (AgentConfig, bool) {
 	return AgentConfig{}, false
 }
 
-// Save marshals the current config back to its source YAML file.
-// This ensures dashboard mutations (repos, thresholds, etc.) survive container restarts.
-// Uses open+truncate instead of WriteFile to work with bind-mounted files in containers.
+// Save marshals the current config back to its source YAML file atomically.
+// It writes to a temporary file in the same directory, then renames over the
+// original. This prevents partial writes if the process crashes mid-save and
+// ensures watchers see a complete file.
 func (c *Config) Save() error {
 	if c.SourcePath == "" {
 		return fmt.Errorf("config has no source path")
@@ -851,17 +853,26 @@ func (c *Config) Save() error {
 	if err != nil {
 		return fmt.Errorf("marshaling config: %w", err)
 	}
-	f, err := os.OpenFile(c.SourcePath, os.O_WRONLY|os.O_TRUNC, 0)
+
+	dir := filepath.Dir(c.SourcePath)
+	tmp, err := os.CreateTemp(dir, ".hive-yaml-*.tmp")
 	if err != nil {
-		return fmt.Errorf("opening config %s: %w", c.SourcePath, err)
+		return fmt.Errorf("creating temp config file: %w", err)
 	}
-	_, writeErr := f.Write(data)
-	closeErr := f.Close()
-	if writeErr != nil {
-		return fmt.Errorf("writing config %s: %w", c.SourcePath, writeErr)
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("writing temp config: %w", err)
 	}
-	if closeErr != nil {
-		return fmt.Errorf("closing config %s: %w", c.SourcePath, closeErr)
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("closing temp config: %w", err)
+	}
+	if err := os.Rename(tmpPath, c.SourcePath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("renaming temp config to %s: %w", c.SourcePath, err)
 	}
 	return nil
 }

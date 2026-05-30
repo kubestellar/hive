@@ -1207,6 +1207,10 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 		logger.Error("failed to persist state", "error", err)
 	}
 
+	if err := cfg.Save(); err != nil {
+		logger.Error("failed to persist config to yaml", "error", err)
+	}
+
 	history := gov.EvalHistory()
 	if len(history) > 0 {
 		historyData, err := json.Marshal(history)

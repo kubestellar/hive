@@ -23,6 +23,8 @@ type Config struct {
 	Knowledge     KnowledgeConfig              `yaml:"knowledge"`
 	HiveID        string                       `yaml:"hive_id"`
 	ACMMLevel     *int                         `yaml:"acmm_level,omitempty" json:"acmm_level"`
+
+	SourcePath string `yaml:"-" json:"-"`
 }
 
 type KnowledgeConfig struct {
@@ -280,6 +282,17 @@ func (m *ModeConfig) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
+// MarshalYAML produces the flat format expected by UnmarshalYAML:
+// threshold as a sibling key alongside agent cadences.
+func (m ModeConfig) MarshalYAML() (interface{}, error) {
+	out := make(map[string]interface{})
+	out["threshold"] = m.Threshold
+	for k, v := range m.Cadences {
+		out[k] = v
+	}
+	return out, nil
+}
+
 type GitHubConfig struct {
 	AppID                int64  `yaml:"app_id"`
 	InstallationID       int64  `yaml:"installation_id"`
@@ -360,6 +373,7 @@ func LoadWithOverrides(path, envPath string) (*Config, error) {
 		}
 	}
 
+	cfg.SourcePath = path
 	cfg.applyBootstrapEnv()
 	cfg.applyDefaults()
 
@@ -824,4 +838,21 @@ func (c *Config) AgentByID(id string) (AgentConfig, bool) {
 		}
 	}
 	return AgentConfig{}, false
+}
+
+// Save marshals the current config back to its source YAML file.
+// This ensures dashboard mutations (repos, thresholds, etc.) survive container restarts.
+func (c *Config) Save() error {
+	if c.SourcePath == "" {
+		return fmt.Errorf("config has no source path")
+	}
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+	const yamlFileMode = 0o644
+	if err := os.WriteFile(c.SourcePath, data, yamlFileMode); err != nil {
+		return fmt.Errorf("writing config %s: %w", c.SourcePath, err)
+	}
+	return nil
 }

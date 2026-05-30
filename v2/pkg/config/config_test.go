@@ -897,3 +897,72 @@ func TestApplyDefaults_ExistingValuesNotOverridden(t *testing.T) {
 		t.Errorf("ttl = %d", cfg.Governor.Sensing.TTLSeconds)
 	}
 }
+
+func TestSaveRoundTrip(t *testing.T) {
+	content := `
+project:
+  org: testorg
+  name: testproject
+  repos:
+    - repo-a
+    - repo-b
+agents:
+  scanner:
+    enabled: true
+    backend: claude
+    model: claude-sonnet-4-6
+governor:
+  eval_interval_s: 300
+  modes:
+    surge:
+      threshold: 130
+      scanner: pause
+    idle:
+      threshold: 0
+      scanner: 5m
+  health:
+    healthcheck_interval: 300
+    restart_cooldown: 60
+github:
+  app_id: 123
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hive.yaml")
+	os.WriteFile(path, []byte(content), 0o600)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg.Project.Repos = append(cfg.Project.Repos, "repo-c")
+	cfg.Governor.Modes["surge"] = ModeConfig{
+		Threshold: 200,
+		Cadences:  map[string]string{"scanner": "pause"},
+	}
+
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save() error: %v", err)
+	}
+
+	cfg2, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload after save: %v", err)
+	}
+
+	if len(cfg2.Project.Repos) != 3 || cfg2.Project.Repos[2] != "repo-c" {
+		t.Errorf("repos = %v, want [repo-a repo-b repo-c]", cfg2.Project.Repos)
+	}
+	if cfg2.Governor.Modes["surge"].Threshold != 200 {
+		t.Errorf("surge threshold = %d, want 200", cfg2.Governor.Modes["surge"].Threshold)
+	}
+	if cfg2.Governor.Modes["surge"].Cadences["scanner"] != "pause" {
+		t.Errorf("surge scanner cadence = %q, want pause", cfg2.Governor.Modes["surge"].Cadences["scanner"])
+	}
+	if cfg2.Governor.Modes["idle"].Threshold != 0 {
+		t.Errorf("idle threshold = %d, want 0", cfg2.Governor.Modes["idle"].Threshold)
+	}
+	if cfg2.SourcePath != path {
+		t.Errorf("SourcePath = %q, want %q", cfg2.SourcePath, path)
+	}
+}

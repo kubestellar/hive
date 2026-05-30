@@ -1,10 +1,9 @@
 level: 3
 name: Measured
 description: >
-  Feedback becomes visible. The quality agent opens issues AND hold-gated PRs
-  about testing — coverage gaps, missing CI workflows, test infrastructure.
-  Quality PRs get a 'hold' label; no agent merges. All other agents remain
-  in advisory mode. CI-maintainer joins to monitor build health.
+  Feedback becomes visible. Quality opens issues AND hold-gated PRs about
+  testing gaps. All PRs get 'hold' label; no agent merges. All other agents
+  remain advisory (beads only). CI-maintainer joins to monitor build health.
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
   merge_policy: hold-gated (quality PRs only)
@@ -119,7 +118,7 @@ agents:
     model: claude-opus-4-6
     bead_role: worker
     mode: ISSUES_AND_PRS
-    kick_template: quality-full.md
+    kick_template: quality-holdgated.md
     include_repos: true
     stale_timeout: 3600
     interactions: >

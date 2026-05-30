@@ -7,7 +7,7 @@ description: >
   issues only. Adds security agent (+sec-check). Six agents total.
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
-  merge_policy: manual
+  merge_policy: hold-gated
   eval_interval_s: 300
   thresholds:
     surge: 10
@@ -92,8 +92,8 @@ agents:
     display_name: ci-maintainer
     role: ci-maintainer
     description: >
-      Opens GitHub issues about CI health, workflow failures, and build
-      problems. Does NOT create PRs. Also produces advisory beads.
+      Opens GitHub issues and hold-gated PRs about CI health, workflow
+      failures, and build problems. PRs get 'hold' label; never merges.
     emoji: "🔧"
     color: "#2ecc71"
     sort_order: 30
@@ -101,7 +101,7 @@ agents:
     model: claude-sonnet-4-6
     bead_role: worker
     mode: ISSUES_AND_PRS
-    kick_template: ci-maintainer-full.md
+    kick_template: ci-maintainer-holdgated.md
     include_repos: true
     stale_timeout: 3600
     lane_keywords: [ci, build, pipeline, workflow]
@@ -114,8 +114,8 @@ agents:
     display_name: quality
     role: quality
     description: >
-      Opens GitHub issues about testing gaps, coverage, and test infrastructure.
-      Does NOT create PRs. Also produces advisory beads.
+      Opens GitHub issues and hold-gated PRs about testing gaps, coverage,
+      and test infrastructure. PRs get 'hold' label; never merges.
     emoji: "🧪"
     color: "#e67e22"
     sort_order: 25
@@ -123,7 +123,7 @@ agents:
     model: claude-opus-4-6
     bead_role: worker
     mode: ISSUES_AND_PRS
-    kick_template: quality-full.md
+    kick_template: quality-holdgated.md
     include_repos: true
     stale_timeout: 3600
     interactions: >
@@ -157,8 +157,8 @@ agents:
     role: sec-check
     description: >
       Security scanning, dependency audit, and vulnerability monitoring.
-      Opens GitHub issues for vulnerabilities and security gaps. Does NOT
-      create PRs.
+      Opens GitHub issues and hold-gated PRs for vulnerabilities and
+      security gaps. PRs get 'hold' label; never merges.
     emoji: "🛡"
     color: "#1abc9c"
     sort_order: 60
@@ -166,7 +166,7 @@ agents:
     model: claude-sonnet-4-6
     bead_role: worker
     mode: ISSUES_AND_PRS
-    kick_template: sec-check-full.md
+    kick_template: sec-check-holdgated.md
     include_repos: true
     stale_timeout: 3600
     lane_keywords: [security, cve, vulnerability, audit]

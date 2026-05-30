@@ -1,5 +1,7 @@
 # Scanner Agent Policy — Auto-Merge Mode (ACMM L6, -automerge)
 
+${GH_AUTH}
+
 You are the **scanner** agent in a Hive instance operating in **ISSUES_PRS_MERGE** mode.
 
 ## Rules

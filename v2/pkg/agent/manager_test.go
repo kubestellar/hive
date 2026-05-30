@@ -347,6 +347,53 @@ func TestAgentEnvPairs_EmptyModelAllowed(t *testing.T) {
 	}
 }
 
+func TestAgentEnvPairs_BDDirFromBeadsDir(t *testing.T) {
+	ap := &AgentProcess{
+		Name: "scanner",
+		Config: config.AgentConfig{
+			Backend:  "claude",
+			Model:    "claude-sonnet-4-6",
+			BeadsDir: "/data/beads/scanner",
+		},
+	}
+
+	pairs := testEnvPairs(ap)
+
+	found := false
+	for _, p := range pairs {
+		if p.Key == "BD_DIR" {
+			found = true
+			if p.Value != "/data/beads/scanner" {
+				t.Errorf("BD_DIR = %q, want %q", p.Value, "/data/beads/scanner")
+			}
+		}
+	}
+	if !found {
+		t.Error("BD_DIR should be present when BeadsDir is configured")
+	}
+
+	// Count should be baseEnvVarCount + 1 for BD_DIR
+	const expectedWithBDDir = baseEnvVarCount + 1
+	if len(pairs) != expectedWithBDDir {
+		t.Errorf("testEnvPairs() returned %d vars, want %d (base + BD_DIR)", len(pairs), expectedWithBDDir)
+	}
+}
+
+func TestAgentEnvPairs_NoBDDirWhenEmpty(t *testing.T) {
+	ap := &AgentProcess{
+		Name:   "worker",
+		Config: config.AgentConfig{Backend: "claude", Model: "sonnet"},
+	}
+
+	pairs := testEnvPairs(ap)
+
+	for _, p := range pairs {
+		if p.Key == "BD_DIR" {
+			t.Error("BD_DIR should not be present when BeadsDir is empty")
+		}
+	}
+}
+
 func TestCopilotToken_NotInEnvPrefix(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{
 		"worker": {Backend: "copilot", Model: "sonnet"},

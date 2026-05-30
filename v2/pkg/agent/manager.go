@@ -1773,6 +1773,13 @@ func (m *Manager) agentEnvPairs(agent *AgentProcess) []agentEnvPair {
 	if m.copilotAuthToken != "" {
 		vars = append(vars, agentEnvPair{"COPILOT_GITHUB_TOKEN", m.copilotAuthToken, true})
 	}
+	// BD_DIR tells the `bd` CLI where to read/write beads. Without this,
+	// bd falls back to cwd (/data/agents/<name>) instead of the configured
+	// beads_dir (/data/beads/<name>), causing a path mismatch with the
+	// dashboard and advisory digest.
+	if agent.Config.BeadsDir != "" {
+		vars = append(vars, agentEnvPair{"BD_DIR", agent.Config.BeadsDir, false})
+	}
 	if agent.UID > 0 {
 		vars = append(vars, agentEnvPair{"HOME", "/data/home", false})
 	}

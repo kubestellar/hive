@@ -230,10 +230,23 @@ async function main() {
     };
     renderNous();
 
-    // Knowledge Base — assign facts BEFORE renderKnowledge() because it
-    // internally calls renderKnowledgeFacts() which reads _kbFacts.
+    // Knowledge Base — assign facts and override kbSearch BEFORE
+    // renderKnowledge(), which internally calls kbSearch() → renderKnowledgeFacts().
     var _snapKbData = ${kbFactsRaw};
     _kbFacts = Array.isArray(_snapKbData) ? _snapKbData : (_snapKbData.facts || []);
+    var _snapshotAllFacts = _kbFacts.slice();
+    function kbSearch() {
+      var query = _kbSearchQuery;
+      var layer = _kbSelectedLayer;
+      var typeFilter = _kbSelectedType;
+      var filtered = _snapshotAllFacts;
+      if (layer && layer !== 'all') filtered = filtered.filter(function(f) { return f.layer === layer || (f.type || '').startsWith(layer); });
+      if (typeFilter) filtered = filtered.filter(function(f) { return f.type === typeFilter; });
+      if (query) { var q = query.toLowerCase(); filtered = filtered.filter(function(f) { return ((f.title || '') + ' ' + (f.body || '') + ' ' + (f.slug || '')).toLowerCase().indexOf(q) >= 0; }); }
+      _kbFacts = filtered;
+      _kbSelectedFact = null;
+      renderKnowledgeFacts();
+    }
     _kbCache = ${kbStatsRaw};
     if (_kbCache && _kbCache.enabled) _kbSetupView = 'none';
     _kbInitialLoad = false;
@@ -294,20 +307,6 @@ async function main() {
     function toggleLayout() {}
     function toggleKnowledge() {}
     function fetchKnowledgeStats() {}
-    // Override kbSearch to filter baked-in facts locally instead of fetching
-    var _snapshotAllFacts = _kbFacts.slice();
-    function kbSearch() {
-      var query = _kbSearchQuery;
-      var layer = _kbSelectedLayer;
-      var typeFilter = _kbSelectedType;
-      var filtered = _snapshotAllFacts;
-      if (layer && layer !== 'all') filtered = filtered.filter(function(f) { return f.layer === layer || (f.type || '').startsWith(layer); });
-      if (typeFilter) filtered = filtered.filter(function(f) { return f.type === typeFilter; });
-      if (query) { var q = query.toLowerCase(); filtered = filtered.filter(function(f) { return ((f.title || '') + ' ' + (f.body || '') + ' ' + (f.slug || '')).toLowerCase().indexOf(q) >= 0; }); }
-      _kbFacts = filtered;
-      _kbSelectedFact = null;
-      renderKnowledgeFacts();
-    }
     function nousSetMode() {}
     function nousSetScope() {}
     function nousApprove() {}

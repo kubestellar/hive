@@ -94,7 +94,7 @@ echo "Created PR #${PR_NUM}: ${PR_URL}"
 
 # Wait for Netlify deploy-preview before merging
 NETLIFY_CHECK="netlify/kubestellar-docs/deploy-preview"
-NETLIFY_TIMEOUT_SECONDS=300
+NETLIFY_TIMEOUT_SECONDS=600
 NETLIFY_POLL_INTERVAL=15
 elapsed=0
 netlify_status="pending"

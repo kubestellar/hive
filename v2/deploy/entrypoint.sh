@@ -10,6 +10,7 @@ export HIVE_STATIC_DIR="${HIVE_STATIC_DIR:-/opt/hive/proxy/public}"
 if [ "$(id -u)" = "0" ]; then
   # Fix ownership of mounted volumes (may be root-owned from host bind mounts)
   chown -R dev:node /data /home/dev 2>/dev/null || true
+  chown dev:node /etc/hive/hive.yaml 2>/dev/null || true
   mkdir -p /var/run/hive-metrics && chown dev:node /var/run/hive-metrics 2>/dev/null || true
 
   # Copy read-only mounted secrets so dev user can read them

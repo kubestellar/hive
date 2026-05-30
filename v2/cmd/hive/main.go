@@ -368,8 +368,19 @@ func main() {
 			if uc := userGHClient.Load(); uc != nil {
 				uc.SetRepos(cfg.Project.Repos)
 			}
-			logger.Info("config overrides restored from persisted state",
+			logger.Info("migrated config overrides from state to hive.yaml",
 				"repos", cfg.Project.Repos)
+
+			// Write merged config to hive.yaml so overrides become the base config
+			if err := cfg.Save(); err != nil {
+				logger.Error("failed to save migrated config", "error", err)
+			}
+
+			// Strip config_overrides from state and re-save
+			saved.ConfigOverrides = nil
+			if err := snapshot.SaveState(statePath, saved, logger); err != nil {
+				logger.Error("failed to re-save state after migration", "error", err)
+			}
 		}
 	}
 
@@ -645,6 +656,24 @@ func main() {
 			logger.Warn("policy watcher failed to start", "error", err)
 		}
 	}
+
+	// Watch hive.yaml for external changes and reload config when modified
+	configWatcher := config.NewWatcher(*configPath, func(newCfg *config.Config) {
+		// Preserve runtime-only fields that are not in the YAML
+		newCfg.HiveID = cfg.HiveID
+
+		// Swap the in-memory config pointer contents
+		*cfg = *newCfg
+
+		// Re-sync subsystems that cache config values
+		ghClient.SetRepos(cfg.Project.Repos)
+		if uc := userGHClient.Load(); uc != nil {
+			uc.SetRepos(cfg.Project.Repos)
+		}
+		initAgentConfigDrivenSystems(cfg)
+		refreshDashboard()
+	}, logger)
+	go configWatcher.Start(ctx)
 
 	githubProxy, err := proxy.NewGitHubProxy(logger)
 	if err != nil {
@@ -1183,8 +1212,6 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 		issueCosts = tc.IssueCosts()
 	}
 
-	configOverrides := buildConfigOverrides(cfg)
-
 	state := &snapshot.PersistedState{
 		Agents:           agents,
 		GovernorMode:     string(govState.Mode),
@@ -1200,7 +1227,6 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 		IssueCosts:       issueCosts,
 		LastEval:         govState.LastEval,
 		ACMMLevel:        cfg.ACMMLevel,
-		ConfigOverrides:  configOverrides,
 	}
 
 	if err := snapshot.SaveState(path, state, logger); err != nil {
@@ -1239,69 +1265,6 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 			}
 		}
 	}
-}
-
-func buildConfigOverrides(cfg *config.Config) *snapshot.ConfigOverrides {
-	o := &snapshot.ConfigOverrides{}
-
-	if len(cfg.Project.Repos) > 0 {
-		o.ProjectRepos = cfg.Project.Repos
-	}
-
-	evalInterval := cfg.Governor.EvalIntervalS
-	o.EvalIntervalS = &evalInterval
-
-	if len(cfg.Governor.Modes) > 0 {
-		o.Thresholds = make(map[string]int, len(cfg.Governor.Modes))
-		for name, mode := range cfg.Governor.Modes {
-			o.Thresholds[name] = mode.Threshold
-		}
-	}
-
-	if len(cfg.Governor.Sensing.GHRatePatterns) > 0 {
-		o.SensingGHRate = cfg.Governor.Sensing.GHRatePatterns
-	}
-	if len(cfg.Governor.Sensing.CLIExcludePatterns) > 0 {
-		o.SensingCLIExclude = cfg.Governor.Sensing.CLIExcludePatterns
-	}
-	if len(cfg.Governor.Sensing.LoginPatterns) > 0 {
-		o.SensingLogin = cfg.Governor.Sensing.LoginPatterns
-	}
-	ttl := cfg.Governor.Sensing.TTLSeconds
-	o.SensingTTL = &ttl
-	pullback := cfg.Governor.Sensing.PullbackSeconds
-	o.SensingPullback = &pullback
-
-	if len(cfg.Governor.Labels.Exempt) > 0 {
-		o.ExemptLabels = cfg.Governor.Labels.Exempt
-	}
-
-	if cfg.Notifications.Ntfy != nil {
-		o.NtfyServer = cfg.Notifications.Ntfy.Server
-		o.NtfyTopic = cfg.Notifications.Ntfy.Topic
-	}
-	if cfg.Notifications.Discord != nil {
-		o.DiscordWebhook = cfg.Notifications.Discord.Webhook
-	}
-
-	hcInterval := cfg.Governor.Health.HealthcheckInterval
-	o.HealthcheckInterval = &hcInterval
-	cooldown := cfg.Governor.Health.RestartCooldown
-	o.RestartCooldown = &cooldown
-	modelLock := cfg.Governor.Health.ModelLock
-	o.ModelLock = &modelLock
-
-	logSize := cfg.Governor.Logging.MaxSizeMB
-	o.LogMaxSizeMB = &logSize
-	logAge := cfg.Governor.Logging.MaxAgeDays
-	o.LogMaxAgeDays = &logAge
-	logBackups := cfg.Governor.Logging.MaxBackups
-	o.LogMaxBackups = &logBackups
-	logCompress := cfg.Governor.Logging.Compress
-	o.LogCompress = &logCompress
-	o.LogLevel = cfg.Governor.Logging.Level
-
-	return o
 }
 
 func applyConfigOverrides(cfg *config.Config, o *snapshot.ConfigOverrides) {

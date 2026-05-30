@@ -147,8 +147,8 @@ func TestDefaultAgentMode(t *testing.T) {
 		// L1: guide only, advisory
 		{"guide", 1, ModeAdvisory},
 
-		// L2: all advisory, supervisor NO_GITHUB
-		{"supervisor", 2, ModeNoGitHub},
+		// L2: all advisory
+		{"supervisor", 2, ModeAdvisory},
 		{"scanner", 2, ModeAdvisory},
 		{"quality", 2, ModeAdvisory},
 		{"guide", 2, ModeAdvisory},
@@ -189,8 +189,8 @@ func TestDefaultAgentMode(t *testing.T) {
 		{"strategist", 6, ModeIssuesAndPRs},
 		{"outreach", 6, ModeIssuesAndPRs},
 
-		// Supervisor: NO_GITHUB at L1-2, ADVISORY at L3+
-		{"supervisor", 1, ModeNoGitHub},
+		// Supervisor: ADVISORY at all levels
+		{"supervisor", 1, ModeAdvisory},
 		{"supervisor", 6, ModeAdvisory},
 
 		// Unknown level defaults to advisory

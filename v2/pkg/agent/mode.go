@@ -4,7 +4,7 @@ package agent
 type AgentMode int
 
 const (
-	ModeNoGitHub      AgentMode = iota // No GitHub interaction (supervisor always)
+	ModeNoGitHub      AgentMode = iota // No GitHub interaction
 	ModeAdvisory                       // Advisory beads only, governor posts digests
 	ModeIssuesOnly                     // Open issues, no PRs
 	ModeIssuesAndPRs                   // Issues + PRs (hold-labeled at L5)

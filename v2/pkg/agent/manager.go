@@ -1630,16 +1630,13 @@ func (m *Manager) agentMode(agent *AgentProcess) AgentMode {
 // DefaultAgentMode returns the default mode for a given agent name and ACMM level,
 // ignoring any hive.yaml override. Used by the dashboard to show "(default)" indicators.
 func DefaultAgentMode(agentName string, level int) AgentMode {
+	if agentName == "supervisor" {
+		return ModeAdvisory
+	}
 	switch level {
 	case 1:
-		if agentName == "supervisor" {
-			return ModeNoGitHub
-		}
 		return ModeAdvisory
 	case 2:
-		if agentName == "supervisor" {
-			return ModeNoGitHub
-		}
 		return ModeAdvisory
 	case 3:
 		if agentName == "quality" {
@@ -1656,14 +1653,8 @@ func DefaultAgentMode(agentName string, level int) AgentMode {
 			return ModeAdvisory
 		}
 	case 5:
-		if agentName == "supervisor" {
-			return ModeAdvisory
-		}
 		return ModeIssuesAndPRs
 	case 6:
-		if agentName == "supervisor" {
-			return ModeAdvisory
-		}
 		if agentName == "scanner" {
 			return ModeIssuesPRsMerge
 		}

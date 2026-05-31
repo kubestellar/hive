@@ -19,6 +19,7 @@ fi
 
 # Load project config
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$(cd "$(dirname "$0")" && pwd)/health-lib.sh"
 if [ -f /usr/local/bin/hive-config.sh ]; then
   source /usr/local/bin/hive-config.sh
 elif [ -f "$SCRIPT_DIR/bin/hive-config.sh" ]; then
@@ -91,13 +92,13 @@ else
 fi
 
 # ── Release freshness — nightly (24h) and weekly (7d) ────────────────────────
-# Check GitHub Releases: nightly = prerelease with -nightly tag in last 24h,
-# weekly/stable = non-prerelease release in last 7 days.
+# Check GitHub Releases by published_at, not created_at. GitHub's release list
+# ordering can surface older prerelease tags first when created_at differs from
+# publish time, which causes false stale-release alarms.
 ONE_DAY_AGO=$(date -u -v-1d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '1 day ago' '+%Y-%m-%dT%H:%M:%SZ')
 SEVEN_DAYS_AGO=$(date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')
-releases=$(gh api "repos/${REPO}/releases?per_page=20" --jq '[.[] | {tag_name, prerelease, draft, created_at}]' 2>/dev/null || echo "[]")
-nightly_rel_ok=$(echo "$releases" | jq -r "[.[] | select(.prerelease == true and .draft == false and (.created_at > \"${ONE_DAY_AGO}\") and (.tag_name | test(\"nightly\")))] | if length > 0 then 1 else 0 end")
-weekly_rel_ok=$(echo "$releases" | jq -r "[.[] | select(.prerelease == false and .draft == false and (.created_at > \"${SEVEN_DAYS_AGO}\") and (.tag_name | test(\"nightly\") | not))] | if length > 0 then 1 else 0 end")
+releases=$(gh api "repos/${REPO}/releases?per_page=100" --jq '[.[] | {tag_name, prerelease, draft, published_at}]' 2>/dev/null || echo "[]")
+read -r nightly_rel_ok weekly_rel_ok <<< "$(release_freshness_from_json "$releases" "$ONE_DAY_AGO" "$SEVEN_DAYS_AGO")"
 
 # ── Weekly workflow ──────────────────────────────────────────────────────────
 # Check for a "Weekly" type workflow from config, or fall back to hardcoded

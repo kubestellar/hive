@@ -439,7 +439,7 @@ func main() {
 		actionable := lastActionable.Load()
 		govState := gov.GetState()
 		agentStatuses := agentMgr.AllStatuses()
-		dashSrv.UpdateStatus(dashboard.BuildFrontendStatus(
+		payload := dashboard.BuildFrontendStatus(
 			govState,
 			actionable,
 			agentStatuses,
@@ -450,7 +450,11 @@ func main() {
 			ghClient,
 			ctx,
 			metricsCollector,
-		))
+		)
+		if d := dashSrv.GetAdvisoryDigest(); d != nil {
+			payload.AdvisoryDigest = d
+		}
+		dashSrv.UpdateStatus(payload)
 	}
 
 	const cachedActionablePath = "/data/last-actionable.json"

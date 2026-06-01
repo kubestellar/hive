@@ -353,23 +353,22 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 				" --disallowed-tools 'mcp__github__merge_pull_request'"
 		}
 	case "copilot":
-		copilotModel := strings.ReplaceAll(model, ".", "-")
 		switch {
 		case mode >= ModeIssuesAndPRs:
 			launchCmd = fmt.Sprintf("%s --model %s --allow-all --enable-all-github-mcp-tools",
-				binary, copilotModel)
+				binary, model)
 		case mode == ModeIssuesOnly:
 			launchCmd = fmt.Sprintf("%s --model %s --allow-all --enable-all-github-mcp-tools"+
 				" --deny-tool='github(create_pull_request)'"+
 				" --deny-tool='github(merge_pull_request)'",
-				binary, copilotModel)
+				binary, model)
 		default:
 			launchCmd = fmt.Sprintf("%s --model %s --allow-all"+
 				" --deny-tool='github(create_pull_request)'"+
 				" --deny-tool='github(create_issue)'"+
 				" --deny-tool='github(update_issue)'"+
 				" --deny-tool='github(merge_pull_request)'",
-				binary, copilotModel)
+				binary, model)
 		}
 	case "gemini":
 		launchCmd = fmt.Sprintf("%s --model %s", binary, model)

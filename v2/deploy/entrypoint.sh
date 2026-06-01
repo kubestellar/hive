@@ -60,6 +60,7 @@ if [ "$(id -u)" = "0" ]; then
   ln -sfn /data/config/github-copilot /data/home/.config/github-copilot
   ln -sfn /data/home/.copilot /home/dev/.copilot
   chmod -R g+rwX /data/home 2>/dev/null || true
+  chmod g+s /data/home/.copilot 2>/dev/null || true
   chown -R dev:node /data/config /data/home /home/dev/.config 2>/dev/null || true
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
 

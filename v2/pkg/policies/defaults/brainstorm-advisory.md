@@ -39,42 +39,72 @@ ${INCEPTION_ANSWERS}
 
 If critical info is still missing, create follow-up question beads. Otherwise produce structured facts.
 
-### If phase is `structure` — use spec-kit + produce KB facts
+### If phase is `structure` — MANDATORY: use GitHub spec-kit, then produce KB facts
 
-**Step 1: Generate spec-kit artifacts** (if `specify` is available):
+You MUST use GitHub's spec-kit (`specify` CLI) to generate structured project artifacts. This is NOT optional — spec-kit is installed at `/usr/local/bin/specify`.
+
+**Step 1: Generate spec-kit artifacts** — run these commands in order:
 
 ```bash
-if command -v specify &>/dev/null; then
-  mkdir -p /tmp/inception-specs && cd /tmp/inception-specs
-  specify init --non-interactive 2>/dev/null || true
-  specify constitution --non-interactive 2>/dev/null || true
-  specify spec --non-interactive 2>/dev/null || true
-  specify plan --non-interactive 2>/dev/null || true
-  specify tasks --non-interactive 2>/dev/null || true
-fi
+mkdir -p /tmp/inception-specs && cd /tmp/inception-specs
+/usr/local/bin/specify init --non-interactive
 ```
 
-Read the generated specs/ files (CONSTITUTION.md, SPEC.md, PLAN.md, TASKS.md) and use them to inform the KB facts below. If spec-kit is not available, generate facts directly from the idea and answers.
+After init, write the user's idea and answers into `specs/BRIEF.md` so spec-kit has context:
 
-**Step 2: Create KB fact beads** — one bead per fact, with structured metadata:
+```bash
+cat > specs/BRIEF.md << 'SPECEOF'
+# Project Brief
 
-- 1 **vision** fact — what this project is and why
-- 1 **constitution** fact — from CONSTITUTION.md or idea+answers: language, architecture, testing, code style
-- 2–5 **requirement** facts — from SPEC.md or idea: what the system must do
-- 1–3 **constraint** facts — boundaries and non-functional requirements
-- 1–2 **stakeholder** facts — who uses this
-- 2–5 **acceptance** facts — from PLAN.md or idea: testable criteria
+## Idea
+${INCEPTION_IDEA}
+
+## Clarification Answers
+${INCEPTION_ANSWERS}
+SPECEOF
+```
+
+Then generate each artifact:
+
+```bash
+/usr/local/bin/specify constitution --non-interactive
+/usr/local/bin/specify spec --non-interactive
+/usr/local/bin/specify plan --non-interactive
+/usr/local/bin/specify tasks --non-interactive
+```
+
+**Step 2: Read the generated files** — `cat specs/CONSTITUTION.md specs/SPEC.md specs/PLAN.md specs/TASKS.md` and use their content to create structured KB fact beads.
+
+**Step 3: Create KB fact beads** — one bead per fact, derived from spec-kit output:
+
+- 1 **vision** fact — from the project brief: what this project is and why
+- 1 **constitution** fact — from CONSTITUTION.md: language, architecture, testing philosophy, code style, dependency philosophy
+- 2–5 **requirement** facts — from SPEC.md: what the system must do
+- 1–3 **constraint** facts — from SPEC.md constraints: boundaries and non-functional requirements
+- 1–2 **stakeholder** facts — who uses this and their needs
+- 2–5 **acceptance** facts — from PLAN.md: testable success criteria
 
 ```bash
 bd create --title "<fact title>" --type advisory --priority 1 \
   --actor brainstorm --external-ref "inception/${INCEPTION_SLUG}"
 bd update <bead-id> --set-metadata fact_type="<vision|constitution|requirement|constraint|stakeholder|acceptance>"
-bd update <bead-id> --set-metadata fact_body="<detailed content>"
+bd update <bead-id> --set-metadata fact_body="<detailed content from spec-kit artifact>"
 ```
 
-### If phase is `scaffold` — generate bootstrap files
+### If phase is `scaffold` — generate bootstrap files from spec-kit + facts
 
-Produce README.md, CLAUDE.md, CONSTITUTION.md, SPEC.md, test stubs, CI config, CONTRIBUTING.md as beads with file content in metadata. If spec-kit artifacts exist in /tmp/inception-specs/specs/, include them directly.
+Include the spec-kit artifacts directly as scaffold output:
+- `specs/CONSTITUTION.md` — immutable project principles (from spec-kit)
+- `specs/SPEC.md` — structured requirements (from spec-kit)
+- `specs/PLAN.md` — implementation steps (from spec-kit)
+- `specs/TASKS.md` — concrete task breakdown (from spec-kit)
+- `README.md` — from vision + requirements
+- `CLAUDE.md` — from constitution + constraints
+- Test stubs — from acceptance criteria
+- `.github/workflows/ci.yml` — from constitution language
+- `CONTRIBUTING.md` — from constitution code style
+
+Record each file as a bead with content in metadata.
 
 ---
 

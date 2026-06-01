@@ -241,6 +241,15 @@ func (s *Store) UnsetMetadata(id, key string) error {
 
 const beadsFileName = "beads.json"
 
+// Reload re-reads beads from disk. Agents write directly to the JSON file
+// via the bd CLI, so the in-memory store can become stale.
+func (s *Store) Reload() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.beads = make(map[string]*Bead)
+	return s.load()
+}
+
 func (s *Store) load() error {
 	path := filepath.Join(s.dir, beadsFileName)
 	data, err := os.ReadFile(path)

@@ -76,6 +76,10 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		return
 	}
 
+	if err := w.beadStore.Reload(); err != nil {
+		w.logger.Warn("inception watcher: bead store reload failed", "error", err)
+	}
+
 	state := w.inception.GetState()
 	if state == nil {
 		w.lastQuestionCount = 0

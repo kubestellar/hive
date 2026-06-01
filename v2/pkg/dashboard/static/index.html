@@ -5862,7 +5862,7 @@ function burnAreaChart() {
       switch (_inceptionState.phase) {
         case 'capture':
           if (_inceptionState.idea_text) {
-            panel.innerHTML = renderInceptionWorking();
+            panel.innerHTML = renderInceptionProgress('idea') + renderInceptionWorking();
             startInceptionPoll();
           } else {
             panel.innerHTML = _inceptionState.mode === 'greenfield'
@@ -5871,21 +5871,168 @@ function burnAreaChart() {
           }
           break;
         case 'clarify':
-          panel.innerHTML = renderInceptionClarify();
+          panel.innerHTML = renderInceptionProgress('clarify') + renderInceptionClarify();
           break;
         case 'structure':
-          panel.innerHTML = renderInceptionStructure();
+          panel.innerHTML = renderInceptionProgress('structure') + renderInceptionStructure();
           startInceptionPoll();
           break;
         case 'scaffold':
-          panel.innerHTML = renderInceptionScaffold();
+          panel.innerHTML = renderInceptionProgress('scaffold') + renderInceptionScaffold();
           break;
         case 'complete':
-          panel.innerHTML = renderInceptionComplete();
+          panel.innerHTML = renderInceptionProgress('complete') + renderInceptionComplete();
           break;
         default:
           panel.innerHTML = renderInceptionModeSelect();
       }
+    }
+
+    function renderInceptionProgress(phase) {
+      var STAGES = [
+        { id: 'idea', label: 'Idea', icon: '💡' },
+        { id: 'clarify', label: 'Clarify', icon: '🔍' },
+        { id: 'structure', label: 'Structure', icon: '📐' },
+        { id: 'scaffold', label: 'Scaffold', icon: '🏗️' },
+        { id: 'complete', label: 'Complete', icon: '✅' }
+      ];
+
+      var currentIndex = STAGES.findIndex(function(s) { return s.id === phase; });
+      if (currentIndex === -1) { currentIndex = 0; }
+
+      var isDark = document.body.classList.contains('dark') ||
+        window.matchMedia('(prefers-color-scheme: dark)').matches ||
+        (document.body.style.backgroundColor || '').indexOf('0d1117') !== -1;
+
+      var COLORS = isDark
+        ? { bg: '#161b22', border: '#30363d', text: '#e6edf3', muted: '#8b949e', blue: '#58a6ff', green: '#3fb950', lineBg: '#30363d' }
+        : { bg: '#ffffff', border: '#d0d7de', text: '#1f2328', muted: '#656d76', blue: '#0969da', green: '#1a7f37', lineBg: '#d0d7de' };
+
+      var STAGE_COUNT = STAGES.length;
+      var CONNECTOR_SEGMENTS = STAGE_COUNT - 1;
+
+      var html = '';
+      html += '<div style="';
+      html += 'display:flex;align-items:flex-start;justify-content:center;';
+      html += 'padding:16px 24px 12px;';
+      html += 'background:' + COLORS.bg + ';';
+      html += 'border:1px solid ' + COLORS.border + ';';
+      html += 'border-radius:8px;';
+      html += 'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif;';
+      html += 'position:relative;';
+      html += 'margin-bottom:16px;';
+      html += '">';
+
+      for (var i = 0; i < STAGE_COUNT; i++) {
+        var stage = STAGES[i];
+        var isPast = i < currentIndex;
+        var isCurrent = i === currentIndex;
+        var isFuture = i > currentIndex;
+
+        var circleSize = isCurrent ? '32px' : '28px';
+        var circleBorder = isCurrent ? '3px' : '2px';
+        var circleBg, circleColor, circleBorderColor;
+
+        if (isPast) {
+          circleBg = COLORS.green;
+          circleColor = '#ffffff';
+          circleBorderColor = COLORS.green;
+        } else if (isCurrent) {
+          circleBg = COLORS.blue;
+          circleColor = '#ffffff';
+          circleBorderColor = COLORS.blue;
+        } else {
+          circleBg = 'transparent';
+          circleColor = COLORS.muted;
+          circleBorderColor = COLORS.lineBg;
+        }
+
+        var labelColor = isCurrent ? COLORS.text : (isPast ? COLORS.green : COLORS.muted);
+        var labelWeight = isCurrent ? '600' : '400';
+        var labelSize = isCurrent ? '12px' : '11px';
+
+        html += '<div style="';
+        html += 'display:flex;flex-direction:column;align-items:center;';
+        html += 'flex:1;position:relative;z-index:1;';
+        html += '">';
+
+        /* Circle */
+        html += '<div style="';
+        html += 'width:' + circleSize + ';height:' + circleSize + ';';
+        html += 'border-radius:50%;';
+        html += 'background:' + circleBg + ';';
+        html += 'border:' + circleBorder + ' solid ' + circleBorderColor + ';';
+        html += 'display:flex;align-items:center;justify-content:center;';
+        html += 'font-size:' + (isCurrent ? '15px' : '13px') + ';';
+        html += 'color:' + circleColor + ';';
+        html += 'transition:all 0.3s ease;';
+        html += 'box-shadow:' + (isCurrent ? '0 0 0 4px ' + COLORS.blue + '33' : 'none') + ';';
+        html += '">';
+
+        if (isPast) {
+          html += '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="display:block;">';
+          html += '<path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" fill="#ffffff"/>';
+          html += '</svg>';
+        } else if (isCurrent) {
+          html += '<span style="line-height:1;">' + stage.icon + '</span>';
+        } else {
+          html += '<span style="font-size:11px;color:' + COLORS.muted + ';">' + (i + 1) + '</span>';
+        }
+
+        html += '</div>';
+
+        /* Label */
+        html += '<div style="';
+        html += 'margin-top:8px;';
+        html += 'font-size:' + labelSize + ';';
+        html += 'font-weight:' + labelWeight + ';';
+        html += 'color:' + labelColor + ';';
+        html += 'text-align:center;';
+        html += 'white-space:nowrap;';
+        html += '">' + stage.label + '</div>';
+
+        html += '</div>';
+
+        /* Connector line between stages */
+        if (i < CONNECTOR_SEGMENTS) {
+          var lineColor = (i < currentIndex) ? COLORS.green : COLORS.lineBg;
+          var lineHeight = '2px';
+
+          html += '<div style="';
+          html += 'flex:2;';
+          html += 'height:' + lineHeight + ';';
+          html += 'background:' + lineColor + ';';
+          html += 'margin-top:' + (isCurrent ? '16px' : '14px') + ';';
+          html += 'border-radius:1px;';
+          html += 'align-self:flex-start;';
+          html += 'transition:background 0.3s ease;';
+          html += '">';
+
+          /* Animated pulse on the active connector */
+          if (i === currentIndex) {
+            html += '<div style="';
+            html += 'width:30%;height:100%;';
+            html += 'background:linear-gradient(90deg,transparent,' + COLORS.blue + ',transparent);';
+            html += 'border-radius:1px;';
+            html += 'animation:inceptionPulse 2s ease-in-out infinite;';
+            html += '"></div>';
+          }
+
+          html += '</div>';
+        }
+      }
+
+      html += '</div>';
+
+      /* Inject keyframes if not already present */
+      if (!document.getElementById('inception-progress-styles')) {
+        var styleEl = document.createElement('style');
+        styleEl.id = 'inception-progress-styles';
+        styleEl.textContent = '@keyframes inceptionPulse{0%{transform:translateX(0)}50%{transform:translateX(233%)}100%{transform:translateX(0)}}';
+        document.head.appendChild(styleEl);
+      }
+
+      return html;
     }
 
     function renderInceptionModeSelect() {

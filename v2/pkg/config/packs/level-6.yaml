@@ -1,14 +1,16 @@
 level: 6
 name: Fully Autonomous
-description: >
-  Multi-loop with external orchestration. Agents open issues, create PRs,
-  and auto-merge on green CI. No hold label. Adds outreach agent (+outreach)
-  for community engagement and external-facing actions. Nine agents total.
-  Highest trust — governor at fastest cadence.
+description: 'Multi-loop with external orchestration. Agents open issues, create PRs,
+  and auto-merge on green CI. No hold label. Adds outreach agent (+outreach) for community
+  engagement and external-facing actions. Nine agents total. Highest trust — governor
+  at fastest cadence.
+
+  '
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
-  merge_policy: >
-    Auto-merge on green CI. No hold label.
+  merge_policy: 'Auto-merge on green CI. No hold label.
+
+    '
   eval_interval_s: 120
   thresholds:
     surge: 10
@@ -25,6 +27,7 @@ governor:
       outreach: 30m
       sec-check: 15m
       strategist: 30m
+      brainstorm: pause
     busy:
       supervisor: 2m
       scanner: 10m
@@ -34,6 +37,7 @@ governor:
       outreach: 1h
       sec-check: 30m
       strategist: 1h
+      brainstorm: 4h
     quiet:
       supervisor: 3m
       scanner: 20m
@@ -43,6 +47,7 @@ governor:
       outreach: 2h
       sec-check: 1h
       strategist: 2h
+      brainstorm: 4h
     idle:
       supervisor: 5m
       scanner: 30m
@@ -52,188 +57,266 @@ governor:
       outreach: 4h
       sec-check: 2h
       strategist: 4h
+      brainstorm: 4h
 agents:
-  - name: supervisor
-    display_name: Supervisor
-    role: supervisor
-    description: >
-      Full autonomous oversight. Self-healing: restarts stalled agents,
-      triggers rollbacks on deploy failures.
-    emoji: "👑"
-    color: "#e74c3c"
-    sort_order: 1
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: supervisor
-    mode: NO_GITHUB
-    kick_template: supervisor-nogithub.md
-    include_repos: true
-    stale_timeout: 600
-    interactions: >
-      Full autonomous oversight of all agents. Triggers self-healing
-      actions without human intervention.
-    knowledge_use: >
-      Reads agent health history. Produces sweep reports and self-healing
-      action logs.
-  - name: scanner
-    display_name: scanner
-    role: scanner
-    description: >
-      Creates and auto-merges PRs on green CI. No hold label. Full SLA
-      enforcement with 30-minute response time.
-    emoji: "🔍"
-    color: "#3498db"
-    sort_order: 20
-    backend: copilot
-    model: claude-opus-4-6
-    bead_role: worker
-    mode: ISSUES_PRS_MERGE
-    kick_template: scanner-automerge.md
-    include_repos: true
-    stale_timeout: 900
-    lane_keywords: [bug, triage, fix, issue]
-    interactions: >
-      Creates and merges PRs autonomously.
-    knowledge_use: >
-      Full access to all project knowledge.
-  - name: ci-maintainer
-    display_name: ci-maintainer
-    role: ci-maintainer
-    description: >
-      Full CI pipeline ownership. Creates and auto-merges CI improvement PRs.
-    emoji: "🔧"
-    color: "#2ecc71"
-    sort_order: 30
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: ci-maintainer-full.md
-    include_repos: true
-    stale_timeout: 900
-    lane_keywords: [ci, build, pipeline, workflow, dependency]
-    interactions: >
-      Owns CI pipeline. Coordinates with supervisor.
-    knowledge_use: >
-      Full CI history.
-  - name: quality
-    display_name: quality
-    role: quality
-    description: >
-      Full TDD enforcement. Creates and auto-merges test PRs when coverage
-      gates pass.
-    emoji: "🧪"
-    color: "#e67e22"
-    sort_order: 25
-    backend: copilot
-    model: claude-opus-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: quality-full.md
-    include_repos: true
-    stale_timeout: 900
-    interactions: >
-      Auto-approves PRs when coverage + CI gates pass.
-    knowledge_use: >
-      Full test history access.
-  - name: guide
-    display_name: guide
-    role: guide
-    description: >
-      Creates and auto-merges documentation PRs. Reviews PRs on request.
-    emoji: "🧭"
-    color: "#8e44ad"
-    sort_order: 10
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: guide-full.md
-    include_repos: true
-    stale_timeout: 3600
-    interactions: >
-      Creates documentation PRs autonomously.
-    knowledge_use: >
-      Reads community wiki and project patterns.
-  - name: sec-check
-    display_name: security
-    role: sec-check
-    description: >
-      Full autonomous security scanning with auto-patch for known CVEs.
-    emoji: "🛡"
-    color: "#1abc9c"
-    sort_order: 60
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: sec-check-full.md
-    include_repos: true
-    stale_timeout: 900
-    lane_keywords: [security, cve, vulnerability, audit]
-    interactions: >
-      Auto-patches known CVEs. Escalates unknowns to supervisor.
-    knowledge_use: >
-      Full security knowledge access.
-  - name: architect
-    display_name: architect
-    role: architect
-    description: >
-      Full autonomous architecture. Implements RFCs and auto-merges
-      structural changes.
-    emoji: "🏗"
-    color: "#9b59b6"
-    sort_order: 40
-    backend: copilot
-    model: claude-opus-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: architect-full.md
-    include_repos: true
-    stale_timeout: 1800
-    lane_keywords: [refactor, architecture, rfc, design, feature]
-    interactions: >
-      Full autonomous design and implementation.
-    knowledge_use: >
-      Full architecture knowledge access.
-  - name: strategist
-    display_name: strategist
-    role: strategist
-    description: >
-      Full autonomous strategic planning with roadmap execution.
-    emoji: "🧠"
-    color: "#f39c12"
-    sort_order: 70
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: strategist-full.md
-    include_repos: false
-    stale_timeout: 1800
-    lane_keywords: [strategy, roadmap, planning]
-    interactions: >
-      Full autonomous strategic planning and priority setting.
-    knowledge_use: >
-      Full cross-agent knowledge synthesis.
-  - name: outreach
-    display_name: outreach
-    role: outreach
-    description: >
-      Full autonomous outreach. Files issues on partner projects and
-      manages community engagement. Highest trust — external-facing.
-    emoji: "🌐"
-    color: "#e67e22"
-    sort_order: 50
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: outreach-full.md
-    include_repos: false
-    stale_timeout: 1800
-    lane_keywords: [community, adopters, outreach, ecosystem]
-    interactions: >
-      Fully autonomous community engagement.
-    knowledge_use: >
-      Full community knowledge access.
+- name: supervisor
+  display_name: Supervisor
+  role: supervisor
+  description: 'Full autonomous oversight. Self-healing: restarts stalled agents,
+    triggers rollbacks on deploy failures.
+
+    '
+  emoji: 👑
+  color: '#e74c3c'
+  sort_order: 1
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: supervisor
+  mode: NO_GITHUB
+  kick_template: supervisor-nogithub.md
+  include_repos: true
+  stale_timeout: 600
+  interactions: 'Full autonomous oversight of all agents. Triggers self-healing actions
+    without human intervention.
+
+    '
+  knowledge_use: 'Reads agent health history. Produces sweep reports and self-healing
+    action logs.
+
+    '
+- name: scanner
+  display_name: scanner
+  role: scanner
+  description: 'Creates and auto-merges PRs on green CI. No hold label. Full SLA enforcement
+    with 30-minute response time.
+
+    '
+  emoji: 🔍
+  color: '#3498db'
+  sort_order: 20
+  backend: copilot
+  model: claude-opus-4-6
+  bead_role: worker
+  mode: ISSUES_PRS_MERGE
+  kick_template: scanner-automerge.md
+  include_repos: true
+  stale_timeout: 900
+  lane_keywords:
+  - bug
+  - triage
+  - fix
+  - issue
+  interactions: 'Creates and merges PRs autonomously.
+
+    '
+  knowledge_use: 'Full access to all project knowledge.
+
+    '
+- name: ci-maintainer
+  display_name: ci-maintainer
+  role: ci-maintainer
+  description: 'Full CI pipeline ownership. Creates and auto-merges CI improvement
+    PRs.
+
+    '
+  emoji: 🔧
+  color: '#2ecc71'
+  sort_order: 30
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: ci-maintainer-full.md
+  include_repos: true
+  stale_timeout: 900
+  lane_keywords:
+  - ci
+  - build
+  - pipeline
+  - workflow
+  - dependency
+  interactions: 'Owns CI pipeline. Coordinates with supervisor.
+
+    '
+  knowledge_use: 'Full CI history.
+
+    '
+- name: quality
+  display_name: quality
+  role: quality
+  description: 'Full TDD enforcement. Creates and auto-merges test PRs when coverage
+    gates pass.
+
+    '
+  emoji: 🧪
+  color: '#e67e22'
+  sort_order: 25
+  backend: copilot
+  model: claude-opus-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: quality-full.md
+  include_repos: true
+  stale_timeout: 900
+  interactions: 'Auto-approves PRs when coverage + CI gates pass.
+
+    '
+  knowledge_use: 'Full test history access.
+
+    '
+- name: guide
+  display_name: guide
+  role: guide
+  description: 'Creates and auto-merges documentation PRs. Reviews PRs on request.
+
+    '
+  emoji: 🧭
+  color: '#8e44ad'
+  sort_order: 10
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: guide-full.md
+  include_repos: true
+  stale_timeout: 3600
+  interactions: 'Creates documentation PRs autonomously.
+
+    '
+  knowledge_use: 'Reads community wiki and project patterns.
+
+    '
+- name: sec-check
+  display_name: security
+  role: sec-check
+  description: 'Full autonomous security scanning with auto-patch for known CVEs.
+
+    '
+  emoji: 🛡
+  color: '#1abc9c'
+  sort_order: 60
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: sec-check-full.md
+  include_repos: true
+  stale_timeout: 900
+  lane_keywords:
+  - security
+  - cve
+  - vulnerability
+  - audit
+  interactions: 'Auto-patches known CVEs. Escalates unknowns to supervisor.
+
+    '
+  knowledge_use: 'Full security knowledge access.
+
+    '
+- name: architect
+  display_name: architect
+  role: architect
+  description: 'Full autonomous architecture. Implements RFCs and auto-merges structural
+    changes.
+
+    '
+  emoji: 🏗
+  color: '#9b59b6'
+  sort_order: 40
+  backend: copilot
+  model: claude-opus-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: architect-full.md
+  include_repos: true
+  stale_timeout: 1800
+  lane_keywords:
+  - refactor
+  - architecture
+  - rfc
+  - design
+  - feature
+  interactions: 'Full autonomous design and implementation.
+
+    '
+  knowledge_use: 'Full architecture knowledge access.
+
+    '
+- name: strategist
+  display_name: strategist
+  role: strategist
+  description: 'Full autonomous strategic planning with roadmap execution.
+
+    '
+  emoji: 🧠
+  color: '#f39c12'
+  sort_order: 70
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: strategist-full.md
+  include_repos: false
+  stale_timeout: 1800
+  lane_keywords:
+  - strategy
+  - roadmap
+  - planning
+  interactions: 'Full autonomous strategic planning and priority setting.
+
+    '
+  knowledge_use: 'Full cross-agent knowledge synthesis.
+
+    '
+- name: outreach
+  display_name: outreach
+  role: outreach
+  description: 'Full autonomous outreach. Files issues on partner projects and manages
+    community engagement. Highest trust — external-facing.
+
+    '
+  emoji: 🌐
+  color: '#e67e22'
+  sort_order: 50
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: outreach-full.md
+  include_repos: false
+  stale_timeout: 1800
+  lane_keywords:
+  - community
+  - adopters
+  - outreach
+  - ecosystem
+  interactions: 'Fully autonomous community engagement.
+
+    '
+  knowledge_use: 'Full community knowledge access.
+
+    '
+- name: brainstorm
+  display_name: brainstorm
+  role: brainstorm
+  description: 'Ongoing ideation agent. Proposes features, architecture improvements,
+    and strategic directions based on project patterns and community KB. Produces
+    KB facts and advisory beads.
+
+    '
+  emoji: 💡
+  color: '#f39c12'
+  sort_order: 30
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ADVISORY
+  kick_template: brainstorm-advisory.md
+  include_repos: true
+  stale_timeout: 7200
+  interactions: Standalone. Produces ideation beads for human review.
+  knowledge_use: 'Heavy consumer of community wiki patterns. Produces ideation facts
+    (feature proposals, architecture decisions, strategic direction) into the project
+    KB layer.
+
+    '

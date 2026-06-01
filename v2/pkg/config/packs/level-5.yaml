@@ -1,15 +1,16 @@
 level: 5
 name: Semi-Automated
-description: >
-  Multi-loop feedback. Agents open issues AND pull requests. All agent PRs
-  get a 'hold' label automatically — humans batch-review and approve.
-  Adds architect (+architect) for RFCs and strategist (+strategist) for
-  cross-agent coordination. Eight agents total. The system proposes;
-  it does not merge autonomously.
+description: 'Multi-loop feedback. Agents open issues AND pull requests. All agent
+  PRs get a ''hold'' label automatically — humans batch-review and approve. Adds architect
+  (+architect) for RFCs and strategist (+strategist) for cross-agent coordination.
+  Eight agents total. The system proposes; it does not merge autonomously.
+
+  '
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
-  merge_policy: >
-    Hold-gated — all agent PRs get 'hold' label. Human batch-approves.
+  merge_policy: 'Hold-gated — all agent PRs get ''hold'' label. Human batch-approves.
+
+    '
   eval_interval_s: 300
   thresholds:
     surge: 10
@@ -26,6 +27,7 @@ governor:
       sec-check: 4h
       architect: 4h
       strategist: 4h
+      brainstorm: pause
     busy:
       supervisor: 5m
       scanner: 4h
@@ -35,6 +37,7 @@ governor:
       sec-check: 4h
       architect: 4h
       strategist: 4h
+      brainstorm: 4h
     quiet:
       supervisor: 5m
       scanner: 4h
@@ -44,6 +47,7 @@ governor:
       sec-check: 4h
       architect: 4h
       strategist: 4h
+      brainstorm: 4h
     idle:
       supervisor: 5m
       scanner: 4h
@@ -53,169 +57,240 @@ governor:
       sec-check: 4h
       architect: 4h
       strategist: 4h
+      brainstorm: 4h
 agents:
-  - name: supervisor
-    display_name: Supervisor
-    role: supervisor
-    description: >
-      Agent health monitoring, sweep analysis, and escalation. Watches all
-      other agents for stalls, rate limits, and anomalies.
-    emoji: "👑"
-    color: "#e74c3c"
-    sort_order: 1
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: supervisor
-    mode: NO_GITHUB
-    kick_template: supervisor-nogithub.md
-    include_repos: true
-    stale_timeout: 1800
-    interactions: >
-      Monitors all agents. Escalates issues to human operators.
-    knowledge_use: >
-      Reads agent health history. Produces sweep reports.
-  - name: scanner
-    display_name: scanner
-    role: scanner
-    description: >
-      Opens issues AND hold-gated PRs. All PRs get 'hold' label
-      automatically. Human reviews in batches.
-    emoji: "🔍"
-    color: "#3498db"
-    sort_order: 20
-    backend: copilot
-    model: claude-opus-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: scanner-holdgated.md
-    include_repos: true
-    stale_timeout: 1800
-    lane_keywords: [bug, triage, fix, issue]
-    interactions: >
-      Creates hold-gated PRs. Quality validates but does not approve.
-    knowledge_use: >
-      Full project history access. Produces fix records.
-  - name: ci-maintainer
-    display_name: ci-maintainer
-    role: ci-maintainer
-    description: >
-      Opens issues AND hold-gated PRs for CI improvements. Workflow
-      optimization and dependency updates.
-    emoji: "🔧"
-    color: "#2ecc71"
-    sort_order: 30
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: ci-maintainer-holdgated.md
-    include_repos: true
-    stale_timeout: 3600
-    lane_keywords: [ci, build, pipeline, workflow, dependency]
-    interactions: >
-      Creates CI-related issues and hold-gated PRs.
-    knowledge_use: >
-      Reads CI history. Produces workflow health reports.
-  - name: quality
-    display_name: quality
-    role: quality
-    description: >
-      Opens issues about testing AND hold-gated PRs for test improvements.
-      Reviews scanner PRs for coverage.
-    emoji: "🧪"
-    color: "#e67e22"
-    sort_order: 25
-    backend: copilot
-    model: claude-opus-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: quality-holdgated.md
-    include_repos: true
-    stale_timeout: 3600
-    interactions: >
-      Reviews scanner PRs for coverage. Creates test PRs with hold label.
-    knowledge_use: >
-      Reads test patterns and coverage history.
-  - name: guide
-    display_name: guide
-    role: guide
-    description: >
-      Opens issues about documentation AND hold-gated PRs for doc
-      improvements. Reviews PRs on request.
-    emoji: "🧭"
-    color: "#8e44ad"
-    sort_order: 10
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: guide-holdgated.md
-    include_repos: true
-    stale_timeout: 3600
-    interactions: >
-      Creates documentation issues and hold-gated PRs.
-    knowledge_use: >
-      Reads community wiki and project patterns.
-  - name: sec-check
-    display_name: security
-    role: sec-check
-    description: >
-      Opens issues AND hold-gated PRs for security fixes. CVE tracking
-      and vulnerability monitoring.
-    emoji: "🛡"
-    color: "#1abc9c"
-    sort_order: 60
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: sec-check-holdgated.md
-    include_repos: true
-    stale_timeout: 3600
-    lane_keywords: [security, cve, vulnerability, audit]
-    interactions: >
-      Creates security issues and hold-gated PRs.
-    knowledge_use: >
-      Reads vulnerability databases and past security fixes.
-  - name: architect
-    display_name: architect
-    role: architect
-    description: >
-      Architecture agent. Produces RFCs, refactors, and new features.
-      Opens hold-gated PRs for structural changes.
-    emoji: "🏗"
-    color: "#9b59b6"
-    sort_order: 40
-    backend: copilot
-    model: claude-opus-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: architect-holdgated.md
-    include_repos: true
-    stale_timeout: 3600
-    lane_keywords: [refactor, architecture, rfc, design, feature]
-    interactions: >
-      Receives complex issues from scanner. Produces RFCs and hold-gated PRs.
-    knowledge_use: >
-      Heavy consumer and producer of architecture decisions and patterns.
-  - name: strategist
-    display_name: strategist
-    role: strategist
-    description: >
-      Strategic planning, roadmap alignment, and cross-agent coordination.
-      Analyzes trends across all agents.
-    emoji: "🧠"
-    color: "#f39c12"
-    sort_order: 70
-    backend: copilot
-    model: claude-sonnet-4-6
-    bead_role: worker
-    mode: ISSUES_AND_PRS
-    kick_template: strategist-holdgated.md
-    include_repos: false
-    stale_timeout: 3600
-    lane_keywords: [strategy, roadmap, planning]
-    interactions: >
-      Reads all agent outputs. Produces strategic insights.
-    knowledge_use: >
-      Heavy consumer of all agent knowledge.
+- name: supervisor
+  display_name: Supervisor
+  role: supervisor
+  description: 'Agent health monitoring, sweep analysis, and escalation. Watches all
+    other agents for stalls, rate limits, and anomalies.
+
+    '
+  emoji: 👑
+  color: '#e74c3c'
+  sort_order: 1
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: supervisor
+  mode: NO_GITHUB
+  kick_template: supervisor-nogithub.md
+  include_repos: true
+  stale_timeout: 1800
+  interactions: 'Monitors all agents. Escalates issues to human operators.
+
+    '
+  knowledge_use: 'Reads agent health history. Produces sweep reports.
+
+    '
+- name: scanner
+  display_name: scanner
+  role: scanner
+  description: 'Opens issues AND hold-gated PRs. All PRs get ''hold'' label automatically.
+    Human reviews in batches.
+
+    '
+  emoji: 🔍
+  color: '#3498db'
+  sort_order: 20
+  backend: copilot
+  model: claude-opus-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: scanner-holdgated.md
+  include_repos: true
+  stale_timeout: 1800
+  lane_keywords:
+  - bug
+  - triage
+  - fix
+  - issue
+  interactions: 'Creates hold-gated PRs. Quality validates but does not approve.
+
+    '
+  knowledge_use: 'Full project history access. Produces fix records.
+
+    '
+- name: ci-maintainer
+  display_name: ci-maintainer
+  role: ci-maintainer
+  description: 'Opens issues AND hold-gated PRs for CI improvements. Workflow optimization
+    and dependency updates.
+
+    '
+  emoji: 🔧
+  color: '#2ecc71'
+  sort_order: 30
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: ci-maintainer-holdgated.md
+  include_repos: true
+  stale_timeout: 3600
+  lane_keywords:
+  - ci
+  - build
+  - pipeline
+  - workflow
+  - dependency
+  interactions: 'Creates CI-related issues and hold-gated PRs.
+
+    '
+  knowledge_use: 'Reads CI history. Produces workflow health reports.
+
+    '
+- name: quality
+  display_name: quality
+  role: quality
+  description: 'Opens issues about testing AND hold-gated PRs for test improvements.
+    Reviews scanner PRs for coverage.
+
+    '
+  emoji: 🧪
+  color: '#e67e22'
+  sort_order: 25
+  backend: copilot
+  model: claude-opus-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: quality-holdgated.md
+  include_repos: true
+  stale_timeout: 3600
+  interactions: 'Reviews scanner PRs for coverage. Creates test PRs with hold label.
+
+    '
+  knowledge_use: 'Reads test patterns and coverage history.
+
+    '
+- name: guide
+  display_name: guide
+  role: guide
+  description: 'Opens issues about documentation AND hold-gated PRs for doc improvements.
+    Reviews PRs on request.
+
+    '
+  emoji: 🧭
+  color: '#8e44ad'
+  sort_order: 10
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: guide-holdgated.md
+  include_repos: true
+  stale_timeout: 3600
+  interactions: 'Creates documentation issues and hold-gated PRs.
+
+    '
+  knowledge_use: 'Reads community wiki and project patterns.
+
+    '
+- name: sec-check
+  display_name: security
+  role: sec-check
+  description: 'Opens issues AND hold-gated PRs for security fixes. CVE tracking and
+    vulnerability monitoring.
+
+    '
+  emoji: 🛡
+  color: '#1abc9c'
+  sort_order: 60
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: sec-check-holdgated.md
+  include_repos: true
+  stale_timeout: 3600
+  lane_keywords:
+  - security
+  - cve
+  - vulnerability
+  - audit
+  interactions: 'Creates security issues and hold-gated PRs.
+
+    '
+  knowledge_use: 'Reads vulnerability databases and past security fixes.
+
+    '
+- name: architect
+  display_name: architect
+  role: architect
+  description: 'Architecture agent. Produces RFCs, refactors, and new features. Opens
+    hold-gated PRs for structural changes.
+
+    '
+  emoji: 🏗
+  color: '#9b59b6'
+  sort_order: 40
+  backend: copilot
+  model: claude-opus-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: architect-holdgated.md
+  include_repos: true
+  stale_timeout: 3600
+  lane_keywords:
+  - refactor
+  - architecture
+  - rfc
+  - design
+  - feature
+  interactions: 'Receives complex issues from scanner. Produces RFCs and hold-gated
+    PRs.
+
+    '
+  knowledge_use: 'Heavy consumer and producer of architecture decisions and patterns.
+
+    '
+- name: strategist
+  display_name: strategist
+  role: strategist
+  description: 'Strategic planning, roadmap alignment, and cross-agent coordination.
+    Analyzes trends across all agents.
+
+    '
+  emoji: 🧠
+  color: '#f39c12'
+  sort_order: 70
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ISSUES_AND_PRS
+  kick_template: strategist-holdgated.md
+  include_repos: false
+  stale_timeout: 3600
+  lane_keywords:
+  - strategy
+  - roadmap
+  - planning
+  interactions: 'Reads all agent outputs. Produces strategic insights.
+
+    '
+  knowledge_use: 'Heavy consumer of all agent knowledge.
+
+    '
+- name: brainstorm
+  display_name: brainstorm
+  role: brainstorm
+  description: 'Ongoing ideation agent. Proposes features, architecture improvements,
+    and strategic directions based on project patterns and community KB. Produces
+    KB facts and advisory beads.
+
+    '
+  emoji: 💡
+  color: '#f39c12'
+  sort_order: 30
+  backend: copilot
+  model: claude-sonnet-4-6
+  bead_role: worker
+  mode: ADVISORY
+  kick_template: brainstorm-advisory.md
+  include_repos: true
+  stale_timeout: 7200
+  interactions: Standalone. Produces ideation beads for human review.
+  knowledge_use: 'Heavy consumer of community wiki patterns. Produces ideation facts
+    (feature proposals, architecture decisions, strategic direction) into the project
+    KB layer.
+
+    '

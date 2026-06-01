@@ -39,15 +39,31 @@ ${INCEPTION_ANSWERS}
 
 If critical info is still missing, create follow-up question beads. Otherwise produce structured facts.
 
-### If phase is `structure` — produce KB facts
+### If phase is `structure` — use spec-kit + produce KB facts
 
-Using the idea and answers, create these as beads with fact metadata:
+**Step 1: Generate spec-kit artifacts** (if `specify` is available):
+
+```bash
+if command -v specify &>/dev/null; then
+  mkdir -p /tmp/inception-specs && cd /tmp/inception-specs
+  specify init --non-interactive 2>/dev/null || true
+  specify constitution --non-interactive 2>/dev/null || true
+  specify spec --non-interactive 2>/dev/null || true
+  specify plan --non-interactive 2>/dev/null || true
+  specify tasks --non-interactive 2>/dev/null || true
+fi
+```
+
+Read the generated specs/ files (CONSTITUTION.md, SPEC.md, PLAN.md, TASKS.md) and use them to inform the KB facts below. If spec-kit is not available, generate facts directly from the idea and answers.
+
+**Step 2: Create KB fact beads** — one bead per fact, with structured metadata:
+
 - 1 **vision** fact — what this project is and why
-- 1 **constitution** fact — language, architecture, testing, code style
-- 2–5 **requirement** facts — what the system must do
-- 1–3 **constraint** facts — boundaries
+- 1 **constitution** fact — from CONSTITUTION.md or idea+answers: language, architecture, testing, code style
+- 2–5 **requirement** facts — from SPEC.md or idea: what the system must do
+- 1–3 **constraint** facts — boundaries and non-functional requirements
 - 1–2 **stakeholder** facts — who uses this
-- 2–5 **acceptance** facts — testable criteria
+- 2–5 **acceptance** facts — from PLAN.md or idea: testable criteria
 
 ```bash
 bd create --title "<fact title>" --type advisory --priority 1 \
@@ -58,7 +74,7 @@ bd update <bead-id> --set-metadata fact_body="<detailed content>"
 
 ### If phase is `scaffold` — generate bootstrap files
 
-Produce README.md, CLAUDE.md, test stubs, CI config, CONTRIBUTING.md as beads with file content in metadata.
+Produce README.md, CLAUDE.md, CONSTITUTION.md, SPEC.md, test stubs, CI config, CONTRIBUTING.md as beads with file content in metadata. If spec-kit artifacts exist in /tmp/inception-specs/specs/, include them directly.
 
 ---
 

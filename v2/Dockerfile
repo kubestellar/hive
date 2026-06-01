@@ -107,6 +107,9 @@ RUN mkdir -p /var/run/nous/governor /var/run/nous/repo /data/nous/snapshots /opt
 RUN pip3 install --no-cache-dir --break-system-packages pyyaml 2>/dev/null || \
     pip3 install --no-cache-dir pyyaml 2>/dev/null || \
     echo "WARN: system pyyaml install failed"
+RUN pip3 install --no-cache-dir --break-system-packages specify-cli 2>/dev/null || \
+    pip3 install --no-cache-dir specify-cli 2>/dev/null || \
+    echo "WARN: spec-kit (specify-cli) install failed — inception will generate facts without it"
 RUN git clone -b feat/cli-agent-mode https://github.com/clubanderson/agentic-strategy-evolution /opt/nous && \
     python3 -m venv /opt/nous/venv && \
     /opt/nous/venv/bin/pip install --no-cache-dir -e /opt/nous 2>&1 || \

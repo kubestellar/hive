@@ -599,6 +599,11 @@ func main() {
 		},
 	})
 
+	if brainstormBeads, ok := beadStores["brainstorm"]; ok {
+		inceptionWatcher := dashboard.NewInceptionWatcher(brainstormBeads, inceptionEngine, sched, agentMgr, gov, logger)
+		go inceptionWatcher.Run(ctx)
+	}
+
 	if saved == nil {
 		if levelStr := os.Getenv("HIVE_LEVEL"); levelStr != "" {
 			const maxACMMLevel = 6

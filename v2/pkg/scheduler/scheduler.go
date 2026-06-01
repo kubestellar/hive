@@ -795,14 +795,8 @@ func (s *Scheduler) inceptionVars() (idea, phase, mode, answers, slug, repoURL s
 	repoURL = state.RepoURL
 	answers = s.inception.FormatAnswersForPrompt()
 
-	// For greenfield, the idea is stored as the first fact slug's title.
-	// For brownfield, use the repo URL as the "idea".
-	if state.Mode == knowledge.InceptionGreenfield {
-		ctx := context.Background()
-		if fact, err := s.inception.ReadIdeaFact(ctx); err == nil && fact != nil {
-			idea = fact.Body
-		}
-	} else {
+	idea = state.IdeaText
+	if idea == "" && state.Mode == knowledge.InceptionBrownfield {
 		idea = state.RepoURL
 	}
 	return

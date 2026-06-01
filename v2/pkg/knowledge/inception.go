@@ -75,6 +75,7 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 	e.state = &InceptionState{
 		Phase:     PhaseCapture,
 		Mode:      InceptionGreenfield,
+		IdeaText:  rawIdea,
 		IdeaSlug:  slug,
 		FactSlugs: []string{slug},
 		Answers:   make(map[string]string),

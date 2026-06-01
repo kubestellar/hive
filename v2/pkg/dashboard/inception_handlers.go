@@ -122,6 +122,8 @@ func (s *Server) handleInceptionAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.kickBrainstorm()
+
 	jsonResponse(w, map[string]interface{}{
 		"ok":    true,
 		"state": state,

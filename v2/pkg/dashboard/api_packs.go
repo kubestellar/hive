@@ -81,6 +81,7 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 			}
 			if changed {
 				s.deps.Config.Agents[pa.Name] = existing
+				_ = s.deps.AgentMgr.UpdateConfig(pa.Name, existing)
 				updated = append(updated, pa.Name)
 			} else {
 				skipped = append(skipped, pa.Name)
@@ -117,6 +118,9 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 
 		finalCfg := s.deps.Config.Agents[pa.Name]
 		s.deps.AgentMgr.AddAgent(pa.Name, finalCfg)
+		if err := s.deps.AgentMgr.Start(s.deps.Ctx, pa.Name); err != nil {
+			s.logger.Warn("failed to start agent after pack create", "agent", pa.Name, "error", err)
+		}
 
 		created = append(created, pa.Name)
 	}

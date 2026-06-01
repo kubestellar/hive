@@ -21,7 +21,7 @@ FROM node:24-slim
 
 # --- Layer 1: system packages (rarely changes) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ca-certificates bash curl bzip2 gosu iptables libevent-core-2.1-7 \
+    git ca-certificates bash curl bzip2 gosu iptables acl libevent-core-2.1-7 \
     gcc libc6-dev \
  && rm -rf /var/lib/apt/lists/*
 

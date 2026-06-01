@@ -561,6 +561,9 @@ func main() {
 	nousState := loadNousState(logger)
 	nousState.SnapshotDir = nousSnapshotDir
 
+	inceptionEngine := knowledge.NewInceptionEngine("/data", knowledgeAPI, logger)
+	sched.SetInception(inceptionEngine)
+
 	dashSrv.RegisterAPI(&dashboard.Dependencies{
 		Config:           cfg,
 		AgentMgr:         agentMgr,
@@ -568,6 +571,7 @@ func main() {
 		GHClient:         ghClient,
 		Tokens:           tokenCollector,
 		Knowledge:        knowledgeAPI,
+		Inception:        inceptionEngine,
 		Nous:             nousState,
 		Scheduler:        sched,
 		MetricsCollector: metricsCollector,

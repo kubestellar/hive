@@ -54,7 +54,7 @@ agents:
     model: claude-sonnet-4-6
     bead_role: worker
     mode: ADVISORY
-    kick_template: brainstorm-inception.md
+    kick_template: brainstorm-advisory.md
     include_repos: false
     stale_timeout: 7200
     interactions: "Standalone. Driven by inception workflow and user queries."

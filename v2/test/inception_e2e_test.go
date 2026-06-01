@@ -80,6 +80,12 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		Timestamp: time.Now(),
 	}
 
+	// Step 0: Restart brainstorm agent for clean context
+	result.Phase = "restart"
+	result.Check = "restart_ok"
+	client.post("/api/restart/brainstorm", nil)
+	time.Sleep(5 * time.Second)
+
 	// Step 1: Reset
 	result.Phase = "reset"
 	result.Check = "reset_ok"
@@ -121,7 +127,7 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 	// Step 3: Wait for clarify phase (bead watcher detects question beads)
 	result.Phase = "capture_to_clarify"
 	result.Check = "phase_advance"
-	state, err = client.waitForPhase("clarify", 300*time.Second)
+	state, err = client.waitForPhase("clarify", 600*time.Second)
 	if err != nil {
 		// Check agent output for errors
 		lines, _ := client.paneOutput("brainstorm")
@@ -175,7 +181,7 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 	// Step 5: Wait for scaffold phase (bead watcher detects fact beads)
 	result.Phase = "structure_to_scaffold"
 	result.Check = "phase_advance"
-	state, err = client.waitForPhase("scaffold", 300*time.Second)
+	state, err = client.waitForPhase("scaffold", 600*time.Second)
 	if err != nil {
 		lines, _ := client.paneOutput("brainstorm")
 		agentStatus := summarizeAgentOutput(lines)

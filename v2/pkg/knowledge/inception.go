@@ -57,17 +57,19 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 
 	slug := slugify("idea-" + truncateSlug(rawIdea))
 
-	ctx := context.Background()
-	err := e.api.CreateFact(ctx, CreateFactRequest{
-		Title:      rawIdea,
-		Body:       rawIdea,
-		Type:       string(FactIdea),
-		Tags:       []string{"inception", "seed"},
-		Layer:      string(LayerProject),
-		Confidence: ideaDefaultConf,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("creating idea fact: %w", err)
+	if e.api != nil {
+		ctx := context.Background()
+		err := e.api.CreateFact(ctx, CreateFactRequest{
+			Title:      rawIdea,
+			Body:       rawIdea,
+			Type:       string(FactIdea),
+			Tags:       []string{"inception", "seed"},
+			Layer:      string(LayerProject),
+			Confidence: ideaDefaultConf,
+		})
+		if err != nil {
+			e.logger.Warn("could not persist idea fact to KB layer (knowledge may not be configured)", "error", err)
+		}
 	}
 
 	e.state = &InceptionState{
@@ -188,6 +190,12 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 			if conf > 1.0 {
 				conf = 1.0
 			}
+		}
+
+		if e.api == nil {
+			slug := slugify(string(f.Type) + "-" + truncateSlug(f.Title))
+			e.state.FactSlugs = append(e.state.FactSlugs, slug)
+			continue
 		}
 
 		err := e.api.CreateFact(ctx, CreateFactRequest{
@@ -317,6 +325,9 @@ func (e *InceptionEngine) ReadIdeaFact(ctx context.Context) (*Fact, error) {
 	if e.state == nil {
 		return nil, fmt.Errorf("no inception in progress")
 	}
+	if e.api == nil {
+		return nil, nil
+	}
 	return e.api.ReadFact(ctx, e.state.IdeaSlug)
 }
 
@@ -395,6 +406,9 @@ func (e *InceptionEngine) saveState() error {
 // --- fact helpers ---
 
 func (e *InceptionEngine) gatherFacts(ctx context.Context) []Fact {
+	if e.api == nil {
+		return nil
+	}
 	return e.api.LayerFacts(ctx, LayerProject, "")
 }
 

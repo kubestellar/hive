@@ -192,3 +192,4 @@ agents:
     KB layer.
 
     '
+  clear_on_kick: true

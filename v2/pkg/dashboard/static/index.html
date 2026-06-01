@@ -5861,9 +5861,14 @@ function burnAreaChart() {
 
       switch (_inceptionState.phase) {
         case 'capture':
-          panel.innerHTML = _inceptionState.mode === 'greenfield'
-            ? renderInceptionCapture()
-            : renderInceptionScanProgress();
+          if (_inceptionState.idea_text) {
+            panel.innerHTML = renderInceptionWorking();
+            startInceptionPoll();
+          } else {
+            panel.innerHTML = _inceptionState.mode === 'greenfield'
+              ? renderInceptionCapture()
+              : renderInceptionScanProgress();
+          }
           break;
         case 'clarify':
           panel.innerHTML = renderInceptionClarify();
@@ -5908,6 +5913,65 @@ function burnAreaChart() {
             <button onclick="submitInceptionIdea()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">Start</button>
           </div>
         </div>`;
+    }
+
+    let _inceptionPollTimer = null;
+
+    function renderInceptionWorking() {
+      const idea = escapeHtml(_inceptionState.idea_text || '');
+      const phase = escapeHtml(_inceptionState.phase || 'capture');
+      return `
+        <div style="max-width:700px;margin:0 auto">
+          <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
+            <div style="font-size:0.72rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Your Idea</div>
+            <div style="font-size:0.85rem">${idea}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--blue, #58a6ff);animation:pulse 1.5s infinite"></div>
+            <div style="font-size:0.82rem;font-weight:600">Brainstorm agent working</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-left:auto">Phase: ${phase}</div>
+          </div>
+          <div id="inception-activity" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.75rem;min-height:120px;max-height:300px;overflow-y:auto;white-space:pre-wrap;color:var(--muted)">Waiting for brainstorm agent...</div>
+          <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Cancel</button>
+          </div>
+        </div>`;
+    }
+
+    function startInceptionPoll() {
+      stopInceptionPoll();
+      pollInceptionActivity();
+      const INCEPTION_POLL_INTERVAL_MS = 3000;
+      _inceptionPollTimer = setInterval(pollInceptionActivity, INCEPTION_POLL_INTERVAL_MS);
+    }
+
+    function stopInceptionPoll() {
+      if (_inceptionPollTimer) { clearInterval(_inceptionPollTimer); _inceptionPollTimer = null; }
+    }
+
+    async function pollInceptionActivity() {
+      try {
+        const r = await fetch('/api/pane/brainstorm');
+        if (!r.ok) return;
+        const data = await r.json();
+        const lines = data.lines || [];
+        const el = document.getElementById('inception-activity');
+        if (!el) { stopInceptionPoll(); return; }
+        const MAX_ACTIVITY_LINES = 15;
+        const display = lines.slice(-MAX_ACTIVITY_LINES).map(l => escapeHtml(l)).join('\n');
+        el.textContent = display || 'Waiting for brainstorm agent...';
+        el.scrollTop = el.scrollHeight;
+      } catch (e) { /* ignore poll errors */ }
+
+      try {
+        const sr = await fetch('/api/inception/state');
+        const sd = await sr.json();
+        if (sd.ok && sd.state && sd.state.phase !== _inceptionState.phase) {
+          _inceptionState = sd.state;
+          stopInceptionPoll();
+          renderInception();
+        }
+      } catch (e) { /* ignore */ }
     }
 
     function renderInceptionScanProgress() {
@@ -6077,6 +6141,7 @@ function burnAreaChart() {
     }
 
     async function resetInception() {
+      stopInceptionPoll();
       try {
         await fetch('/api/inception/reset', { method: 'POST' });
         _inceptionState = null;

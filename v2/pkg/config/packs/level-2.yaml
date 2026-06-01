@@ -1,10 +1,10 @@
 level: 2
 name: Instructed
 description: >
-  One-way feedback. Four agents (supervisor, scanner, quality, guide) produce
-  advisory beads — findings visible on the dashboard and in a tracking issue.
-  No GitHub issues or PRs created. Agents observe and report; humans decide
-  what to act on.
+  One-way feedback. Five agents (supervisor, scanner, quality, guide, brainstorm)
+  produce advisory beads — findings visible on the dashboard and in a tracking
+  issue. No GitHub issues or PRs created. Agents observe and report; humans
+  decide what to act on.
 governor:
   modes: SURGE, BUSY, QUIET, IDLE
   merge_policy: manual
@@ -15,21 +15,25 @@ governor:
       guide: 4h
       scanner: 4h
       quality: 6h
+      brainstorm: 4h
     busy:
       supervisor: 5m
       guide: 4h
       scanner: 4h
       quality: 6h
+      brainstorm: 4h
     quiet:
       supervisor: 5m
       guide: 4h
       scanner: 4h
       quality: 6h
+      brainstorm: 4h
     idle:
       supervisor: 5m
       guide: 4h
       scanner: 4h
       quality: 6h
+      brainstorm: 4h
 agents:
   - name: supervisor
     display_name: Supervisor
@@ -114,3 +118,25 @@ agents:
     knowledge_use: >
       Reads test patterns, coverage rules, and known regressions from the
       knowledge base to prioritize which code needs tests most.
+  - name: brainstorm
+    display_name: brainstorm
+    role: brainstorm
+    description: >
+      Ongoing ideation agent. Proposes features, architecture improvements,
+      and strategic directions based on project patterns and community KB.
+      Produces KB facts and advisory beads.
+    emoji: "💡"
+    color: "#f39c12"
+    sort_order: 30
+    backend: copilot
+    model: claude-sonnet-4-6
+    bead_role: worker
+    mode: ADVISORY
+    kick_template: brainstorm-advisory.md
+    include_repos: true
+    stale_timeout: 7200
+    interactions: "Standalone. Produces ideation beads for human review."
+    knowledge_use: >
+      Heavy consumer of community wiki patterns. Produces ideation facts
+      (feature proposals, architecture decisions, strategic direction) into
+      the project KB layer.

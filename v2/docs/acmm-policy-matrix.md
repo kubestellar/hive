@@ -18,17 +18,18 @@ Each agent runs in one of four modes, controlling what actions it can take on Gi
 
 ## ACMM Levels
 
-### L1 — Assisted (1 agent)
+### L1 — Assisted (2 agents)
 
-A single interactive advisor helps with repo setup and architecture decisions.
+A single interactive advisor helps with repo setup and architecture decisions. Guide agent makes advisory beads. Brainstorm agent handles project inception — turning raw ideas into structured KB facts and scaffold. No feedback loops.
 
 | Agent | Mode | Template |
 |-------|------|----------|
 | guide | advisory | `guide-advisory.md` |
+| brainstorm | advisory | `brainstorm-inception.md` |
 
-### L2 — Instructed (4 agents)
+### L2 — Instructed (5 agents)
 
-Agents observe and report findings as advisory beads. No GitHub issues or PRs. Humans decide what to act on.
+Agents observe and report findings as advisory beads on the dashboard and tracking issue. No GitHub issues or PRs created. Humans decide what to act on.
 
 | Agent | Mode | Template |
 |-------|------|----------|
@@ -36,10 +37,11 @@ Agents observe and report findings as advisory beads. No GitHub issues or PRs. H
 | scanner | advisory | `scanner-advisory.md` |
 | quality | advisory | `quality-advisory.md` |
 | guide | advisory | `guide-advisory.md` |
+| brainstorm | advisory | `brainstorm-advisory.md` |
 
-### L3 — Measured (5 agents)
+### L3 — Measured (6 agents)
 
-Quality opens issues AND hold-gated PRs about testing gaps. All other agents remain advisory. CI-maintainer joins to monitor build health.
+Quality agent opens GitHub issues and PRs about testing gaps, coverage, and CI workflows. All other agents remain advisory. CI-maintainer joins to monitor build health. Key artifact: measurement infrastructure.
 
 | Agent | Mode | Template |
 |-------|------|----------|
@@ -48,10 +50,11 @@ Quality opens issues AND hold-gated PRs about testing gaps. All other agents rem
 | ci-maintainer | advisory | `ci-maintainer-advisory.md` |
 | **quality** | **holdgated** | `quality-holdgated.md` |
 | guide | advisory | `guide-advisory.md` |
+| brainstorm | advisory | `brainstorm-advisory.md` |
 
-### L4 — Adaptive (6 agents)
+### L4 — Adaptive (7 agents)
 
-All agents open GitHub issues. Quality, ci-maintainer, and sec-check may also open hold-gated PRs. Security agent joins. Closed-loop feedback: agents act on their own findings.
+All agents open GitHub issues — bugs, docs gaps, CI problems, security vulnerabilities. Only Quality, sec-check, and ci-maintainer may open PRs. Security agent joins. Closed-loop feedback: agents act on their own findings.
 
 | Agent | Mode | Template |
 |-------|------|----------|
@@ -61,10 +64,11 @@ All agents open GitHub issues. Quality, ci-maintainer, and sec-check may also op
 | **quality** | **holdgated** | `quality-holdgated.md` |
 | guide | measured | `guide-issues.md` |
 | **sec-check** | **holdgated** | `sec-check-holdgated.md` |
+| brainstorm | advisory | `brainstorm-advisory.md` |
 
-### L5 — Semi-Automated (8 agents)
+### L5 — Semi-Automated (9 agents)
 
-All agents open issues AND hold-gated PRs. Architect produces RFCs, strategist coordinates across agents. The system proposes; it does not merge autonomously.
+Agents open issues AND pull requests. All PRs get a hold label — humans batch-review and approve. Architect produces RFCs, strategist coordinates across agents. The system proposes; it does not merge autonomously.
 
 | Agent | Mode | Template |
 |-------|------|----------|
@@ -76,10 +80,11 @@ All agents open issues AND hold-gated PRs. Architect produces RFCs, strategist c
 | sec-check | holdgated | `sec-check-holdgated.md` |
 | architect | holdgated | `architect-holdgated.md` |
 | strategist | holdgated | `strategist-holdgated.md` |
+| brainstorm | advisory | `brainstorm-advisory.md` |
 
-### L6 — Fully Autonomous (9 agents)
+### L6 — Fully Autonomous (10 agents)
 
-Agents open issues, create PRs, and auto-merge on green CI. No hold label. Outreach agent handles community engagement. Governor at fastest cadence.
+Agents open issues, create PRs, and auto-merge on green CI. No hold label. Outreach agent handles community engagement (highest trust — external-facing). Governor at fastest cadence.
 
 | Agent | Mode | Template |
 |-------|------|----------|
@@ -92,6 +97,7 @@ Agents open issues, create PRs, and auto-merge on green CI. No hold label. Outre
 | architect | full | `architect-full.md` |
 | strategist | full | `strategist-full.md` |
 | outreach | full | `outreach-full.md` |
+| brainstorm | advisory | `brainstorm-advisory.md` |
 
 ## Key Rules
 
@@ -100,3 +106,4 @@ Agents open issues, create PRs, and auto-merge on green CI. No hold label. Outre
 3. **Supervisor never touches GitHub.** At every level, supervisor uses `supervisor-nogithub.md` — it monitors agent health, not code.
 4. **Mode escalation is per-agent.** At L4, some agents are measured (issues only) while others are holdgated (issues + PRs). The level defines the mix.
 5. **Knowledge priming works at all levels.** The `${KNOWLEDGE}` template variable injects relevant facts from git sources and wiki layers regardless of the agent's mode.
+6. **Brainstorm is always advisory.** It produces KB facts and beads, never GitHub issues or PRs. Its role evolves from inception (L1) to ongoing ideation (L2+), but its mode stays advisory at all levels.

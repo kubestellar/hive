@@ -25,7 +25,7 @@ func TestACMMPacksAgentCounts(t *testing.T) {
 	packs := ACMMPacks()
 
 	expected := map[int]int{
-		1: 1, 2: 4, 3: 5, 4: 6, 5: 8, 6: 9,
+		1: 2, 2: 5, 3: 6, 4: 7, 5: 9, 6: 10,
 	}
 	for _, p := range packs {
 		want, ok := expected[p.Level]

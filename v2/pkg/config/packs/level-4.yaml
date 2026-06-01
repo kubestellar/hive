@@ -223,7 +223,7 @@ agents:
   bead_role: worker
   mode: ADVISORY
   kick_template: brainstorm-advisory.md
-  include_repos: true
+  include_repos: false
   stale_timeout: 7200
   interactions: Standalone. Produces ideation beads for human review.
   knowledge_use: 'Heavy consumer of community wiki patterns. Produces ideation facts

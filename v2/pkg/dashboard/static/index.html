@@ -6022,6 +6022,13 @@ function burnAreaChart() {
         }
       }
 
+      /* spec-kit attribution */
+      html += '<div style="text-align:center;margin-top:4px;margin-bottom:-6px;">';
+      html += '<span style="font-size:10px;color:' + COLORS.muted + ';letter-spacing:0.3px;">';
+      html += 'Powered by <a href="https://github.com/github/spec-kit" target="_blank" rel="noopener" style="color:' + COLORS.muted + ';text-decoration:underline;text-underline-offset:2px;">GitHub Spec Kit</a>';
+      html += ' &middot; Spec-Driven Development';
+      html += '</span></div>';
+
       html += '</div>';
 
       /* Inject keyframes if not already present */

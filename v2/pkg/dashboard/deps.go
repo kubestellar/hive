@@ -26,6 +26,7 @@ type Dependencies struct {
 	GHClient         *ghpkg.Client
 	Tokens           *tokens.Collector
 	Knowledge        *knowledge.KnowledgeAPI
+	Inception        *knowledge.InceptionEngine
 	Nous             *NousState
 	Scheduler        *scheduler.Scheduler
 	MetricsCollector *MetricsCollector

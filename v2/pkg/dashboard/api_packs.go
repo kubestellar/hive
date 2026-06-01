@@ -106,6 +106,9 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 	}
 
 	s.deps.Config.ACMMLevel = &level
+	if err := s.deps.Config.Save(); err != nil {
+		s.logger.Error("failed to save ACMM level to hive.yaml", "error", err)
+	}
 
 	if pack.Governor.EvalIntervalS > 0 {
 		s.deps.Config.Governor.EvalIntervalS = pack.Governor.EvalIntervalS
@@ -203,6 +206,9 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 
 	level := body.Level
 	s.deps.Config.ACMMLevel = &level
+	if err := s.deps.Config.Save(); err != nil {
+		s.logger.Error("failed to save ACMM level to hive.yaml", "error", err)
+	}
 
 	s.deps.AgentMgr.SyncModeFiles(level)
 	paused, resumed := s.syncAgentVisibility(level)

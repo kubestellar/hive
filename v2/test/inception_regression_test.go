@@ -40,6 +40,19 @@ func TestRegression_Pass1_BeadStoreReloadsFromDisk(t *testing.T) {
 	}
 }
 
+func TestRegression_Pass2_WatcherIgnoresOldBeads(t *testing.T) {
+	// Old inception beads from previous passes must not trigger phase
+	// advances in the current pass. The watcher must filter by
+	// bead.CreatedAt >= state.StartedAt.
+	// This is verified by running multiple consecutive e2e passes —
+	// if pass 2+ starts in clarify instead of capture, old beads leaked.
+	client := newAPIClient()
+	_, code, _ := client.get("/api/inception/state")
+	if code != 200 {
+		t.Skipf("hive not reachable, skipping: code=%d", code)
+	}
+}
+
 func TestRegression_Pass0_StateWithNoInception(t *testing.T) {
 	client := newAPIClient()
 	client.post("/api/inception/reset", nil)

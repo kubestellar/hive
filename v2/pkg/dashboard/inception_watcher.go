@@ -101,6 +101,11 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 }
 
 func (w *InceptionWatcher) findInceptionBeads() []*beads.Bead {
+	state := w.inception.GetState()
+	if state == nil {
+		return nil
+	}
+
 	open := beads.StatusOpen
 	actor := "brainstorm"
 	all := w.beadStore.List(beads.ListFilter{
@@ -110,9 +115,13 @@ func (w *InceptionWatcher) findInceptionBeads() []*beads.Bead {
 
 	var inception []*beads.Bead
 	for _, b := range all {
-		if strings.HasPrefix(b.ExternalRef, inceptionBeadRefPrefix) {
-			inception = append(inception, b)
+		if !strings.HasPrefix(b.ExternalRef, inceptionBeadRefPrefix) {
+			continue
 		}
+		if b.CreatedAt.Before(state.StartedAt) {
+			continue
+		}
+		inception = append(inception, b)
 	}
 	return inception
 }

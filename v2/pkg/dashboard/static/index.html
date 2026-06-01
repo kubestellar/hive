@@ -5875,6 +5875,7 @@ function burnAreaChart() {
           break;
         case 'structure':
           panel.innerHTML = renderInceptionStructure();
+          startInceptionPoll();
           break;
         case 'scaffold':
           panel.innerHTML = renderInceptionScaffold();
@@ -6005,12 +6006,22 @@ function burnAreaChart() {
     }
 
     function renderInceptionStructure() {
+      const idea = escapeHtml((_inceptionState && _inceptionState.idea_text) || '');
       return `
-        <div style="max-width:600px;margin:0 auto;text-align:center;padding:40px 0">
-          <div style="font-size:1.2rem;margin-bottom:12px">🏗️</div>
-          <div style="font-size:0.85rem">Structuring your project...</div>
-          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">The guide agent is producing vision, constitution, requirements, and acceptance criteria.</div>
-          <button onclick="loadInceptionIdeationFacts()" style="margin-top:16px;padding:8px 24px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--fg);cursor:pointer;font-size:0.82rem">View Facts</button>
+        <div style="max-width:100%;margin:0">
+          <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
+            <div style="font-size:0.72rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Your Idea</div>
+            <div style="font-size:0.85rem">${idea}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--blue, #58a6ff);animation:pulse 1.5s infinite"></div>
+            <div style="font-size:0.82rem;font-weight:600">Brainstorm agent structuring project</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-left:auto">Phase: structure</div>
+          </div>
+          <div id="inception-activity" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.75rem;height:calc(100vh - 280px);overflow-y:auto;white-space:pre-wrap;color:var(--muted)">Brainstorm agent is producing vision, constitution, requirements, and acceptance criteria...</div>
+          <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Cancel</button>
+          </div>
         </div>`;
     }
 
@@ -6126,7 +6137,7 @@ function burnAreaChart() {
           data.facts.forEach(f => { msg += '- [' + f.type + '] ' + f.title + '\n'; });
           alert(msg);
         } else {
-          alert('No ideation facts yet. The guide agent is still working.');
+          alert('No ideation facts yet. The brainstorm agent is still working.');
         }
       } catch (e) { alert('Error: ' + e.message); }
     }

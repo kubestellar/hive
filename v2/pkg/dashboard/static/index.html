@@ -5885,12 +5885,12 @@ function burnAreaChart() {
     function renderInceptionModeSelect() {
       return `
         <div style="display:flex;gap:16px;max-width:700px;margin:0 auto">
-          <div onclick="startInceptionGreenfield()" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:24px;cursor:pointer;text-align:center;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div onclick="startInceptionGreenfield()" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:24px;cursor:pointer;text-align:center;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--blue, #58a6ff)'" onmouseout="this.style.borderColor='var(--border)'">
             <div style="font-size:2rem;margin-bottom:8px">🌱</div>
             <div style="font-weight:600;margin-bottom:4px">Start from an idea</div>
             <div style="font-size:0.78rem;color:var(--muted)">New project — describe what you want to build and we'll scaffold it</div>
           </div>
-          <div onclick="startInceptionBrownfield()" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:24px;cursor:pointer;text-align:center;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div onclick="startInceptionBrownfield()" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:24px;cursor:pointer;text-align:center;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--blue, #58a6ff)'" onmouseout="this.style.borderColor='var(--border)'">
             <div style="font-size:2rem;margin-bottom:8px">🏗️</div>
             <div style="font-weight:600;margin-bottom:4px">Add to existing repo</div>
             <div style="font-size:0.78rem;color:var(--muted)">Scan an existing project and capture its principles as KB facts</div>
@@ -5905,7 +5905,7 @@ function burnAreaChart() {
           <textarea id="inception-idea" placeholder="A CLI tool that syncs Obsidian vaults to a wiki server..." style="width:100%;min-height:80px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--card-bg);color:var(--fg);font-family:inherit;font-size:0.85rem;resize:vertical"></textarea>
           <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
             <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Cancel</button>
-            <button onclick="submitInceptionIdea()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--accent);color:white;cursor:pointer;font-size:0.82rem;font-weight:600">Start</button>
+            <button onclick="submitInceptionIdea()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">Start</button>
           </div>
         </div>`;
     }
@@ -5934,7 +5934,7 @@ function burnAreaChart() {
       });
       html += `<div style="display:flex;gap:8px;justify-content:flex-end">
         <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Reset</button>
-        <button onclick="submitInceptionAnswers()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--accent);color:white;cursor:pointer;font-size:0.82rem;font-weight:600">Submit</button>
+        <button onclick="submitInceptionAnswers()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">Submit</button>
       </div>`;
       html += '</div>';
       return html;
@@ -5958,7 +5958,7 @@ function burnAreaChart() {
           <div style="display:flex;gap:8px;justify-content:flex-end">
             <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Start Over</button>
             <button onclick="loadInceptionScaffoldPreview()" style="padding:8px 20px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--fg);cursor:pointer;font-size:0.82rem">Preview Files</button>
-            <button onclick="approveInception()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--accent);color:white;cursor:pointer;font-size:0.82rem;font-weight:600">Approve</button>
+            <button onclick="approveInception()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">Approve</button>
           </div>
         </div>`;
     }
@@ -5972,7 +5972,7 @@ function burnAreaChart() {
           <div style="font-size:0.85rem;color:var(--muted);margin-bottom:20px">${factCount} knowledge facts created. Your project is ready to grow.</div>
           <div style="display:flex;gap:8px;justify-content:center">
             <button onclick="resetInception()" style="padding:8px 20px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">New Inception</button>
-            <button onclick="ocNavigate('knowledge-section')" style="padding:8px 24px;border:none;border-radius:6px;background:var(--accent);color:white;cursor:pointer;font-size:0.82rem;font-weight:600">View Knowledge Base</button>
+            <button onclick="ocNavigate('knowledge-section')" style="padding:8px 24px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">View Knowledge Base</button>
           </div>
         </div>`;
     }

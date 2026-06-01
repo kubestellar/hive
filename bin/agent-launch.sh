@@ -4,11 +4,11 @@
 # Supported backends: claude, copilot (add more in the case block below)
 #
 # Usage (in .env files):
-#   AGENT_LAUNCH_CMD="agent-launch.sh --backend copilot --model claude-opus-4-6"
-#   AGENT_LAUNCH_CMD="agent-launch.sh --backend claude --model claude-opus-4-6"
+#   AGENT_LAUNCH_CMD="agent-launch.sh --backend copilot --model claude-opus-4.6"
+#   AGENT_LAUNCH_CMD="agent-launch.sh --backend claude --model claude-opus-4.6"
 #
 # Or override with env vars:
-#   AGENT_BACKEND=copilot AGENT_MODEL=claude-opus-4-6 agent-launch.sh
+#   AGENT_BACKEND=copilot AGENT_MODEL=claude-opus-4.6 agent-launch.sh
 #
 # Adding a new backend:
 #   1. Add a case block below with CMD, PERM_FLAG, MODEL_FLAG
@@ -16,6 +16,9 @@
 #   3. Update kick-agents.sh session_idle() if prompt differs
 
 set -euo pipefail
+
+# Agents share /data/home/.copilot — umask 007 ensures new files are group-rw.
+umask 007
 
 # Source hive-config.sh to make HIVE_GITHUB_TOKEN available for gh wrapper.
 # Do NOT export GH_TOKEN here — Copilot CLI uses GH_TOKEN for its own Copilot
@@ -99,4 +102,17 @@ if [[ "$BACKEND" == "copilot" ]]; then
   fi
 fi
 
-exec "${FULL_CMD[@]}"
+# Capture stderr so silent failures (e.g. invalid model name) leave a diagnostic.
+STDERR_LOG="/tmp/.hive-launch-stderr-${HIVE_AGENT:-unknown}.log"
+"${FULL_CMD[@]}" 2> >(tee "$STDERR_LOG" >&2)
+EXIT_CODE=$?
+if [[ $EXIT_CODE -ne 0 ]]; then
+  echo "HIVE: ${CMD} exited with code ${EXIT_CODE}" >&2
+  if [[ -s "$STDERR_LOG" ]]; then
+    echo "HIVE: stderr output:" >&2
+    cat "$STDERR_LOG" >&2
+  else
+    echo "HIVE: no stderr output (silent failure)" >&2
+  fi
+fi
+exit $EXIT_CODE

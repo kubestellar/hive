@@ -861,9 +861,7 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 		if cli == "claude" {
 			launchCmd = fmt.Sprintf("claude --model %s --dangerously-skip-permissions", model)
 		} else if cli == "copilot" {
-			// Copilot CLI uses dashes in model IDs (claude-opus-4-6), not dots (claude-opus-4.6)
-			cliModel := strings.ReplaceAll(model, ".", "-")
-			launchCmd = fmt.Sprintf("/usr/bin/copilot --allow-all --model %s", cliModel)
+			launchCmd = fmt.Sprintf("/usr/bin/copilot --allow-all --model %s", model)
 		}
 	}
 

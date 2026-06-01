@@ -5921,7 +5921,7 @@ function burnAreaChart() {
       const idea = escapeHtml(_inceptionState.idea_text || '');
       const phase = escapeHtml(_inceptionState.phase || 'capture');
       return `
-        <div style="max-width:700px;margin:0 auto">
+        <div style="max-width:100%;margin:0">
           <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
             <div style="font-size:0.72rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Your Idea</div>
             <div style="font-size:0.85rem">${idea}</div>
@@ -5931,7 +5931,7 @@ function burnAreaChart() {
             <div style="font-size:0.82rem;font-weight:600">Brainstorm agent working</div>
             <div style="font-size:0.72rem;color:var(--muted);margin-left:auto">Phase: ${phase}</div>
           </div>
-          <div id="inception-activity" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.75rem;min-height:120px;max-height:300px;overflow-y:auto;white-space:pre-wrap;color:var(--muted)">Waiting for brainstorm agent...</div>
+          <div id="inception-activity" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.75rem;min-height:400px;max-height:600px;overflow-y:auto;white-space:pre-wrap;color:var(--muted)">Waiting for brainstorm agent...</div>
           <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
             <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Cancel</button>
           </div>
@@ -5957,7 +5957,7 @@ function burnAreaChart() {
         const lines = data.lines || [];
         const el = document.getElementById('inception-activity');
         if (!el) { stopInceptionPoll(); return; }
-        const MAX_ACTIVITY_LINES = 15;
+        const MAX_ACTIVITY_LINES = 30;
         const display = lines.slice(-MAX_ACTIVITY_LINES).map(l => escapeHtml(l)).join('\n');
         el.textContent = display || 'Waiting for brainstorm agent...';
         el.scrollTop = el.scrollHeight;

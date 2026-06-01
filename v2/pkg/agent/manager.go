@@ -870,10 +870,24 @@ func diffNewLines(prev, curr []string) []string {
 		return curr
 	}
 	overlap := findOverlap(prev, curr)
-	if overlap >= 0 && overlap < len(curr) {
+	if overlap >= 0 {
 		return curr[overlap:]
 	}
 	return curr
+}
+
+var spinnerReplacer = strings.NewReplacer(
+	"◐", "○", "◑", "○", "◒", "○", "◓", "○",
+	"◎", "○", "◉", "○", "●", "○",
+)
+
+var creditsRe = regexp.MustCompile(`AI Credits: [\d.]+`)
+
+func normalizeLine(s string) string {
+	s = strings.TrimRight(s, " \t")
+	s = spinnerReplacer.Replace(s)
+	s = creditsRe.ReplaceAllString(s, "AI Credits: _")
+	return s
 }
 
 func findOverlap(prev, curr []string) int {
@@ -884,7 +898,7 @@ func findOverlap(prev, curr []string) int {
 	for tail := maxTail; tail > 0; tail-- {
 		match := true
 		for i := range tail {
-			if prev[len(prev)-tail+i] != curr[i] {
+			if normalizeLine(prev[len(prev)-tail+i]) != normalizeLine(curr[i]) {
 				match = false
 				break
 			}
@@ -1546,7 +1560,7 @@ func DeduplicateBlocks(lines []string) []string {
 			}
 			match := true
 			for j := 0; j < blockSize; j++ {
-				if strings.TrimSpace(lines[start+j]) != strings.TrimSpace(candidate[j]) {
+				if normalizeLine(lines[start+j]) != normalizeLine(candidate[j]) {
 					match = false
 					break
 				}

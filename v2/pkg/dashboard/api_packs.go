@@ -43,6 +43,7 @@ func (s *Server) handlePacksList(w http.ResponseWriter, r *http.Request) {
 type ApplyPackResult struct {
 	Name    string   `json:"name"`
 	Created []string `json:"created"`
+	Updated []string `json:"updated"`
 	Skipped []string `json:"skipped"`
 	Paused  []string `json:"paused"`
 	Resumed []string `json:"resumed"`
@@ -66,9 +67,24 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 	var created []string
 	var skipped []string
 
+	var updated []string
 	for _, pa := range pack.Agents {
-		if _, exists := s.deps.Config.Agents[pa.Name]; exists {
-			skipped = append(skipped, pa.Name)
+		if existing, exists := s.deps.Config.Agents[pa.Name]; exists {
+			changed := false
+			if pa.KickTemplate != "" && existing.KickTemplate != pa.KickTemplate {
+				existing.KickTemplate = pa.KickTemplate
+				changed = true
+			}
+			if pa.Mode != "" && existing.Mode != pa.Mode {
+				existing.Mode = pa.Mode
+				changed = true
+			}
+			if changed {
+				s.deps.Config.Agents[pa.Name] = existing
+				updated = append(updated, pa.Name)
+			} else {
+				skipped = append(skipped, pa.Name)
+			}
 			continue
 		}
 
@@ -152,11 +168,12 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 
 	s.persistOnly()
 	go s.refreshAsync()
-	s.logger.Info("ACMM pack applied", "level", level, "name", pack.Name, "created", len(created), "skipped", len(skipped), "paused", len(paused), "resumed", len(resumed))
+	s.logger.Info("ACMM pack applied", "level", level, "name", pack.Name, "created", len(created), "updated", len(updated), "skipped", len(skipped), "paused", len(paused), "resumed", len(resumed))
 
 	return &ApplyPackResult{
 		Name:    pack.Name,
 		Created: created,
+		Updated: updated,
 		Skipped: skipped,
 		Paused:  paused,
 		Resumed: resumed,
@@ -183,6 +200,7 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 		"level":      level,
 		"name":       result.Name,
 		"created":    result.Created,
+		"updated":    result.Updated,
 		"skipped":    result.Skipped,
 		"paused":     result.Paused,
 		"resumed":    result.Resumed,

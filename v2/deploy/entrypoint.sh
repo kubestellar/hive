@@ -63,16 +63,19 @@ if [ "$(id -u)" = "0" ]; then
   # setgid on .copilot so new files inherit group node (agents share this dir)
   chmod g+s /data/home/.copilot 2>/dev/null || true
   chown -R dev:node /data/config /data/home /home/dev/.config 2>/dev/null || true
-  # Default ACL: force group rw on every file copilot creates in .copilot/.
-  # Copilot CLI rewrites config.json with 0600 on every token refresh,
-  # locking out other agent UIDs. The default ACL overrides the app's mode
-  # at the kernel level — no race condition, no polling needed.
-  if command -v setfacl >/dev/null 2>&1; then
-    setfacl -d -m g::rw /data/home/.copilot 2>/dev/null && \
-      echo "[entrypoint] ACL: default g::rw on /data/home/.copilot" || \
-      echo "[entrypoint] WARN: setfacl failed on /data/home/.copilot"
+  # inotify watcher: copilot CLI rewrites config.json with 0600 on every
+  # token refresh, locking out other agent UIDs. This watcher resets perms
+  # instantly on every write — sub-second response, no polling race.
+  if command -v inotifywait >/dev/null 2>&1; then
+    (
+      while inotifywait -qq -e close_write,moved_to /data/home/.copilot/ 2>/dev/null; do
+        chmod 660 /data/home/.copilot/config.json 2>/dev/null
+        chown dev:node /data/home/.copilot/config.json 2>/dev/null
+      done
+    ) &
+    echo "[entrypoint] inotify watcher: config.json perm guard active"
   else
-    echo "[entrypoint] WARN: setfacl not found, config.json perm fix unavailable"
+    echo "[entrypoint] WARN: inotifywait not found, config.json perm fix unavailable"
   fi
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
 

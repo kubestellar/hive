@@ -27,7 +27,6 @@ governor:
       outreach: 30m
       sec-check: 15m
       strategist: 30m
-      brainstorm: pause
     busy:
       supervisor: 2m
       scanner: 10m
@@ -37,7 +36,6 @@ governor:
       outreach: 1h
       sec-check: 30m
       strategist: 1h
-      brainstorm: 4h
     quiet:
       supervisor: 3m
       scanner: 20m
@@ -47,7 +45,6 @@ governor:
       outreach: 2h
       sec-check: 1h
       strategist: 2h
-      brainstorm: 4h
     idle:
       supervisor: 5m
       scanner: 30m
@@ -57,7 +54,6 @@ governor:
       outreach: 4h
       sec-check: 2h
       strategist: 4h
-      brainstorm: 4h
 agents:
 - name: supervisor
   display_name: Supervisor

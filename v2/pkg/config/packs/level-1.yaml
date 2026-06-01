@@ -13,10 +13,8 @@ governor:
   cadences:
     quiet:
       guide: 2h
-      brainstorm: 1h
     idle:
       guide: 4h
-      brainstorm: 2h
 agents:
   - name: guide
     display_name: guide

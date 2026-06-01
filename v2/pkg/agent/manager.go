@@ -417,6 +417,8 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	}
 	agent.forceRelaunch = false
 
+	m.fixSharedConfigPerms(agent)
+
 	envCmd := m.buildEnvPrefix(agent)
 	fullCmd := envCmd + launchCmd
 
@@ -1590,6 +1592,31 @@ func backendBinary(backend string) (string, error) {
 	}
 
 	return path, nil
+}
+
+const (
+	sharedCopilotConfigPath = "/data/home/.copilot/config.json"
+	sharedConfigDesiredMode = 0o660
+)
+
+// fixSharedConfigPerms ensures /data/home/.copilot/config.json is group-readable
+// before launching an agent. Copilot CLI rewrites this file with 600 perms on
+// token refresh, locking out other agent UIDs that share the same HOME.
+func (m *Manager) fixSharedConfigPerms(agent *AgentProcess) {
+	info, err := os.Stat(sharedCopilotConfigPath)
+	if err != nil {
+		return
+	}
+	if info.Mode().Perm() == sharedConfigDesiredMode {
+		return
+	}
+	m.logger.Warn("fixing shared config.json perms before launch",
+		"agent", agent.Name,
+		"was", fmt.Sprintf("%04o", info.Mode().Perm()),
+		"fix", fmt.Sprintf("%04o", sharedConfigDesiredMode))
+	if err := os.Chmod(sharedCopilotConfigPath, sharedConfigDesiredMode); err != nil {
+		m.logger.Warn("failed to fix config.json perms", "error", err)
+	}
 }
 
 // normalizeModelName converts YAML-friendly model names (claude-sonnet-4-6) to

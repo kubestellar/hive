@@ -235,3 +235,88 @@ func TestSetModelOverride_Pinned(t *testing.T) {
 		t.Error("expected error when model is pinned")
 	}
 }
+
+func TestNormalizeLine(t *testing.T) {
+	tests := []struct {
+		name string
+		a, b string
+		want bool
+	}{
+		{"identical", "hello world", "hello world", true},
+		{"spinner change", "◐ Reading files", "◎ Reading files", true},
+		{"credits change", "AI Credits: 42.3", "AI Credits: 99.1", true},
+		{"trailing space", "hello   ", "hello", true},
+		{"different content", "line A", "line B", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeLine(tt.a) == normalizeLine(tt.b)
+			if got != tt.want {
+				t.Errorf("normalizeLine(%q) == normalizeLine(%q) = %v, want %v",
+					tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindOverlap_SpinnerTolerant(t *testing.T) {
+	prev := []string{
+		"● Read CLAUDE.md",
+		"● Read base.md",
+		"/data/agents/scanner                                          AI Credits: 4.02",
+		"◐ Analyzing coverage                                        Claude Sonnet 4.6",
+	}
+	curr := []string{
+		"● Read CLAUDE.md",
+		"● Read base.md",
+		"/data/agents/scanner                                          AI Credits: 4.05",
+		"◎ Analyzing coverage                                        Claude Sonnet 4.6",
+	}
+	overlap := findOverlap(prev, curr)
+	if overlap != 4 {
+		t.Errorf("findOverlap with spinner/credits change = %d, want 4", overlap)
+	}
+}
+
+func TestFindOverlap_ExactMatch(t *testing.T) {
+	prev := []string{"a", "b", "c"}
+	curr := []string{"b", "c", "d"}
+	overlap := findOverlap(prev, curr)
+	if overlap != 2 {
+		t.Errorf("findOverlap exact = %d, want 2", overlap)
+	}
+}
+
+func TestDiffNewLines_SpinnerChange(t *testing.T) {
+	prev := []string{
+		"static line 1",
+		"static line 2",
+		"◐ Working                                                      AI Credits: 10",
+	}
+	curr := []string{
+		"static line 1",
+		"static line 2",
+		"◎ Working                                                      AI Credits: 11",
+	}
+	newLines := diffNewLines(prev, curr)
+	if len(newLines) != 0 {
+		t.Errorf("diffNewLines should return 0 new lines when only spinner/credits changed, got %d: %v",
+			len(newLines), newLines)
+	}
+}
+
+func TestDeduplicateBlocks_NearDuplicates(t *testing.T) {
+	lines := []string{
+		"● Read base.md",
+		"/data/agents/scanner                                          AI Credits: 4.02",
+		"◐ Analyzing",
+		"● Read base.md",
+		"/data/agents/scanner                                          AI Credits: 4.05",
+		"◎ Analyzing",
+	}
+	result := DeduplicateBlocks(lines)
+	if len(result) > 3 {
+		t.Errorf("DeduplicateBlocks should remove near-duplicate block, got %d lines: %v",
+			len(result), result)
+	}
+}

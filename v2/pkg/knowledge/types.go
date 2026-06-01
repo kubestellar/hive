@@ -224,6 +224,7 @@ type Question struct {
 type InceptionState struct {
 	Phase     InceptionPhase    `json:"phase"`
 	Mode      InceptionMode     `json:"mode"`
+	IdeaText  string            `json:"idea_text"`
 	IdeaSlug  string            `json:"idea_slug"`
 	RepoURL   string            `json:"repo_url,omitempty"`
 	Questions []Question        `json:"questions,omitempty"`

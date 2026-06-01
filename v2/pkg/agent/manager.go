@@ -1519,7 +1519,7 @@ func filterPaneOutput(lines []string, n int) []string {
 		}
 	}
 	lines = cleaned
-	lines = deduplicateBlocks(lines)
+	lines = DeduplicateBlocks(lines)
 	if n > 0 && len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
@@ -1528,9 +1528,9 @@ func filterPaneOutput(lines []string, n int) []string {
 	return out
 }
 
-// deduplicateBlocks removes repeated blocks from pane output.
+// DeduplicateBlocks removes repeated blocks from pane output.
 // It finds the longest suffix that also appears earlier and removes the earlier copy.
-func deduplicateBlocks(lines []string) []string {
+func DeduplicateBlocks(lines []string) []string {
 	if len(lines) < 4 {
 		return lines
 	}
@@ -1556,7 +1556,7 @@ func deduplicateBlocks(lines []string) []string {
 				result := make([]string, 0, len(lines)-blockSize)
 				result = append(result, lines[:start]...)
 				result = append(result, lines[start+blockSize:]...)
-				return deduplicateBlocks(result)
+				return DeduplicateBlocks(result)
 			}
 		}
 	}

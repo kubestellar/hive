@@ -15,25 +15,21 @@ governor:
       guide: 4h
       scanner: 4h
       quality: 6h
-      brainstorm: 4h
     busy:
       supervisor: 5m
       guide: 4h
       scanner: 4h
       quality: 6h
-      brainstorm: 4h
     quiet:
       supervisor: 5m
       guide: 4h
       scanner: 4h
       quality: 6h
-      brainstorm: 4h
     idle:
       supervisor: 5m
       guide: 4h
       scanner: 4h
       quality: 6h
-      brainstorm: 4h
 agents:
   - name: supervisor
     display_name: Supervisor

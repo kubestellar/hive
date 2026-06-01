@@ -27,7 +27,6 @@ governor:
       sec-check: 4h
       architect: 4h
       strategist: 4h
-      brainstorm: pause
     busy:
       supervisor: 5m
       scanner: 4h
@@ -37,7 +36,6 @@ governor:
       sec-check: 4h
       architect: 4h
       strategist: 4h
-      brainstorm: 4h
     quiet:
       supervisor: 5m
       scanner: 4h
@@ -47,7 +45,6 @@ governor:
       sec-check: 4h
       architect: 4h
       strategist: 4h
-      brainstorm: 4h
     idle:
       supervisor: 5m
       scanner: 4h
@@ -57,7 +54,6 @@ governor:
       sec-check: 4h
       architect: 4h
       strategist: 4h
-      brainstorm: 4h
 agents:
 - name: supervisor
   display_name: Supervisor

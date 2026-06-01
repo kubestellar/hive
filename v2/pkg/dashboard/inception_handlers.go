@@ -30,6 +30,8 @@ func (s *Server) handleInceptionStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.kickBrainstorm()
+
 	jsonResponse(w, map[string]interface{}{
 		"ok":    true,
 		"state": state,
@@ -55,6 +57,8 @@ func (s *Server) handleInceptionScan(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	s.kickBrainstorm()
 
 	jsonResponse(w, map[string]interface{}{
 		"ok":    true,
@@ -203,6 +207,22 @@ func (s *Server) handleInceptionIdeationFacts(w http.ResponseWriter, r *http.Req
 		"ok":    true,
 		"facts": facts,
 	})
+}
+
+func (s *Server) kickBrainstorm() {
+	if s.deps.AgentMgr == nil || s.deps.Scheduler == nil {
+		return
+	}
+	go func() {
+		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
+		if err := s.deps.AgentMgr.SendKick("brainstorm", msg); err != nil {
+			s.logger.Warn("failed to auto-kick brainstorm for inception", "error", err)
+			return
+		}
+		if s.deps.Governor != nil {
+			s.deps.Governor.RecordKick("brainstorm")
+		}
+	}()
 }
 
 func readJSON(r *http.Request, v interface{}) error {

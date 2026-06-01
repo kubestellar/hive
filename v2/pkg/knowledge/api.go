@@ -898,6 +898,43 @@ func parseJSONFacts(content string, facts *[]ExtractedFact) error {
 	return json.Unmarshal([]byte(content), facts)
 }
 
+// CreateIdeationFact validates that the type is an ideation type and ingests
+// it into the project KB layer.
+func (k *KnowledgeAPI) CreateIdeationFact(ctx context.Context, req CreateFactRequest) error {
+	ft := FactType(req.Type)
+	if !ft.IsIdeation() {
+		return fmt.Errorf("fact type %q is not an ideation type", req.Type)
+	}
+	if req.Layer == "" {
+		req.Layer = string(LayerProject)
+	}
+	return k.CreateFact(ctx, req)
+}
+
+// ListIdeationFacts returns all facts from the project layer whose type is an
+// ideation type (idea, vision, constitution, requirement, constraint,
+// stakeholder, acceptance).
+func (k *KnowledgeAPI) ListIdeationFacts(ctx context.Context) []Fact {
+	all := k.LayerFacts(ctx, LayerProject, "")
+	var ideation []Fact
+	for _, f := range all {
+		if f.Type.IsIdeation() {
+			ideation = append(ideation, f)
+		}
+	}
+	return ideation
+}
+
+// GetConstitution returns the single constitution fact from the project layer,
+// or nil if none exists.
+func (k *KnowledgeAPI) GetConstitution(ctx context.Context) *Fact {
+	all := k.LayerFacts(ctx, LayerProject, string(FactConstitution))
+	if len(all) > 0 {
+		return &all[0]
+	}
+	return nil
+}
+
 func parseMarkdownFacts(content string) []ExtractedFact {
 	var facts []ExtractedFact
 	lines := strings.Split(content, "\n")

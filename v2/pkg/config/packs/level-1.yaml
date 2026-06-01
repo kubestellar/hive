@@ -1,10 +1,11 @@
 level: 1
 name: Assisted
 description: >
-  Open-loop assistance. A single interactive advisor helps with repo setup,
-  test stubs, and early architecture decisions. All actions require human
-  approval. No feedback loops — the advisor responds to requests but does
-  not monitor or act autonomously.
+  Project inception. A single interactive advisor turns a raw idea into
+  structured KB facts and project scaffolding. Supports greenfield (new
+  project from an idea) and brownfield (existing repo enrichment). All
+  actions require human approval. No feedback loops — the advisor responds
+  to requests but does not monitor or act autonomously.
 governor:
   modes: none
   merge_policy: manual
@@ -19,9 +20,11 @@ agents:
     display_name: guide
     role: guide
     description: >
-      Interactive advisor that queries the community knowledge base for
-      scaffolding patterns. Helps create repos, initial structure, and test
-      stubs. No autonomous actions — everything is conversational.
+      Project inception advisor that turns a raw idea into structured
+      knowledge — vision, constitution, requirements, constraints, acceptance
+      criteria. Queries community KB for scaffolding patterns and produces
+      project bootstrap files. Supports both greenfield (new repo) and
+      brownfield (existing repo enrichment).
     emoji: "🧭"
     color: "#8e44ad"
     sort_order: 10
@@ -29,10 +32,13 @@ agents:
     model: claude-sonnet-4-6
     bead_role: worker
     mode: ADVISORY
-    kick_template: guide-advisory.md
+    kick_template: guide-inception.md
     include_repos: false
     stale_timeout: 7200
-    interactions: "Standalone. Responds to user queries only."
+    interactions: "Standalone. Responds to user queries and inception workflow."
     knowledge_use: >
-      Heavy consumer — reads community wiki, project patterns, and scaffolding
-      templates. Does not produce knowledge entries at this level.
+      Heavy consumer of community wiki patterns, scaffolding templates, and
+      language-specific defaults. At L1, also PRODUCES ideation facts (idea,
+      vision, constitution, requirement, constraint, stakeholder, acceptance)
+      into the project KB layer. These facts persist into L2+ and inform all
+      future agent behavior.

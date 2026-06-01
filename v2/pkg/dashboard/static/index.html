@@ -1607,6 +1607,7 @@
       <a class="oc-nav-item" data-section="repos-section" onclick="ocNavigate('repos-section')"><span class="oc-nav-emoji">📦</span><span class="oc-nav-text">Repos</span></a>
       <a class="oc-nav-item" data-section="beads-section" onclick="ocNavigate('beads-section')"><span class="oc-nav-emoji">🔮</span><span class="oc-nav-text">Beads</span></a>
       <a class="oc-nav-item" data-section="knowledge-section" onclick="ocNavigate('knowledge-section')"><span class="oc-nav-emoji">📚</span><span class="oc-nav-text">Knowledge</span></a>
+      <a class="oc-nav-item" data-section="inception-section" onclick="ocNavigate('inception-section')"><span class="oc-nav-emoji">💡</span><span class="oc-nav-text">Inception</span></a>
       <a class="oc-nav-item" data-section="nous-section" onclick="ocNavigate('nous-section')"><span class="oc-nav-emoji">🧪</span><span class="oc-nav-text">Strategy Lab</span></a>
     </div>
     <div class="oc-sidebar-footer">
@@ -1676,6 +1677,11 @@
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">🧪 Strategy Lab <span id="nous-mode-badge" style="font-size:0.75rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span> <button onclick="openNousConfig()" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);margin-left:6px;padding:2px" title="Strategy Lab Configuration">⚙️</button></h2>
     <div id="nous-panel"></div>
     <div id="nous-config-overlay" class="nous-config-overlay" style="display:none"></div>
+  </div>
+
+  <div id="inception-section" style="margin-top: 16px; margin-bottom: 24px;">
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">💡 Project Inception</h2>
+    <div id="inception-panel"></div>
   </div>
 
   <div id="knowledge-section" style="margin-top: 16px; margin-bottom: 24px;">
@@ -5831,6 +5837,258 @@ function burnAreaChart() {
       }
       return labels;
     }
+
+    // ── Inception section ──
+    let _inceptionState = null;
+
+    async function loadInceptionState() {
+      try {
+        const r = await fetch('/api/inception/state');
+        const data = await r.json();
+        _inceptionState = data.active ? data.state : null;
+        renderInception();
+      } catch (e) { console.error('inception state load failed', e); }
+    }
+
+    function renderInception() {
+      const panel = document.getElementById('inception-panel');
+      if (!panel) return;
+
+      if (!_inceptionState) {
+        panel.innerHTML = renderInceptionModeSelect();
+        return;
+      }
+
+      switch (_inceptionState.phase) {
+        case 'capture':
+          panel.innerHTML = _inceptionState.mode === 'greenfield'
+            ? renderInceptionCapture()
+            : renderInceptionScanProgress();
+          break;
+        case 'clarify':
+          panel.innerHTML = renderInceptionClarify();
+          break;
+        case 'structure':
+          panel.innerHTML = renderInceptionStructure();
+          break;
+        case 'scaffold':
+          panel.innerHTML = renderInceptionScaffold();
+          break;
+        case 'complete':
+          panel.innerHTML = renderInceptionComplete();
+          break;
+        default:
+          panel.innerHTML = renderInceptionModeSelect();
+      }
+    }
+
+    function renderInceptionModeSelect() {
+      return `
+        <div style="display:flex;gap:16px;max-width:700px;margin:0 auto">
+          <div onclick="startInceptionGreenfield()" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:24px;cursor:pointer;text-align:center;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:2rem;margin-bottom:8px">🌱</div>
+            <div style="font-weight:600;margin-bottom:4px">Start from an idea</div>
+            <div style="font-size:0.78rem;color:var(--muted)">New project — describe what you want to build and we'll scaffold it</div>
+          </div>
+          <div onclick="startInceptionBrownfield()" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:24px;cursor:pointer;text-align:center;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:2rem;margin-bottom:8px">🏗️</div>
+            <div style="font-weight:600;margin-bottom:4px">Add to existing repo</div>
+            <div style="font-size:0.78rem;color:var(--muted)">Scan an existing project and capture its principles as KB facts</div>
+          </div>
+        </div>`;
+    }
+
+    function renderInceptionCapture() {
+      return `
+        <div style="max-width:600px;margin:0 auto">
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Describe your project idea in a sentence or two.</div>
+          <textarea id="inception-idea" placeholder="A CLI tool that syncs Obsidian vaults to a wiki server..." style="width:100%;min-height:80px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--card-bg);color:var(--fg);font-family:inherit;font-size:0.85rem;resize:vertical"></textarea>
+          <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Cancel</button>
+            <button onclick="submitInceptionIdea()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--accent);color:white;cursor:pointer;font-size:0.82rem;font-weight:600">Start</button>
+          </div>
+        </div>`;
+    }
+
+    function renderInceptionScanProgress() {
+      return `
+        <div style="max-width:600px;margin:0 auto;text-align:center;padding:40px 0">
+          <div style="font-size:1.2rem;margin-bottom:12px">🔍</div>
+          <div style="font-size:0.85rem;color:var(--muted)">Scanning repository...</div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">${escapeHtml(_inceptionState.repo_url || '')}</div>
+          <div style="margin-top:16px"><button onclick="resetInception()" style="padding:6px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.78rem">Cancel</button></div>
+        </div>`;
+    }
+
+    function renderInceptionClarify() {
+      const questions = _inceptionState.questions || [];
+      let html = '<div style="max-width:600px;margin:0 auto">';
+      html += '<div style="font-size:0.85rem;color:var(--muted);margin-bottom:16px">Answer these questions to refine your project definition.</div>';
+      questions.forEach(q => {
+        html += `<div style="margin-bottom:16px">
+          <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px">${escapeHtml(q.text)}</label>
+          <input type="text" id="inception-q-${escapeHtml(q.id)}" value="${escapeHtml(q.default || '')}"
+            style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--fg);font-size:0.82rem" />
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">${escapeHtml(q.category || '')}</div>
+        </div>`;
+      });
+      html += `<div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Reset</button>
+        <button onclick="submitInceptionAnswers()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--accent);color:white;cursor:pointer;font-size:0.82rem;font-weight:600">Submit</button>
+      </div>`;
+      html += '</div>';
+      return html;
+    }
+
+    function renderInceptionStructure() {
+      return `
+        <div style="max-width:600px;margin:0 auto;text-align:center;padding:40px 0">
+          <div style="font-size:1.2rem;margin-bottom:12px">🏗️</div>
+          <div style="font-size:0.85rem">Structuring your project...</div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">The guide agent is producing vision, constitution, requirements, and acceptance criteria.</div>
+          <button onclick="loadInceptionIdeationFacts()" style="margin-top:16px;padding:8px 24px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--fg);cursor:pointer;font-size:0.82rem">View Facts</button>
+        </div>`;
+    }
+
+    function renderInceptionScaffold() {
+      return `
+        <div style="max-width:700px;margin:0 auto">
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Your project facts are ready. Preview the scaffold output.</div>
+          <div id="inception-scaffold-preview" style="margin-bottom:16px"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Start Over</button>
+            <button onclick="loadInceptionScaffoldPreview()" style="padding:8px 20px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--fg);cursor:pointer;font-size:0.82rem">Preview Files</button>
+            <button onclick="approveInception()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--accent);color:white;cursor:pointer;font-size:0.82rem;font-weight:600">Approve</button>
+          </div>
+        </div>`;
+    }
+
+    function renderInceptionComplete() {
+      const factCount = (_inceptionState.fact_slugs || []).length;
+      return `
+        <div style="max-width:600px;margin:0 auto;text-align:center;padding:40px 0">
+          <div style="font-size:2rem;margin-bottom:12px">✅</div>
+          <div style="font-size:1rem;font-weight:600;margin-bottom:8px">Inception Complete</div>
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:20px">${factCount} knowledge facts created. Your project is ready to grow.</div>
+          <div style="display:flex;gap:8px;justify-content:center">
+            <button onclick="resetInception()" style="padding:8px 20px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">New Inception</button>
+            <button onclick="ocNavigate('knowledge-section')" style="padding:8px 24px;border:none;border-radius:6px;background:var(--accent);color:white;cursor:pointer;font-size:0.82rem;font-weight:600">View Knowledge Base</button>
+          </div>
+        </div>`;
+    }
+
+    function startInceptionGreenfield() {
+      _inceptionState = { phase: 'capture', mode: 'greenfield' };
+      renderInception();
+    }
+
+    async function startInceptionBrownfield() {
+      const url = prompt('Enter the GitHub repo URL:');
+      if (!url) return;
+      try {
+        const r = await fetch('/api/inception/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo_url: url })
+        });
+        const data = await r.json();
+        if (data.ok) { _inceptionState = data.state; renderInception(); }
+        else alert(data.error || 'Failed to start scan');
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function submitInceptionIdea() {
+      const el = document.getElementById('inception-idea');
+      const idea = el ? el.value.trim() : '';
+      if (!idea) { alert('Please describe your idea'); return; }
+      try {
+        const r = await fetch('/api/inception/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idea })
+        });
+        const data = await r.json();
+        if (data.ok) { _inceptionState = data.state; renderInception(); }
+        else alert(data.error || 'Failed to start inception');
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function submitInceptionAnswers() {
+      const questions = _inceptionState.questions || [];
+      const answers = {};
+      questions.forEach(q => {
+        const el = document.getElementById('inception-q-' + q.id);
+        if (el) answers[q.id] = el.value.trim();
+      });
+      try {
+        const r = await fetch('/api/inception/answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers })
+        });
+        const data = await r.json();
+        if (data.ok) { _inceptionState = data.state; renderInception(); }
+        else alert(data.error || 'Failed to submit answers');
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function loadInceptionScaffoldPreview() {
+      const preview = document.getElementById('inception-scaffold-preview');
+      if (!preview) return;
+      preview.innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Loading...</div>';
+      try {
+        const r = await fetch('/api/inception/scaffold');
+        const data = await r.json();
+        if (!data.ok || !data.scaffold) { preview.innerHTML = '<div style="color:var(--muted)">No scaffold available yet.</div>'; return; }
+        let html = '';
+        (data.scaffold.files || []).forEach(f => {
+          html += `<details style="margin-bottom:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <summary style="padding:8px 12px;background:var(--card-bg);cursor:pointer;font-size:0.82rem;font-weight:600">
+              ${escapeHtml(f.path)} <span style="font-weight:normal;color:var(--muted);font-size:0.72rem">${f.is_new ? 'new' : 'amendment'}</span>
+            </summary>
+            <pre style="padding:12px;margin:0;font-size:0.75rem;overflow-x:auto;background:var(--bg);border-top:1px solid var(--border)">${escapeHtml(f.content)}</pre>
+          </details>`;
+        });
+        preview.innerHTML = html || '<div style="color:var(--muted)">No files generated.</div>';
+      } catch (e) { preview.innerHTML = '<div style="color:var(--error)">Error: ' + escapeHtml(e.message) + '</div>'; }
+    }
+
+    async function loadInceptionIdeationFacts() {
+      try {
+        const r = await fetch('/api/inception/ideation-facts');
+        const data = await r.json();
+        if (data.ok && data.facts && data.facts.length > 0) {
+          let msg = 'Ideation Facts (' + data.facts.length + '):\n\n';
+          data.facts.forEach(f => { msg += '- [' + f.type + '] ' + f.title + '\n'; });
+          alert(msg);
+        } else {
+          alert('No ideation facts yet. The guide agent is still working.');
+        }
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function approveInception() {
+      try {
+        const r = await fetch('/api/inception/approve', { method: 'POST' });
+        const data = await r.json();
+        if (data.ok) { _inceptionState.phase = 'complete'; renderInception(); }
+        else alert(data.error || 'Failed to approve');
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function resetInception() {
+      try {
+        await fetch('/api/inception/reset', { method: 'POST' });
+        _inceptionState = null;
+        renderInception();
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    // Load inception state on section navigate
+    const _origOcNavigate = typeof ocNavigate === 'function' ? ocNavigate : null;
+    document.addEventListener('DOMContentLoaded', () => {
+      loadInceptionState();
+    });
 
     // ── Debug section ──
     const DEBUG_REFRESH_MS = 10000;

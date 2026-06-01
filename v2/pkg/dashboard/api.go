@@ -117,6 +117,17 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("GET /api/hive-id", s.handleHiveIDGet)
 	s.mux.HandleFunc("PUT /api/hive-id", s.handleHiveIDSet)
 
+	s.mux.HandleFunc("POST /api/inception/start", s.handleInceptionStart)
+	s.mux.HandleFunc("POST /api/inception/scan", s.handleInceptionScan)
+	s.mux.HandleFunc("GET /api/inception/state", s.handleInceptionState)
+	s.mux.HandleFunc("POST /api/inception/questions", s.handleInceptionSetQuestions)
+	s.mux.HandleFunc("POST /api/inception/answer", s.handleInceptionAnswer)
+	s.mux.HandleFunc("POST /api/inception/facts", s.handleInceptionRecordFacts)
+	s.mux.HandleFunc("GET /api/inception/scaffold", s.handleInceptionScaffold)
+	s.mux.HandleFunc("POST /api/inception/approve", s.handleInceptionApprove)
+	s.mux.HandleFunc("POST /api/inception/reset", s.handleInceptionReset)
+	s.mux.HandleFunc("GET /api/inception/ideation-facts", s.handleInceptionIdeationFacts)
+
 	s.mux.HandleFunc("POST /api/chat", s.handleChat)
 
 	s.mux.HandleFunc("GET /api/nous/status", s.handleNousStatus)

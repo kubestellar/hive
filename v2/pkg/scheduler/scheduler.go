@@ -18,6 +18,7 @@ import (
 type Scheduler struct {
 	cfg            *config.Config
 	primer         *knowledge.Primer
+	inception      *knowledge.InceptionEngine
 	lastActionable *github.ActionableResult
 	logger         *slog.Logger
 }
@@ -38,6 +39,17 @@ func (s *Scheduler) SetPrimer(p *knowledge.Primer) {
 // GetPrimer returns the attached primer, or nil if none is set.
 func (s *Scheduler) GetPrimer() *knowledge.Primer {
 	return s.primer
+}
+
+// SetInception attaches an inception engine so kick templates can inject
+// ideation state via ${INCEPTION_*} variables.
+func (s *Scheduler) SetInception(ie *knowledge.InceptionEngine) {
+	s.inception = ie
+}
+
+// GetInception returns the attached inception engine, or nil if none is set.
+func (s *Scheduler) GetInception() *knowledge.InceptionEngine {
+	return s.inception
 }
 
 // SetLastActionable caches the latest actionable result so manual kicks
@@ -125,6 +137,8 @@ func (s *Scheduler) substituteTemplate(template string, actionable *github.Actio
 	}
 	knowledgeSection := s.primeKnowledge(agentIssues)
 
+	inceptionIdea, inceptionPhase, inceptionMode, inceptionAnswers, inceptionSlug, inceptionRepoURL := s.inceptionVars()
+
 	replacer := strings.NewReplacer(
 		"${AGENT_NAME}", agentName,
 		"${AGENT_DISPLAY_NAME}", displayName,
@@ -149,6 +163,12 @@ func (s *Scheduler) substituteTemplate(template string, actionable *github.Actio
 		"${AGENT_ROLES}", agentRoles,
 		"${ENABLED_AGENTS}", agentList,
 		"${KNOWLEDGE}", knowledgeSection,
+		"${INCEPTION_IDEA}", inceptionIdea,
+		"${INCEPTION_PHASE}", inceptionPhase,
+		"${INCEPTION_MODE}", inceptionMode,
+		"${INCEPTION_ANSWERS}", inceptionAnswers,
+		"${INCEPTION_SLUG}", inceptionSlug,
+		"${INCEPTION_REPO_URL}", inceptionRepoURL,
 	)
 	return replacer.Replace(template)
 }
@@ -757,4 +777,33 @@ var noiseLabels = map[string]bool{
 
 func isNoiseLabel(label string) bool {
 	return noiseLabels[label]
+}
+
+// inceptionVars extracts template variable values from the inception engine.
+// Returns empty strings when no inception is active — templates render cleanly.
+func (s *Scheduler) inceptionVars() (idea, phase, mode, answers, slug, repoURL string) {
+	if s.inception == nil {
+		return
+	}
+	state := s.inception.GetState()
+	if state == nil {
+		return
+	}
+	phase = string(state.Phase)
+	mode = string(state.Mode)
+	slug = state.IdeaSlug
+	repoURL = state.RepoURL
+	answers = s.inception.FormatAnswersForPrompt()
+
+	// For greenfield, the idea is stored as the first fact slug's title.
+	// For brownfield, use the repo URL as the "idea".
+	if state.Mode == knowledge.InceptionGreenfield {
+		ctx := context.Background()
+		if fact, err := s.inception.ReadIdeaFact(ctx); err == nil && fact != nil {
+			idea = fact.Body
+		}
+	} else {
+		idea = state.RepoURL
+	}
+	return
 }

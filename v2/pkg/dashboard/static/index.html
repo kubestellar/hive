@@ -5932,7 +5932,7 @@ function burnAreaChart() {
             <div style="font-size:0.82rem;font-weight:600">Brainstorm agent working</div>
             <div style="font-size:0.72rem;color:var(--muted);margin-left:auto">Phase: ${phase}</div>
           </div>
-          <div id="inception-activity" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.75rem;height:calc(100vh - 280px);overflow-y:auto;white-space:pre-wrap;color:var(--muted)">Waiting for brainstorm agent...</div>
+          <div id="inception-activity" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.75rem;min-height:200px;max-height:calc(100vh - 280px);overflow-y:auto;white-space:pre-wrap;color:var(--muted)">Waiting for brainstorm agent...</div>
           <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
             <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Cancel</button>
           </div>
@@ -5959,7 +5959,7 @@ function burnAreaChart() {
         const el = document.getElementById('inception-activity');
         if (!el) { stopInceptionPoll(); return; }
         const MAX_ACTIVITY_LINES = 50;
-        const display = lines.slice(-MAX_ACTIVITY_LINES).map(l => escapeHtml(l)).join('\n');
+        const display = lines.slice(-MAX_ACTIVITY_LINES).join('\n');
         el.textContent = display || 'Waiting for brainstorm agent...';
         el.scrollTop = el.scrollHeight;
       } catch (e) { /* ignore poll errors */ }

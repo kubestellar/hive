@@ -857,7 +857,13 @@ func (c *Config) Save() error {
 	dir := filepath.Dir(c.SourcePath)
 	tmp, err := os.CreateTemp(dir, ".hive-yaml-*.tmp")
 	if err != nil {
-		return fmt.Errorf("creating temp config file: %w", err)
+		// Directory may not be writable (e.g. bind-mounted config file in a
+		// container where only the file itself is rw). Fall back to writing
+		// the file directly — less atomic but still correct.
+		if writeErr := os.WriteFile(c.SourcePath, data, 0o644); writeErr != nil {
+			return fmt.Errorf("writing config (direct fallback): %w", writeErr)
+		}
+		return nil
 	}
 	tmpPath := tmp.Name()
 

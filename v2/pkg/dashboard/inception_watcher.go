@@ -33,6 +33,7 @@ type InceptionWatcher struct {
 
 	lastQuestionCount int
 	lastFactCount     int
+	lastSlug          string
 }
 
 // NewInceptionWatcher creates a watcher that polls the brainstorm bead store.
@@ -84,7 +85,14 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 	if state == nil {
 		w.lastQuestionCount = 0
 		w.lastFactCount = 0
+		w.lastSlug = ""
 		return
+	}
+
+	if state.IdeaSlug != w.lastSlug {
+		w.lastQuestionCount = 0
+		w.lastFactCount = 0
+		w.lastSlug = state.IdeaSlug
 	}
 
 	inceptionBeads := w.findInceptionBeads()

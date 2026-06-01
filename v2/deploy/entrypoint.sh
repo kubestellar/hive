@@ -63,24 +63,18 @@ if [ "$(id -u)" = "0" ]; then
   # setgid on .copilot so new files inherit group node (agents share this dir)
   chmod g+s /data/home/.copilot 2>/dev/null || true
   chown -R dev:node /data/config /data/home /home/dev/.config 2>/dev/null || true
+  # Default ACL: force group rw on every file copilot creates in .copilot/.
+  # Copilot CLI rewrites config.json with 0600 on every token refresh,
+  # locking out other agent UIDs. The default ACL overrides the app's mode
+  # at the kernel level — no race condition, no polling needed.
+  if command -v setfacl >/dev/null 2>&1; then
+    setfacl -d -m g::rw /data/home/.copilot 2>/dev/null && \
+      echo "[entrypoint] ACL: default g::rw on /data/home/.copilot" || \
+      echo "[entrypoint] WARN: setfacl failed on /data/home/.copilot"
+  else
+    echo "[entrypoint] WARN: setfacl not found, config.json perm fix unavailable"
+  fi
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
-
-  # Background watchdog: copilot CLI recreates config.json with 600 perms on
-  # token refresh, locking out other agent UIDs. This loop resets ownership
-  # and permissions every 30s so all agents can read the shared token.
-  COPILOT_PERM_INTERVAL_S=30
-  (
-    while true; do
-      sleep "$COPILOT_PERM_INTERVAL_S"
-      if [[ -f /data/home/.copilot/config.json ]]; then
-        current_perms=$(stat -c '%a' /data/home/.copilot/config.json 2>/dev/null)
-        if [[ "$current_perms" != "660" ]]; then
-          chown dev:node /data/home/.copilot/config.json 2>/dev/null
-          chmod 660 /data/home/.copilot/config.json 2>/dev/null
-        fi
-      fi
-    done
-  ) &
 
   # ── Per-agent UID isolation ──────────────────────────────────────────
   # Extract agent names from config + pack YAML, create system users,

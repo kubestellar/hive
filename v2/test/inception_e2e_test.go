@@ -157,25 +157,29 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		}
 	}
 
-	// Step 4: Submit answers (use defaults)
+	// Step 4: Submit answers (use defaults) — skip if already past clarify
 	result.Phase = "clarify"
 	result.Check = "submit_answers"
-	answers := make(map[string]string)
-	for _, q := range questions {
-		qm := q.(map[string]interface{})
-		id := qm["id"].(string)
-		def, _ := qm["default"].(string)
-		if def == "" {
-			def = "default answer for " + id
+	if currentPhase, _ := state["phase"].(string); phaseIndex(currentPhase) >= phaseIndex("structure") {
+		t.Logf("Pass %d: skipping answer submit — already at phase %s", pass, currentPhase)
+	} else {
+		answers := make(map[string]string)
+		for _, q := range questions {
+			qm := q.(map[string]interface{})
+			id := qm["id"].(string)
+			def, _ := qm["default"].(string)
+			if def == "" {
+				def = "default answer for " + id
+			}
+			answers[id] = def
 		}
-		answers[id] = def
-	}
-	data, code, err = client.post("/api/inception/answer", map[string]interface{}{"answers": answers})
-	if err != nil {
-		return fail(result, "api_error", fmt.Sprintf("answer failed: %v", err))
-	}
-	if code != 200 {
-		return fail(result, "api_error", fmt.Sprintf("answer returned %d: %v", code, data))
+		data, code, err = client.post("/api/inception/answer", map[string]interface{}{"answers": answers})
+		if err != nil {
+			return fail(result, "api_error", fmt.Sprintf("answer failed: %v", err))
+		}
+		if code != 200 {
+			return fail(result, "api_error", fmt.Sprintf("answer returned %d: %v", code, data))
+		}
 	}
 
 	// Step 5: Wait for scaffold phase (bead watcher detects fact beads)

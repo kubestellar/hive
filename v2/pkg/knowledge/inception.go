@@ -155,12 +155,17 @@ func (e *InceptionEngine) SubmitAnswers(answers map[string]string) (*InceptionSt
 	if e.state == nil {
 		return nil, fmt.Errorf("no inception in progress")
 	}
-	if e.state.Phase != PhaseClarify {
+	// Accept answers in clarify or structure phase — the brainstorm agent
+	// can advance past clarify before the user submits, but the answers
+	// are still valuable context for the next kick.
+	if e.state.Phase != PhaseClarify && e.state.Phase != PhaseStructure {
 		return nil, fmt.Errorf("cannot submit answers in phase %s", e.state.Phase)
 	}
 
 	e.state.Answers = answers
-	e.state.Phase = PhaseStructure
+	if e.state.Phase == PhaseClarify {
+		e.state.Phase = PhaseStructure
+	}
 
 	if err := e.saveState(); err != nil {
 		return nil, fmt.Errorf("persisting state: %w", err)

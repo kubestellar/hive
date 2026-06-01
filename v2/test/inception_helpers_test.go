@@ -100,7 +100,19 @@ func (c *apiClient) inceptionState() (map[string]interface{}, error) {
 	return state, nil
 }
 
+var phaseOrder = []string{"capture", "clarify", "structure", "scaffold", "complete"}
+
+func phaseIndex(phase string) int {
+	for i, p := range phaseOrder {
+		if p == phase {
+			return i
+		}
+	}
+	return -1
+}
+
 func (c *apiClient) waitForPhase(phase string, timeout time.Duration) (map[string]interface{}, error) {
+	targetIdx := phaseIndex(phase)
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		state, err := c.inceptionState()
@@ -108,8 +120,12 @@ func (c *apiClient) waitForPhase(phase string, timeout time.Duration) (map[strin
 			time.Sleep(2 * time.Second)
 			continue
 		}
-		if state != nil && state["phase"] == phase {
-			return state, nil
+		if state != nil {
+			currentPhase, _ := state["phase"].(string)
+			currentIdx := phaseIndex(currentPhase)
+			if currentIdx >= targetIdx {
+				return state, nil
+			}
 		}
 		time.Sleep(3 * time.Second)
 	}

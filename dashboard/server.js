@@ -3021,6 +3021,148 @@ app.get('/api/contribute/status', (_req, res) => {
   });
 });
 
+// ── Hive Federation: Project onboarding & discovery ─────────────────────────
+const HIVE_REGISTRY_DIR = '/etc/hive/federation';
+const HIVE_REGISTRY_FILE = path.join(HIVE_REGISTRY_DIR, 'registry.json');
+
+function loadHiveRegistry() {
+  try { return JSON.parse(fs.readFileSync(HIVE_REGISTRY_FILE, 'utf8')); }
+  catch (_) { return { hives: [] }; }
+}
+
+function saveHiveRegistry(data) {
+  try {
+    if (!fs.existsSync(HIVE_REGISTRY_DIR)) {
+      execSync(`sudo mkdir -p ${shellQuote(HIVE_REGISTRY_DIR)} && sudo chown dev:dev ${shellQuote(HIVE_REGISTRY_DIR)}`);
+    }
+    fs.writeFileSync(HIVE_REGISTRY_FILE, JSON.stringify(data, null, 2));
+  } catch (e) { console.error('Failed to save registry:', e.message); }
+}
+
+app.get('/api/hives', (_req, res) => {
+  const registry = loadHiveRegistry();
+  const thisHive = {
+    id: `hive-${(projectConfig.project || {}).name || 'unknown'}`,
+    project_name: PROJECT_NAME,
+    org: PROJECT_ORG,
+    primary_repo: PROJECT_PRIMARY_REPO,
+    hub_url: `wss://${process.env.HIVE_PUBLIC_HOST || 'localhost'}:${PORT}/contribute`,
+    dashboard_url: `https://${process.env.HIVE_PUBLIC_HOST || 'localhost'}:${PORT}`,
+    active_contributors: contributorConnections.size,
+    active_agents: ENABLED_AGENTS.length,
+    actionable_items: ((actionableCache.issues || {}).items || []).length,
+    registered_at: (projectConfig.project || {}).registered_at || null,
+  };
+  const hives = [thisHive, ...(registry.hives || [])];
+  res.json({ hives });
+});
+
+app.post('/api/hives/register', (req, res) => {
+  const { project_name, org, repos, hub_url, dashboard_url, contact_email } = req.body;
+  if (!project_name || !org || !hub_url) {
+    return res.status(400).json({ error: 'project_name, org, and hub_url are required' });
+  }
+  const registry = loadHiveRegistry();
+  const existing = (registry.hives || []).find(h => h.org === org && h.project_name === project_name);
+  if (existing) {
+    Object.assign(existing, { repos, hub_url, dashboard_url, contact_email, updated_at: new Date().toISOString() });
+  } else {
+    const hiveId = `hive-${org}-${project_name}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    registry.hives = registry.hives || [];
+    registry.hives.push({
+      id: hiveId,
+      project_name,
+      org,
+      repos: repos || [],
+      hub_url,
+      dashboard_url: dashboard_url || '',
+      contact_email: contact_email || '',
+      registered_at: new Date().toISOString(),
+      active_contributors: 0,
+      active_agents: 0,
+    });
+  }
+  saveHiveRegistry(registry);
+  res.json({ ok: true, message: `Hive registered for ${org}/${project_name}` });
+});
+
+app.delete('/api/hives/:id', (req, res) => {
+  const registry = loadHiveRegistry();
+  const idx = (registry.hives || []).findIndex(h => h.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Hive not found' });
+  registry.hives.splice(idx, 1);
+  saveHiveRegistry(registry);
+  res.json({ ok: true });
+});
+
+// Project onboarding — generate a starter hive-project.yaml
+app.post('/api/hives/onboard', (req, res) => {
+  const { project_name, org, repos, github_app_id, github_app_installation_id } = req.body;
+  if (!project_name || !org || !repos || !repos.length) {
+    return res.status(400).json({ error: 'project_name, org, and repos[] are required' });
+  }
+  const config = {
+    project: {
+      name: project_name,
+      org,
+      primary_repo: repos[0],
+      repos,
+    },
+    agents: {
+      enabled: ['scanner', 'supervisor'],
+    },
+    dashboard: {
+      title: `${project_name} Hive`,
+      port: 3001,
+    },
+    github_app: {
+      app_id: github_app_id || 'YOUR_APP_ID',
+      installation_id: github_app_installation_id || 'YOUR_INSTALLATION_ID',
+    },
+  };
+
+  const yamlContent = yaml
+    ? yaml.dump(config, { lineWidth: 120 })
+    : JSON.stringify(config, null, 2);
+
+  const dockerCompose = `# Docker Compose for ${project_name} Hive
+# 1. Save this as compose.yaml
+# 2. Create /etc/hive/hive-project.yaml with the config below
+# 3. Place your GitHub App private key at /etc/hive/gh-app-key.pem
+# 4. Run: docker compose up -d
+
+services:
+  hive:
+    image: ghcr.io/kubestellar/hive:latest
+    container_name: ${project_name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-hive
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - hive-data:/data
+      - /etc/hive:/etc/hive:ro
+    environment:
+      - HIVE_PUBLIC_HOST=your-server.example.com
+
+volumes:
+  hive-data:
+`;
+
+  res.json({
+    hive_project_yaml: yamlContent,
+    docker_compose_yaml: dockerCompose,
+    next_steps: [
+      '1. Install the Hive GitHub App on your org: https://github.com/apps/kubestellar-hive-bot',
+      '2. Note the App ID and Installation ID from the app settings',
+      '3. Save the private key as /etc/hive/gh-app-key.pem on your server',
+      '4. Save the hive-project.yaml as /etc/hive/hive-project.yaml',
+      '5. Save the docker-compose.yaml and run: docker compose up -d',
+      '6. Register your hive: curl -X POST https://hive.kubestellar.io/api/hives/register -d \'{"project_name":"...", "org":"...", "hub_url":"wss://your-server:3001/contribute"}\'',
+      '7. Contributors can now find your hive at https://hive.kubestellar.io and run: just contribute-hive',
+    ],
+  });
+});
+
 // WebSocket server for contributor agents
 const server = app.listen(PORT, () => {
   console.log(`🐝 Hive Dashboard running at http://localhost:${PORT}`);

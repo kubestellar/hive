@@ -85,6 +85,15 @@ contribute-status:
       curl -sf "${HUB_HTTP}/api/contributors/${CONTRIBUTOR_ID}" 2>/dev/null | jq . || echo "Could not fetch profile"
     fi
 
+# Browse available Hive projects to contribute to
+contribute-browse:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    HUB_HTTP=$(echo "{{hive_hub}}" | sed 's|^wss://|https://|;s|^ws://|http://|;s|/contribute$||')
+    echo "=== Available Hives ==="
+    echo ""
+    curl -sf "${HUB_HTTP}/api/hives" 2>/dev/null | jq -r '.hives[] | "  \(.project_name) (\(.org))\n    Hub: \(.hub_url)\n    Dashboard: \(.dashboard_url // "N/A")\n    Contributors: \(.active_contributors // 0) active\n    Actionable: \(.actionable_items // "?") items\n"' || echo "Could not reach registry at ${HUB_HTTP}"
+
 # Stop contributing (if running in background)
 contribute-stop:
     @docker stop hive-contributor 2>/dev/null && echo "Stopped." || echo "Not running."

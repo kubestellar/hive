@@ -92,6 +92,9 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 	if state.IdeaSlug != w.lastSlug {
 		w.lastQuestionCount = 0
 		w.lastFactCount = 0
+		if w.lastSlug != "" {
+			w.reapOldInceptionBeads(state.StartedAt)
+		}
 		w.lastSlug = state.IdeaSlug
 	}
 
@@ -105,6 +108,30 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.checkForQuestions(inceptionBeads)
 	case knowledge.PhaseStructure:
 		w.checkForFacts(ctx, inceptionBeads)
+	}
+}
+
+func (w *InceptionWatcher) reapOldInceptionBeads(beforeTime time.Time) {
+	open := beads.StatusOpen
+	actor := "brainstorm"
+	all := w.beadStore.List(beads.ListFilter{
+		Status: &open,
+		Actor:  &actor,
+	})
+
+	reaped := 0
+	for _, b := range all {
+		if !strings.HasPrefix(b.ExternalRef, inceptionBeadRefPrefix) {
+			continue
+		}
+		if b.CreatedAt.Before(beforeTime) {
+			if err := w.beadStore.Close(b.ID); err == nil {
+				reaped++
+			}
+		}
+	}
+	if reaped > 0 {
+		w.logger.Info("inception watcher: reaped old inception beads", "count", reaped)
 	}
 }
 
@@ -139,7 +166,12 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 	for _, b := range inceptionBeads {
 		cat := b.Metadata["category"]
 		if cat == "" {
-			continue
+			// Detect question beads by title prefix when metadata is missing
+			if strings.HasPrefix(b.Title, "Clarification:") || strings.HasPrefix(b.Title, "clarification:") {
+				cat = "general"
+			} else {
+				continue
+			}
 		}
 		qID := b.Metadata["question_id"]
 		if qID == "" {

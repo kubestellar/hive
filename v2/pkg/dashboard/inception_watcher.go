@@ -135,6 +135,28 @@ func (w *InceptionWatcher) reapOldInceptionBeads(beforeTime time.Time) {
 	}
 }
 
+func inferFactType(title string) string {
+	lower := strings.ToLower(title)
+	if strings.HasPrefix(lower, "clarification:") {
+		return ""
+	}
+	switch {
+	case strings.Contains(lower, "vision") || strings.Contains(lower, "purpose") || strings.Contains(lower, "project goal"):
+		return "vision"
+	case strings.Contains(lower, "constitution") || strings.Contains(lower, "principles") || strings.Contains(lower, "code style") || strings.Contains(lower, "architecture"):
+		return "constitution"
+	case strings.Contains(lower, "requirement") || strings.Contains(lower, "must") || strings.Contains(lower, "feature"):
+		return "requirement"
+	case strings.Contains(lower, "constraint") || strings.Contains(lower, "boundary") || strings.Contains(lower, "limitation") || strings.Contains(lower, "must not"):
+		return "constraint"
+	case strings.Contains(lower, "stakeholder") || strings.Contains(lower, "user") || strings.Contains(lower, "audience"):
+		return "stakeholder"
+	case strings.Contains(lower, "acceptance") || strings.Contains(lower, "success") || strings.Contains(lower, "criteria") || strings.Contains(lower, "test"):
+		return "acceptance"
+	}
+	return "requirement"
+}
+
 func (w *InceptionWatcher) findInceptionBeads() []*beads.Bead {
 	state := w.inception.GetState()
 	if state == nil {
@@ -213,7 +235,11 @@ func (w *InceptionWatcher) checkForFacts(ctx context.Context, inceptionBeads []*
 	for _, b := range inceptionBeads {
 		factType := b.Metadata["fact_type"]
 		if factType == "" {
-			continue
+			// Infer fact type from title when metadata is missing
+			factType = inferFactType(b.Title)
+			if factType == "" {
+				continue
+			}
 		}
 
 		body := b.Metadata["fact_body"]

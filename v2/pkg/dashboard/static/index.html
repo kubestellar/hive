@@ -6071,6 +6071,8 @@ function burnAreaChart() {
     }
 
     let _inceptionPollTimer = null;
+    let _inceptionLogBuffer = [];
+    let _inceptionLastPaneSnapshot = '';
 
     function renderInceptionWorking() {
       const idea = escapeHtml(_inceptionState.idea_text || '');
@@ -6095,6 +6097,8 @@ function burnAreaChart() {
 
     function startInceptionPoll() {
       stopInceptionPoll();
+      _inceptionLogBuffer = [];
+      _inceptionLastPaneSnapshot = '';
       pollInceptionActivity();
       const INCEPTION_POLL_INTERVAL_MS = 3000;
       _inceptionPollTimer = setInterval(pollInceptionActivity, INCEPTION_POLL_INTERVAL_MS);
@@ -6102,6 +6106,17 @@ function burnAreaChart() {
 
     function stopInceptionPoll() {
       if (_inceptionPollTimer) { clearInterval(_inceptionPollTimer); _inceptionPollTimer = null; }
+    }
+
+    function findOverlapIndex(buffer, newLines) {
+      if (buffer.length === 0 || newLines.length === 0) return -1;
+      const lastBufferLine = buffer[buffer.length - 1];
+      for (let i = 0; i < newLines.length; i++) {
+        if (newLines[i] === lastBufferLine) {
+          return i + 1;
+        }
+      }
+      return -1;
     }
 
     async function pollInceptionActivity() {
@@ -6112,11 +6127,29 @@ function burnAreaChart() {
         const lines = data.lines || [];
         const el = document.getElementById('inception-activity');
         if (!el) { stopInceptionPoll(); return; }
-        const LINE_HEIGHT_PX = 15;
-        const PADDING_PX = 32;
-        const visibleLines = Math.max(10, Math.floor((el.clientHeight - PADDING_PX) / LINE_HEIGHT_PX));
-        const display = lines.slice(-visibleLines).join('\n');
-        el.textContent = display || 'Waiting for brainstorm agent...';
+
+        const currentSnapshot = lines.join('\n');
+        if (currentSnapshot !== _inceptionLastPaneSnapshot && lines.length > 0) {
+          const overlapStart = findOverlapIndex(_inceptionLogBuffer, lines);
+          if (overlapStart >= 0) {
+            const newLines = lines.slice(overlapStart);
+            if (newLines.length > 0 && newLines.join('\n') !== lines.join('\n')) {
+              _inceptionLogBuffer.push(...newLines);
+            } else if (_inceptionLogBuffer.length === 0) {
+              _inceptionLogBuffer.push(...lines);
+            }
+          } else {
+            _inceptionLogBuffer.push(...lines);
+          }
+          _inceptionLastPaneSnapshot = currentSnapshot;
+        }
+
+        const MAX_BUFFER_LINES = 500;
+        if (_inceptionLogBuffer.length > MAX_BUFFER_LINES) {
+          _inceptionLogBuffer = _inceptionLogBuffer.slice(-MAX_BUFFER_LINES);
+        }
+
+        el.textContent = _inceptionLogBuffer.join('\n') || 'Waiting for brainstorm agent...';
         el.scrollTop = el.scrollHeight;
       } catch (e) { /* ignore poll errors */ }
 

@@ -239,6 +239,21 @@ func main() {
 		policyDir = policyDir + "/" + cfg.Policies.Path
 	}
 
+	// Write brainstorm policy to disk so the agent can find it.
+	// The policy is embedded in the binary but the agent searches the filesystem.
+	brainstormPolicyDir := policyDir
+	if brainstormPolicyDir == "" {
+		brainstormPolicyDir = "/data/policies/examples/kubestellar/agents"
+	}
+	os.MkdirAll(brainstormPolicyDir, 0o755)
+	if policyData, err := policies.DefaultPolicies.ReadFile("defaults/brainstorm-advisory.md"); err == nil {
+		policyPath := filepath.Join(brainstormPolicyDir, "brainstorm-advisory.md")
+		if _, statErr := os.Stat(policyPath); os.IsNotExist(statErr) {
+			os.WriteFile(policyPath, policyData, 0o644)
+			logger.Info("wrote brainstorm policy to disk", "path", policyPath)
+		}
+	}
+
 	projectCtx := agent.ProjectContext{
 		Org:        cfg.Project.Org,
 		Repos:      cfg.Project.Repos,

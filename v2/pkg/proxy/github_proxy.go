@@ -207,10 +207,6 @@ func (p *GitHubProxy) handleTransparentTLS(conn net.Conn, peeked []byte) {
 	}
 
 	mode := readAgentMode(agentName)
-	if mode == agent.ModeNoGitHub {
-		p.recordViolation(agentName, "TRANSPARENT", host)
-		return
-	}
 
 	// MITM: forge a cert, TLS-wrap the client, connect to real upstream.
 	tlsCert, err := p.forgeCert(host)
@@ -392,13 +388,7 @@ func (p *GitHubProxy) handleConnectDirect(conn net.Conn, r *http.Request) {
 		return
 	}
 
-	// NO_GITHUB mode: block the connection entirely.
 	mode := readAgentMode(agentName)
-	if mode == agent.ModeNoGitHub {
-		p.recordViolation(agentName, "CONNECT", r.Host)
-		fmt.Fprintf(conn, "HTTP/1.1 403 Forbidden\r\n\r\nblocked by ACMM proxy: NO_GITHUB mode\n")
-		return
-	}
 
 	// Tell client the tunnel is established.
 	if _, err := fmt.Fprintf(conn, "HTTP/1.1 200 Connection established\r\n\r\n"); err != nil {

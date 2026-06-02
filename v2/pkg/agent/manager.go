@@ -716,8 +716,6 @@ func (m *Manager) buildProjectPreamble(agent *AgentProcess) string {
 		prPolicy = "PRs NOT allowed (project-wide)."
 	} else {
 		switch mode {
-		case ModeNoGitHub:
-			prPolicy = "\U0001F507 NO GitHub interaction. Internal coordination only."
 		case ModeAdvisory:
 			prPolicy = "\U0001F4DD Advisory only — beads, no issues/PRs."
 		case ModeIssuesOnly:

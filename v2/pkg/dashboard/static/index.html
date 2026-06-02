@@ -6534,7 +6534,7 @@ function burnAreaChart() {
     document.getElementById('logs-agent-select')?.addEventListener('change', () => { _logsData = {}; fetchAgentLogs(); });
     setInterval(fetchAgentLogs, LOGS_REFRESH_MS);
 
-    const MODE_EMOJIS = {'NO_GITHUB':'🔇','ADVISORY':'📝','ISSUES_ONLY':'🎫','ISSUES_AND_PRS':'🔧','ISSUES_PRS_MERGE':'🚀'};
+    const MODE_EMOJIS = {'ADVISORY':'📝','ISSUES_ONLY':'🎫','ISSUES_AND_PRS':'🔧','ISSUES_PRS_MERGE':'🚀'};
     function modeEmoji(mode) { return MODE_EMOJIS[mode] || ''; }
     function modeLabel(a) {
       if (!a.mode) return '—';
@@ -7447,9 +7447,9 @@ function burnAreaChart() {
           </div>
         </div>
         <div class="config-field">
-          <label>Operating Mode <span class="config-info">i<span class="config-tooltip">Controls what GitHub actions this agent can take. NO_GITHUB: internal only. ADVISORY: beads only. ISSUES_ONLY: open issues, no PRs. ISSUES_AND_PRS: issues + PRs. ISSUES_PRS_MERGE: full auto-merge. Leave blank to use the ACMM level default.</span></span></label>
+          <label>Operating Mode <span class="config-info">i<span class="config-tooltip">Controls what GitHub actions this agent can take. ADVISORY: beads only. ISSUES_ONLY: open issues, no PRs. ISSUES_AND_PRS: issues + PRs. ISSUES_PRS_MERGE: full auto-merge. Leave blank to use the ACMM level default.</span></span></label>
           ${(() => {
-            const allModes = ['NO_GITHUB','ADVISORY','ISSUES_ONLY','ISSUES_AND_PRS','ISSUES_PRS_MERGE'];
+            const allModes = ['ADVISORY','ISSUES_ONLY','ISSUES_AND_PRS','ISSUES_PRS_MERGE'];
             const statusAgent = ((window._lastStatus || {}).agents || []).find(sa => sa.name === agentName);
             const dflt = statusAgent ? statusAgent.defaultMode : '';
             const current = g.mode || '';

@@ -7,7 +7,6 @@ func TestAgentModeString(t *testing.T) {
 		mode AgentMode
 		want string
 	}{
-		{ModeNoGitHub, "NO_GITHUB"},
 		{ModeAdvisory, "ADVISORY"},
 		{ModeIssuesOnly, "ISSUES_ONLY"},
 		{ModeIssuesAndPRs, "ISSUES_AND_PRS"},
@@ -26,7 +25,6 @@ func TestAgentModeEmoji(t *testing.T) {
 		mode AgentMode
 		want string
 	}{
-		{ModeNoGitHub, "\U0001F507"},
 		{ModeAdvisory, "\U0001F4DD"},
 		{ModeIssuesOnly, "\U0001F3AB"},
 		{ModeIssuesAndPRs, "\U0001F527"},
@@ -45,7 +43,6 @@ func TestAgentModeSuffix(t *testing.T) {
 		mode AgentMode
 		want string
 	}{
-		{ModeNoGitHub, "-nogithub"},
 		{ModeAdvisory, "-advisory"},
 		{ModeIssuesOnly, "-issues"},
 		{ModeIssuesAndPRs, "-holdgated"},
@@ -71,7 +68,6 @@ func TestSuffixForLevel(t *testing.T) {
 		{ModeAdvisory, 3, "-advisory"},
 		{ModeIssuesOnly, 4, "-issues"},
 		{ModeIssuesPRsMerge, 6, "-automerge"},
-		{ModeNoGitHub, 1, "-nogithub"},
 	}
 	for _, tt := range tests {
 		if got := tt.mode.SuffixForLevel(tt.level); got != tt.want {
@@ -82,14 +78,13 @@ func TestSuffixForLevel(t *testing.T) {
 
 func TestAgentModeCapabilities(t *testing.T) {
 	tests := []struct {
-		mode         AgentMode
-		canIssues    bool
-		canPRs       bool
-		canMerge     bool
-		canPush      bool
-		needsMCP     bool
+		mode      AgentMode
+		canIssues bool
+		canPRs    bool
+		canMerge  bool
+		canPush   bool
+		needsMCP  bool
 	}{
-		{ModeNoGitHub, false, false, false, false, false},
 		{ModeAdvisory, false, false, false, false, false},
 		{ModeIssuesOnly, true, false, false, false, true},
 		{ModeIssuesAndPRs, true, true, false, true, true},
@@ -120,11 +115,11 @@ func TestParseAgentMode(t *testing.T) {
 		want  AgentMode
 		ok    bool
 	}{
-		{"NO_GITHUB", ModeNoGitHub, true},
 		{"ADVISORY", ModeAdvisory, true},
 		{"ISSUES_ONLY", ModeIssuesOnly, true},
 		{"ISSUES_AND_PRS", ModeIssuesAndPRs, true},
 		{"ISSUES_PRS_MERGE", ModeIssuesPRsMerge, true},
+		{"NO_GITHUB", ModeAdvisory, true}, // legacy alias
 		{"invalid", ModeAdvisory, false},
 		{"", ModeAdvisory, false},
 	}

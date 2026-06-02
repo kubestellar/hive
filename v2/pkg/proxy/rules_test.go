@@ -14,12 +14,6 @@ func TestAllowedByMode(t *testing.T) {
 		path   string
 		want   bool
 	}{
-		// ── NO_GITHUB: everything blocked ──
-		{"no-github blocks GET", agent.ModeNoGitHub, "GET", "/repos/org/repo/issues", false},
-		{"no-github blocks POST issues", agent.ModeNoGitHub, "POST", "/repos/org/repo/issues", false},
-		{"no-github blocks POST pulls", agent.ModeNoGitHub, "POST", "/repos/org/repo/pulls", false},
-		{"no-github blocks PUT merge", agent.ModeNoGitHub, "PUT", "/repos/org/repo/pulls/42/merge", false},
-
 		// ── ADVISORY: read-only ──
 		{"advisory allows GET issues", agent.ModeAdvisory, "GET", "/repos/org/repo/issues", true},
 		{"advisory allows GET pulls", agent.ModeAdvisory, "GET", "/repos/org/repo/pulls", true},
@@ -90,8 +84,6 @@ func TestGraphQLAllowed(t *testing.T) {
 		{"advisory blocks mutation", agent.ModeAdvisory, `{"query":"mutation { createIssue(input:{repositoryId:\"R_1\",title:\"test\"}) { issue { id } } }"}`, false, true},
 		{"issues-only allows mutation", agent.ModeIssuesOnly, `{"query":"mutation { createIssue(input:{repositoryId:\"R_1\",title:\"test\"}) { issue { id } } }"}`, true, true},
 		{"issues-and-prs allows mutation", agent.ModeIssuesAndPRs, `{"query":"mutation { createIssue(input:{}) { issue { id } } }"}`, true, true},
-		{"no-github blocks query", agent.ModeNoGitHub, `{"query":"query { viewer { login } }"}`, false, false},
-		{"no-github blocks mutation", agent.ModeNoGitHub, `{"query":"mutation { addStar(input:{}) { starrable { id } } }"}`, false, false},
 		{"advisory blocks malformed json", agent.ModeAdvisory, `not json`, false, false},
 		{"advisory allows empty query", agent.ModeAdvisory, `{"query":"{ viewer { login } }"}`, true, false},
 	}

@@ -363,11 +363,17 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		IsNew:   true,
 	})
 
-	// CI/CD
+	// CI/CD — multi-tiered: PR checks, nightly full suite
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    ".github/workflows/ci.yml",
 		Content: buildCIConfig(constitution),
 		Purpose: "ci",
+		IsNew:   true,
+	})
+	result.Files = append(result.Files, ScaffoldFile{
+		Path:    ".github/workflows/nightly.yml",
+		Content: buildNightlyCI(lang),
+		Purpose: "nightly_ci",
 		IsNew:   true,
 	})
 
@@ -430,6 +436,14 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		result.Files = append(result.Files, ScaffoldFile{
 			Path: "Dockerfile", Content: buildDockerfile(lang, projectName), Purpose: "dockerfile", IsNew: true,
 		})
+	}
+
+	if projectType == "ui" {
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "src/i18n/en.json", Content: buildI18nFile("en", projectName), Purpose: "i18n", IsNew: true},
+			ScaffoldFile{Path: "src/i18n/es.json", Content: buildI18nFile("es", projectName), Purpose: "i18n", IsNew: true},
+			ScaffoldFile{Path: "src/i18n/index.ts", Content: buildI18nIndex(), Purpose: "i18n", IsNew: true},
+		)
 	}
 
 	if projectType == "kubernetes" {
@@ -1183,6 +1197,11 @@ func inferProjectType(constitution *Fact, requirements []Fact, vision *Fact) str
 		strings.Contains(all, "helm") || strings.Contains(all, "crd") ||
 		strings.Contains(all, "kustomize") || strings.Contains(all, "namespace"):
 		return "kubernetes"
+	case strings.Contains(all, "dashboard") || strings.Contains(all, "frontend") ||
+		strings.Contains(all, "react") || strings.Contains(all, "vue") ||
+		strings.Contains(all, "web app") || strings.Contains(all, "ui component") ||
+		strings.Contains(all, "next.js") || strings.Contains(all, "vite"):
+		return "ui"
 	case strings.Contains(all, "docker") || strings.Contains(all, "container") ||
 		strings.Contains(all, "deploy") || strings.Contains(all, "service"):
 		return "container"
@@ -1373,6 +1392,91 @@ patches:
         path: /spec/replicas
         value: %d
 `, env, name, replicas)
+}
+
+func buildNightlyCI(lang string) string {
+	var testCmd string
+	switch lang {
+	case "go":
+		testCmd = "go test -race -cover -count=3 ./..."
+	case "python":
+		testCmd = "pytest --tb=long -v"
+	default:
+		testCmd = "npm test -- --reporter=verbose"
+	}
+	return fmt.Sprintf(`name: Nightly
+on:
+  schedule:
+    - cron: '0 4 * * *'  # 4am UTC daily
+  workflow_dispatch: {}
+
+jobs:
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Full test suite
+        run: %s
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-results
+          path: coverage*
+`, testCmd)
+}
+
+func buildI18nFile(locale, name string) string {
+	switch locale {
+	case "es":
+		return fmt.Sprintf(`{
+  "app.title": "%s",
+  "app.description": "Descripción del proyecto",
+  "common.save": "Guardar",
+  "common.cancel": "Cancelar",
+  "common.delete": "Eliminar",
+  "common.edit": "Editar",
+  "common.loading": "Cargando...",
+  "common.error": "Error",
+  "common.success": "Éxito",
+  "common.search": "Buscar"
+}
+`, name)
+	default:
+		return fmt.Sprintf(`{
+  "app.title": "%s",
+  "app.description": "Project description",
+  "common.save": "Save",
+  "common.cancel": "Cancel",
+  "common.delete": "Delete",
+  "common.edit": "Edit",
+  "common.loading": "Loading...",
+  "common.error": "Error",
+  "common.success": "Success",
+  "common.search": "Search"
+}
+`, name)
+	}
+}
+
+func buildI18nIndex() string {
+	return `import en from './en.json';
+import es from './es.json';
+
+export type Locale = 'en' | 'es';
+
+const messages: Record<Locale, Record<string, string>> = { en, es };
+
+let currentLocale: Locale = 'en';
+
+export function setLocale(locale: Locale): void {
+  currentLocale = locale;
+}
+
+export function t(key: string): string {
+  return messages[currentLocale]?.[key] ?? key;
+}
+`
 }
 
 func buildMakefile(lang, name string) string {

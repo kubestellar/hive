@@ -41,6 +41,7 @@ type PackAgent struct {
 	Hidden       bool     `json:"hidden,omitempty" yaml:"hidden"`
 	StaleTimeout int      `json:"staleTimeout,omitempty" yaml:"stale_timeout,omitempty"`
 	Mode         string   `json:"mode,omitempty" yaml:"mode,omitempty"`
+	OnDemand     bool     `json:"onDemand,omitempty" yaml:"on_demand,omitempty"`
 }
 
 // PackGovernor describes the governor configuration recommended for a level.

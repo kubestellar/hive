@@ -140,6 +140,7 @@ type AgentConfig struct {
 	StatsDisplay     []StatsDisplayEntry `yaml:"stats_display" json:"stats_display,omitempty"`
 	ACMMLevels       []int             `yaml:"acmm_levels" json:"acmm_levels,omitempty"`
 	Mode             string            `yaml:"mode" json:"mode,omitempty"`
+	OnDemand         bool              `yaml:"on_demand" json:"on_demand,omitempty"`
 
 	// Managed is true for agents loaded from the overlay directory (not base config).
 	Managed bool `yaml:"-" json:"managed"`

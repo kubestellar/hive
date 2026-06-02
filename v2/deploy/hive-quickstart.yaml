@@ -19,6 +19,21 @@ policies:
   poll_interval: 5m
 
 agents:
+  brainstorm:
+    id: brainstorm
+    backend: copilot
+    model: claude-sonnet-4-6
+    beads_dir: /data/beads/brainstorm
+    enabled: true
+    display_name: brainstorm
+    role: brainstorm
+    sort_order: 5
+    emoji: "\U0001F4A1"
+    color: "#f39c12"
+    kick_template: brainstorm-advisory.md
+    clear_on_kick: true
+    include_repos: false
+    bead_role: worker
   guide:
     id: guide
     backend: copilot

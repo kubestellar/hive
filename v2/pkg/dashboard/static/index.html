@@ -6072,6 +6072,25 @@ function burnAreaChart() {
     }
 
     let _inceptionPollTimer = null;
+    let _inceptionTailing = true;
+
+    function onInceptionScroll() {
+      const el = document.getElementById('inception-activity');
+      const btn = document.getElementById('inception-follow-btn');
+      if (!el) return;
+      const SCROLL_THRESHOLD = 40;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
+      _inceptionTailing = atBottom;
+      if (btn) btn.classList.toggle('visible', !atBottom);
+    }
+
+    function inceptionResumeTail() {
+      _inceptionTailing = true;
+      const el = document.getElementById('inception-activity');
+      if (el) el.scrollTop = el.scrollHeight;
+      const btn = document.getElementById('inception-follow-btn');
+      if (btn) btn.classList.remove('visible');
+    }
 
     function renderInceptionWorking() {
       const idea = escapeHtml(_inceptionState.idea_text || '');
@@ -6099,6 +6118,7 @@ function burnAreaChart() {
 
     function startInceptionPoll() {
       stopInceptionPoll();
+      _inceptionTailing = true;
       pollInceptionActivity();
       const INCEPTION_POLL_INTERVAL_MS = 3000;
       _inceptionPollTimer = setInterval(pollInceptionActivity, INCEPTION_POLL_INTERVAL_MS);
@@ -6117,7 +6137,7 @@ function burnAreaChart() {
         const el = document.getElementById('inception-activity');
         if (!el) { stopInceptionPoll(); return; }
         el.textContent = lines.join('\n') || 'Waiting for brainstorm agent...';
-        el.scrollTop = el.scrollHeight;
+        if (_inceptionTailing) el.scrollTop = el.scrollHeight;
       } catch (e) { /* ignore poll errors */ }
 
       try {

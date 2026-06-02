@@ -43,6 +43,7 @@ func NewInceptionEngine(dataDir string, api *KnowledgeAPI, logger *slog.Logger) 
 		logger:  logger,
 	}
 	e.loadState()
+	e.connectExistingVault()
 	return e
 }
 
@@ -226,7 +227,84 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 	}
 
 	e.state.Phase = PhaseScaffold
+
+	e.writeFactsToVault(facts)
+
 	return e.saveState()
+}
+
+const inceptionVaultDir = "inception-kb"
+
+// writeFactsToVault writes each fact as a markdown file with YAML frontmatter
+// into a local directory, then connects it as a KB vault so facts are available
+// to all agents via ${KNOWLEDGE} priming.
+func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
+	vaultDir := filepath.Join(e.dataDir, inceptionVaultDir)
+	if err := os.MkdirAll(vaultDir, 0o755); err != nil {
+		e.logger.Warn("failed to create inception vault dir", "error", err)
+		return
+	}
+
+	for _, f := range facts {
+		slug := slugify(string(f.Type) + "-" + truncateSlug(f.Title))
+		filename := slug + ".md"
+
+		conf := defaultConfidence(f.Type)
+		tags := append(f.Tags, "inception", string(f.Type))
+
+		var content strings.Builder
+		content.WriteString("---\n")
+		fmt.Fprintf(&content, "title: %s\n", f.Title)
+		fmt.Fprintf(&content, "type: %s\n", string(f.Type))
+		fmt.Fprintf(&content, "confidence: %.2f\n", conf)
+		if len(tags) > 0 {
+			fmt.Fprintf(&content, "tags: [%s]\n", strings.Join(tags, ", "))
+		}
+		content.WriteString("---\n\n")
+		content.WriteString(f.Body)
+
+		path := filepath.Join(vaultDir, filename)
+		if err := os.WriteFile(path, []byte(content.String()), 0o644); err != nil {
+			e.logger.Warn("failed to write inception fact file", "path", path, "error", err)
+			continue
+		}
+	}
+
+	if e.api != nil {
+		if err := e.api.ConnectVault(vaultDir, "inception"); err != nil {
+			if !strings.Contains(err.Error(), "already connected") {
+				e.logger.Warn("failed to connect inception vault", "error", err)
+			}
+		} else {
+			e.logger.Info("inception vault connected as knowledge source",
+				"dir", vaultDir,
+				"facts", len(facts),
+			)
+		}
+	}
+}
+
+// connectExistingVault checks if inception facts were previously written to disk
+// and reconnects the vault on startup (survives container restarts).
+func (e *InceptionEngine) connectExistingVault() {
+	if e.api == nil {
+		return
+	}
+	vaultDir := filepath.Join(e.dataDir, inceptionVaultDir)
+	entries, err := os.ReadDir(vaultDir)
+	if err != nil || len(entries) == 0 {
+		return
+	}
+	if err := e.api.ConnectVault(vaultDir, "inception"); err != nil {
+		if !strings.Contains(err.Error(), "already connected") {
+			e.logger.Warn("failed to reconnect inception vault on startup", "error", err)
+		}
+	} else {
+		e.logger.Info("inception vault reconnected on startup",
+			"dir", vaultDir,
+			"files", len(entries),
+		)
+	}
 }
 
 // IdeationFact is the input for recording a new ideation fact from the guide agent.

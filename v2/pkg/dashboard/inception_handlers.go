@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"time"
+	"os"
 
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
@@ -217,22 +217,23 @@ func (s *Server) kickBrainstorm() {
 		return
 	}
 	go func() {
-		// Restart the agent to get a completely fresh session.
-		// The brainstorm agent accumulates context from prior kicks and
-		// ignores inception instructions if its session has general
-		// ideation history. A full restart ensures a clean slate.
+		// Build the inception kick message FIRST
+		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
+
+		// Write the inception kick as the bootstrap prompt so the agent
+		// sees it as its FIRST instruction on boot — not as a follow-up
+		// message after boot has already started repo scanning.
+		bootstrapFile := "/tmp/.hive-bootstrap-brainstorm.txt"
+		if err := os.WriteFile(bootstrapFile, []byte(msg), 0o644); err != nil {
+			s.logger.Warn("failed to write inception bootstrap", "error", err)
+		}
+
+		// Restart the agent — it will boot with the inception kick as
+		// its initial prompt, not the default "read your policy file" boot.
 		if err := s.deps.AgentMgr.Restart(s.deps.Ctx, "brainstorm"); err != nil {
 			s.logger.Warn("failed to restart brainstorm for inception", "error", err)
 		}
 
-		const agentBootWait = 8 * time.Second
-		time.Sleep(agentBootWait)
-
-		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
-		if err := s.deps.AgentMgr.SendKick("brainstorm", msg); err != nil {
-			s.logger.Warn("failed to kick brainstorm for inception", "error", err)
-			return
-		}
 		if s.deps.Governor != nil {
 			s.deps.Governor.RecordKick("brainstorm")
 		}

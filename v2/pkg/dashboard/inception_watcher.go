@@ -256,6 +256,9 @@ func (w *InceptionWatcher) checkForFacts(ctx context.Context, inceptionBeads []*
 
 		body := b.Metadata["fact_body"]
 		if body == "" {
+			body = b.Metadata["detail"]
+		}
+		if body == "" {
 			body = b.Notes
 		}
 		if body == "" {

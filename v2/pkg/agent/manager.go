@@ -70,6 +70,7 @@ type AgentProcess struct {
 	cancel context.CancelFunc
 	forceRelaunch       bool
 	BootstrapOverride   string // when set, replaces buildBootstrapPrompt output
+	lastTokenRestart    time.Time // cooldown for auto-restart after token detection
 }
 
 // ProjectContext holds project-level config injected into agent boot prompts.
@@ -489,6 +490,30 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 			agent.paneMu.Lock()
 			agent.lastPaneCapture = filtered
 			agent.paneMu.Unlock()
+
+			// Auto-restart agents stuck on the login prompt when a valid
+			// token exists in the shared config.json. This handles the case
+			// where a user authenticates via one agent's terminal and other
+			// agents don't pick up the new token automatically.
+			if paneShowsLoginPrompt(filtered) && configHasTokens() {
+				sinceLastRestart := time.Since(agent.lastTokenRestart).Seconds()
+				if sinceLastRestart >= float64(tokenRestartCooldownSec) {
+					m.logger.Info("auto-restarting agent after token detected in shared config",
+						"agent", agent.Name,
+						"cooldown_elapsed_sec", int(sinceLastRestart),
+					)
+					agent.lastTokenRestart = time.Now()
+					go func() {
+						if err := m.Restart(ctx, agent.Name); err != nil {
+							m.logger.Warn("token-triggered restart failed",
+								"agent", agent.Name,
+								"error", err,
+							)
+						}
+					}()
+					return // stop polling; Restart will spawn a new goroutine
+				}
+			}
 
 			if prevLines == nil {
 				if agent.OutputBuffer.Count() == 0 {
@@ -1621,9 +1646,69 @@ func backendBinary(backend string) (string, error) {
 }
 
 const (
-	sharedCopilotConfigPath = "/data/home/.copilot/config.json"
-	sharedConfigDesiredMode = 0o660
+	sharedCopilotConfigPath    = "/data/home/.copilot/config.json"
+	sharedConfigDesiredMode    = 0o660
+	tokenRestartCooldownSec    = 60 // minimum seconds between token-triggered restarts per agent
 )
+
+// loginPromptPatterns are substrings that indicate an agent is stuck on the
+// Copilot login/authentication screen.
+var loginPromptPatterns = []string{
+	"/login",
+	"sign in to use",
+	"Sign in to use",
+	"authenticate to use",
+	"Authenticate to use",
+	"log in to use",
+	"Log in to use",
+}
+
+// configHasTokens reads the shared Copilot config.json, strips single-line
+// // comments (which Copilot CLI sometimes writes), parses the JSON, and returns
+// true if the "copilotTokens" field has at least one entry.
+func configHasTokens() bool {
+	data, err := os.ReadFile(sharedCopilotConfigPath)
+	if err != nil {
+		return false
+	}
+
+	// Strip single-line // comments that Copilot CLI sometimes adds.
+	var cleaned []byte
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		cleaned = append(cleaned, []byte(line+"\n")...)
+	}
+
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(cleaned, &cfg); err != nil {
+		return false
+	}
+	tokens, ok := cfg["copilotTokens"]
+	if !ok {
+		return false
+	}
+	tokensMap, ok := tokens.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	return len(tokensMap) > 0
+}
+
+// paneShowsLoginPrompt returns true if any line in the pane output matches a
+// known login/authentication prompt pattern.
+func paneShowsLoginPrompt(lines []string) bool {
+	for _, line := range lines {
+		for _, pat := range loginPromptPatterns {
+			if strings.Contains(line, pat) {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // fixSharedConfigPerms ensures /data/home/.copilot/config.json is group-readable
 // before launching an agent. Copilot CLI rewrites this file with 600 perms on

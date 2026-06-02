@@ -216,16 +216,11 @@ func (s *Server) kickBrainstorm() {
 		return
 	}
 	go func() {
-		// Build the inception kick message and set it as the bootstrap
-		// override — when the agent restarts, this replaces the default
-		// boot prompt ("read policy file, scan repos"). The agent boots
-		// with inception as its ONLY instruction.
+		// Build the inception kick and atomically set override + restart.
+		// Using RestartWithBootstrap ensures no governor restart can
+		// interleave and consume the override with a standard boot.
 		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
-		if err := s.deps.AgentMgr.SetBootstrapOverride("brainstorm", msg); err != nil {
-			s.logger.Warn("failed to set bootstrap override", "error", err)
-		}
-
-		if err := s.deps.AgentMgr.Restart(s.deps.Ctx, "brainstorm"); err != nil {
+		if err := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err != nil {
 			s.logger.Warn("failed to restart brainstorm for inception", "error", err)
 		}
 

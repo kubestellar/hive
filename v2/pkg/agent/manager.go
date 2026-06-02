@@ -1940,6 +1940,40 @@ func (m *Manager) SetBootstrapOverride(name, prompt string) error {
 	return nil
 }
 
+// RestartWithBootstrap atomically sets the bootstrap override and restarts
+// the agent under a single lock. This prevents the governor or other
+// components from restarting the agent between the override set and the
+// restart, which would consume the override with a standard boot.
+func (m *Manager) RestartWithBootstrap(ctx context.Context, name, prompt string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	agent, ok := m.agents[name]
+	if !ok {
+		return fmt.Errorf("agent %s not found", name)
+	}
+
+	agent.BootstrapOverride = prompt
+	m.logger.Info("bootstrap override set (atomic)", "agent", name, "len", len(prompt))
+
+	if agent.State == StateRunning {
+		m.tmuxSendKeysForAgent(agent, "C-c", "")
+		if agent.cancel != nil {
+			agent.cancel()
+		}
+	}
+
+	_ = m.tmuxCmd(agent, "kill-session", "-t", agent.tmuxSession).Run()
+
+	agent.RestartCount++
+	agent.forceRelaunch = true
+
+	if err := m.ensureTmuxSession(agent); err != nil {
+		return err
+	}
+	return m.launchInTmux(ctx, agent)
+}
+
 func (m *Manager) Restart(ctx context.Context, name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

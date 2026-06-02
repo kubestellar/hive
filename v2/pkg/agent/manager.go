@@ -331,10 +331,12 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	model = normalizeModelName(model)
 
 	bootstrapPrompt := agent.BootstrapOverride
-	if bootstrapPrompt == "" {
+	if bootstrapPrompt != "" {
+		m.logger.Info("using bootstrap override", "agent", agent.Name, "len", len(bootstrapPrompt))
+		agent.BootstrapOverride = ""
+	} else {
 		bootstrapPrompt = m.buildBootstrapPrompt(agent)
 	}
-	agent.BootstrapOverride = "" // one-shot: clear after use
 
 	mode := m.agentMode(agent)
 	agent.LaunchedMode = mode

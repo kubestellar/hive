@@ -59,6 +59,65 @@ mkdir -p "$(dirname "$CACHE_FILE")"
 echo -n "$TOKEN" > "$CACHE_FILE"
 chmod 600 "$CACHE_FILE"
 
+if [ "${1:-}" = "--scoped" ]; then
+  # Mint a scoped installation token for a contributor.
+  # Usage: gh-app-token.sh --scoped <tier> [repo1,repo2,...]
+  TIER="${2:?Usage: gh-app-token.sh --scoped <tier> [repos]}"
+  REPOS="${3:-}"
+
+  case "$TIER" in
+    newcomer)
+      PERMISSIONS='{"issues":"write","metadata":"read"}'
+      ;;
+    contributor)
+      PERMISSIONS='{"issues":"write","contents":"write","pull_requests":"write","metadata":"read"}'
+      ;;
+    trusted)
+      PERMISSIONS='{"issues":"write","contents":"write","pull_requests":"write","metadata":"read","checks":"read"}'
+      ;;
+    advisor)
+      PERMISSIONS='{"issues":"read","metadata":"read"}'
+      ;;
+    *)
+      echo "ERROR: unknown tier: $TIER (valid: newcomer, contributor, trusted, advisor)" >&2
+      exit 1
+      ;;
+  esac
+
+  SCOPED_BODY="{\"permissions\":${PERMISSIONS}}"
+  if [ -n "$REPOS" ]; then
+    REPO_ARRAY=$(echo "$REPOS" | tr ',' '\n' | sed 's/.*/"&"/' | paste -sd ',' -)
+    SCOPED_BODY="{\"permissions\":${PERMISSIONS},\"repositories\":[${REPO_ARRAY}]}"
+  fi
+
+  # Generate fresh JWT for scoped token (don't use cached full-access token)
+  SCOPED_NOW=$(date +%s)
+  SCOPED_IAT=$((SCOPED_NOW - 60))
+  SCOPED_EXP=$((SCOPED_NOW + 540))
+  SCOPED_HEADER=$(echo -n '{"alg":"RS256","typ":"JWT"}' | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+  SCOPED_PAYLOAD=$(echo -n "{\"iat\":${SCOPED_IAT},\"exp\":${SCOPED_EXP},\"iss\":\"${APP_ID}\"}" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+  SCOPED_SIG=$(echo -n "${SCOPED_HEADER}.${SCOPED_PAYLOAD}" | openssl dgst -sha256 -sign "$PRIVATE_KEY_FILE" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+  SCOPED_JWT="${SCOPED_HEADER}.${SCOPED_PAYLOAD}.${SCOPED_SIG}"
+
+  SCOPED_RESPONSE=$(curl -s -X POST \
+    -H "Authorization: Bearer ${SCOPED_JWT}" \
+    -H "Accept: application/vnd.github+json" \
+    -d "$SCOPED_BODY" \
+    "https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens")
+
+  SCOPED_TOKEN=$(echo "$SCOPED_RESPONSE" | jq -r '.token // empty')
+  SCOPED_EXPIRES=$(echo "$SCOPED_RESPONSE" | jq -r '.expires_at // empty')
+
+  if [ -z "$SCOPED_TOKEN" ]; then
+    echo "ERROR: Failed to mint scoped token for tier=$TIER" >&2
+    echo "$SCOPED_RESPONSE" >&2
+    exit 1
+  fi
+
+  echo "{\"token\":\"${SCOPED_TOKEN}\",\"expires_at\":\"${SCOPED_EXPIRES}\"}"
+  exit 0
+fi
+
 if [ "${1:-}" = "--export" ]; then
   echo "export GH_TOKEN=$TOKEN"
 else

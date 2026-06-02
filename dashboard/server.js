@@ -3,6 +3,7 @@ const { execFile, execSync, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { WebSocketServer } = require('ws');
 
 const yaml = (() => { try { return require('js-yaml'); } catch (_) { return null; } })();
 
@@ -2820,6 +2821,391 @@ function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-app.listen(PORT, () => {
+// ── Contribute-Hive: Remote contributor management ─────────────────────────
+const CONTRIBUTORS_DIR = '/etc/hive/contributors';
+const CONTRIBUTORS_METRICS_FILE = path.join(METRICS_DIR, 'contributors.json');
+const CONTRIBUTOR_RESTRICTIONS_FILE = path.join(RESTRICTIONS_DIR, 'contributor-default.json');
+const TOKEN_MINT_SCRIPT = path.join(HIVE_REPO_DIR, 'bin', 'gh-app-token.sh');
+const CONTRIBUTOR_HEARTBEAT_MS = 30000;
+const CONTRIBUTOR_HEARTBEAT_TIMEOUT_MS = 90000;
+const CONTRIBUTOR_TASK_TIMEOUT_MS = 1800000;
+const CONTRIBUTOR_TOKEN_REFRESH_MS = 3000000;
+const CONTRIBUTOR_AUTO_PROMOTE_THRESHOLD = 5;
+const CONTRIBUTOR_TRUSTED_THRESHOLD = 20;
+
+const contributorConnections = new Map();
+let contributorSeq = 0;
+
+function loadContributor(githubUsername) {
+  try {
+    const file = path.join(CONTRIBUTORS_DIR, `${githubUsername}.json`);
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (_) { return null; }
+}
+
+function saveContributor(profile) {
+  try {
+    if (!fs.existsSync(CONTRIBUTORS_DIR)) {
+      execSync(`sudo mkdir -p ${shellQuote(CONTRIBUTORS_DIR)} && sudo chown dev:dev ${shellQuote(CONTRIBUTORS_DIR)}`);
+    }
+    const file = path.join(CONTRIBUTORS_DIR, `${profile.github_username}.json`);
+    fs.writeFileSync(file, JSON.stringify(profile, null, 2));
+  } catch (e) { console.error('Failed to save contributor:', e.message); }
+}
+
+function listContributors() {
+  try {
+    if (!fs.existsSync(CONTRIBUTORS_DIR)) return [];
+    return fs.readdirSync(CONTRIBUTORS_DIR)
+      .filter(f => f.endsWith('.json'))
+      .map(f => { try { return JSON.parse(fs.readFileSync(path.join(CONTRIBUTORS_DIR, f), 'utf8')); } catch (_) { return null; } })
+      .filter(Boolean);
+  } catch (_) { return []; }
+}
+
+function mintScopedToken(tier) {
+  try {
+    const result = execSync(`${TOKEN_MINT_SCRIPT} --scoped ${tier}`, { encoding: 'utf8', timeout: 30000 });
+    return JSON.parse(result.trim());
+  } catch (e) {
+    console.error('Failed to mint scoped token:', e.message);
+    return null;
+  }
+}
+
+function persistContributorMetrics() {
+  const active = [];
+  for (const [id, conn] of contributorConnections) {
+    active.push({
+      contributor_id: id,
+      github_username: conn.profile.github_username,
+      trust_tier: conn.profile.trust_tier,
+      cli_backend: conn.cliBackend || 'unknown',
+      model: conn.model || '',
+      current_task: conn.currentTask ? { task_id: conn.currentTask.task_id, kind: conn.currentTask.kind, repo: conn.currentTask.repo, number: conn.currentTask.number } : null,
+      connected_at: conn.connectedAt,
+      last_tmux_output: conn.lastTmuxOutput || [],
+    });
+  }
+  try {
+    fs.writeFileSync(CONTRIBUTORS_METRICS_FILE, JSON.stringify({ active, updated_at: new Date().toISOString() }, null, 2));
+  } catch (_) {}
+}
+
+trackedInterval(persistContributorMetrics, REFRESH_MS);
+
+function selectTaskForContributor(profile) {
+  const items = (actionableCache.issues || {}).items || [];
+  const tier = profile.trust_tier;
+
+  for (const item of items) {
+    if (item.assigned_to) continue;
+    const labels = (item.labels || []).map(l => (typeof l === 'string' ? l : l.name || '').toLowerCase());
+    if (labels.some(l => l.includes('architecture') || l.includes('epic'))) continue;
+    if (tier === 'newcomer' && !labels.some(l => l.includes('good first issue') || l.includes('simple'))) continue;
+
+    item.assigned_to = { type: 'contributor', id: profile.contributor_id, assigned_at: new Date().toISOString() };
+    return {
+      task_id: `ct-${item.repo}-${item.number}-${Date.now()}`,
+      kind: 'issue',
+      repo: item.repo,
+      number: item.number,
+      title: item.title,
+      url: item.url,
+      labels: item.labels || [],
+      prompt: `You are a Hive contributor agent. Work on issue ${item.repo}#${item.number}: "${item.title}". Read the issue, understand the requirements, and implement a fix. Create a PR when done. Use conventional commits. Add label "contributor/${profile.github_username}" to any PRs you create.`,
+    };
+  }
+  return null;
+}
+
+// REST API for contributor management
+app.get('/api/contributors', (_req, res) => {
+  const profiles = listContributors();
+  const active = [];
+  for (const [id, conn] of contributorConnections) {
+    active.push(id);
+  }
+  res.json({ contributors: profiles.map(p => ({ ...p, active: active.includes(p.contributor_id) })) });
+});
+
+app.get('/api/contributors/:id', (req, res) => {
+  const profiles = listContributors();
+  const profile = profiles.find(p => p.contributor_id === req.params.id || p.github_username === req.params.id);
+  if (!profile) return res.status(404).json({ error: 'Contributor not found' });
+  const conn = contributorConnections.get(profile.contributor_id);
+  res.json({ ...profile, active: !!conn, currentTask: conn ? conn.currentTask : null, lastTmuxOutput: conn ? conn.lastTmuxOutput : [] });
+});
+
+app.put('/api/contributors/:id/trust', (req, res) => {
+  const profiles = listContributors();
+  const profile = profiles.find(p => p.contributor_id === req.params.id || p.github_username === req.params.id);
+  if (!profile) return res.status(404).json({ error: 'Contributor not found' });
+  const { tier } = req.body;
+  const validTiers = ['newcomer', 'contributor', 'trusted', 'advisor', 'revoked'];
+  if (!validTiers.includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
+  profile.trust_tier = tier;
+  saveContributor(profile);
+  res.json({ ok: true, trust_tier: tier });
+});
+
+app.post('/api/contributors/:id/revoke', (req, res) => {
+  const profiles = listContributors();
+  const profile = profiles.find(p => p.contributor_id === req.params.id || p.github_username === req.params.id);
+  if (!profile) return res.status(404).json({ error: 'Contributor not found' });
+  profile.trust_tier = 'revoked';
+  saveContributor(profile);
+  const conn = contributorConnections.get(profile.contributor_id);
+  if (conn && conn.ws) {
+    conn.ws.send(JSON.stringify({ type: 'auth_failed', reason: 'Access revoked by administrator' }));
+    conn.ws.close();
+    contributorConnections.delete(profile.contributor_id);
+  }
+  res.json({ ok: true });
+});
+
+// Registration endpoint (simplified — real implementation would use GitHub OAuth)
+app.post('/api/contribute/register', (req, res) => {
+  const { github_username } = req.body;
+  if (!github_username || !/^[a-zA-Z0-9_-]+$/.test(github_username)) {
+    return res.status(400).json({ error: 'Invalid github_username' });
+  }
+  const existing = loadContributor(github_username);
+  if (existing) {
+    return res.json({ contributor_id: existing.contributor_id, registration_token: existing.registration_token_plain, message: 'Already registered' });
+  }
+
+  const contributorId = `c-${crypto.randomBytes(6).toString('hex')}`;
+  const registrationToken = crypto.randomBytes(32).toString('hex');
+
+  const profile = {
+    github_username,
+    contributor_id: contributorId,
+    registration_token: crypto.createHash('sha256').update(registrationToken).digest('hex'),
+    registration_token_plain: registrationToken,
+    trust_tier: 'newcomer',
+    registered_at: new Date().toISOString(),
+    total_tasks_completed: 0,
+    total_tasks_failed: 0,
+    rate_limits: { max_concurrent_tasks: 1, max_tasks_per_hour: 3, max_tasks_per_day: 10 },
+  };
+  saveContributor(profile);
+
+  res.json({ contributor_id: contributorId, registration_token: registrationToken, message: 'Registered successfully' });
+});
+
+// Contribute status
+app.get('/api/contribute/status', (_req, res) => {
+  res.json({
+    hub: 'online',
+    active_contributors: contributorConnections.size,
+    total_registered: listContributors().length,
+    actionable_items: ((actionableCache.issues || {}).items || []).length,
+  });
+});
+
+// WebSocket server for contributor agents
+const server = app.listen(PORT, () => {
   console.log(`🐝 Hive Dashboard running at http://localhost:${PORT}`);
+});
+
+const wss = new WebSocketServer({ server, path: '/contribute' });
+
+wss.on('connection', (ws) => {
+  let contributorProfile = null;
+  let connState = null;
+  const connId = `ws-${++contributorSeq}`;
+
+  console.log(`[contribute] New connection ${connId}`);
+
+  const nonce = crypto.randomBytes(16).toString('hex');
+  ws.send(JSON.stringify({ type: 'auth_challenge', seq: 1, nonce }));
+
+  const authTimeout = setTimeout(() => {
+    if (!contributorProfile) {
+      ws.send(JSON.stringify({ type: 'auth_failed', reason: 'Authentication timeout' }));
+      ws.close();
+    }
+  }, 30000);
+
+  let pingInterval = null;
+  let lastPong = Date.now();
+  let tokenRefreshInterval = null;
+  let taskTimeout = null;
+
+  ws.on('message', (data) => {
+    let msg;
+    try { msg = JSON.parse(data.toString()); } catch (_) { return; }
+
+    switch (msg.type) {
+      case 'auth_response': {
+        clearTimeout(authTimeout);
+        const token = msg.registration_token;
+        if (!token) {
+          ws.send(JSON.stringify({ type: 'auth_failed', reason: 'Missing registration token' }));
+          ws.close();
+          return;
+        }
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        const profiles = listContributors();
+        contributorProfile = profiles.find(p => p.registration_token === tokenHash);
+        if (!contributorProfile) {
+          ws.send(JSON.stringify({ type: 'auth_failed', reason: 'Invalid registration token' }));
+          ws.close();
+          return;
+        }
+        if (contributorProfile.trust_tier === 'revoked') {
+          ws.send(JSON.stringify({ type: 'auth_failed', reason: 'Access has been revoked' }));
+          ws.close();
+          return;
+        }
+
+        connState = {
+          ws,
+          profile: contributorProfile,
+          cliBackend: msg.cli_backend || 'unknown',
+          model: msg.model || '',
+          connectedAt: new Date().toISOString(),
+          currentTask: null,
+          lastTmuxOutput: [],
+        };
+        contributorConnections.set(contributorProfile.contributor_id, connState);
+
+        ws.send(JSON.stringify({
+          type: 'auth_ok',
+          seq: 2,
+          contributor_id: contributorProfile.contributor_id,
+          trust_tier: contributorProfile.trust_tier,
+          permissions: contributorProfile.trust_tier === 'newcomer' ? ['issues:read', 'issues:comment'] : ['issues:read', 'issues:write', 'contents:write', 'pulls:write'],
+        }));
+
+        console.log(`[contribute] Authenticated: ${contributorProfile.github_username} (${contributorProfile.trust_tier}) via ${msg.cli_backend}`);
+
+        pingInterval = setInterval(() => {
+          if (Date.now() - lastPong > CONTRIBUTOR_HEARTBEAT_TIMEOUT_MS) {
+            console.log(`[contribute] Heartbeat timeout for ${contributorProfile.github_username}`);
+            ws.terminate();
+            return;
+          }
+          ws.send(JSON.stringify({ type: 'ping', seq: ++contributorSeq }));
+        }, CONTRIBUTOR_HEARTBEAT_MS);
+        break;
+      }
+
+      case 'ready': {
+        if (!contributorProfile || !connState) return;
+        const task = selectTaskForContributor(contributorProfile);
+        if (!task) {
+          console.log(`[contribute] No tasks available for ${contributorProfile.github_username}`);
+          return;
+        }
+        const tokenData = mintScopedToken(contributorProfile.trust_tier);
+        if (!tokenData) {
+          console.log(`[contribute] Failed to mint token for ${contributorProfile.github_username}`);
+          return;
+        }
+
+        let restrictions = { rules: [] };
+        try { restrictions = JSON.parse(fs.readFileSync(CONTRIBUTOR_RESTRICTIONS_FILE, 'utf8')); } catch (_) {}
+
+        connState.currentTask = task;
+        ws.send(JSON.stringify({
+          type: 'task_assign',
+          seq: ++contributorSeq,
+          ...task,
+          github_token: tokenData.token,
+          token_expires_at: tokenData.expires_at,
+          restrictions,
+          contributor_labels: [`contributor/${contributorProfile.github_username}`, `cli/${connState.cliBackend}`],
+        }));
+
+        console.log(`[contribute] Assigned ${task.kind} ${task.repo}#${task.number} to ${contributorProfile.github_username}`);
+
+        if (tokenRefreshInterval) clearInterval(tokenRefreshInterval);
+        tokenRefreshInterval = setInterval(() => {
+          const refreshed = mintScopedToken(contributorProfile.trust_tier);
+          if (refreshed) {
+            ws.send(JSON.stringify({ type: 'token_refresh', seq: ++contributorSeq, task_id: task.task_id, github_token: refreshed.token, token_expires_at: refreshed.expires_at }));
+          }
+        }, CONTRIBUTOR_TOKEN_REFRESH_MS);
+
+        if (taskTimeout) clearTimeout(taskTimeout);
+        taskTimeout = setTimeout(() => {
+          if (connState && connState.currentTask && connState.currentTask.task_id === task.task_id) {
+            ws.send(JSON.stringify({ type: 'task_revoke', seq: ++contributorSeq, task_id: task.task_id, reason: 'timeout' }));
+            connState.currentTask = null;
+            console.log(`[contribute] Task timeout for ${contributorProfile.github_username}: ${task.task_id}`);
+          }
+        }, CONTRIBUTOR_TASK_TIMEOUT_MS);
+        break;
+      }
+
+      case 'task_accepted':
+        break;
+
+      case 'task_progress': {
+        if (connState) {
+          connState.lastTmuxOutput = msg.tmux_output || [];
+        }
+        break;
+      }
+
+      case 'task_complete': {
+        if (!contributorProfile || !connState) return;
+        console.log(`[contribute] Task complete by ${contributorProfile.github_username}: ${msg.task_id} — ${msg.result}`);
+        if (connState) {
+          connState.currentTask = null;
+          connState.lastTmuxOutput = msg.tmux_output || [];
+        }
+        if (tokenRefreshInterval) { clearInterval(tokenRefreshInterval); tokenRefreshInterval = null; }
+        if (taskTimeout) { clearTimeout(taskTimeout); taskTimeout = null; }
+
+        contributorProfile.total_tasks_completed = (contributorProfile.total_tasks_completed || 0) + 1;
+        if (contributorProfile.trust_tier === 'newcomer' && contributorProfile.total_tasks_completed >= CONTRIBUTOR_AUTO_PROMOTE_THRESHOLD) {
+          contributorProfile.trust_tier = 'contributor';
+          console.log(`[contribute] Auto-promoted ${contributorProfile.github_username} to contributor`);
+        }
+        if (contributorProfile.trust_tier === 'contributor' && contributorProfile.total_tasks_completed >= CONTRIBUTOR_TRUSTED_THRESHOLD) {
+          console.log(`[contribute] ${contributorProfile.github_username} eligible for trusted tier (needs maintainer voucher)`);
+        }
+        saveContributor(contributorProfile);
+        break;
+      }
+
+      case 'task_failed': {
+        if (!contributorProfile || !connState) return;
+        console.log(`[contribute] Task failed by ${contributorProfile.github_username}: ${msg.task_id} — ${msg.reason}`);
+        if (connState) connState.currentTask = null;
+        if (tokenRefreshInterval) { clearInterval(tokenRefreshInterval); tokenRefreshInterval = null; }
+        if (taskTimeout) { clearTimeout(taskTimeout); taskTimeout = null; }
+        contributorProfile.total_tasks_failed = (contributorProfile.total_tasks_failed || 0) + 1;
+        saveContributor(contributorProfile);
+        break;
+      }
+
+      case 'pong':
+        lastPong = Date.now();
+        break;
+
+      case 'ping':
+        ws.send(JSON.stringify({ type: 'pong', seq: msg.seq }));
+        break;
+    }
+  });
+
+  ws.on('close', () => {
+    clearTimeout(authTimeout);
+    if (pingInterval) clearInterval(pingInterval);
+    if (tokenRefreshInterval) clearInterval(tokenRefreshInterval);
+    if (taskTimeout) clearTimeout(taskTimeout);
+    if (contributorProfile) {
+      contributorConnections.delete(contributorProfile.contributor_id);
+      console.log(`[contribute] Disconnected: ${contributorProfile.github_username}`);
+    }
+    persistContributorMetrics();
+  });
+
+  ws.on('error', (err) => {
+    console.error(`[contribute] WebSocket error for ${connId}:`, err.message);
+  });
 });

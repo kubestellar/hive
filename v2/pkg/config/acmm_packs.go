@@ -84,6 +84,21 @@ func ACMMPacks() []ACMMPack {
 	return packs
 }
 
+// OnDemandAgentsFromPacks returns the set of agent names marked as on-demand
+// across ALL pack levels. Used to prevent auto-starting these agents regardless
+// of which level is active.
+func OnDemandAgentsFromPacks() map[string]bool {
+	result := make(map[string]bool)
+	for _, pack := range ACMMPacks() {
+		for _, a := range pack.Agents {
+			if a.OnDemand {
+				result[a.Name] = true
+			}
+		}
+	}
+	return result
+}
+
 // ACMMPackByLevel returns the pack for a specific level, or an error if not found.
 func ACMMPackByLevel(level int) (ACMMPack, error) {
 	for _, p := range ACMMPacks() {

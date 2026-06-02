@@ -790,21 +790,14 @@ func main() {
 		}
 	}
 
-	onDemandFromPack := make(map[string]bool)
-	currentLevel := inferACMMLevel(cfg)
-	if currentLevel > 0 {
-		if pack, err := config.ACMMPackByLevel(currentLevel); err == nil {
-			for _, pa := range pack.Agents {
-				if pa.OnDemand {
-					onDemandFromPack[pa.Name] = true
-				}
-			}
-		}
+	onDemandFromPack := config.OnDemandAgentsFromPacks()
+	if len(onDemandFromPack) > 0 {
+		logger.Info("on-demand agents from pack definitions", "agents", onDemandFromPack)
 	}
 	for name, ac := range cfg.EnabledAgents() {
 		isOnDemand := ac.OnDemand || onDemandFromPack[name]
 		if isOnDemand {
-			logger.Info("skipping on-demand agent at startup", "name", name, "config_on_demand", ac.OnDemand, "pack_on_demand", onDemandFromPack[name])
+			logger.Info("skipping on-demand agent at startup", "name", name)
 			continue
 		}
 		logger.Info("audit: starting agent", "name", name, "trigger", "startup")
@@ -941,9 +934,13 @@ func runEvalCycle(
 	// via the dashboard is always respected; the governor only controls kicks.
 
 	// Filter out on-demand agents — they are only triggered explicitly
+	onDemandSet := config.OnDemandAgentsFromPacks()
 	var filteredDue []string
 	for _, name := range agentsDue {
 		if ac, ok := cfg.Agents[name]; ok && ac.OnDemand {
+			continue
+		}
+		if onDemandSet[name] {
 			continue
 		}
 		filteredDue = append(filteredDue, name)

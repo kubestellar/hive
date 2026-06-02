@@ -490,10 +490,73 @@ func (e *InceptionEngine) saveState() error {
 // --- fact helpers ---
 
 func (e *InceptionEngine) gatherFacts(ctx context.Context) []Fact {
-	if e.api == nil {
+	// Read facts from the inception wiki vault files directly
+	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)
+	entries, err := os.ReadDir(wikiDir)
+	if err != nil || len(entries) == 0 {
+		// Fallback to KB layer if no wiki files
+		if e.api != nil {
+			return e.api.LayerFacts(ctx, LayerProject, "")
+		}
 		return nil
 	}
-	return e.api.LayerFacts(ctx, LayerProject, "")
+
+	var facts []Fact
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(wikiDir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		content := string(data)
+
+		// Parse YAML frontmatter
+		title, body, factType, conf := parseInceptionFactFile(content, entry.Name())
+		facts = append(facts, Fact{
+			Slug:       strings.TrimSuffix(entry.Name(), ".md"),
+			Title:      title,
+			Type:       FactType(factType),
+			Body:       body,
+			Confidence: conf,
+			Layer:      LayerProject,
+		})
+	}
+	return facts
+}
+
+func parseInceptionFactFile(content, filename string) (title, body, factType string, confidence float64) {
+	confidence = 0.6
+	title = strings.TrimSuffix(filename, ".md")
+
+	if !strings.HasPrefix(content, "---\n") {
+		body = content
+		return
+	}
+
+	endIdx := strings.Index(content[4:], "\n---")
+	if endIdx < 0 {
+		body = content
+		return
+	}
+
+	frontmatter := content[4 : 4+endIdx]
+	body = strings.TrimSpace(content[4+endIdx+4:])
+
+	for _, line := range strings.Split(frontmatter, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "title:") {
+			title = strings.TrimSpace(strings.TrimPrefix(line, "title:"))
+		}
+		if strings.HasPrefix(line, "type:") {
+			factType = strings.TrimSpace(strings.TrimPrefix(line, "type:"))
+		}
+		if strings.HasPrefix(line, "confidence:") {
+			fmt.Sscanf(strings.TrimPrefix(line, "confidence:"), "%f", &confidence)
+		}
+	}
+	return
 }
 
 func findFactByType(facts []Fact, ft FactType) *Fact {

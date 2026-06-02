@@ -791,8 +791,9 @@ func main() {
 	}
 
 	onDemandFromPack := make(map[string]bool)
-	if acmmLevel > 0 {
-		if pack, err := config.ACMMPackByLevel(acmmLevel); err == nil {
+	currentLevel := inferACMMLevel(cfg)
+	if currentLevel > 0 {
+		if pack, err := config.ACMMPackByLevel(currentLevel); err == nil {
 			for _, pa := range pack.Agents {
 				if pa.OnDemand {
 					onDemandFromPack[pa.Name] = true

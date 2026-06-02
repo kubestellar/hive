@@ -424,6 +424,27 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		IsNew:   true,
 	})
 
+	// Project-type-specific files
+	projectType := inferProjectType(constitution, requirements, vision)
+	if projectType == "container" || projectType == "kubernetes" {
+		result.Files = append(result.Files, ScaffoldFile{
+			Path: "Dockerfile", Content: buildDockerfile(lang, projectName), Purpose: "dockerfile", IsNew: true,
+		})
+	}
+
+	if projectType == "kubernetes" {
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "deploy/kustomization.yaml", Content: buildKustomization(projectName), Purpose: "kustomize", IsNew: true},
+			ScaffoldFile{Path: "deploy/base/deployment.yaml", Content: buildK8sDeployment(projectName), Purpose: "k8s_deployment", IsNew: true},
+			ScaffoldFile{Path: "deploy/base/service.yaml", Content: buildK8sService(projectName), Purpose: "k8s_service", IsNew: true},
+			ScaffoldFile{Path: "deploy/base/configmap.yaml", Content: buildK8sConfigMap(projectName), Purpose: "k8s_configmap", IsNew: true},
+			ScaffoldFile{Path: "deploy/base/secret.yaml", Content: buildK8sSecret(projectName), Purpose: "k8s_secret", IsNew: true},
+			ScaffoldFile{Path: "deploy/base/kustomization.yaml", Content: buildK8sBaseKustomization(projectName), Purpose: "kustomize_base", IsNew: true},
+			ScaffoldFile{Path: "deploy/overlays/dev/kustomization.yaml", Content: buildK8sOverlayKustomization(projectName, "dev"), Purpose: "kustomize_dev", IsNew: true},
+			ScaffoldFile{Path: "deploy/overlays/prod/kustomization.yaml", Content: buildK8sOverlayKustomization(projectName, "prod"), Purpose: "kustomize_prod", IsNew: true},
+		)
+	}
+
 	return result, nil
 }
 
@@ -1144,26 +1165,240 @@ main();
 `, desc)
 }
 
+func inferProjectType(constitution *Fact, requirements []Fact, vision *Fact) string {
+	all := ""
+	if constitution != nil {
+		all += strings.ToLower(constitution.Body)
+	}
+	if vision != nil {
+		all += " " + strings.ToLower(vision.Body) + " " + strings.ToLower(vision.Title)
+	}
+	for _, r := range requirements {
+		all += " " + strings.ToLower(r.Title) + " " + strings.ToLower(r.Body)
+	}
+
+	switch {
+	case strings.Contains(all, "operator") || strings.Contains(all, "controller") ||
+		strings.Contains(all, "kubernetes") || strings.Contains(all, "k8s") ||
+		strings.Contains(all, "helm") || strings.Contains(all, "crd") ||
+		strings.Contains(all, "kustomize") || strings.Contains(all, "namespace"):
+		return "kubernetes"
+	case strings.Contains(all, "docker") || strings.Contains(all, "container") ||
+		strings.Contains(all, "deploy") || strings.Contains(all, "service"):
+		return "container"
+	case strings.Contains(all, "library") || strings.Contains(all, "package") || strings.Contains(all, "sdk"):
+		return "library"
+	case strings.Contains(all, "api") || strings.Contains(all, "server") || strings.Contains(all, "endpoint"):
+		return "api"
+	default:
+		return "cli"
+	}
+}
+
+func buildDockerfile(lang, name string) string {
+	switch lang {
+	case "go":
+		return fmt.Sprintf(`FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /bin/%s .
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /bin/%s /usr/local/bin/%s
+ENTRYPOINT ["%s"]
+`, name, name, name, name)
+	case "python":
+		return fmt.Sprintf(`FROM python:3.12-slim
+WORKDIR /app
+COPY pyproject.toml .
+COPY src/ src/
+RUN pip install --no-cache-dir .
+ENTRYPOINT ["%s"]
+`, name)
+	default:
+		return fmt.Sprintf(`FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json .
+CMD ["node", "dist/index.js"]
+`)
+	}
+}
+
+func buildKustomization(name string) string {
+	return fmt.Sprintf(`apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - base
+
+# Use overlays for environment-specific config:
+#   kubectl apply -k deploy/overlays/dev
+#   kubectl apply -k deploy/overlays/prod
+`)
+}
+
+func buildK8sDeployment(name string) string {
+	return fmt.Sprintf(`apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: %s
+  labels:
+    app: %s
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: %s
+  template:
+    metadata:
+      labels:
+        app: %s
+    spec:
+      containers:
+        - name: %s
+          image: %s:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: %s-config
+            - secretRef:
+                name: %s-secrets
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 3
+`, name, name, name, name, name, name, name, name)
+}
+
+func buildK8sService(name string) string {
+	return fmt.Sprintf(`apiVersion: v1
+kind: Service
+metadata:
+  name: %s
+  labels:
+    app: %s
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: %s
+`, name, name, name)
+}
+
+func buildK8sConfigMap(name string) string {
+	return fmt.Sprintf(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: %s-config
+data:
+  LOG_LEVEL: "info"
+  PORT: "8080"
+  # Add application-specific config here
+`, name)
+}
+
+func buildK8sSecret(name string) string {
+	return fmt.Sprintf(`apiVersion: v1
+kind: Secret
+metadata:
+  name: %s-secrets
+type: Opaque
+stringData:
+  # WARNING: Do not commit real secrets. Use sealed-secrets or
+  # external-secrets-operator in production.
+  API_KEY: "changeme"
+`, name)
+}
+
+func buildK8sBaseKustomization(name string) string {
+	return `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml
+  - secret.yaml
+`
+}
+
+func buildK8sOverlayKustomization(name, env string) string {
+	replicas := 1
+	if env == "prod" {
+		replicas = 3
+	}
+	return fmt.Sprintf(`apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namePrefix: %s-
+
+patches:
+  - target:
+      kind: Deployment
+      name: %s
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: %d
+`, env, name, replicas)
+}
+
 func buildMakefile(lang, name string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, ".PHONY: build test lint clean\n\n")
+	fmt.Fprintf(&b, ".PHONY: build test lint clean docker-build docker-push deploy\n\n")
 	switch lang {
 	case "go":
 		fmt.Fprintf(&b, "build:\n\tgo build -o bin/%s .\n\n", name)
 		b.WriteString("test:\n\tgo test -race -cover ./...\n\n")
 		b.WriteString("lint:\n\tgolangci-lint run ./...\n\n")
-		fmt.Fprintf(&b, "clean:\n\trm -rf bin/\n")
+		fmt.Fprintf(&b, "clean:\n\trm -rf bin/\n\n")
 	case "python":
 		b.WriteString("build:\n\tpip install -e .\n\n")
 		b.WriteString("test:\n\tpytest\n\n")
 		b.WriteString("lint:\n\truff check .\n\n")
-		b.WriteString("clean:\n\trm -rf dist/ build/ *.egg-info/\n")
+		b.WriteString("clean:\n\trm -rf dist/ build/ *.egg-info/\n\n")
 	case "typescript", "javascript":
 		b.WriteString("build:\n\tnpm run build\n\n")
 		b.WriteString("test:\n\tnpm test\n\n")
 		b.WriteString("lint:\n\tnpm run lint\n\n")
-		b.WriteString("clean:\n\trm -rf dist/ node_modules/\n")
+		b.WriteString("clean:\n\trm -rf dist/ node_modules/\n\n")
 	}
+	fmt.Fprintf(&b, "docker-build:\n\tdocker build -t %s:latest .\n\n", name)
+	fmt.Fprintf(&b, "docker-push:\n\tdocker push %s:latest\n\n", name)
+	b.WriteString("deploy:\n\tkubectl apply -k deploy/overlays/dev\n\n")
+	b.WriteString("deploy-prod:\n\tkubectl apply -k deploy/overlays/prod\n")
 	return b.String()
 }
 

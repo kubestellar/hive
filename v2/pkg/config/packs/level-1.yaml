@@ -47,7 +47,7 @@ agents:
       acceptance criteria. Queries community KB for scaffolding patterns and
       produces project bootstrap files. At higher levels, proposes features,
       architecture directions, and strategic improvements.
-    emoji: "🧠"
+    emoji: "💡"
     color: "#f39c12"
     sort_order: 5
     backend: copilot

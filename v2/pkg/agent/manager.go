@@ -1954,6 +1954,7 @@ func (m *Manager) RestartWithBootstrap(ctx context.Context, name, prompt string)
 	}
 
 	agent.BootstrapOverride = prompt
+	agent.Paused = false
 	m.logger.Info("bootstrap override set (atomic)", "agent", name, "len", len(prompt))
 
 	if agent.State == StateRunning {

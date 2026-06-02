@@ -603,6 +603,12 @@ func main() {
 	inceptionEngine := knowledge.NewInceptionEngine("/data", knowledgeAPI, logger)
 	sched.SetInception(inceptionEngine)
 
+	// Brainstorm is on-demand only — start paused so it doesn't run
+	// general ideation on boot. Inception's RestartWithBootstrap unpauses it.
+	if err := agentMgr.Pause("brainstorm", "startup", "on-demand only — waits for inception"); err != nil {
+		logger.Debug("brainstorm pause on startup", "error", err)
+	}
+
 	dashSrv.RegisterAPI(&dashboard.Dependencies{
 		Config:           cfg,
 		AgentMgr:         agentMgr,

@@ -667,18 +667,21 @@ func main() {
 		level, err := strconv.Atoi(levelStr)
 		if err != nil || level < 1 || level > maxACMMLevel {
 			logger.Warn("invalid HIVE_LEVEL, skipping auto-apply", "value", levelStr)
-		} else if saved.ACMMLevel != nil && *saved.ACMMLevel == level {
-			logger.Info("ACMM level unchanged from saved state, skipping auto-apply", "level", level)
 		} else {
-			logger.Info("ACMM level changed, re-applying pack", "level", level, "saved_level", saved.ACMMLevel)
+			action := "merging pack updates"
+			if saved.ACMMLevel == nil || *saved.ACMMLevel != level {
+				action = "re-applying pack (level changed)"
+			}
+			logger.Info("audit: "+action, "level", level, "saved_level", saved.ACMMLevel, "trigger", "startup")
 			result, err := dashSrv.ApplyPack(level)
 			if err != nil {
-				logger.Error("failed to re-apply ACMM pack", "level", level, "error", err)
+				logger.Error("failed to apply ACMM pack", "level", level, "error", err)
 			} else {
-				logger.Info("ACMM pack re-applied",
+				logger.Info("ACMM pack applied on startup",
 					"level", level,
 					"name", result.Name,
 					"created", result.Created,
+					"updated", result.Updated,
 					"skipped", result.Skipped,
 					"paused", result.Paused,
 					"resumed", result.Resumed,

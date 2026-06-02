@@ -565,6 +565,15 @@ func main() {
 	nousState := loadNousState(logger)
 	nousState.SnapshotDir = nousSnapshotDir
 
+	// Auto-enable knowledge API for inception if not already configured.
+	// Inception needs it to connect the inception wiki vault.
+	if knowledgeAPI == nil {
+		knowledgeAPI = knowledge.NewKnowledgeAPI(nil, knowledge.KnowledgeConfig{
+			Enabled: true,
+			Engine:  "file",
+		}, logger)
+		logger.Info("created file-based knowledge API for inception wiki")
+	}
 	inceptionEngine := knowledge.NewInceptionEngine("/data", knowledgeAPI, logger)
 	sched.SetInception(inceptionEngine)
 

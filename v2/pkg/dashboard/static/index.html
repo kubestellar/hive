@@ -6146,7 +6146,8 @@ function burnAreaChart() {
           <div style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Describe your project idea in a sentence or two.</div>
           <textarea id="inception-idea" placeholder="A CLI tool that syncs Obsidian vaults to a wiki server..." style="width:100%;min-height:80px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--card-bg);color:var(--fg);font-family:inherit;font-size:0.85rem;resize:vertical"></textarea>
           <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-            <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Cancel</button>
+            <button onclick="stopInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Stop</button>
+            <button onclick="clearInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--red, #f85149);cursor:pointer;font-size:0.82rem">Clear</button>
             <button onclick="submitInceptionIdea()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">Start</button>
           </div>
         </div>`;
@@ -6192,7 +6193,8 @@ function burnAreaChart() {
           <button id="inception-follow-btn" class="oc-summary-follow-btn" onclick="inceptionResumeTail()" title="Follow new output">⬇</button>
           </div>
           <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-            <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Cancel</button>
+            <button onclick="stopInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Stop</button>
+            <button onclick="clearInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--red, #f85149);cursor:pointer;font-size:0.82rem">Clear</button>
           </div>
         </div>`;
     }
@@ -6280,7 +6282,8 @@ function burnAreaChart() {
           <button id="inception-follow-btn" class="oc-summary-follow-btn" onclick="inceptionResumeTail()" title="Follow new output">⬇</button>
           </div>
           <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-            <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Cancel</button>
+            <button onclick="stopInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Stop</button>
+            <button onclick="clearInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--red, #f85149);cursor:pointer;font-size:0.82rem">Clear</button>
           </div>
         </div>`;
     }
@@ -6441,14 +6444,21 @@ function burnAreaChart() {
       } catch (e) { alert('Error: ' + e.message); }
     }
 
-    async function resetInception() {
+    async function stopInception() {
       stopInceptionPoll();
       try {
-        // Check if there are existing wiki files to save
+        await fetch('/api/pause/brainstorm', { method: 'POST' });
+      } catch (e) { /* ignore */ }
+      await loadInceptionState();
+    }
+
+    async function clearInception() {
+      stopInceptionPoll();
+      try {
         const hasFilesResp = await fetch('/api/inception/has-files');
         const hasFilesData = await hasFilesResp.json();
         if (hasFilesData.has_files) {
-          const choice = confirm('You have an existing project scaffold. Click OK to download it before starting over, or Cancel to discard it.');
+          const choice = confirm('Download existing scaffold before clearing?');
           if (choice) {
             await downloadInceptionZip();
           }
@@ -6457,6 +6467,10 @@ function burnAreaChart() {
         _inceptionState = null;
         renderInception();
       } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function resetInception() {
+      await clearInception();
     }
 
     async function downloadInceptionZip() {

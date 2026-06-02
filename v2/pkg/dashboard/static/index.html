@@ -6107,7 +6107,7 @@ function burnAreaChart() {
 
     async function pollInceptionActivity() {
       try {
-        const r = await fetch('/api/pane/brainstorm?lines=500');
+        const r = await fetch('/api/pane/brainstorm?lines=500&source=buffer');
         if (!r.ok) return;
         const data = await r.json();
         const lines = data.lines || [];

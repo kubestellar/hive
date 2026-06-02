@@ -21,6 +21,7 @@ import (
 func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.deps = deps
 	s.loadSidebarFromDisk()
+	s.restoreGHUserSession()
 
 	s.mux.HandleFunc("GET /api/version", s.handleVersion)
 	s.mux.HandleFunc("GET /api/config", s.handleConfig)
@@ -818,6 +819,35 @@ func (s *Server) handleGHUserAuthLogout(w http.ResponseWriter, r *http.Request) 
 	os.Remove(userTokenPath)
 	s.deps.Logger.Info("GitHub user logged out")
 	jsonResponse(w, map[string]interface{}{"status": "logged_out"})
+}
+
+// restoreGHUserSession loads a previously-saved GitHub user OAuth token from
+// disk and calls SetUserClient so that advisory posting works immediately
+// after a container restart, without requiring re-login via Device Flow.
+func (s *Server) restoreGHUserSession() {
+	if s.deps == nil || s.deps.SetUserClient == nil {
+		return
+	}
+
+	tokenData, err := os.ReadFile(userTokenPath)
+	if err != nil {
+		return // no saved token — nothing to restore
+	}
+
+	token := strings.TrimSpace(string(tokenData))
+	if token == "" {
+		return
+	}
+
+	user, err := github.ValidateToken(token)
+	if err != nil {
+		s.deps.Logger.Warn("saved GitHub user token is invalid, removing", "error", err)
+		os.Remove(userTokenPath)
+		return
+	}
+
+	s.deps.SetUserClient(token)
+	s.deps.Logger.Info("restored GitHub user session from disk", "username", user.Login)
 }
 
 func (s *Server) handleGHRateLimits(w http.ResponseWriter, r *http.Request) {

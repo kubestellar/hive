@@ -124,6 +124,11 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		return fail(result, "assertion", "idea_text is empty after start")
 	}
 
+	// CDP: verify capture phase UI
+	if cdpErr := verifyCDPPhase("capture", pass); cdpErr != "" {
+		t.Logf("Pass %d CDP warning (capture): %s", pass, cdpErr)
+	}
+
 	// Step 3: Wait for clarify phase (bead watcher detects question beads)
 	result.Phase = "capture_to_clarify"
 	result.Check = "phase_advance"
@@ -155,6 +160,11 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		if qm["text"] == nil || qm["text"].(string) == "" {
 			return fail(result, "assertion", fmt.Sprintf("question %d missing text", i))
 		}
+	}
+
+	// CDP: verify clarify phase UI (questions visible)
+	if cdpErr := verifyCDPPhase("clarify", pass); cdpErr != "" {
+		t.Logf("Pass %d CDP warning (clarify): %s", pass, cdpErr)
 	}
 
 	// Step 4: Submit answers (use defaults) — always submit, even if phase
@@ -192,6 +202,11 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		return fail(result, "timeout", fmt.Sprintf("structure→scaffold: %v (agent: %s)", err, agentStatus))
 	}
 
+	// CDP: verify scaffold phase UI
+	if cdpErr := verifyCDPPhase("scaffold", pass); cdpErr != "" {
+		t.Logf("Pass %d CDP warning (scaffold): %s", pass, cdpErr)
+	}
+
 	// Step 6: Verify scaffold
 	result.Phase = "scaffold"
 	result.Check = "scaffold_files"
@@ -222,16 +237,33 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 
 	// Check required files exist
 	result.Check = "required_files"
-	filePaths := make(map[string]bool)
+	fileContents := make(map[string]string)
 	for _, f := range files {
 		fm := f.(map[string]interface{})
-		filePaths[fm["path"].(string)] = true
+		path, _ := fm["path"].(string)
+		content, _ := fm["content"].(string)
+		fileContents[path] = content
 	}
 	requiredFiles := []string{"README.md", "CLAUDE.md", "CONTRIBUTING.md", ".github/workflows/ci.yml"}
 	for _, req := range requiredFiles {
-		if !filePaths[req] {
+		if _, ok := fileContents[req]; !ok {
 			return fail(result, "missing_content", fmt.Sprintf("missing required file: %s", req))
 		}
+	}
+
+	// Verify content is project-specific, not placeholder
+	result.Check = "content_quality"
+	readme := fileContents["README.md"]
+	if strings.Contains(readme, "# Project\n") && !strings.Contains(strings.ToLower(readme), strings.ToLower(strings.Fields(idea)[2])) {
+		return fail(result, "missing_content", fmt.Sprintf("README.md is placeholder — does not reference idea keywords (content: %s)", readme[:min(len(readme), 100)]))
+	}
+	claudeMD := fileContents["CLAUDE.md"]
+	if len(claudeMD) < 50 {
+		return fail(result, "missing_content", fmt.Sprintf("CLAUDE.md too short (%d chars) — likely placeholder", len(claudeMD)))
+	}
+	ciYml := fileContents[".github/workflows/ci.yml"]
+	if !strings.Contains(ciYml, "steps:") {
+		return fail(result, "missing_content", "ci.yml missing 'steps:' — likely empty or broken")
 	}
 
 	// Step 7: Approve
@@ -250,6 +282,11 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 	}
 	if state == nil || state["phase"] != "complete" {
 		return fail(result, "assertion", fmt.Sprintf("expected phase=complete, got %v", state))
+	}
+
+	// CDP: verify complete phase UI
+	if cdpErr := verifyCDPPhase("complete", pass); cdpErr != "" {
+		t.Logf("Pass %d CDP warning (complete): %s", pass, cdpErr)
 	}
 
 	// Step 8: Check agent output for errors

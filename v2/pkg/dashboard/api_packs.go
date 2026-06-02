@@ -134,7 +134,12 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 		s.logger.Error("failed to save ACMM level to hive.yaml", "error", err)
 	}
 
-	if pack.Governor.EvalIntervalS > 0 {
+	// Only apply governor config (thresholds, cadences, eval interval) when
+	// new agents are being created. On a pure merge (all agents already exist),
+	// preserve user's governor customizations.
+	isFirstApplyOrExpansion := len(created) > 0
+
+	if pack.Governor.EvalIntervalS > 0 && isFirstApplyOrExpansion {
 		s.deps.Config.Governor.EvalIntervalS = pack.Governor.EvalIntervalS
 	}
 
@@ -148,13 +153,19 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 				mode.Cadences = make(map[string]string)
 			}
 			for agent, interval := range agentCadences {
-				mode.Cadences[agent] = interval
+				if isFirstApplyOrExpansion {
+					mode.Cadences[agent] = interval
+				} else if _, exists := mode.Cadences[agent]; !exists {
+					mode.Cadences[agent] = interval
+				}
 			}
 			s.deps.Config.Governor.Modes[modeName] = mode
 		}
 		for modeName, threshold := range pack.Governor.Thresholds {
 			mode := s.deps.Config.Governor.Modes[modeName]
-			mode.Threshold = threshold
+			if isFirstApplyOrExpansion || mode.Threshold == 0 {
+				mode.Threshold = threshold
+			}
 			s.deps.Config.Governor.Modes[modeName] = mode
 		}
 	}
@@ -173,6 +184,9 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 	}
 
 	paused, resumed := s.syncAgentVisibility(level)
+	// Clear per-agent mode overrides so DefaultAgentMode determines the mode
+	// for the new level (same rationale as handlePackSetLevel).
+	s.deps.AgentMgr.ClearAllModeOverrides()
 	s.deps.AgentMgr.SyncModeFiles(level)
 
 	s.persistOnly()
@@ -238,6 +252,10 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	paused, resumed := s.syncAgentVisibility(level)
+	// Clear per-agent mode overrides so DefaultAgentMode determines the mode
+	// for the new level. Without this, stale Config.Mode from a prior level
+	// or initial config would override the expected default.
+	s.deps.AgentMgr.ClearAllModeOverrides()
 	s.deps.AgentMgr.SyncModeFiles(level)
 
 	s.persistOnly()

@@ -233,15 +233,15 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 	return e.saveState()
 }
 
-const inceptionVaultDir = "inception-kb"
+const inceptionWikiDir = "inception-wiki"
 
 // writeFactsToVault writes each fact as a markdown file with YAML frontmatter
 // into a local directory, then connects it as a KB vault so facts are available
 // to all agents via ${KNOWLEDGE} priming.
 func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
-	vaultDir := filepath.Join(e.dataDir, inceptionVaultDir)
+	vaultDir := filepath.Join(e.dataDir, inceptionWikiDir)
 	if err := os.MkdirAll(vaultDir, 0o755); err != nil {
-		e.logger.Warn("failed to create inception vault dir", "error", err)
+		e.logger.Warn("failed to create inception wiki dir", "error", err)
 		return
 	}
 
@@ -271,12 +271,12 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 	}
 
 	if e.api != nil {
-		if err := e.api.ConnectVault(vaultDir, "inception"); err != nil {
+		if err := e.api.ConnectVault(vaultDir, "inception-wiki"); err != nil {
 			if !strings.Contains(err.Error(), "already connected") {
-				e.logger.Warn("failed to connect inception vault", "error", err)
+				e.logger.Warn("failed to connect inception wiki", "error", err)
 			}
 		} else {
-			e.logger.Info("inception vault connected as knowledge source",
+			e.logger.Info("inception wiki connected as knowledge source",
 				"dir", vaultDir,
 				"facts", len(facts),
 			)
@@ -290,17 +290,17 @@ func (e *InceptionEngine) connectExistingVault() {
 	if e.api == nil {
 		return
 	}
-	vaultDir := filepath.Join(e.dataDir, inceptionVaultDir)
+	vaultDir := filepath.Join(e.dataDir, inceptionWikiDir)
 	entries, err := os.ReadDir(vaultDir)
 	if err != nil || len(entries) == 0 {
 		return
 	}
-	if err := e.api.ConnectVault(vaultDir, "inception"); err != nil {
+	if err := e.api.ConnectVault(vaultDir, "inception-wiki"); err != nil {
 		if !strings.Contains(err.Error(), "already connected") {
-			e.logger.Warn("failed to reconnect inception vault on startup", "error", err)
+			e.logger.Warn("failed to reconnect inception wiki on startup", "error", err)
 		}
 	} else {
-		e.logger.Info("inception vault reconnected on startup",
+		e.logger.Info("inception wiki reconnected on startup",
 			"dir", vaultDir,
 			"files", len(entries),
 		)

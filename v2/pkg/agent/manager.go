@@ -2025,6 +2025,29 @@ func (m *Manager) SetBackendOverride(name, backend string) error {
 	return nil
 }
 
+// GetBufferOutput returns output from the ring buffer directly, bypassing
+// the tmux pane capture. The ring buffer accumulates all output over time
+// (up to 500 lines) while the pane capture only has visible lines.
+func (m *Manager) GetBufferOutput(name string, lines int) ([]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	agent, ok := m.agents[name]
+	if !ok {
+		return nil, fmt.Errorf("agent %s not found", name)
+	}
+
+	if agent.OutputBuffer != nil && agent.OutputBuffer.Count() > 0 {
+		return agent.OutputBuffer.Last(lines), nil
+	}
+
+	if pane := agent.FilteredPaneLines(lines); len(pane) > 0 {
+		return pane, nil
+	}
+
+	return nil, nil
+}
+
 func (m *Manager) GetOutput(name string, lines int) ([]string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

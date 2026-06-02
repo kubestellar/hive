@@ -452,8 +452,16 @@ func (s *Server) handlePane(w http.ResponseWriter, r *http.Request) {
 	if lines <= 0 {
 		lines = 100
 	}
+	source := r.URL.Query().Get("source")
 
-	output, err := s.deps.AgentMgr.GetOutput(name, lines)
+	var output []string
+	var err error
+
+	if source == "buffer" {
+		output, err = s.deps.AgentMgr.GetBufferOutput(name, lines)
+	} else {
+		output, err = s.deps.AgentMgr.GetOutput(name, lines)
+	}
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return

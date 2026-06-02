@@ -737,7 +737,7 @@ func (s *Server) handleGHUserAuthStatus(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleGHUserAuthStart(w http.ResponseWriter, r *http.Request) {
 	clientID := s.deps.Config.GitHub.OAuthClientID
 	if clientID == "" {
-		jsonError(w, "oauth_client_id not configured in github section of hive.yaml", http.StatusBadRequest)
+		jsonError(w, "oauth_client_id not configured. Add 'oauth_client_id: Ov23ligE2p0gjXg6xAUf' to the github section of hive.yaml and restart the container. This is the public Hive GitHub App client ID used for the Device Flow login — no secret required.", http.StatusBadRequest)
 		return
 	}
 

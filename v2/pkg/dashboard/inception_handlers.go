@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
@@ -216,9 +217,20 @@ func (s *Server) kickBrainstorm() {
 		return
 	}
 	go func() {
+		// Restart the agent to get a completely fresh session.
+		// The brainstorm agent accumulates context from prior kicks and
+		// ignores inception instructions if its session has general
+		// ideation history. A full restart ensures a clean slate.
+		if err := s.deps.AgentMgr.Restart(s.deps.Ctx, "brainstorm"); err != nil {
+			s.logger.Warn("failed to restart brainstorm for inception", "error", err)
+		}
+
+		const agentBootWait = 8 * time.Second
+		time.Sleep(agentBootWait)
+
 		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
 		if err := s.deps.AgentMgr.SendKick("brainstorm", msg); err != nil {
-			s.logger.Warn("failed to auto-kick brainstorm for inception", "error", err)
+			s.logger.Warn("failed to kick brainstorm for inception", "error", err)
 			return
 		}
 		if s.deps.Governor != nil {

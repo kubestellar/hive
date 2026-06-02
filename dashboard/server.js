@@ -2912,8 +2912,13 @@ function persistContributorMetrics() {
 trackedInterval(persistContributorMetrics, REFRESH_MS);
 
 function selectTaskForContributor(profile) {
-  const items = (actionableCache.issues || {}).items || [];
   const tier = profile.trust_tier;
+
+  if (tier === 'advisor') {
+    return selectAdvisorTask(profile);
+  }
+
+  const items = (actionableCache.issues || {}).items || [];
 
   for (const item of items) {
     if (item.assigned_to) continue;
@@ -2931,6 +2936,31 @@ function selectTaskForContributor(profile) {
       url: item.url,
       labels: item.labels || [],
       prompt: `You are a Hive contributor agent. Work on issue ${item.repo}#${item.number}: "${item.title}". Read the issue, understand the requirements, and implement a fix. Create a PR when done. Use conventional commits. Add label "contributor/${profile.github_username}" to any PRs you create.`,
+    };
+  }
+  return null;
+}
+
+function selectAdvisorTask(profile) {
+  const prs = (actionableCache.prs || {}).items || [];
+
+  for (const pr of prs) {
+    if (pr.assigned_to) continue;
+    const labels = (pr.labels || []).map(l => (typeof l === 'string' ? l : l.name || '').toLowerCase());
+    if (labels.some(l => l.includes('hold') || l.includes('do-not-merge'))) continue;
+    const hasAgentLabel = labels.some(l => l.startsWith('agent/'));
+    if (!hasAgentLabel) continue;
+
+    pr.assigned_to = { type: 'advisor', id: profile.contributor_id, assigned_at: new Date().toISOString() };
+    return {
+      task_id: `adv-${pr.repo}-${pr.number}-${Date.now()}`,
+      kind: 'advisor_review',
+      repo: pr.repo,
+      number: pr.number,
+      title: pr.title,
+      url: pr.url,
+      labels: pr.labels || [],
+      prompt: `Review PR ${pr.repo}#${pr.number}: "${pr.title}". This was created by a Hive agent. Run: gh pr diff ${pr.number} --repo ${pr.repo} to see the changes. Check for correctness, test coverage, and code style. Post your review with: gh pr review ${pr.number} --repo ${pr.repo} --approve (or --request-changes --body "reason")`,
     };
   }
   return null;

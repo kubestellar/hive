@@ -183,6 +183,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			Color:         agentCfg.Color,
 			BeadRole:      agentCfg.GetBeadRole(),
 			Managed:       agentCfg.Managed,
+			OnDemand:      agentCfg.OnDemand,
 			Session:       name,
 			State:         string(proc.State),
 			Busy:          busy,
@@ -440,7 +441,7 @@ func formatHumanTime(t time.Time) string {
 }
 
 func computeNextKick(lastKick *time.Time, cadence string) string {
-	if cadence == "" || cadence == "off" || cadence == "pause" {
+	if cadence == "" || cadence == "off" || cadence == "pause" || cadence == "on demand" {
 		return ""
 	}
 	base := time.Now()
@@ -457,7 +458,7 @@ func computeNextKick(lastKick *time.Time, cadence string) string {
 
 func parseCadenceDuration(cadence string) time.Duration {
 	cadence = strings.TrimSpace(cadence)
-	if cadence == "" || cadence == "off" || cadence == "pause" {
+	if cadence == "" || cadence == "off" || cadence == "pause" || cadence == "on demand" {
 		return 0
 	}
 	d, err := time.ParseDuration(cadence)
@@ -785,12 +786,19 @@ func buildCadenceMatrix(cfg *config.Config, agentStatuses map[string]*agent.Agen
 			paused = true
 		}
 
+		onDemand := false
+		if agentCfg, ok := cfg.Agents[name]; ok && agentCfg.OnDemand {
+			onDemand = true
+		}
+
 		for modeName, mode := range cfg.Governor.Modes {
 			cadence := mode.Cadences[name]
 			if cadence == "" || cadence == "pause" {
 				cadence = "off"
 			}
-			if paused && cadence != "off" {
+			if onDemand {
+				cadence = "on demand"
+			} else if paused && cadence != "off" {
 				cadence = "paused"
 			}
 			switch modeName {

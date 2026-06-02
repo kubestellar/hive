@@ -171,6 +171,7 @@
     .oc-agent-detail.state-running { border-color: #16a34a; }
     .oc-agent-detail.state-idle { border-color: #16a34a; }
     .oc-agent-detail.state-paused { border-color: #ca8a04; }
+    .oc-agent-detail.state-on-demand { border-color: #818cf8; }
     .oc-agent-detail.state-stopped { border-color: #dc2626; }
     .oc-agent-detail.state-off { border-color: #d1d5db; }
     .oc-agent-detail-header {
@@ -187,6 +188,7 @@
     .oc-agent-detail-header .status-dot.running { background: #16a34a; animation: oc-pulse 1.5s ease-in-out infinite; }
     .oc-agent-detail-header .status-dot.idle { background: #16a34a; }
     .oc-agent-detail-header .status-dot.paused { background: #ca8a04; }
+    .oc-agent-detail-header .status-dot.on-demand { background: #818cf8; }
     .oc-agent-detail-header .status-dot.stopped { background: #dc2626; }
     .oc-agent-detail-header .status-dot.off { background: #9ca3af; }
     .oc-detail-fields {
@@ -254,6 +256,7 @@
     .oc-agent-dot.running { background: #16a34a; animation: oc-pulse 1.5s ease-in-out infinite; }
     .oc-agent-dot.idle { background: #16a34a; }
     .oc-agent-dot.paused { background: #ca8a04; }
+    .oc-agent-dot.on-demand { background: #818cf8; }
     .oc-agent-dot.stopped { background: #dc2626; }
     .oc-agent-dot.off { background: #9ca3af; }
     @keyframes oc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
@@ -428,6 +431,7 @@
     body.light-mode .status-badge.blocked { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
     body.light-mode .status-badge.done { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
     body.light-mode .pause-badge { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+    body.light-mode .on-demand-badge { background: #eef2ff; color: #4f46e5; border-color: #c7d2fe; }
 
     /* Light governor gauge */
     body.light-mode .temp-gauge-track { border: 1px solid #e5e7eb; }
@@ -527,6 +531,7 @@
     .agent-state.working { color: var(--green); }
     .agent-state.idle { color: var(--muted); }
     .agent-state.paused { color: #f85149; }
+    .agent-state.on-demand { color: #818cf8; }
     .agent-state.off { color: #484f58; }
     .status-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
     .status-badge.blocked { background: rgba(248,81,73,0.2); color: #f85149; border: 1px solid rgba(248,81,73,0.4); }
@@ -545,6 +550,7 @@
     .dot.running { background: var(--green); }
     .dot.idle { background: var(--green); }
     .dot.paused { background: #ca8a04; }
+    .dot.on-demand { background: #818cf8; }
     .dot.off { background: #9ca3af; }
     .dot.stopped { background: var(--red); }
     .agent-field { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 2px 0; }
@@ -576,10 +582,13 @@
     .btn-toggle { cursor: pointer; font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); transition: all 0.2s; }
     .btn-toggle:hover { border-color: var(--accent); color: var(--text); }
     .btn-toggle.paused { background: rgba(248,81,73,0.15); border-color: #f85149; color: #f85149; }
+    .btn-toggle.on-demand { background: rgba(99,102,241,0.15); border-color: #818cf8; color: #818cf8; }
     .btn-toggle.running { background: rgba(63,185,80,0.15); border-color: #3fb950; color: #3fb950; }
     .btn-toggle.off { background: rgba(72,79,88,0.15); border-color: #484f58; color: #8b949e; }
     .agent-card.paused { border-color: #f85149; opacity: 0.7; }
     .agent-card.paused .agent-state { color: #f85149; }
+    .agent-card.on-demand { border-color: #818cf8; opacity: 0.85; }
+    .agent-card.on-demand .agent-state { color: #818cf8; }
     .agent-card.off { border-color: #484f58; opacity: 0.6; }
     .agent-card.off .agent-state { color: #484f58; }
     .pause-badge { display: inline-block; font-size: 0.6rem; background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid rgba(248,81,73,0.3); border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
@@ -588,6 +597,7 @@
     .pause-tooltip { display: none; position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: #1c1c2e; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-size: 0.7rem; white-space: nowrap; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
     body.light-mode .pause-tooltip { background: #fff; color: #1a1a2e; border-color: #d0d7de; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
     .off-badge { display: inline-block; font-size: 0.6rem; background: rgba(72,79,88,0.25); color: #8b949e; border: 1px solid rgba(72,79,88,0.4); border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+    .on-demand-badge { display: inline-block; font-size: 0.6rem; background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
 
     /* Health status panel */
     .health { margin-bottom: 24px; }
@@ -821,6 +831,7 @@
     .gov-matrix td.col-active.mode-busy  { background: rgba(210,153,34,0.08); color: #d29922; }
     .gov-matrix td.col-active.mode-surge { background: rgba(248,81,73,0.08); color: #f85149; }
     .gov-matrix td.paused { color: #484f58; font-style: italic; }
+    .gov-matrix td.on-demand { color: #818cf8; font-style: italic; }
     .gov-matrix td.off { color: #484f58; font-style: italic; }
     .gov-matrix .agent-dot {
       display: inline-block; width: 6px; height: 6px; border-radius: 50%;
@@ -2097,13 +2108,14 @@
       detail.classList.add('active');
 
       const isOff = a.offByCadence === true;
-      const isPaused = a.paused === true && !isOff;
+      const isOnDemand = a.onDemand === true;
+      const isPaused = a.paused === true && !isOff && !isOnDemand;
       const isStopped = a.state === 'stopped';
       const isRunning = a.busy === 'working' && !isPaused && !isOff && !isStopped;
-      const dotCls = isStopped ? 'stopped' : isPaused ? 'paused' : isOff ? 'off' : isRunning ? 'running' : 'idle';
+      const dotCls = isStopped ? 'stopped' : isOnDemand ? 'on-demand' : isPaused ? 'paused' : isOff ? 'off' : isRunning ? 'running' : 'idle';
 
       detail.className = 'oc-agent-detail active state-' + dotCls;
-      const stateLabel = isStopped ? 'stopped' : isPaused ? 'paused' : isOff ? 'off' : isRunning ? 'working' : 'idle';
+      const stateLabel = isStopped ? 'stopped' : isOnDemand ? 'on demand' : isPaused ? 'paused' : isOff ? 'off' : isRunning ? 'working' : 'idle';
 
       const kickId = `oc-kick-${a.name}`;
       const prevInput = document.getElementById(kickId);
@@ -2194,7 +2206,9 @@
           <span style="font-size:0.78rem;color:#6b7280;margin-left:auto">${stateLabel}${pauseInfoIcon(a)}</span>
         </div>
         <div class="oc-detail-actions">
-          <button class="btn-toggle ${isPaused ? 'paused' : isOff ? 'off' : 'running'}" data-action="toggleAgent" data-agent="${esc(a.name)}" data-paused="${isPaused}" title="${isPaused ? 'Resume this agent — it will start running on its configured cadence' : isOff ? 'Start this agent — it is currently off in this governor mode' : 'Pause this agent — stops governor from kicking it until resumed'}">${isPaused ? '▶ resume' : isOff ? '▶ start' : '⏸ pause'}</button>
+          ${isOnDemand
+            ? '<button class="btn-toggle on-demand" title="On-demand agent — kicked manually, not by governor cadence">⚡ on demand</button>'
+            : `<button class="btn-toggle ${isPaused ? 'paused' : isOff ? 'off' : 'running'}" data-action="toggleAgent" data-agent="${esc(a.name)}" data-paused="${isPaused}" title="${isPaused ? 'Resume this agent — it will start running on its configured cadence' : isOff ? 'Start this agent — it is currently off in this governor mode' : 'Pause this agent — stops governor from kicking it until resumed'}">${isPaused ? '▶ resume' : isOff ? '▶ start' : '⏸ pause'}</button>`}
           <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open the live tmux terminal session for this agent in a new tab">▶ terminal</a>
           <button class="restart-btn" data-action="restartAgent" data-agent="${esc(a.name)}" title="Kill this agent's tmux session — supervisor will respawn it with fresh context">↻ restart</button>
           <button class="config-gear" data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" style="font-size:1rem;opacity:0.7" title="Open configuration dialog for this agent (cadences, model, pipeline, hooks, etc.)">⚙️</button>
@@ -2211,9 +2225,9 @@
         <div class="oc-detail-fields">
           <div class="oc-detail-field"><div class="label" title="The CLI backend running this agent (e.g. claude, copilot, gemini)">CLI</div><div class="value">${esc(a.cli || '—')}</div></div>
           <div class="oc-detail-field"><div class="label" title="The LLM model powering this agent. Governor may change it based on budget.">Model</div><div class="value">${esc(a.model || '—')}</div></div>
-          <div class="oc-detail-field"><div class="label" title="Time between governor kicks in the current mode. Configured per mode (idle/quiet/busy/surge).">Interval</div><div class="value">${isPaused ? 'paused' : isOff ? 'off' : esc(a.cadence || '—')}</div></div>
+          <div class="oc-detail-field"><div class="label" title="Time between governor kicks in the current mode. Configured per mode (idle/quiet/busy/surge).">Interval</div><div class="value">${isOnDemand ? 'on demand' : isPaused ? 'paused' : isOff ? 'off' : esc(a.cadence || '—')}</div></div>
           <div class="oc-detail-field"><div class="label" title="When the governor last kicked (started a work pass for) this agent.">Last Run</div><div class="value">${esc(a.lastKick || '—')}</div></div>
-          <div class="oc-detail-field"><div class="label" title="When the governor will next kick this agent based on its cadence interval.">Next Run</div><div class="value">${isPaused ? 'paused' : isOff ? 'off' : esc(a.nextKick || '—')}</div></div>
+          <div class="oc-detail-field"><div class="label" title="When the governor will next kick this agent based on its cadence interval.">Next Run</div><div class="value">${isOnDemand ? 'on demand' : isPaused ? 'paused' : isOff ? 'off' : esc(a.nextKick || '—')}</div></div>
           <div class="oc-detail-field"><div class="label" title="Total tokens consumed by this agent in the last 24 hours across all sessions.">Tokens (24h)</div><div class="value">${_tokTotal > 0 ? fmtTokens(_tokTotal) : (_tok.sessions > 0 ? _tok.sessions + ' sess' : '—')}</div></div>
           <div class="oc-detail-field"><div class="label" title="Number of times this agent has been restarted in the last 24 hours. High counts may indicate instability.">Restarts</div><div class="value${(a.restarts || 0) > 5 ? ' restart-high' : (a.restarts || 0) > 0 ? ' restart-warn' : ''}">${a.restarts ?? 0}<span class="restart-label">24h</span>${(a.restarts || 0) > 0 ? ` <button class="restart-reset" data-action="resetRestarts" data-agent="${esc(a.name)}" title="Reset the restart counter to zero — does not affect the agent">✕</button>` : ''}<span class="restart-spark">${restartSparkSvg(a.name)}</span></div></div>
           <div class="oc-detail-field"><div class="label" title="Average tokens consumed per work pass (kick session). Lower is more efficient.">Avg/Pass</div><div class="value">${_tokAvg > 0 ? fmtTokens(_tokAvg) : '—'}</div></div>
@@ -2347,10 +2361,11 @@
 
     function _sidebarRenderAgent(a) {
       const isOff = a.offByCadence === true;
-      const isPaused = a.paused === true && !isOff;
+      const isOnDemand = a.onDemand === true;
+      const isPaused = a.paused === true && !isOff && !isOnDemand;
       const isStopped = a.state === 'stopped';
       const isRunning = a.busy === 'working' && !isPaused && !isOff && !isStopped;
-      const dotCls = isStopped ? 'stopped' : isPaused ? 'paused' : isOff ? 'off' : isRunning ? 'running' : 'idle';
+      const dotCls = isStopped ? 'stopped' : isOnDemand ? 'on-demand' : isPaused ? 'paused' : isOff ? 'off' : isRunning ? 'running' : 'idle';
       const isActive = _ocSelectedAgent === a.name ? ' active' : '';
       const agentDesc = a.description || AGENT_DESCRIPTIONS[a.name] || '';
       const label = a.displayName || a.name;
@@ -2964,7 +2979,7 @@
     }
 
     function parseCadenceMinutes(cadence) {
-      if (!cadence || cadence === 'paused' || cadence === 'off') return 0;
+      if (!cadence || cadence === 'paused' || cadence === 'off' || cadence === 'on demand') return 0;
       const m = cadence.match(/^(\d+)(m|h)$/);
       if (!m) return 0;
       const MINUTES_PER_HOUR = 60;
@@ -3033,7 +3048,8 @@
       const cards = sortedAgents.map(a => {
         const needsLogin = a.needsLogin === true;
         const isOff = a.offByCadence === true;
-        const isPaused = a.paused === true && !isOff;
+        const isOnDemand = a.onDemand === true;
+        const isPaused = a.paused === true && !isOff && !isOnDemand;
         const isStopped = a.state === 'stopped' && !isPaused && !isOff;
         const STALE_MS = 1200000; // 20 minutes
         const isStale = a.summaryUpdated && !isPaused && a.busy === 'working' && (Date.now() - new Date(a.summaryUpdated).getTime()) > STALE_MS;
@@ -3041,11 +3057,13 @@
         if (a.structuredStatus === 'BLOCKED') statusCls = 'status-blocked';
         else if (a.structuredStatus === 'NEEDS_CONTEXT') statusCls = 'status-needs-context';
         else if (isStale) statusCls = 'status-stale';
-        const cls = needsLogin ? 'needs-login' : isPaused ? 'paused' : isOff ? 'off' : isStopped ? 'stopped' : `${a.busy} ${statusCls}`.trim();
-        const dotCls = isStopped ? 'stopped' : isPaused ? 'paused' : isOff ? 'off' : a.busy === 'working' ? 'running' : 'idle';
+        const cls = needsLogin ? 'needs-login' : isOnDemand ? 'on-demand' : isPaused ? 'paused' : isOff ? 'off' : isStopped ? 'stopped' : `${a.busy} ${statusCls}`.trim();
+        const dotCls = isStopped ? 'stopped' : isOnDemand ? 'on-demand' : isPaused ? 'paused' : isOff ? 'off' : a.busy === 'working' ? 'running' : 'idle';
         const canToggle = a.beadRole !== 'supervisor';
         const toggleBtn = canToggle ? (isOff
           ? `<button class="btn-toggle off" data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Agent is off in this governor mode — click to configure per-mode cadences">⚙ off</button>`
+          : isOnDemand
+          ? `<button class="btn-toggle on-demand" title="On-demand agent — kicked manually, not by governor cadence">⚡ on demand</button>`
           : `<button class="btn-toggle ${isPaused ? 'paused' : 'running'}" data-action="toggleAgent" data-agent="${esc(a.name)}" data-paused="${isPaused}" title="${isPaused ? 'Resume this agent — it will start running on its configured cadence' : 'Pause this agent — stops governor from kicking it until resumed'}">${isPaused ? '▶ resume' : '⏸ pause'}</button>`) : '';
         // liveSummary is pushed via SSE every 5s — no separate fetch needed
         let summaryEl = '';
@@ -3070,12 +3088,12 @@
           <div class="agent-field"><span class="label" title="The LLM model powering this agent. Governor may change it based on budget or mode. Pin to lock.">model</span><span class="value">${modelChip(a.model, a.govReason, a.pinnedBoth || a.pinnedModel, a.name)}${(a.pinnedBoth || a.pinnedModel) ? '' : ` <button class="pin-toggle" data-action="togglePin" data-agent="${esc(a.name)}" data-pin-type="model" data-unpin="false" title="Pin model — lock current model so governor cannot downgrade it">📌</button>`}</span></div>
           <div class="agent-field"><span class="label" title="Agent operating mode — controls what GitHub actions this agent can take (advisory, issues, PRs, merge).">mode</span><span class="value">${modeLabel(a)}${a.needsRestart ? ' <span class="status-badge needs-context" title="CLI flags are stale — restart agent to apply new mode">⚠ restart needed</span>' : ''}</span></div>
           <div class="agent-field"><span class="label" title="Number of HTTP requests blocked by the ACMM proxy for this agent. Non-zero means the agent attempted actions above its mode.">proxy</span><span class="value">${a.proxyViolations > 0 ? '<span style="color:var(--danger)">⛔ ' + a.proxyViolations + ' blocked</span>' : '✓ clean'}</span></div>
-          <div class="agent-field"><span class="label" title="Time between governor kicks for this agent in the current mode. Configured per governor mode (idle/quiet/busy/surge).">interval</span><span class="value">${isPaused ? 'paused' : isOff ? 'off' : a.cadence}</span></div>
+          <div class="agent-field"><span class="label" title="Time between governor kicks for this agent in the current mode. Configured per governor mode (idle/quiet/busy/surge).">interval</span><span class="value">${isOnDemand ? 'on demand' : isPaused ? 'paused' : isOff ? 'off' : a.cadence}</span></div>
           <div class="agent-field"><span class="label" title="When the governor last kicked (started a work pass for) this agent.">last run</span><span class="value">${a.lastKick || '—'}</span></div>
-          <div class="agent-field"><span class="label" title="When the governor will next kick this agent based on its cadence interval.">next run</span><span class="value">${isPaused ? 'paused' : isOff ? 'off' : (a.nextKick || '—')}</span></div>
+          <div class="agent-field"><span class="label" title="When the governor will next kick this agent based on its cadence interval.">next run</span><span class="value">${isOnDemand ? 'on demand' : isPaused ? 'paused' : isOff ? 'off' : (a.nextKick || '—')}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
           <div class="agent-field"><span class="label" title="Number of times this agent has been restarted in the last 24 hours. High counts may indicate instability or rate limiting.">restarts</span><span class="value${(a.restarts || 0) > 5 ? ' restart-high' : (a.restarts || 0) > 0 ? ' restart-warn' : ''}">${a.restarts || 0}<span class="restart-label">24h</span>${(a.restarts || 0) > 0 ? `<button class="restart-reset" data-action="resetRestarts" data-agent="${esc(a.name)}" title="Reset the restart counter to zero — does not affect the agent">✕</button>` : ''}<span class="restart-spark">${restartSparkSvg(a.name)}</span></span></div>
-          <div class="agent-state ${isPaused ? 'paused' : isOff ? 'off' : a.busy}">${isPaused ? 'paused' : isOff ? 'off' : a.busy}${pauseInfoIcon(a)}${(() => {
+          <div class="agent-state ${isOnDemand ? 'on-demand' : isPaused ? 'paused' : isOff ? 'off' : a.busy}">${isOnDemand ? 'on demand' : isPaused ? 'paused' : isOff ? 'off' : a.busy}${pauseInfoIcon(a)}${(() => {
             if (a.structuredStatus === 'BLOCKED') return '<span class="status-badge blocked" title="' + esc(a.statusEvidence) + '">blocked</span>';
             if (a.structuredStatus === 'NEEDS_CONTEXT') return '<span class="status-badge needs-context" title="' + esc(a.statusEvidence) + '">needs context</span>';
             if (a.structuredStatus === 'DONE_WITH_CONCERNS') return '<span class="status-badge done-concerns" title="' + esc(a.statusEvidence) + '">concerns</span>';
@@ -3247,20 +3265,22 @@
         const isWorking = agentData && agentData.busy === 'working';
         const agentPaused = agentData && agentData.paused === true && !agentData.offByCadence;
         const agentOff = agentData && agentData.offByCadence === true;
+        const agentOnDemand = agentData && agentData.onDemand === true;
         const cells = modes.map(m => {
           const val = row[m] || '?';
           const isActive = m === currentMode;
           const isOff = val === 'off';
-          const showOff = isOff;
-          const showPaused = !isOff && (val === 'paused' || agentPaused);
+          const showOff = isOff && !agentOnDemand;
+          const showOnDemand = agentOnDemand || val === 'on demand';
+          const showPaused = !isOff && !showOnDemand && (val === 'paused' || agentPaused);
           const colCls = isActive ? `col-active mode-${m}` : '';
-          const stateCls = showOff ? ' off' : showPaused ? ' paused' : '';
-          const dot = (isActive && isWorking && !agentPaused && !showOff) ? '<span class="active-dot"></span>' : '';
-          const badge = showOff ? '<span class="off-badge">off</span>' : showPaused ? '<span class="pause-badge">paused</span>' : val;
+          const stateCls = showOnDemand ? ' on-demand' : showOff ? ' off' : showPaused ? ' paused' : '';
+          const dot = (isActive && isWorking && !agentPaused && !showOff && !showOnDemand) ? '<span class="active-dot"></span>' : '';
+          const badge = showOnDemand ? '<span class="on-demand-badge">on demand</span>' : showOff ? '<span class="off-badge">off</span>' : showPaused ? '<span class="pause-badge">paused</span>' : val;
           return `<td class="${colCls}${stateCls}">${dot}${badge}</td>`;
         }).join('');
         const nameDot = isWorking ? '<span class="agent-dot"></span>' : '';
-        const pauseBadge = agentPaused ? '<span class="pause-badge">paused</span>' : agentOff ? '<span class="off-badge">off</span>' : '';
+        const pauseBadge = agentOnDemand ? '<span class="on-demand-badge">on demand</span>' : agentPaused ? '<span class="pause-badge">paused</span>' : agentOff ? '<span class="off-badge">off</span>' : '';
         const cliPinned = agentData && (agentData.pinnedBoth || agentData.pinnedCli);
         const modelPinned = agentData && (agentData.pinnedBoth || agentData.pinnedModel);
         const cChip = agentData && agentData.cli ? cliChip(agentData.cli, cliPinned, aname) : '?';

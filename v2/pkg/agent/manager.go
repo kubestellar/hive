@@ -65,7 +65,8 @@ type AgentProcess struct {
 	tmuxSession     string
 	tmuxSocket      string
 	cancel context.CancelFunc
-	forceRelaunch   bool
+	forceRelaunch       bool
+	BootstrapOverride   string // when set, replaces buildBootstrapPrompt output
 }
 
 // ProjectContext holds project-level config injected into agent boot prompts.
@@ -329,7 +330,11 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	}
 	model = normalizeModelName(model)
 
-	bootstrapPrompt := m.buildBootstrapPrompt(agent)
+	bootstrapPrompt := agent.BootstrapOverride
+	if bootstrapPrompt == "" {
+		bootstrapPrompt = m.buildBootstrapPrompt(agent)
+	}
+	agent.BootstrapOverride = "" // one-shot: clear after use
 
 	mode := m.agentMode(agent)
 	agent.LaunchedMode = mode
@@ -1888,6 +1893,19 @@ func (m *Manager) Resume(ctx context.Context, name string) error {
 		}
 		return m.launchInTmux(ctx, agent)
 	}
+	return nil
+}
+
+// SetBootstrapOverride sets a one-shot bootstrap prompt override. On the next
+// restart, this message replaces the standard boot prompt. Cleared after use.
+func (m *Manager) SetBootstrapOverride(name, prompt string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	agent, ok := m.agents[name]
+	if !ok {
+		return fmt.Errorf("agent %s not found", name)
+	}
+	agent.BootstrapOverride = prompt
 	return nil
 }
 

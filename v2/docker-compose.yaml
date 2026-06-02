@@ -30,7 +30,7 @@ services:
     cap_add:
       - NET_ADMIN
     expose:
-      - "3001"
+      - "3002"
       - "7681"
     volumes:
       - ./hive.yaml:/etc/hive/hive.yaml
@@ -44,7 +44,7 @@ services:
       - HIVE_LEVEL=${HIVE_LEVEL:-}
       - HIVE_REPO=${HIVE_REPO:-}
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:3001/api/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:3002/api/health"]
       interval: 10s
       timeout: 5s
       retries: 3

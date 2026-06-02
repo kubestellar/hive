@@ -400,7 +400,7 @@ func main() {
 	}
 
 	// Go binary serves the internal API without auth — the Node.js proxy
-	// on port 3001 handles public-facing authentication.
+	// on port 3002 handles public-facing authentication.
 	dashSrv := dashboard.NewServer(cfg.Dashboard.Port, logger)
 
 	// Seed token sparkline history now that the dashboard server exists

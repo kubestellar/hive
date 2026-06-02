@@ -27,7 +27,7 @@ spec:
             - "/etc/hive/hive.yaml"
           ports:
             - name: dashboard
-              containerPort: 3001
+              containerPort: 3002
               protocol: TCP
             - name: api
               containerPort: 3002

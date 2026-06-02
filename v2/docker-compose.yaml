@@ -43,12 +43,27 @@ services:
       - NTFY_TOPIC=${NTFY_TOPIC}
       - HIVE_LEVEL=${HIVE_LEVEL:-}
       - HIVE_REPO=${HIVE_REPO:-}
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:3002/api/health"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 120s
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: hive-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=60
+      - WATCHTOWER_LABEL_ENABLE=true
+    profiles:
+      - auto-update
 
 volumes:
   hive-data:

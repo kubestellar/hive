@@ -3011,22 +3011,19 @@ app.post('/api/contributors/:id/revoke', (req, res) => {
   res.json({ ok: true });
 });
 
-// Registration endpoint (simplified — real implementation would use GitHub OAuth)
-app.post('/api/contribute/register', (req, res) => {
-  const { github_username } = req.body;
-  if (!github_username || !/^[a-zA-Z0-9_-]+$/.test(github_username)) {
-    return res.status(400).json({ error: 'Invalid github_username' });
-  }
-  const existing = loadContributor(github_username);
-  if (existing) {
-    return res.json({ contributor_id: existing.contributor_id, registration_token: existing.registration_token_plain, message: 'Already registered' });
-  }
+// GitHub OAuth registration flow — uses the Hive GitHub App as OAuth provider
+const CONTRIBUTOR_OAUTH_CLIENT_ID = process.env.HIVE_CONTRIBUTOR_OAUTH_CLIENT_ID
+  || (projectConfig.github_app || {}).oauth_client_id || '';
+const CONTRIBUTOR_OAUTH_CLIENT_SECRET = process.env.HIVE_CONTRIBUTOR_OAUTH_CLIENT_SECRET
+  || (projectConfig.github_app || {}).oauth_client_secret || '';
+const CONTRIBUTOR_OAUTH_STATES = new Map();
+const CONTRIBUTOR_OAUTH_STATE_TTL_MS = 600000;
 
+function createContributorProfile(githubUsername) {
   const contributorId = `c-${crypto.randomBytes(6).toString('hex')}`;
   const registrationToken = crypto.randomBytes(32).toString('hex');
-
   const profile = {
-    github_username,
+    github_username: githubUsername,
     contributor_id: contributorId,
     registration_token: crypto.createHash('sha256').update(registrationToken).digest('hex'),
     registration_token_plain: registrationToken,
@@ -3037,8 +3034,207 @@ app.post('/api/contribute/register', (req, res) => {
     rate_limits: { max_concurrent_tasks: 1, max_tasks_per_hour: 3, max_tasks_per_day: 10 },
   };
   saveContributor(profile);
+  return { profile, registrationToken };
+}
 
-  res.json({ contributor_id: contributorId, registration_token: registrationToken, message: 'Registered successfully' });
+// Contributor landing page
+app.get('/contribute', (_req, res) => {
+  const hubUrl = `${req.protocol === 'https' ? 'wss' : 'ws'}://${_req.get('host')}/contribute`;
+  const activeCount = contributorConnections.size;
+  const registered = listContributors().length;
+  const actionable = ((actionableCache.issues || {}).items || []).length;
+  res.send(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Contribute to ${DASHBOARD_TITLE}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 40px; max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .subtitle { color: #8b949e; font-size: 1.1rem; margin-bottom: 32px; }
+  .stat-row { display: flex; gap: 16px; margin-bottom: 32px; }
+  .stat { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 16px 20px; flex: 1; text-align: center; }
+  .stat-num { font-size: 1.8rem; font-weight: 700; color: #58a6ff; }
+  .stat-label { font-size: 0.8rem; color: #8b949e; margin-top: 4px; }
+  .cta { display: inline-block; background: #238636; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 1rem; font-weight: 600; margin-top: 8px; }
+  .cta:hover { background: #2ea043; }
+  .steps { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px; margin-top: 24px; }
+  .steps h3 { margin-top: 0; color: #58a6ff; }
+  .steps ol { padding-left: 20px; line-height: 2; }
+  code { background: #0d1117; padding: 2px 8px; border-radius: 4px; font-size: 0.9rem; }
+  .how { margin-top: 32px; }
+  .how h3 { color: #e6edf3; }
+  .how p { color: #8b949e; line-height: 1.6; }
+  .tier-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  .tier-table th, .tier-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #30363d; font-size: 0.85rem; }
+  .tier-table th { color: #8b949e; font-weight: 600; }
+</style></head><body>
+  <h1>🐝 Contribute to ${esc(DASHBOARD_TITLE)}</h1>
+  <p class="subtitle">Donate your CLI + API tokens to help this project's AI agent swarm.</p>
+
+  <div class="stat-row">
+    <div class="stat"><div class="stat-num">${activeCount}</div><div class="stat-label">Active Contributors</div></div>
+    <div class="stat"><div class="stat-num">${registered}</div><div class="stat-label">Registered</div></div>
+    <div class="stat"><div class="stat-num">${actionable}</div><div class="stat-label">Items Needing Work</div></div>
+  </div>
+
+  <a href="/contribute/register" class="cta">Register with GitHub</a>
+
+  <div class="steps">
+    <h3>How it works</h3>
+    <ol>
+      <li><strong>Register</strong> — click the button above to authenticate with GitHub</li>
+      <li><strong>Install just</strong> — <code>brew install just</code> (macOS) or <code>cargo install just</code></li>
+      <li><strong>Clone the hive repo</strong> — <code>git clone https://github.com/kubestellar/hive</code></li>
+      <li><strong>Run</strong> — <code>just contribute-hive</code> (defaults to Claude Code, or <code>just contribute-hive gemini</code>)</li>
+      <li><strong>Log into your CLI</strong> — the container prompts you if needed</li>
+      <li><strong>Walk away</strong> — your agent pulls work from the queue automatically</li>
+    </ol>
+  </div>
+
+  <div class="how">
+    <h3>What you bring vs. what the hive provides</h3>
+    <p><strong>You bring:</strong> Your own CLI API tokens (Claude, Gemini, Copilot, Goose, Bob). You pay for your own model inference.</p>
+    <p><strong>The hive provides:</strong> Scoped GitHub access via a GitHub App. Your agent can create PRs and comment on issues without you sharing any GitHub credentials.</p>
+    <p>Neither side sees the other's secrets.</p>
+  </div>
+
+  <div class="how">
+    <h3>Trust tiers</h3>
+    <table class="tier-table">
+      <tr><th>Tier</th><th>Unlocked at</th><th>Can do</th></tr>
+      <tr><td>Newcomer</td><td>Registration</td><td>Comment on issues</td></tr>
+      <tr><td>Contributor</td><td>5 completed tasks</td><td>Create PRs, push code</td></tr>
+      <tr><td>Trusted</td><td>20 tasks + maintainer voucher</td><td>Merge PRs</td></tr>
+      <tr><td>Advisor</td><td>Registration (no API tokens needed)</td><td>Review agent PRs</td></tr>
+    </table>
+  </div>
+</body></html>`);
+});
+
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Step 1: Redirect to GitHub OAuth
+app.get('/contribute/register', (_req, res) => {
+  if (!CONTRIBUTOR_OAUTH_CLIENT_ID) {
+    return res.send(`<html><body style="font-family:monospace;background:#0d1117;color:#e6edf3;padding:40px">
+      <h2>Hive Contributor Registration</h2>
+      <p>GitHub OAuth is not configured on this hub.</p>
+      <p>Use the API endpoint instead:</p>
+      <pre style="background:#161b22;padding:16px;border-radius:8px">curl -X POST ${_req.protocol}://${_req.get('host')}/api/contribute/register \\
+  -H "Content-Type: application/json" \\
+  -d '{"github_username": "your-github-username"}'</pre>
+      <p>Or run: <code>just contribute-register</code></p>
+    </body></html>`);
+  }
+  const state = crypto.randomBytes(16).toString('hex');
+  CONTRIBUTOR_OAUTH_STATES.set(state, { created: Date.now() });
+  const redirectUri = `${_req.protocol}://${_req.get('host')}/contribute/callback`;
+  const authUrl = `https://github.com/login/oauth/authorize?client_id=${CONTRIBUTOR_OAUTH_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=read:user`;
+  res.redirect(authUrl);
+});
+
+// Step 2: OAuth callback
+app.get('/contribute/callback', async (req, res) => {
+  const { code, state } = req.query;
+  if (!code || !state) return res.status(400).send('Missing code or state');
+
+  const stored = CONTRIBUTOR_OAUTH_STATES.get(state);
+  if (!stored || Date.now() - stored.created > CONTRIBUTOR_OAUTH_STATE_TTL_MS) {
+    CONTRIBUTOR_OAUTH_STATES.delete(state);
+    return res.status(400).send('Invalid or expired state');
+  }
+  CONTRIBUTOR_OAUTH_STATES.delete(state);
+
+  try {
+    const https = require('https');
+    const tokenBody = JSON.stringify({
+      client_id: CONTRIBUTOR_OAUTH_CLIENT_ID,
+      client_secret: CONTRIBUTOR_OAUTH_CLIENT_SECRET,
+      code,
+      state,
+    });
+    const tokenResponse = await new Promise((resolve, reject) => {
+      const tokenReq = https.request({
+        hostname: 'github.com', path: '/login/oauth/access_token', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Content-Length': Buffer.byteLength(tokenBody) },
+      }, (tokenRes) => {
+        let data = '';
+        tokenRes.on('data', (d) => { data += d; });
+        tokenRes.on('end', () => { try { resolve(JSON.parse(data)); } catch (e) { reject(e); } });
+      });
+      tokenReq.on('error', reject);
+      tokenReq.write(tokenBody);
+      tokenReq.end();
+    });
+
+    if (!tokenResponse.access_token) {
+      return res.status(400).send(`OAuth failed: ${tokenResponse.error_description || tokenResponse.error || 'unknown'}`);
+    }
+
+    const userResponse = await new Promise((resolve, reject) => {
+      const userReq = https.request({
+        hostname: 'api.github.com', path: '/user', method: 'GET',
+        headers: { 'Authorization': `Bearer ${tokenResponse.access_token}`, 'User-Agent': 'Hive-Contributor-Registration', 'Accept': 'application/json' },
+      }, (userRes) => {
+        let data = '';
+        userRes.on('data', (d) => { data += d; });
+        userRes.on('end', () => { try { resolve(JSON.parse(data)); } catch (e) { reject(e); } });
+      });
+      userReq.on('error', reject);
+      userReq.end();
+    });
+
+    const githubUsername = userResponse.login;
+    if (!githubUsername) return res.status(400).send('Could not determine GitHub username');
+
+    const existing = loadContributor(githubUsername);
+    let regToken;
+    if (existing) {
+      regToken = existing.registration_token_plain;
+    } else {
+      const result = createContributorProfile(githubUsername);
+      regToken = result.registrationToken;
+    }
+
+    res.send(`<html><body style="font-family:monospace;background:#0d1117;color:#e6edf3;padding:40px">
+      <h2>Welcome to the Hive, @${githubUsername}!</h2>
+      <p>Your registration token (save this — it won't be shown again):</p>
+      <pre style="background:#161b22;padding:16px;border-radius:8px;user-select:all;cursor:pointer" onclick="navigator.clipboard.writeText(this.textContent)">${regToken}</pre>
+      <p style="color:#8b949e;font-size:0.85rem">Click the token to copy it.</p>
+      <h3 style="margin-top:24px">Next steps:</h3>
+      <pre style="background:#161b22;padding:16px;border-radius:8px"># Save your token
+mkdir -p ~/.config/hive
+cat > ~/.config/hive/contributor.env &lt;&lt;EOF
+HIVE_REGISTRATION_TOKEN=${regToken}
+HIVE_HUB=${req.protocol === 'https' ? 'wss' : 'ws'}://${req.get('host')}/contribute
+EOF
+
+# Start contributing
+just contribute-hive</pre>
+    </body></html>`);
+  } catch (err) {
+    res.status(500).send(`Registration error: ${err.message}`);
+  }
+});
+
+// Cleanup expired OAuth states every 5 minutes
+trackedInterval(() => {
+  const now = Date.now();
+  for (const [state, data] of CONTRIBUTOR_OAUTH_STATES) {
+    if (now - data.created > CONTRIBUTOR_OAUTH_STATE_TTL_MS) CONTRIBUTOR_OAUTH_STATES.delete(state);
+  }
+}, 300000);
+
+// Direct API registration (fallback for headless/CLI use)
+app.post('/api/contribute/register', (req, res) => {
+  const { github_username } = req.body;
+  if (!github_username || !/^[a-zA-Z0-9_-]+$/.test(github_username)) {
+    return res.status(400).json({ error: 'Invalid github_username' });
+  }
+  const existing = loadContributor(github_username);
+  if (existing) {
+    return res.json({ contributor_id: existing.contributor_id, registration_token: existing.registration_token_plain, message: 'Already registered' });
+  }
+  const { profile, registrationToken } = createContributorProfile(github_username);
+  res.json({ contributor_id: profile.contributor_id, registration_token: registrationToken, message: 'Registered successfully' });
 });
 
 // Contribute status
@@ -3121,6 +3317,20 @@ app.delete('/api/hives/:id', (req, res) => {
   const idx = (registry.hives || []).findIndex(h => h.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Hive not found' });
   registry.hives.splice(idx, 1);
+  saveHiveRegistry(registry);
+  res.json({ ok: true });
+});
+
+// Heartbeat — remote hives ping with live stats
+app.post('/api/hives/:id/heartbeat', (req, res) => {
+  const registry = loadHiveRegistry();
+  const hive = (registry.hives || []).find(h => h.id === req.params.id);
+  if (!hive) return res.status(404).json({ error: 'Hive not found' });
+  const { active_contributors, active_agents, actionable_items } = req.body;
+  if (active_contributors !== undefined) hive.active_contributors = active_contributors;
+  if (active_agents !== undefined) hive.active_agents = active_agents;
+  if (actionable_items !== undefined) hive.actionable_items = actionable_items;
+  hive.last_heartbeat = new Date().toISOString();
   saveHiveRegistry(registry);
   res.json({ ok: true });
 });

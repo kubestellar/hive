@@ -6309,6 +6309,7 @@ function burnAreaChart() {
           <div id="inception-complete-files" style="margin-bottom:16px"></div>
           <div style="display:flex;gap:8px;justify-content:center">
             <button onclick="resetInception()" style="padding:8px 20px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">New Inception</button>
+            <button onclick="downloadInceptionZip()" style="padding:8px 20px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">Download Project</button>
             <button onclick="loadInceptionCompleteFiles()" style="padding:8px 20px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--fg);cursor:pointer;font-size:0.82rem">Refresh Files</button>
           </div>
         </div>`;
@@ -6443,10 +6444,35 @@ function burnAreaChart() {
     async function resetInception() {
       stopInceptionPoll();
       try {
+        // Check if there are existing wiki files to save
+        const hasFilesResp = await fetch('/api/inception/has-files');
+        const hasFilesData = await hasFilesResp.json();
+        if (hasFilesData.has_files) {
+          const choice = confirm('You have an existing project scaffold. Click OK to download it before starting over, or Cancel to discard it.');
+          if (choice) {
+            await downloadInceptionZip();
+          }
+        }
         await fetch('/api/inception/reset', { method: 'POST' });
         _inceptionState = null;
         renderInception();
       } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    async function downloadInceptionZip() {
+      try {
+        const r = await fetch('/api/inception/download');
+        if (!r.ok) { alert('Download failed'); return; }
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'inception-project.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) { alert('Download error: ' + e.message); }
     }
 
     // Load inception state on section navigate

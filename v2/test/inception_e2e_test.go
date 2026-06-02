@@ -157,12 +157,12 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		}
 	}
 
-	// Step 4: Submit answers (use defaults) — skip if already past clarify
+	// Step 4: Submit answers (use defaults) — always submit, even if phase
+	// already advanced past clarify. The API accepts late answers and sets
+	// PhaseChangedAt which the watcher needs to detect post-answer fact beads.
 	result.Phase = "clarify"
 	result.Check = "submit_answers"
-	if currentPhase, _ := state["phase"].(string); phaseIndex(currentPhase) >= phaseIndex("structure") {
-		t.Logf("Pass %d: skipping answer submit — already at phase %s", pass, currentPhase)
-	} else {
+	{
 		answers := make(map[string]string)
 		for _, q := range questions {
 			qm := q.(map[string]interface{})

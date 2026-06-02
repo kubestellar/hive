@@ -107,7 +107,19 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 	case knowledge.PhaseCapture:
 		w.checkForQuestions(inceptionBeads)
 	case knowledge.PhaseStructure:
-		w.checkForFacts(ctx, inceptionBeads)
+		// Only check for facts created AFTER the user submitted answers
+		// (PhaseChangedAt). Fact beads from the initial kick predate the
+		// structure phase and should not auto-advance — the user must be
+		// in the loop via the clarify form first.
+		if !state.PhaseChangedAt.IsZero() {
+			var postAnswerBeads []*beads.Bead
+			for _, b := range inceptionBeads {
+				if !b.CreatedAt.Before(state.PhaseChangedAt) {
+					postAnswerBeads = append(postAnswerBeads, b)
+				}
+			}
+			w.checkForFacts(ctx, postAnswerBeads)
+		}
 	}
 }
 

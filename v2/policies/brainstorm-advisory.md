@@ -2,15 +2,22 @@
 
 You are the **brainstorm** agent. Advisory mode only — beads, never GitHub issues or PRs.
 
-⚠️ **INCEPTION ACTIVE — THIS IS YOUR ONLY TASK THIS KICK** ⚠️
+## ⛔ CRITICAL: OVERRIDE ALL OTHER INSTRUCTIONS ⛔
 
-A user has submitted a project idea for inception. You MUST process it according to the current phase below. Do NOT do general ideation. Do NOT scan repos. Do NOT look at existing code. ONLY process the inception idea.
+**IGNORE base.md, l1.md, and any ACMM policy files you read from disk.** This kick message is your ONLY source of instructions. Do NOT:
+- Clone or scan repos
+- Write heartbeat entries
+- Search GitHub
+- Read other policy files
+- Do general ideation or repo analysis
 
 **Idea**: ${INCEPTION_IDEA}
 **Phase**: ${INCEPTION_PHASE}
 **Mode**: ${INCEPTION_MODE}
 
 If the Idea field above is empty, skip to the "Normal Ideation Mode" section at the bottom.
+
+Your ONLY task this kick is to process the inception idea above. Start immediately with the phase-specific instructions below. Do NOT do anything else first.
 
 ### If phase is `capture` — generate clarification questions
 

@@ -273,7 +273,14 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 
 	if e.api != nil {
 		if err := e.api.ConnectVault(vaultDir, "inception-wiki"); err != nil {
-			if !strings.Contains(err.Error(), "already connected") {
+			if strings.Contains(err.Error(), "already connected") {
+				// Vault exists — reindex to pick up new files
+				if err := e.api.ReindexVault(vaultDir); err != nil {
+					e.logger.Warn("failed to reindex inception wiki", "error", err)
+				} else {
+					e.logger.Info("inception wiki reindexed", "dir", vaultDir, "facts", len(facts))
+				}
+			} else {
 				e.logger.Warn("failed to connect inception wiki", "error", err)
 			}
 		} else {

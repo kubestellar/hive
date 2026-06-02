@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -841,13 +842,37 @@ func (c *Config) AgentByID(id string) (AgentConfig, bool) {
 	return AgentConfig{}, false
 }
 
+// validateSaveGuard checks that essential fields are present before allowing
+// a config write. This prevents docker compose down -v (or similar) from
+// causing Save() to overwrite hive.yaml with an empty/minimal config that
+// would crash-loop on next startup.
+func (c *Config) validateSaveGuard() error {
+	if c.Project.Org == "" {
+		log.Printf("WARNING: config.Save() blocked — project.org is empty, would corrupt hive.yaml")
+		return fmt.Errorf("project.org is empty")
+	}
+	if len(c.Agents) == 0 {
+		log.Printf("WARNING: config.Save() blocked — no agents configured, would corrupt hive.yaml")
+		return fmt.Errorf("no agents configured")
+	}
+	return nil
+}
+
 // Save marshals the current config back to its source YAML file atomically.
 // It writes to a temporary file in the same directory, then renames over the
 // original. This prevents partial writes if the process crashes mid-save and
 // ensures watchers see a complete file.
+//
+// As a safety measure, Save refuses to write if essential fields are missing
+// (project.org, at least one agent). This prevents an empty or minimal config
+// from overwriting the bind-mounted hive.yaml — a scenario that causes
+// crash-loops on the next startup ("project.org is required").
 func (c *Config) Save() error {
 	if c.SourcePath == "" {
 		return fmt.Errorf("config has no source path")
+	}
+	if err := c.validateSaveGuard(); err != nil {
+		return fmt.Errorf("refusing to save invalid config: %w", err)
 	}
 	data, err := yaml.Marshal(c)
 	if err != nil {

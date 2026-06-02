@@ -2,10 +2,13 @@ package dashboard
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
@@ -261,6 +264,93 @@ func (s *Server) handleInceptionHasFiles(w http.ResponseWriter, r *http.Request)
 	}
 	hasFiles := s.deps.Inception.HasWikiFiles()
 	jsonResponse(w, map[string]interface{}{"ok": true, "has_files": hasFiles})
+}
+
+func (s *Server) handleInceptionRenameWiki(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := readJSON(r, &req); err != nil || req.Name == "" {
+		jsonError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if s.deps.Knowledge == nil {
+		jsonError(w, "knowledge not initialized", http.StatusServiceUnavailable)
+		return
+	}
+	store := s.deps.Knowledge.GetVaultStore("/data/inception-wiki")
+	if store == nil {
+		jsonError(w, "inception wiki vault not found", http.StatusNotFound)
+		return
+	}
+	store.SetName(req.Name)
+
+	// Persist the name in inception state
+	if state := s.deps.Inception.GetState(); state != nil {
+		s.deps.Inception.SetWikiName(req.Name)
+	}
+
+	s.logger.Info("inception wiki renamed", "name", req.Name)
+	jsonResponse(w, map[string]interface{}{"ok": true, "name": req.Name})
+}
+
+func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Inception == nil {
+		jsonError(w, "inception engine not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		jsonError(w, "file upload required", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		jsonError(w, "failed to read upload", http.StatusBadRequest)
+		return
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		jsonError(w, "invalid zip file", http.StatusBadRequest)
+		return
+	}
+
+	wikiDir := "/data/inception-wiki"
+	os.MkdirAll(wikiDir, 0o755)
+
+	imported := 0
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		content, _ := io.ReadAll(rc)
+		rc.Close()
+
+		outPath := filepath.Join(wikiDir, filepath.Base(f.Name))
+		if err := os.WriteFile(outPath, content, 0o644); err != nil {
+			continue
+		}
+		imported++
+	}
+
+	// Reconnect vault to pick up imported files
+	if s.deps.Knowledge != nil {
+		s.deps.Knowledge.ConnectVault(wikiDir, "inception-wiki")
+		if store := s.deps.Knowledge.GetVaultStore(wikiDir); store != nil {
+			store.Reindex()
+		}
+	}
+
+	s.logger.Info("inception wiki imported", "files", imported)
+	jsonResponse(w, map[string]interface{}{"ok": true, "imported": imported})
 }
 
 func (s *Server) kickBrainstorm() {

@@ -296,13 +296,18 @@ func (e *InceptionEngine) connectExistingVault() {
 	if err != nil || len(entries) == 0 {
 		return
 	}
-	if err := e.api.ConnectVault(vaultDir, "inception-wiki"); err != nil {
+	wikiName := "inception-wiki"
+	if e.state != nil && e.state.WikiName != "" {
+		wikiName = e.state.WikiName
+	}
+	if err := e.api.ConnectVault(vaultDir, wikiName); err != nil {
 		if !strings.Contains(err.Error(), "already connected") {
 			e.logger.Warn("failed to reconnect inception wiki on startup", "error", err)
 		}
 	} else {
 		e.logger.Info("inception wiki reconnected on startup",
 			"dir", vaultDir,
+			"name", wikiName,
 			"files", len(entries),
 		)
 	}
@@ -501,6 +506,16 @@ func (e *InceptionEngine) ReadIdeaFact(ctx context.Context) (*Fact, error) {
 }
 
 // Reset clears the inception state so the user can start over.
+// SetWikiName persists a vanity name for the inception wiki.
+func (e *InceptionEngine) SetWikiName(name string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.state != nil {
+		e.state.WikiName = name
+		e.saveState()
+	}
+}
+
 // HasWikiFiles returns true if the inception wiki has any files from a previous run.
 func (e *InceptionEngine) HasWikiFiles() bool {
 	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)

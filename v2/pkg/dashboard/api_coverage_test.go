@@ -3703,7 +3703,7 @@ func TestHandleGovernorHealth_PartialUpdate(t *testing.T) {
 func TestHandleWidget_PausedAgent(t *testing.T) {
 	s, deps := apiServer(t)
 	// Pause the scanner agent so it has State="paused"
-	_ = deps.AgentMgr.Pause("scanner")
+	_ = deps.AgentMgr.Pause("scanner", "test", "test pause")
 	deps.Governor.Evaluate(5, 1, 0, 0)
 	rec := doGet(s, "/api/widget")
 	if rec.Code != http.StatusOK {

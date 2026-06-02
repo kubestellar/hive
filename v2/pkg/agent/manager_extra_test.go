@@ -166,7 +166,7 @@ func TestIsPaused(t *testing.T) {
 		t.Error("scanner should not be paused initially")
 	}
 
-	m.Pause("scanner")
+	m.Pause("scanner", "test", "test pause")
 	if !m.IsPaused("scanner") {
 		t.Error("scanner should be paused")
 	}

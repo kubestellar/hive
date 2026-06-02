@@ -315,7 +315,7 @@ func TestResume_NotPaused(t *testing.T) {
 	}, discardLogger(), ProjectContext{})
 
 	// Agent is in Stopped state (not paused), Resume should be no-op
-	err := m.Resume(nil, "scanner")
+	err := m.Resume(nil, "scanner", "test", "test resume")
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestResume_NotPaused(t *testing.T) {
 
 func TestResume_NotFound(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
-	err := m.Resume(nil, "nonexistent")
+	err := m.Resume(nil, "nonexistent", "test", "test resume")
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -494,7 +494,7 @@ func TestSendKick_NotRunning(t *testing.T) {
 
 func TestPause_NotFound(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
-	err := m.Pause("nonexistent")
+	err := m.Pause("nonexistent", "test", "test pause")
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -509,7 +509,7 @@ func TestPause_AlreadyPaused(t *testing.T) {
 	m.agents["scanner"].Paused = true
 	m.mu.Unlock()
 
-	err := m.Pause("scanner")
+	err := m.Pause("scanner", "test", "test pause")
 	if err != nil {
 		t.Fatalf("Pause should succeed even if already paused: %v", err)
 	}

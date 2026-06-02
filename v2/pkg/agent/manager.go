@@ -51,6 +51,9 @@ type AgentProcess struct {
 	StartedAt       *time.Time
 	LastKick        *time.Time
 	Paused          bool
+	PausedAt        time.Time
+	PausedReason    string
+	PausedTrigger   string
 	PinnedCLI       string
 	PinnedModel     string
 	ModelOverride   string
@@ -1854,7 +1857,7 @@ func (m *Manager) agentEnvPairs(agent *AgentProcess) []agentEnvPair {
 	return vars
 }
 
-func (m *Manager) Pause(name string) error {
+func (m *Manager) Pause(name, trigger, reason string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1864,19 +1867,34 @@ func (m *Manager) Pause(name string) error {
 	}
 
 	agent.Paused = true
+	agent.PausedAt = time.Now()
+	agent.PausedReason = reason
+	agent.PausedTrigger = trigger
 	if agent.State == StateRunning {
 		m.tmuxSendKeysForAgent(agent, "C-c", "")
 	}
 	agent.State = StatePaused
-	m.logger.Info("agent paused",
+	m.logger.Info("audit: agent paused",
 		"name", name,
+		"trigger", trigger,
+		"reason", reason,
 		"backend", agent.Config.Backend,
 		"restart_count", agent.RestartCount,
 	)
 	return nil
 }
 
-func (m *Manager) Resume(ctx context.Context, name string) error {
+func (m *Manager) SeedPauseState(name string, pausedAt time.Time, trigger, reason string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if agent, ok := m.agents[name]; ok {
+		agent.PausedAt = pausedAt
+		agent.PausedTrigger = trigger
+		agent.PausedReason = reason
+	}
+}
+
+func (m *Manager) Resume(ctx context.Context, name, trigger, reason string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1885,7 +1903,19 @@ func (m *Manager) Resume(ctx context.Context, name string) error {
 		return fmt.Errorf("agent %s not found", name)
 	}
 
+	prevTrigger := agent.PausedTrigger
+	prevReason := agent.PausedReason
 	agent.Paused = false
+	agent.PausedAt = time.Time{}
+	agent.PausedReason = ""
+	agent.PausedTrigger = ""
+	m.logger.Info("audit: agent resumed",
+		"name", name,
+		"trigger", trigger,
+		"reason", reason,
+		"prev_trigger", prevTrigger,
+		"prev_reason", prevReason,
+	)
 	if agent.State == StatePaused {
 		agent.forceRelaunch = true
 		if err := m.ensureTmuxSession(agent); err != nil {

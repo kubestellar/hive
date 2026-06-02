@@ -261,7 +261,18 @@ func main() {
 				continue
 			}
 			if as.Paused {
-				_ = agentMgr.Pause(name)
+				reason := as.PausedReason
+				if reason == "" {
+					reason = "persisted pause state"
+				}
+				trigger := as.PausedTrigger
+				if trigger == "" {
+					trigger = "state-restore"
+				}
+				_ = agentMgr.Pause(name, trigger, reason)
+				if as.PausedAt != nil {
+					agentMgr.SeedPauseState(name, *as.PausedAt, trigger, reason)
+				}
 			}
 			if as.PinnedCLI != "" {
 				_ = agentMgr.PinCLI(name, as.PinnedCLI)
@@ -1082,7 +1093,7 @@ func scanForLoginRequired(
 				)
 
 				// Pause the agent instead of restarting
-				if pauseErr := agentMgr.Pause(name); pauseErr != nil {
+				if pauseErr := agentMgr.Pause(name, "login-detector", "login required detected"); pauseErr != nil {
 					logger.Warn("failed to pause agent after login detection",
 						"agent", name, "error", pauseErr)
 				}
@@ -1184,6 +1195,12 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 			BackendOverride: proc.BackendOverride,
 			RestartCount:    proc.RestartCount,
 			LastKick:        proc.LastKick,
+			PausedReason:    proc.PausedReason,
+			PausedTrigger:   proc.PausedTrigger,
+		}
+		if !proc.PausedAt.IsZero() {
+			t := proc.PausedAt
+			as.PausedAt = &t
 		}
 		if len(proc.KickHistory) > 0 {
 			as.KickHistory = make([]snapshot.AgentKickEntry, len(proc.KickHistory))

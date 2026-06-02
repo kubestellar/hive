@@ -187,6 +187,9 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			State:         string(proc.State),
 			Busy:          busy,
 			Paused:        proc.Paused,
+			PausedAt:      formatOptionalTime(proc.PausedAt),
+			PausedReason:  proc.PausedReason,
+			PausedTrigger: proc.PausedTrigger,
 			CLI:           cli,
 			Model:         model,
 			Cadence:       cadence,
@@ -926,4 +929,11 @@ func buildACMMPackAgents(cfg *config.Config) []string {
 		}
 	}
 	return names
+}
+
+func formatOptionalTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339)
 }

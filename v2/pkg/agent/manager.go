@@ -1908,6 +1908,7 @@ func (m *Manager) SetBootstrapOverride(name, prompt string) error {
 		return fmt.Errorf("agent %s not found", name)
 	}
 	agent.BootstrapOverride = prompt
+	m.logger.Info("bootstrap override set", "agent", name, "len", len(prompt))
 	return nil
 }
 

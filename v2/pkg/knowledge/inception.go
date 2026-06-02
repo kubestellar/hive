@@ -511,6 +511,15 @@ func (e *InceptionEngine) Reset() error {
 		return fmt.Errorf("removing state file: %w", err)
 	}
 
+	// Clear inception wiki files from previous run
+	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)
+	if entries, err := os.ReadDir(wikiDir); err == nil {
+		for _, entry := range entries {
+			os.Remove(filepath.Join(wikiDir, entry.Name()))
+		}
+		e.logger.Info("inception wiki cleared", "dir", wikiDir, "files", len(entries))
+	}
+
 	e.logger.Info("inception reset")
 	return nil
 }

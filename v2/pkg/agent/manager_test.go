@@ -434,7 +434,7 @@ func TestCopilotToken_NotInEnvPrefix(t *testing.T) {
 
 func TestPause_UnknownAgentReturnsError(t *testing.T) {
 	m := NewManager(map[string]config.AgentConfig{}, discardLogger(), ProjectContext{})
-	err := m.Pause("ghost")
+	err := m.Pause("ghost", "test", "test pause")
 	if err == nil {
 		t.Fatal("expected error pausing unknown agent, got nil")
 	}
@@ -446,7 +446,7 @@ func TestPause_SetsPausedFlag(t *testing.T) {
 	}
 	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
-	if err := m.Pause("worker"); err != nil {
+	if err := m.Pause("worker", "test", "test pause"); err != nil {
 		t.Fatalf("Pause() error: %v", err)
 	}
 
@@ -463,8 +463,8 @@ func TestResume_ClearsPausedFlag(t *testing.T) {
 	}
 	m := NewManager(cfgs, discardLogger(), ProjectContext{})
 
-	_ = m.Pause("worker")
-	if err := m.Resume(context.Background(), "worker"); err != nil {
+	_ = m.Pause("worker", "test", "test pause")
+	if err := m.Resume(context.Background(), "worker", "test", "test resume"); err != nil {
 		t.Fatalf("Resume() error: %v", err)
 	}
 

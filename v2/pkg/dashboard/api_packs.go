@@ -105,6 +105,7 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 			IncludeRepos: &includeRepos,
 			LaneKeywords: pa.LaneKeywords,
 			Mode:         pa.Mode,
+			OnDemand:     pa.OnDemand,
 			Managed:      true,
 		}
 
@@ -118,8 +119,11 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 
 		finalCfg := s.deps.Config.Agents[pa.Name]
 		s.deps.AgentMgr.AddAgent(pa.Name, finalCfg)
-		if err := s.deps.AgentMgr.Start(s.deps.Ctx, pa.Name); err != nil {
-			s.logger.Warn("failed to start agent after pack create", "agent", pa.Name, "error", err)
+		// On-demand agents are only triggered explicitly (e.g. by inception).
+		if !pa.OnDemand {
+			if err := s.deps.AgentMgr.Start(s.deps.Ctx, pa.Name); err != nil {
+				s.logger.Warn("failed to start agent after pack create", "agent", pa.Name, "error", err)
+			}
 		}
 
 		created = append(created, pa.Name)
@@ -266,14 +270,23 @@ func (s *Server) syncAgentVisibility(level int) (paused, resumed []string) {
 	}
 
 	packAgents := make(map[string]bool, len(pack.Agents))
+	onDemandAgents := make(map[string]bool, len(pack.Agents))
 	for _, a := range pack.Agents {
 		if !a.Hidden {
 			packAgents[a.Name] = true
+		}
+		if a.OnDemand {
+			onDemandAgents[a.Name] = true
 		}
 	}
 
 	for name := range s.deps.Config.Agents {
 		if packAgents[name] {
+			// On-demand agents (e.g. brainstorm) should never auto-resume;
+			// they are triggered explicitly by workflows like inception.
+			if onDemandAgents[name] {
+				continue
+			}
 			if s.deps.AgentMgr.IsPaused(name) {
 				if err := s.deps.AgentMgr.Resume(s.deps.Ctx, name, "acmm-pack", fmt.Sprintf("agent included in pack level %d", level)); err == nil {
 					resumed = append(resumed, name)

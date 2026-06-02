@@ -308,6 +308,7 @@ agents:
   bead_role: worker
   mode: ADVISORY
   kick_template: brainstorm-advisory.md
+  on_demand: true
   include_repos: false
   stale_timeout: 7200
   interactions: Standalone. Produces ideation beads for human review.

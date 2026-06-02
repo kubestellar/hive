@@ -56,6 +56,7 @@ agents:
     mode: ADVISORY
     kick_template: brainstorm-advisory.md
     clear_on_kick: true
+    on_demand: true
     include_repos: false
     stale_timeout: 7200
     interactions: "Standalone. Driven by inception workflow and user queries."

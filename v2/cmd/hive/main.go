@@ -779,7 +779,13 @@ func main() {
 		}
 	}
 
-	for name := range cfg.EnabledAgents() {
+	for name, ac := range cfg.EnabledAgents() {
+		// On-demand agents (e.g. brainstorm) should not auto-start on
+		// container restart; they are triggered explicitly by workflows.
+		if ac.OnDemand {
+			logger.Info("skipping on-demand agent at startup", "name", name)
+			continue
+		}
 		if err := agentMgr.Start(ctx, name); err != nil {
 			logger.Warn("failed to start agent", "name", name, "error", err)
 		}

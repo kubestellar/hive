@@ -797,6 +797,7 @@ func main() {
 			logger.Info("skipping on-demand agent at startup", "name", name)
 			continue
 		}
+		logger.Info("audit: starting agent", "name", name, "trigger", "startup")
 		if err := agentMgr.Start(ctx, name); err != nil {
 			logger.Warn("failed to start agent", "name", name, "error", err)
 		}
@@ -929,10 +930,21 @@ func runEvalCycle(
 	// in this mode" — it does NOT force-pause the agent. Manual pause/resume
 	// via the dashboard is always respected; the governor only controls kicks.
 
+	// Filter out on-demand agents — they are only triggered explicitly
+	var filteredDue []string
+	for _, name := range agentsDue {
+		if ac, ok := cfg.Agents[name]; ok && ac.OnDemand {
+			continue
+		}
+		filteredDue = append(filteredDue, name)
+	}
+	agentsDue = filteredDue
+
 	sched.SetLastActionable(actionable)
 	if len(agentsDue) > 0 {
 		messages := sched.BuildKickMessages(actionable, agentsDue)
 		for _, msg := range messages {
+			logger.Info("audit: governor kicking agent", "agent", msg.Agent, "trigger", "governor-eval")
 			if err := agentMgr.SendKick(msg.Agent, msg.Message); err != nil {
 				logger.Warn("failed to send kick", "agent", msg.Agent, "error", err)
 				continue

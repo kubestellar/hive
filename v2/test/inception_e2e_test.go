@@ -132,23 +132,34 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 	// Step 2.5: Verify brainstorm agent is processing the inception idea
 	result.Phase = "capture"
 	result.Check = "agent_on_task"
-	time.Sleep(15 * time.Second) // give agent time to start
-	agentLines, _ := client.paneOutput("brainstorm")
-	agentText := strings.ToLower(strings.Join(agentLines, " "))
-	ideaWords := strings.Fields(strings.ToLower(idea))
-	matchCount := 0
-	for _, w := range ideaWords {
-		if len(w) > 4 && strings.Contains(agentText, w) {
-			matchCount++
+	{
+		const agentCheckAttempts = 6
+		const agentCheckInterval = 10 * time.Second
+		agentOnTask := false
+		for attempt := 0; attempt < agentCheckAttempts; attempt++ {
+			time.Sleep(agentCheckInterval)
+			agentLines, _ := client.paneOutput("brainstorm")
+			agentText := strings.ToLower(strings.Join(agentLines, " "))
+			ideaWords := strings.Fields(strings.ToLower(idea))
+			matchCount := 0
+			for _, w := range ideaWords {
+				if len(w) > 4 && strings.Contains(agentText, w) {
+					matchCount++
+				}
+			}
+			if matchCount >= 2 || strings.Contains(agentText, "inception") || strings.Contains(agentText, "clarif") {
+				agentOnTask = true
+				break
+			}
 		}
-	}
-	if len(agentLines) > 5 && matchCount == 0 {
-		// Agent has output but none of it references the idea — likely doing general ideation
-		lastLine := ""
-		if len(agentLines) > 0 {
-			lastLine = agentLines[len(agentLines)-1]
+		if !agentOnTask {
+			agentLines, _ := client.paneOutput("brainstorm")
+			lastLine := ""
+			if len(agentLines) > 0 {
+				lastLine = agentLines[len(agentLines)-1]
+			}
+			return fail(result, "agent_error", fmt.Sprintf("brainstorm agent not processing inception idea after 60s (last: %s)", lastLine))
 		}
-		t.Logf("Pass %d WARNING: agent may not be processing inception idea (0/%d keyword matches, last: %s)", pass, len(ideaWords), lastLine)
 	}
 
 	// Step 3: Wait for clarify phase (bead watcher detects question beads)

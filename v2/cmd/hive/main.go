@@ -790,11 +790,20 @@ func main() {
 		}
 	}
 
+	onDemandFromPack := make(map[string]bool)
+	if acmmLevel > 0 {
+		if pack, err := config.ACMMPackByLevel(acmmLevel); err == nil {
+			for _, pa := range pack.Agents {
+				if pa.OnDemand {
+					onDemandFromPack[pa.Name] = true
+				}
+			}
+		}
+	}
 	for name, ac := range cfg.EnabledAgents() {
-		// On-demand agents (e.g. brainstorm) should not auto-start on
-		// container restart; they are triggered explicitly by workflows.
-		if ac.OnDemand {
-			logger.Info("skipping on-demand agent at startup", "name", name)
+		isOnDemand := ac.OnDemand || onDemandFromPack[name]
+		if isOnDemand {
+			logger.Info("skipping on-demand agent at startup", "name", name, "config_on_demand", ac.OnDemand, "pack_on_demand", onDemandFromPack[name])
 			continue
 		}
 		logger.Info("audit: starting agent", "name", name, "trigger", "startup")

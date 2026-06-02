@@ -440,7 +440,7 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	now := time.Now()
 	agent.State = StateRunning
 	agent.StartedAt = &now
-	m.logger.Info("agent launched in tmux",
+	m.logger.Info("audit: agent started",
 		"name", agent.Name,
 		"backend", backend,
 		"model", model,
@@ -1079,7 +1079,7 @@ func (m *Manager) Stop(name string) error {
 	m.tmuxSendKeysForAgent(agent, "C-c", "")
 
 	agent.State = StateStopped
-	m.logger.Info("agent stopped", "name", name)
+	m.logger.Info("audit: agent stopped", "name", name)
 
 	return nil
 }
@@ -1116,7 +1116,7 @@ func (m *Manager) AddAgent(name string, cfg config.AgentConfig) {
 		tmuxSocket:   tmuxSocket,
 	}
 	m.idToName[agentID] = name
-	m.logger.Info("agent added", "name", name, "id", agentID, "uid", agentUID)
+	m.logger.Info("audit: agent added", "name", name, "id", agentID, "uid", agentUID)
 }
 
 // UpdateConfig updates the stored config for a running agent process so that
@@ -1150,7 +1150,7 @@ func (m *Manager) RemoveAgent(name string) {
 
 	delete(m.idToName, agent.ID)
 	delete(m.agents, name)
-	m.logger.Info("agent removed", "name", name, "id", agent.ID)
+	m.logger.Info("audit: agent removed", "name", name, "id", agent.ID)
 }
 
 // CheckAndRestartCrashedAgents checks all running agents for crashed CLI
@@ -1317,7 +1317,7 @@ func (m *Manager) SendKick(name string, message string) error {
 	if len(kickPreview) > maxKickPreviewLen {
 		kickPreview = kickPreview[:maxKickPreviewLen] + "..."
 	}
-	m.logger.Info("kick sent",
+	m.logger.Info("audit: agent kicked",
 		"name", name,
 		"message_len", len(message),
 		"preview", kickPreview,
@@ -2096,7 +2096,7 @@ func (m *Manager) Restart(ctx context.Context, name string) error {
 
 	agent.RestartCount++
 	agent.forceRelaunch = true
-	m.logger.Info("agent restarting", "name", name, "restart_count", agent.RestartCount)
+	m.logger.Info("audit: agent restarting", "name", name, "restart_count", agent.RestartCount)
 
 	if err := m.ensureTmuxSession(agent); err != nil {
 		return err

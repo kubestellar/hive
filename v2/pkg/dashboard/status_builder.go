@@ -225,6 +225,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 		a.DefaultMode = defaultMode.String()
 		a.IsCustomMode = mode != defaultMode
 		a.NeedsRestart = proc.HasLaunched && proc.LaunchedMode != mode
+		a.OnDemand = agentCfg.OnDemand
 		if proxyViolationsFn != nil {
 			a.ProxyViolations = proxyViolationsFn()[name]
 		}

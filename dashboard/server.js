@@ -573,6 +573,19 @@ function fetchStatus() {
         statusCache.issueToMerge = issueToMergeCache;
         // GitHub API rate limit alerts
         statusCache.ghRateLimits = ghRateLimitsCache;
+        // Contributor pool metrics
+        statusCache.contributorPool = {
+          active: contributorConnections.size,
+          registered: listContributors().length,
+          connections: Array.from(contributorConnections.values()).map(c => ({
+            github_username: c.profile.github_username,
+            trust_tier: c.profile.trust_tier,
+            cli_backend: c.cliBackend,
+            model: c.model,
+            current_task: c.currentTask ? { kind: c.currentTask.kind, repo: c.currentTask.repo, number: c.currentTask.number } : null,
+          })),
+        };
+
         // Activity from JSONL tailing + tmux scraping — no stale status file fallback
         statusCache.summaries = summariesCache;
         for (const a of (statusCache.agents || [])) {
@@ -643,6 +656,10 @@ function fetchStatus() {
         snap.tokenCacheRead = tt.cacheRead || 0;
         snap.tokenCacheCreate = tt.cacheCreate || 0;
         snap.tokenMessages = tt.messages || 0;
+        // Contributor pool
+        snap.contributorActive = contributorConnections.size;
+        snap.contributorAssigned = Array.from(contributorConnections.values()).filter(c => c.currentTask).length;
+
         // Per-model token data
         snap.tokenModels = {};
         const bm = tc.byModel || {};

@@ -506,6 +506,23 @@
     .gh-auth-modal .gh-poll-status { color: #6b7280; font-size: 0.8rem; margin-top: 12px; }
     .gh-auth-modal .gh-cancel { background: none; border: 1px solid #d1d5db; padding: 6px 16px; border-radius: 6px; cursor: pointer; color: #6b7280; margin-top: 12px; }
     .gh-auth-modal .gh-cancel:hover { background: #f3f4f6; }
+    .gh-setup-modal { background: #fff; border-radius: 12px; padding: 32px; max-width: 560px; width: 92%; text-align: left; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 85vh; overflow-y: auto; }
+    .gh-setup-modal h3 { margin: 0 0 16px; font-size: 1.2rem; color: #1a1a2e; text-align: center; }
+    .gh-setup-modal p { color: #6b7280; font-size: 0.85rem; margin: 8px 0; line-height: 1.5; }
+    .gh-setup-modal .setup-option { background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 12px 0; cursor: pointer; transition: border-color 0.15s; }
+    .gh-setup-modal .setup-option:hover { border-color: #238636; }
+    .gh-setup-modal .setup-option h4 { margin: 0 0 6px; font-size: 0.95rem; color: #1a1a2e; }
+    .gh-setup-modal .setup-option p { margin: 0; font-size: 0.8rem; }
+    .gh-setup-modal .setup-steps { background: #f0fdf4; border-radius: 8px; padding: 16px; margin: 12px 0; font-size: 0.82rem; color: #374151; }
+    .gh-setup-modal .setup-steps ol { margin: 8px 0; padding-left: 20px; }
+    .gh-setup-modal .setup-steps li { margin: 6px 0; line-height: 1.5; }
+    .gh-setup-modal .setup-steps code { background: #e5e7eb; padding: 1px 5px; border-radius: 3px; font-size: 0.78rem; }
+    .gh-setup-modal .setup-perms { background: #fffbeb; border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+    .gh-setup-modal .setup-perms h5 { margin: 0 0 6px; font-size: 0.85rem; color: #92400e; }
+    .gh-setup-modal .setup-perms ul { margin: 4px 0; padding-left: 18px; font-size: 0.78rem; color: #78350f; }
+    .gh-setup-modal .setup-perms li { margin: 3px 0; }
+    .gh-setup-modal .gh-cancel { background: none; border: 1px solid #d1d5db; padding: 6px 16px; border-radius: 6px; cursor: pointer; color: #6b7280; margin-top: 12px; display: block; width: 100%; text-align: center; }
+    .gh-setup-modal .gh-cancel:hover { background: #f3f4f6; }
     .agent-state { text-align: right; font-size: 0.75rem; font-weight: 600; margin-top: 6px; }
     .agent-state.working { color: var(--green); }
     .agent-state.idle { color: var(--muted); }
@@ -1522,6 +1539,70 @@
     <a id="gh-verify-link" class="gh-verify-link" href="https://github.com/login/device" target="_blank" rel="noopener">Open GitHub →</a>
     <div class="gh-poll-status" id="gh-poll-status">Waiting for authorization...</div>
     <button class="gh-cancel" onclick="cancelGHLogin()">Cancel</button>
+  </div>
+</div>
+<div id="gh-setup-overlay" class="gh-auth-overlay" style="display:none">
+  <div class="gh-setup-modal">
+    <h3>GitHub App Setup Required</h3>
+    <p>Hive needs a GitHub App to authenticate. Choose an option:</p>
+    <div class="setup-option" onclick="showSetupDetails('public')">
+      <h4>Use the public Hive App (quickest)</h4>
+      <p>Dashboard login only. Agents can read repos but cannot create issues, PRs, or merge.</p>
+    </div>
+    <div class="setup-option" onclick="showSetupDetails('custom')">
+      <h4>Create your own GitHub App (recommended for full ACMM)</h4>
+      <p>Full agent capabilities: issues, PRs, auto-merge. Required for ACMM levels 3-6.</p>
+    </div>
+    <div id="setup-details-public" style="display:none">
+      <div class="setup-steps">
+        <strong>Quick setup:</strong>
+        <ol>
+          <li>Open <code>hive.yaml</code> on the host (mounted at <code>/etc/hive/hive.yaml</code> inside the container)</li>
+          <li>Add to the <code>github:</code> section:<br><code>oauth_client_id: Ov23ligE2p0gjXg6xAUf</code></li>
+          <li>Restart the container: <code>docker compose restart hive</code></li>
+          <li>Click "Sign in with GitHub" again</li>
+        </ol>
+      </div>
+    </div>
+    <div id="setup-details-custom" style="display:none">
+      <div class="setup-steps">
+        <strong>Create a GitHub App:</strong>
+        <ol>
+          <li>Go to <a href="https://github.com/settings/apps/new" target="_blank" rel="noopener" style="color:#238636">github.com/settings/apps/new</a> (or your org's Settings &rarr; Developer settings &rarr; GitHub Apps)</li>
+          <li>Set the app name (e.g. <code>my-hive</code>)</li>
+          <li>Homepage URL: any URL (e.g. <code>https://github.com/kubestellar/hive</code>)</li>
+          <li>Uncheck "Webhook &rarr; Active" (not needed)</li>
+          <li>Under "Device Flow", check <strong>Enable Device Flow</strong></li>
+          <li>Set the permissions below, then click "Create GitHub App"</li>
+          <li>On the app page, note the <strong>App ID</strong> and <strong>Client ID</strong></li>
+          <li>Generate a private key (.pem file) and save it to <code>./secrets/gh-app-key.pem</code></li>
+          <li>Install the app on your org/repos and note the <strong>Installation ID</strong> (from the URL after install)</li>
+          <li>Update <code>hive.yaml</code>:</li>
+        </ol>
+        <pre style="background:#1a1a2e;color:#e5e7eb;padding:12px;border-radius:6px;font-size:0.75rem;overflow-x:auto">github:
+  app_id: &lt;your-app-id&gt;
+  installation_id: &lt;your-installation-id&gt;
+  key_file: /secrets/gh-app-key.pem
+  oauth_client_id: &lt;your-client-id&gt;</pre>
+        <p style="margin-top:8px">Restart the container after updating.</p>
+      </div>
+      <div class="setup-perms">
+        <h5>Required Permissions (Repository)</h5>
+        <ul>
+          <li><strong>Contents</strong>: Read &amp; write (clone, push branches)</li>
+          <li><strong>Issues</strong>: Read &amp; write (create/close issues)</li>
+          <li><strong>Pull requests</strong>: Read &amp; write (create/merge PRs)</li>
+          <li><strong>Metadata</strong>: Read-only (required by GitHub)</li>
+          <li><strong>Checks</strong>: Read-only (monitor CI status)</li>
+          <li><strong>Actions</strong>: Read-only (monitor workflow runs)</li>
+        </ul>
+        <h5>Required Permissions (Organization)</h5>
+        <ul>
+          <li><strong>Members</strong>: Read-only (identify contributors)</li>
+        </ul>
+      </div>
+    </div>
+    <button class="gh-cancel" onclick="document.getElementById('gh-setup-overlay').style.display='none'">Close</button>
   </div>
 </div>
 <div id="toast-container"></div>
@@ -6534,7 +6615,7 @@ function burnAreaChart() {
     document.getElementById('logs-agent-select')?.addEventListener('change', () => { _logsData = {}; fetchAgentLogs(); });
     setInterval(fetchAgentLogs, LOGS_REFRESH_MS);
 
-    const MODE_EMOJIS = {'NO_GITHUB':'🔇','ADVISORY':'📝','ISSUES_ONLY':'🎫','ISSUES_AND_PRS':'🔧','ISSUES_PRS_MERGE':'🚀'};
+    const MODE_EMOJIS = {'ADVISORY':'📝','ISSUES_ONLY':'🎫','ISSUES_AND_PRS':'🔧','ISSUES_PRS_MERGE':'🚀'};
     function modeEmoji(mode) { return MODE_EMOJIS[mode] || ''; }
     function modeLabel(a) {
       if (!a.mode) return '—';
@@ -7447,9 +7528,9 @@ function burnAreaChart() {
           </div>
         </div>
         <div class="config-field">
-          <label>Operating Mode <span class="config-info">i<span class="config-tooltip">Controls what GitHub actions this agent can take. NO_GITHUB: internal only. ADVISORY: beads only. ISSUES_ONLY: open issues, no PRs. ISSUES_AND_PRS: issues + PRs. ISSUES_PRS_MERGE: full auto-merge. Leave blank to use the ACMM level default.</span></span></label>
+          <label>Operating Mode <span class="config-info">i<span class="config-tooltip">Controls what GitHub actions this agent can take. ADVISORY: beads only. ISSUES_ONLY: open issues, no PRs. ISSUES_AND_PRS: issues + PRs. ISSUES_PRS_MERGE: full auto-merge. Leave blank to use the ACMM level default.</span></span></label>
           ${(() => {
-            const allModes = ['NO_GITHUB','ADVISORY','ISSUES_ONLY','ISSUES_AND_PRS','ISSUES_PRS_MERGE'];
+            const allModes = ['ADVISORY','ISSUES_ONLY','ISSUES_AND_PRS','ISSUES_PRS_MERGE'];
             const statusAgent = ((window._lastStatus || {}).agents || []).find(sa => sa.name === agentName);
             const dflt = statusAgent ? statusAgent.defaultMode : '';
             const current = g.mode || '';
@@ -8682,11 +8763,25 @@ function burnAreaChart() {
       }
     }
 
+    function showSetupDetails(which) {
+      document.getElementById('setup-details-public').style.display = which === 'public' ? 'block' : 'none';
+      document.getElementById('setup-details-custom').style.display = which === 'custom' ? 'block' : 'none';
+    }
+
     async function startGHLogin() {
       try {
         const resp = await fetch('/api/gh-user-auth/start', { method: 'POST' });
         const data = await resp.json();
-        if (data.error) { alert('Failed to start login: ' + data.error); return; }
+        if (data.error) {
+          if (data.error.includes('oauth_client_id')) {
+            document.getElementById('gh-setup-overlay').style.display = 'flex';
+            document.getElementById('setup-details-public').style.display = 'none';
+            document.getElementById('setup-details-custom').style.display = 'none';
+          } else {
+            showToast('Login error: ' + data.error, 'error');
+          }
+          return;
+        }
         document.getElementById('gh-device-code').textContent = data.user_code;
         document.getElementById('gh-verify-link').href = data.verification_uri;
         document.getElementById('gh-poll-status').textContent = 'Waiting for authorization...';
@@ -8743,6 +8838,9 @@ function burnAreaChart() {
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape' && document.getElementById('gh-auth-modal-overlay').style.display === 'flex') {
         cancelGHLogin();
+      }
+      if (e.key === 'Escape' && document.getElementById('gh-setup-overlay').style.display === 'flex') {
+        document.getElementById('gh-setup-overlay').style.display = 'none';
       }
     });
 

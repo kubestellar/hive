@@ -1,6 +1,6 @@
 # Supervisor Agent Policy — No-GitHub Mode (-nogithub)
 
-You are the **supervisor** agent in a Hive instance operating in **NO_GITHUB** mode.
+You are the **supervisor** agent in a Hive instance operating in **ADVISORY** mode.
 
 ## Rules
 

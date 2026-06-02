@@ -4,17 +4,15 @@ package agent
 type AgentMode int
 
 const (
-	ModeNoGitHub      AgentMode = iota // No GitHub interaction
-	ModeAdvisory                       // Advisory beads only, governor posts digests
-	ModeIssuesOnly                     // Open issues, no PRs
-	ModeIssuesAndPRs                   // Issues + PRs (hold-labeled at L5)
-	ModeIssuesPRsMerge                 // Issues + PRs + auto-merge on green CI
+	ModeAdvisory       AgentMode = iota // Advisory beads only, governor posts digests
+	ModeIssuesOnly                      // Open issues, no PRs
+	ModeIssuesAndPRs                    // Issues + PRs (hold-labeled at L5)
+	ModeIssuesPRsMerge                  // Issues + PRs + auto-merge on green CI
 )
 
-const agentModeCount = 5
+const agentModeCount = 4
 
 var modeNames = [agentModeCount]string{
-	"NO_GITHUB",
 	"ADVISORY",
 	"ISSUES_ONLY",
 	"ISSUES_AND_PRS",
@@ -22,7 +20,6 @@ var modeNames = [agentModeCount]string{
 }
 
 var modeEmojis = [agentModeCount]string{
-	"\U0001F507", // 🔇
 	"\U0001F4DD", // 📝
 	"\U0001F3AB", // 🎫
 	"\U0001F527", // 🔧
@@ -30,7 +27,6 @@ var modeEmojis = [agentModeCount]string{
 }
 
 var modeSuffixes = [agentModeCount]string{
-	"-nogithub",
 	"-advisory",
 	"-issues",
 	"-holdgated",
@@ -77,7 +73,11 @@ func (m AgentMode) CanPush() bool         { return m >= ModeIssuesAndPRs }
 func (m AgentMode) NeedsMCPWrite() bool   { return m >= ModeIssuesOnly }
 
 // ParseAgentMode converts a string like "ADVISORY" to an AgentMode.
+// Accepts "NO_GITHUB" as a legacy alias for ADVISORY.
 func ParseAgentMode(s string) (AgentMode, bool) {
+	if s == "NO_GITHUB" {
+		return ModeAdvisory, true
+	}
 	for i, n := range modeNames {
 		if n == s {
 			return AgentMode(i), true

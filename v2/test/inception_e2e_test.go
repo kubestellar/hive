@@ -266,7 +266,7 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		content, _ := fm["content"].(string)
 		fileContents[path] = content
 	}
-	requiredFiles := []string{"README.md", "CLAUDE.md", "CONTRIBUTING.md", ".github/workflows/ci.yml"}
+	requiredFiles := []string{"README.md", "AGENTS.md", "CONTRIBUTING.md", ".github/workflows/ci.yml"}
 	for _, req := range requiredFiles {
 		if _, ok := fileContents[req]; !ok {
 			return fail(result, "missing_content", fmt.Sprintf("missing required file: %s", req))
@@ -279,7 +279,7 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 	if strings.Contains(readme, "# Project\n") && !strings.Contains(strings.ToLower(readme), strings.ToLower(strings.Fields(idea)[2])) {
 		return fail(result, "missing_content", fmt.Sprintf("README.md is placeholder — does not reference idea keywords (content: %s)", readme[:min(len(readme), 100)]))
 	}
-	claudeMD := fileContents["CLAUDE.md"]
+	claudeMD := fileContents["AGENTS.md"]
 	if len(claudeMD) < 50 {
 		return fail(result, "missing_content", fmt.Sprintf("CLAUDE.md too short (%d chars) — likely placeholder", len(claudeMD)))
 	}

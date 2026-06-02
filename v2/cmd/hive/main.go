@@ -605,8 +605,19 @@ func main() {
 
 	// Brainstorm is on-demand only — start paused so it doesn't run
 	// general ideation on boot. Inception's RestartWithBootstrap unpauses it.
-	if err := agentMgr.Pause("brainstorm", "startup", "on-demand only — waits for inception"); err != nil {
-		logger.Debug("brainstorm pause on startup", "error", err)
+	// Exception: if inception is active (state loaded from disk), kick brainstorm
+	// to resume the interrupted inception flow.
+	if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
+		msg := sched.BuildAgentMessage("brainstorm", nil, nil)
+		if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
+			logger.Warn("failed to resume brainstorm for active inception", "error", err)
+		} else {
+			logger.Info("brainstorm resumed for active inception", "phase", state.Phase)
+		}
+	} else {
+		if err := agentMgr.Pause("brainstorm", "startup", "on-demand only — waits for inception"); err != nil {
+			logger.Debug("brainstorm pause on startup", "error", err)
+		}
 	}
 
 	dashSrv.RegisterAPI(&dashboard.Dependencies{

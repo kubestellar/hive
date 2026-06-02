@@ -6315,8 +6315,13 @@ function burnAreaChart() {
 
     function renderInceptionComplete() {
       const factCount = (_inceptionState.fact_slugs || []).length;
+      const idea = escapeHtml((_inceptionState && _inceptionState.idea_text) || '');
       return `
         <div style="max-width:100%;margin:0">
+          <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
+            <div style="font-size:0.72rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Your Idea</div>
+            <div style="font-size:0.85rem">${idea}</div>
+          </div>
           <div style="text-align:center;margin-bottom:20px">
             <div style="font-size:1rem;font-weight:600;margin-bottom:4px">Inception Complete</div>
             <div style="font-size:0.85rem;color:var(--muted)">${factCount} knowledge facts created. Your project is ready to grow.</div>

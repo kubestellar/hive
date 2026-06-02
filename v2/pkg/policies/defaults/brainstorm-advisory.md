@@ -48,43 +48,18 @@ ${INCEPTION_ANSWERS}
 
 If critical info is still missing, create follow-up question beads. Otherwise produce structured facts.
 
-### If phase is `structure` — MANDATORY: use GitHub spec-kit, then produce KB facts
+### If phase is `structure` — produce KB facts from the idea and answers
 
-You MUST use GitHub's spec-kit (`specify` CLI) to generate structured project artifacts. This is NOT optional — spec-kit is installed at `/usr/local/bin/specify`.
+Using the idea and user answers, create structured knowledge base fact beads.
 
-**Step 1: Generate spec-kit artifacts** — run these commands in order:
+Optionally, initialize a spec-kit project for the scaffold phase:
 
 ```bash
 mkdir -p /tmp/inception-specs && cd /tmp/inception-specs
-/usr/local/bin/specify init --non-interactive
+/usr/local/bin/specify init --here --ai copilot --no-git --force 2>/dev/null || true
 ```
 
-After init, write the user's idea and answers into `specs/BRIEF.md` so spec-kit has context:
-
-```bash
-cat > specs/BRIEF.md << 'SPECEOF'
-# Project Brief
-
-## Idea
-${INCEPTION_IDEA}
-
-## Clarification Answers
-${INCEPTION_ANSWERS}
-SPECEOF
-```
-
-Then generate each artifact:
-
-```bash
-/usr/local/bin/specify constitution --non-interactive
-/usr/local/bin/specify spec --non-interactive
-/usr/local/bin/specify plan --non-interactive
-/usr/local/bin/specify tasks --non-interactive
-```
-
-**Step 2: Read the generated files** — `cat specs/CONSTITUTION.md specs/SPEC.md specs/PLAN.md specs/TASKS.md` and use their content to create structured KB fact beads.
-
-**Step 3: Create KB fact beads** — one bead per fact, derived from spec-kit output:
+**Create KB fact beads** — one bead per fact, based on the idea and answers:
 
 - 1 **vision** fact — from the project brief: what this project is and why
 - 1 **constitution** fact — from CONSTITUTION.md: language, architecture, testing philosophy, code style, dependency philosophy

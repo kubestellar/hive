@@ -121,7 +121,7 @@ agents:
       Ongoing ideation agent. Proposes features, architecture improvements,
       and strategic directions based on project patterns and community KB.
       Produces KB facts and advisory beads.
-    emoji: "💡"
+    emoji: "🧠"
     color: "#f39c12"
     sort_order: 30
     backend: copilot

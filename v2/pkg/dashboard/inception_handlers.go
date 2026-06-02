@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
@@ -217,19 +216,15 @@ func (s *Server) kickBrainstorm() {
 		return
 	}
 	go func() {
-		// Build the inception kick message FIRST
+		// Build the inception kick message and set it as the bootstrap
+		// override — when the agent restarts, this replaces the default
+		// boot prompt ("read policy file, scan repos"). The agent boots
+		// with inception as its ONLY instruction.
 		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
-
-		// Write the inception kick as the bootstrap prompt so the agent
-		// sees it as its FIRST instruction on boot — not as a follow-up
-		// message after boot has already started repo scanning.
-		bootstrapFile := "/tmp/.hive-bootstrap-brainstorm.txt"
-		if err := os.WriteFile(bootstrapFile, []byte(msg), 0o644); err != nil {
-			s.logger.Warn("failed to write inception bootstrap", "error", err)
+		if err := s.deps.AgentMgr.SetBootstrapOverride("brainstorm", msg); err != nil {
+			s.logger.Warn("failed to set bootstrap override", "error", err)
 		}
 
-		// Restart the agent — it will boot with the inception kick as
-		// its initial prompt, not the default "read your policy file" boot.
 		if err := s.deps.AgentMgr.Restart(s.deps.Ctx, "brainstorm"); err != nil {
 			s.logger.Warn("failed to restart brainstorm for inception", "error", err)
 		}

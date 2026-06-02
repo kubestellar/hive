@@ -278,8 +278,8 @@ agents:
 `
 	path := writeTempConfig(t, yaml)
 	_, err := Load(path)
-	if err == nil {
-		t.Fatal("Load() expected error for empty repos, got nil")
+	if err != nil {
+		t.Fatalf("Load() should allow empty repos (L1 inception), got: %v", err)
 	}
 }
 

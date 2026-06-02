@@ -40,6 +40,7 @@ RUN chmod +x /usr/local/bin/contributor-agent.sh /usr/local/bin/contributor-rela
     /usr/local/bin/agent-launch.sh /usr/local/bin/gh
 
 ENV NODE_PATH=/opt/hive/node_modules
+ENV HIVE_CONTRIBUTOR_MODE=true
 USER dev
 WORKDIR /home/dev
 

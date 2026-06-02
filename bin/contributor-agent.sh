@@ -29,6 +29,10 @@ export HIVE_REGISTRATION_TOKEN="${HIVE_REGISTRATION_TOKEN:?Not registered — ru
 export AGENT_BACKEND="${AGENT_BACKEND:-claude}"
 export HIVE_AGENT_SESSION="$TMUX_SESSION"
 export HIVE_AGENT_ID="contributor"
+export HIVE_CONTRIBUTOR_MODE="true"
+export HIVE_CONTRIBUTOR_CLI="$AGENT_BACKEND"
+# Username is extracted from contributor.env (set during registration)
+export HIVE_CONTRIBUTOR_USERNAME="${CONTRIBUTOR_USERNAME:-unknown}"
 
 # Source backends.conf for binary detection
 BACKENDS_CONF="${SCRIPT_DIR}/../config/backends.conf"

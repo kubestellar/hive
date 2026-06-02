@@ -6,6 +6,18 @@ export HIVE_API_PORT="${HIVE_API_PORT:-3002}"
 export HIVE_PROXY_PORT="${HIVE_PROXY_PORT:-3001}"
 export HIVE_STATIC_DIR="${HIVE_STATIC_DIR:-/opt/hive/proxy/public}"
 
+# ── Config file sanity check ──────────────────────────────────────────
+# After `docker compose down -v`, the bind-mounted hive.yaml may exist
+# but be empty (0 bytes). Detect this early and exit with a clear message
+# instead of letting the Go binary crash-loop with "project.org is required".
+HIVE_CONFIG_PATH="${HIVE_CONFIG:-/etc/hive/hive.yaml}"
+if [ -f "$HIVE_CONFIG_PATH" ] && [ ! -s "$HIVE_CONFIG_PATH" ]; then
+  echo "[entrypoint] ERROR: $HIVE_CONFIG_PATH exists but is empty (0 bytes)."
+  echo "[entrypoint] This usually happens after 'docker compose down -v' wipes the data volume."
+  echo "[entrypoint] Restore your hive.yaml from backup or version control and restart."
+  exit 1
+fi
+
 # ── Root-only setup (runs once, then re-execs as dev) ──────────────────
 if [ "$(id -u)" = "0" ]; then
   # Fix ownership of mounted volumes (may be root-owned from host bind mounts)

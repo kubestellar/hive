@@ -966,3 +966,70 @@ github:
 		t.Errorf("SourcePath = %q, want %q", cfg2.SourcePath, path)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Save — guard against empty/invalid config
+// ---------------------------------------------------------------------------
+
+func TestSave_BlocksEmptyOrg(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hive.yaml")
+	os.WriteFile(path, []byte("placeholder"), 0o600)
+
+	cfg := &Config{
+		SourcePath: path,
+		Project:    ProjectConfig{Org: ""}, // missing org
+		Agents:     map[string]AgentConfig{"w": {Backend: "claude"}},
+	}
+	err := cfg.Save()
+	if err == nil {
+		t.Fatal("Save() should have returned an error for empty project.org")
+	}
+
+	// Verify the file was NOT overwritten.
+	data, _ := os.ReadFile(path)
+	if string(data) != "placeholder" {
+		t.Errorf("Save() overwrote file despite empty org; got %q", string(data))
+	}
+}
+
+func TestSave_BlocksNoAgents(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hive.yaml")
+	os.WriteFile(path, []byte("placeholder"), 0o600)
+
+	cfg := &Config{
+		SourcePath: path,
+		Project:    ProjectConfig{Org: "my-org", Repos: []string{"r"}},
+		Agents:     map[string]AgentConfig{}, // no agents
+	}
+	err := cfg.Save()
+	if err == nil {
+		t.Fatal("Save() should have returned an error for empty agents")
+	}
+
+	data, _ := os.ReadFile(path)
+	if string(data) != "placeholder" {
+		t.Errorf("Save() overwrote file despite no agents; got %q", string(data))
+	}
+}
+
+func TestSave_AllowsValidConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hive.yaml")
+	os.WriteFile(path, []byte("old"), 0o600)
+
+	cfg := &Config{
+		SourcePath: path,
+		Project:    ProjectConfig{Org: "my-org", Repos: []string{"r"}},
+		Agents:     map[string]AgentConfig{"w": {Backend: "claude"}},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save() should succeed for valid config: %v", err)
+	}
+
+	data, _ := os.ReadFile(path)
+	if string(data) == "old" {
+		t.Error("Save() did not write the new config")
+	}
+}

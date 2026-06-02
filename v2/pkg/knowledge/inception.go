@@ -338,6 +338,10 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	acceptance := filterFactsByType(facts, FactAcceptance)
 	stakeholders := filterFactsByType(facts, FactStakeholder)
 
+	lang := inferLanguage(constitution)
+	projectName := inferProjectName(vision, e.state)
+
+	// Core documentation
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "README.md",
 		Content: buildReadme(vision, requirements, constraints, stakeholders),
@@ -346,20 +350,11 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	})
 
 	result.Files = append(result.Files, ScaffoldFile{
-		Path:    "CLAUDE.md",
-		Content: buildClaudeMD(constitution, constraints),
-		Purpose: "claude_md",
+		Path:    "AGENTS.md",
+		Content: buildAgentsMD(constitution, constraints, requirements, vision),
+		Purpose: "agents_md",
 		IsNew:   true,
 	})
-
-	if len(acceptance) > 0 {
-		result.Files = append(result.Files, ScaffoldFile{
-			Path:    inferTestPath(constitution),
-			Content: buildTestStubs(acceptance, constitution),
-			Purpose: "test_stub",
-			IsNew:   true,
-		})
-	}
 
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "CONTRIBUTING.md",
@@ -368,10 +363,64 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		IsNew:   true,
 	})
 
+	// CI/CD
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    ".github/workflows/ci.yml",
 		Content: buildCIConfig(constitution),
 		Purpose: "ci",
+		IsNew:   true,
+	})
+
+	// Git
+	result.Files = append(result.Files, ScaffoldFile{
+		Path:    ".gitignore",
+		Content: buildGitignore(lang),
+		Purpose: "gitignore",
+		IsNew:   true,
+	})
+
+	// Language-specific project files + code stubs
+	switch lang {
+	case "go":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "go.mod", Content: buildGoMod(projectName), Purpose: "go_mod", IsNew: true},
+			ScaffoldFile{Path: "main.go", Content: buildGoMain(projectName, vision), Purpose: "main", IsNew: true},
+			ScaffoldFile{Path: "cmd/root.go", Content: buildGoCmdRoot(projectName, vision), Purpose: "cmd", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "main_test.go", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+			})
+		}
+	case "python":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "pyproject.toml", Content: buildPyprojectToml(projectName, vision), Purpose: "pyproject", IsNew: true},
+			ScaffoldFile{Path: "src/" + projectName + "/__init__.py", Content: buildPyInit(projectName, vision), Purpose: "main", IsNew: true},
+			ScaffoldFile{Path: "src/" + projectName + "/cli.py", Content: buildPyCLI(projectName, vision), Purpose: "cmd", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "tests/test_acceptance.py", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+			})
+		}
+	case "typescript", "javascript":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "package.json", Content: buildPackageJSON(projectName, vision), Purpose: "package_json", IsNew: true},
+			ScaffoldFile{Path: "tsconfig.json", Content: buildTSConfig(), Purpose: "tsconfig", IsNew: true},
+			ScaffoldFile{Path: "src/index.ts", Content: buildTSIndex(projectName, vision), Purpose: "main", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "src/__tests__/acceptance.test.ts", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+			})
+		}
+	}
+
+	// Makefile
+	result.Files = append(result.Files, ScaffoldFile{
+		Path:    "Makefile",
+		Content: buildMakefile(lang, projectName),
+		Purpose: "makefile",
 		IsNew:   true,
 	})
 
@@ -826,6 +875,296 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: pytest
 `
+}
+
+func inferProjectName(vision *Fact, state *InceptionState) string {
+	if vision != nil {
+		words := strings.Fields(strings.ToLower(vision.Title))
+		var name []string
+		for _, w := range words {
+			w = strings.Map(func(r rune) rune {
+				if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+					return r
+				}
+				return -1
+			}, w)
+			if w != "" && w != "a" && w != "the" && w != "for" && w != "and" && w != "that" {
+				name = append(name, w)
+				if len(name) >= 3 {
+					break
+				}
+			}
+		}
+		if len(name) > 0 {
+			return strings.Join(name, "-")
+		}
+	}
+	if state != nil && state.IdeaSlug != "" {
+		slug := strings.TrimPrefix(state.IdeaSlug, "idea-")
+		if len(slug) > 30 {
+			slug = slug[:30]
+		}
+		return slug
+	}
+	return "myproject"
+}
+
+func buildAgentsMD(constitution *Fact, constraints []Fact, requirements []Fact, vision *Fact) string {
+	var b strings.Builder
+	b.WriteString("# AI Agent Instructions\n\n")
+	b.WriteString("This file provides instructions for AI coding agents (Claude, Copilot, Cursor, etc.) working on this project.\n\n")
+
+	if vision != nil {
+		b.WriteString("## Project Purpose\n\n")
+		b.WriteString(vision.Body)
+		b.WriteString("\n\n")
+	}
+
+	if constitution != nil {
+		b.WriteString("## Architecture & Principles\n\n")
+		b.WriteString(constitution.Body)
+		b.WriteString("\n\n")
+	}
+
+	if len(requirements) > 0 {
+		b.WriteString("## Key Requirements\n\n")
+		for _, r := range requirements {
+			fmt.Fprintf(&b, "- **%s**: %s\n", r.Title, r.Body)
+		}
+		b.WriteString("\n")
+	}
+
+	if len(constraints) > 0 {
+		b.WriteString("## Constraints\n\n")
+		for _, c := range constraints {
+			fmt.Fprintf(&b, "- %s\n", c.Title)
+			if c.Body != c.Title {
+				fmt.Fprintf(&b, "  %s\n", c.Body)
+			}
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("## Code Quality Rules\n\n")
+	b.WriteString("- No magic numbers — use named constants\n")
+	b.WriteString("- All commits must be signed with DCO (`git commit -s`)\n")
+	b.WriteString("- Run tests before committing\n")
+	b.WriteString("- Prefer editing existing files over creating new ones\n")
+	b.WriteString("- No comments unless the WHY is non-obvious\n")
+
+	return b.String()
+}
+
+func buildGitignore(lang string) string {
+	common := "# OS\n.DS_Store\nThumbs.db\n\n# IDE\n.idea/\n.vscode/\n*.swp\n*.swo\n\n"
+	switch lang {
+	case "go":
+		return common + "# Go\n/bin/\n*.exe\ncoverage.out\n"
+	case "python":
+		return common + "# Python\n__pycache__/\n*.pyc\n*.egg-info/\ndist/\nbuild/\n.venv/\nvenv/\n.pytest_cache/\n"
+	case "typescript", "javascript":
+		return common + "# Node\nnode_modules/\ndist/\ncoverage/\n*.tsbuildinfo\n"
+	default:
+		return common
+	}
+}
+
+func buildGoMod(name string) string {
+	return fmt.Sprintf("module github.com/example/%s\n\ngo 1.22\n", name)
+}
+
+func buildGoMain(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`package main
+
+import "%s/cmd"
+
+// %s
+func main() {
+	cmd.Execute()
+}
+`, "github.com/example/"+name, desc)
+}
+
+func buildGoCmdRoot(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`package cmd
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "%s",
+	Short: "%s",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("TODO: implement main logic")
+	},
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+`, name, desc)
+}
+
+func buildPyprojectToml(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`[project]
+name = "%s"
+version = "0.1.0"
+description = "%s"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.0",
+]
+
+[project.scripts]
+%s = "%s.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+`, name, desc, name, name)
+}
+
+func buildPyInit(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`"""%s"""\n\n__version__ = "0.1.0"\n`, desc)
+}
+
+func buildPyCLI(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`"""CLI entry point for %s."""
+
+import click
+
+
+@click.group()
+@click.version_option()
+def main():
+    """%s"""
+    pass
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True))
+def run(path: str):
+    """Run the main operation on PATH."""
+    click.echo(f"TODO: implement main logic for {path}")
+
+
+if __name__ == "__main__":
+    main()
+`, name, desc)
+}
+
+func buildPackageJSON(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`{
+  "name": "%s",
+  "version": "0.1.0",
+  "description": "%s",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0",
+    "vitest": "^2.0.0",
+    "eslint": "^9.0.0"
+  }
+}
+`, name, desc)
+}
+
+func buildTSConfig() string {
+	return `{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"]
+}
+`
+}
+
+func buildTSIndex(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`/**
+ * %s
+ */
+
+export function main(): void {
+  console.log("TODO: implement main logic");
+}
+
+main();
+`, desc)
+}
+
+func buildMakefile(lang, name string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, ".PHONY: build test lint clean\n\n")
+	switch lang {
+	case "go":
+		fmt.Fprintf(&b, "build:\n\tgo build -o bin/%s .\n\n", name)
+		b.WriteString("test:\n\tgo test -race -cover ./...\n\n")
+		b.WriteString("lint:\n\tgolangci-lint run ./...\n\n")
+		fmt.Fprintf(&b, "clean:\n\trm -rf bin/\n")
+	case "python":
+		b.WriteString("build:\n\tpip install -e .\n\n")
+		b.WriteString("test:\n\tpytest\n\n")
+		b.WriteString("lint:\n\truff check .\n\n")
+		b.WriteString("clean:\n\trm -rf dist/ build/ *.egg-info/\n")
+	case "typescript", "javascript":
+		b.WriteString("build:\n\tnpm run build\n\n")
+		b.WriteString("test:\n\tnpm test\n\n")
+		b.WriteString("lint:\n\tnpm run lint\n\n")
+		b.WriteString("clean:\n\trm -rf dist/ node_modules/\n")
+	}
+	return b.String()
 }
 
 // --- string helpers ---

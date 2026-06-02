@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -858,10 +857,11 @@ func (c *Config) validateSaveGuard() error {
 	return nil
 }
 
-// Save marshals the current config back to its source YAML file atomically.
-// It writes to a temporary file in the same directory, then renames over the
-// original. This prevents partial writes if the process crashes mid-save and
-// ensures watchers see a complete file.
+// Save marshals the current config back to its source YAML file using an
+// inode-preserving write (open → truncate → write → sync). This is critical
+// for Docker bind-mounted files: an atomic rename (temp + rename) replaces
+// the inode, which silently breaks the bind mount — the host file is never
+// updated, so changes are lost on container restart.
 //
 // As a safety measure, Save refuses to write if essential fields are missing
 // (project.org, at least one agent). This prevents an empty or minimal config
@@ -879,31 +879,29 @@ func (c *Config) Save() error {
 		return fmt.Errorf("marshaling config: %w", err)
 	}
 
-	dir := filepath.Dir(c.SourcePath)
-	tmp, err := os.CreateTemp(dir, ".hive-yaml-*.tmp")
+	// Open the existing file (preserving its inode) rather than creating a
+	// temp file and renaming. Rename breaks Docker bind mounts because it
+	// replaces the inode — the host file is never updated, so acmm_level
+	// and other runtime changes are lost on container restart.
+	f, err := os.OpenFile(c.SourcePath, os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
-		// Directory may not be writable (e.g. bind-mounted config file in a
-		// container where only the file itself is rw). Fall back to writing
-		// the file directly — less atomic but still correct.
+		// File may not exist yet — fall back to create.
 		if writeErr := os.WriteFile(c.SourcePath, data, 0o644); writeErr != nil {
-			return fmt.Errorf("writing config (direct fallback): %w", writeErr)
+			return fmt.Errorf("writing config (create fallback): %w", writeErr)
 		}
 		return nil
 	}
-	tmpPath := tmp.Name()
 
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("writing temp config: %w", err)
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return fmt.Errorf("writing config: %w", err)
 	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("closing temp config: %w", err)
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return fmt.Errorf("syncing config: %w", err)
 	}
-	if err := os.Rename(tmpPath, c.SourcePath); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("renaming temp config to %s: %w", c.SourcePath, err)
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("closing config: %w", err)
 	}
 	return nil
 }

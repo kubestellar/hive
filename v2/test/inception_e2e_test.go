@@ -124,6 +124,11 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		return fail(result, "assertion", "idea_text is empty after start")
 	}
 
+	// CDP: verify capture phase UI
+	if cdpErr := verifyCDPPhase("capture", pass); cdpErr != "" {
+		t.Logf("Pass %d CDP warning (capture): %s", pass, cdpErr)
+	}
+
 	// Step 3: Wait for clarify phase (bead watcher detects question beads)
 	result.Phase = "capture_to_clarify"
 	result.Check = "phase_advance"
@@ -155,6 +160,11 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		if qm["text"] == nil || qm["text"].(string) == "" {
 			return fail(result, "assertion", fmt.Sprintf("question %d missing text", i))
 		}
+	}
+
+	// CDP: verify clarify phase UI (questions visible)
+	if cdpErr := verifyCDPPhase("clarify", pass); cdpErr != "" {
+		t.Logf("Pass %d CDP warning (clarify): %s", pass, cdpErr)
 	}
 
 	// Step 4: Submit answers (use defaults) — always submit, even if phase
@@ -190,6 +200,11 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		lines, _ := client.paneOutput("brainstorm")
 		agentStatus := summarizeAgentOutput(lines)
 		return fail(result, "timeout", fmt.Sprintf("structure→scaffold: %v (agent: %s)", err, agentStatus))
+	}
+
+	// CDP: verify scaffold phase UI
+	if cdpErr := verifyCDPPhase("scaffold", pass); cdpErr != "" {
+		t.Logf("Pass %d CDP warning (scaffold): %s", pass, cdpErr)
 	}
 
 	// Step 6: Verify scaffold
@@ -267,6 +282,11 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 	}
 	if state == nil || state["phase"] != "complete" {
 		return fail(result, "assertion", fmt.Sprintf("expected phase=complete, got %v", state))
+	}
+
+	// CDP: verify complete phase UI
+	if cdpErr := verifyCDPPhase("complete", pass); cdpErr != "" {
+		t.Logf("Pass %d CDP warning (complete): %s", pass, cdpErr)
 	}
 
 	// Step 8: Check agent output for errors

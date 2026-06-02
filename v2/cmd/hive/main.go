@@ -668,12 +668,22 @@ func main() {
 				}
 			}
 		}
-	} else if levelStr := os.Getenv("HIVE_LEVEL"); levelStr != "" {
+	} else {
+		// Determine the ACMM level from env var, config, or saved state
 		const maxACMMLevel = 6
-		level, err := strconv.Atoi(levelStr)
-		if err != nil || level < 1 || level > maxACMMLevel {
-			logger.Warn("invalid HIVE_LEVEL, skipping auto-apply", "value", levelStr)
-		} else {
+		level := 0
+		if levelStr := os.Getenv("HIVE_LEVEL"); levelStr != "" {
+			if parsed, err := strconv.Atoi(levelStr); err == nil && parsed >= 1 && parsed <= maxACMMLevel {
+				level = parsed
+			} else {
+				logger.Warn("invalid HIVE_LEVEL, skipping auto-apply", "value", levelStr)
+			}
+		} else if cfg.ACMMLevel != nil && *cfg.ACMMLevel >= 1 && *cfg.ACMMLevel <= maxACMMLevel {
+			level = *cfg.ACMMLevel
+		} else if saved.ACMMLevel != nil && *saved.ACMMLevel >= 1 && *saved.ACMMLevel <= maxACMMLevel {
+			level = *saved.ACMMLevel
+		}
+		if level > 0 {
 			action := "merging pack updates"
 			if saved.ACMMLevel == nil || *saved.ACMMLevel != level {
 				action = "re-applying pack (level changed)"

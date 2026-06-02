@@ -222,15 +222,16 @@ type Question struct {
 
 // InceptionState tracks the progress of a Level 1 ideation workflow.
 type InceptionState struct {
-	Phase     InceptionPhase    `json:"phase"`
-	Mode      InceptionMode     `json:"mode"`
-	IdeaText  string            `json:"idea_text"`
-	IdeaSlug  string            `json:"idea_slug"`
-	RepoURL   string            `json:"repo_url,omitempty"`
-	Questions []Question        `json:"questions,omitempty"`
-	Answers   map[string]string `json:"answers,omitempty"`
-	FactSlugs []string          `json:"fact_slugs,omitempty"`
-	StartedAt time.Time         `json:"started_at"`
+	Phase          InceptionPhase    `json:"phase"`
+	Mode           InceptionMode     `json:"mode"`
+	IdeaText       string            `json:"idea_text"`
+	IdeaSlug       string            `json:"idea_slug"`
+	RepoURL        string            `json:"repo_url,omitempty"`
+	Questions      []Question        `json:"questions,omitempty"`
+	Answers        map[string]string `json:"answers,omitempty"`
+	FactSlugs      []string          `json:"fact_slugs,omitempty"`
+	StartedAt      time.Time         `json:"started_at"`
+	PhaseChangedAt time.Time         `json:"phase_changed_at"`
 }
 
 // ScaffoldFile is a single generated file in the scaffold output.

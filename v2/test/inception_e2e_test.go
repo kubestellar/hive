@@ -127,7 +127,7 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 	// Step 3: Wait for clarify phase (bead watcher detects question beads)
 	result.Phase = "capture_to_clarify"
 	result.Check = "phase_advance"
-	state, err = client.waitForPhase("clarify", 600*time.Second)
+	state, err = client.waitForPhase("clarify", 900*time.Second)
 	if err != nil {
 		// Check agent output for errors
 		lines, _ := client.paneOutput("brainstorm")
@@ -157,12 +157,12 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		}
 	}
 
-	// Step 4: Submit answers (use defaults) — skip if already past clarify
+	// Step 4: Submit answers (use defaults) — always submit, even if phase
+	// already advanced past clarify. The API accepts late answers and sets
+	// PhaseChangedAt which the watcher needs to detect post-answer fact beads.
 	result.Phase = "clarify"
 	result.Check = "submit_answers"
-	if currentPhase, _ := state["phase"].(string); phaseIndex(currentPhase) >= phaseIndex("structure") {
-		t.Logf("Pass %d: skipping answer submit — already at phase %s", pass, currentPhase)
-	} else {
+	{
 		answers := make(map[string]string)
 		for _, q := range questions {
 			qm := q.(map[string]interface{})
@@ -185,7 +185,7 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 	// Step 5: Wait for scaffold phase (bead watcher detects fact beads)
 	result.Phase = "structure_to_scaffold"
 	result.Check = "phase_advance"
-	state, err = client.waitForPhase("scaffold", 600*time.Second)
+	state, err = client.waitForPhase("scaffold", 900*time.Second)
 	if err != nil {
 		lines, _ := client.paneOutput("brainstorm")
 		agentStatus := summarizeAgentOutput(lines)

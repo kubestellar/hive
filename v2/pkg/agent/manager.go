@@ -619,13 +619,17 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 
 	// ACMM fragment files: base rules + level-specific rules.
 	// These are read AFTER the agent policy so they override conflicting instructions.
-	acmmFiles := m.findACMMFragments()
-	if len(acmmFiles) > 0 {
-		base += " THEN read these MANDATORY ACMM policy files (they override everything else):"
-		for _, f := range acmmFiles {
-			base += fmt.Sprintf(" %s", f)
+	// Skip for brainstorm agent — its kick template handles inception/ideation
+	// and ACMM fragments conflict by directing it to scan repos.
+	if agent.Name != "brainstorm" {
+		acmmFiles := m.findACMMFragments()
+		if len(acmmFiles) > 0 {
+			base += " THEN read these MANDATORY ACMM policy files (they override everything else):"
+			for _, f := range acmmFiles {
+				base += fmt.Sprintf(" %s", f)
+			}
+			base += "."
 		}
-		base += "."
 	}
 	base += " Begin your first pass."
 

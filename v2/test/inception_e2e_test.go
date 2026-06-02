@@ -284,15 +284,18 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		}
 	}
 
-	// Verify content is project-specific, not placeholder
+	// Verify content is project-specific, not boilerplate
 	result.Check = "content_quality"
 	readme := fileContents["README.md"]
-	if strings.Contains(readme, "# Project\n") && !strings.Contains(strings.ToLower(readme), strings.ToLower(strings.Fields(idea)[2])) {
-		return fail(result, "missing_content", fmt.Sprintf("README.md is placeholder — does not reference idea keywords (content: %s)", readme[:min(len(readme), 100)]))
+	if len(readme) < 200 {
+		return fail(result, "missing_content", fmt.Sprintf("README.md too short (%d chars) — boilerplate, not project-specific", len(readme)))
 	}
-	claudeMD := fileContents["AGENTS.md"]
-	if len(claudeMD) < 50 {
-		return fail(result, "missing_content", fmt.Sprintf("CLAUDE.md too short (%d chars) — likely placeholder", len(claudeMD)))
+	if strings.HasPrefix(strings.TrimSpace(readme), "# Project\n") {
+		return fail(result, "missing_content", fmt.Sprintf("README.md starts with generic '# Project' — should have project name from vision"))
+	}
+	agentsMD := fileContents["AGENTS.md"]
+	if len(agentsMD) < 200 {
+		return fail(result, "missing_content", fmt.Sprintf("AGENTS.md too short (%d chars) — should have architecture, requirements, constraints", len(agentsMD)))
 	}
 	ciYml := fileContents[".github/workflows/ci.yml"]
 	if !strings.Contains(ciYml, "steps:") {

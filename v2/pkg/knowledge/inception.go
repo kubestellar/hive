@@ -501,6 +501,21 @@ func (e *InceptionEngine) ReadIdeaFact(ctx context.Context) (*Fact, error) {
 }
 
 // Reset clears the inception state so the user can start over.
+// HasWikiFiles returns true if the inception wiki has any files from a previous run.
+func (e *InceptionEngine) HasWikiFiles() bool {
+	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)
+	entries, err := os.ReadDir(wikiDir)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".md") {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *InceptionEngine) Reset() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()

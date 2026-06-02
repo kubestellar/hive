@@ -1,7 +1,9 @@
 package dashboard
 
 import (
+	"archive/zip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -209,6 +211,56 @@ func (s *Server) handleInceptionIdeationFacts(w http.ResponseWriter, r *http.Req
 		"ok":    true,
 		"facts": facts,
 	})
+}
+
+func (s *Server) handleInceptionDownload(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Inception == nil {
+		jsonError(w, "inception engine not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	result, err := s.deps.Inception.ProduceScaffold(s.deps.Ctx)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if result == nil || len(result.Files) == 0 {
+		jsonError(w, "no scaffold files to download", http.StatusNotFound)
+		return
+	}
+
+	projectName := "inception-project"
+	state := s.deps.Inception.GetState()
+	if state != nil && state.IdeaSlug != "" {
+		slug := state.IdeaSlug
+		if len(slug) > 40 {
+			slug = slug[:40]
+		}
+		projectName = slug
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.zip", projectName))
+
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+
+	for _, f := range result.Files {
+		fw, err := zw.Create(f.Path)
+		if err != nil {
+			continue
+		}
+		fw.Write([]byte(f.Content))
+	}
+}
+
+func (s *Server) handleInceptionHasFiles(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Inception == nil {
+		jsonResponse(w, map[string]interface{}{"ok": true, "has_files": false})
+		return
+	}
+	hasFiles := s.deps.Inception.HasWikiFiles()
+	jsonResponse(w, map[string]interface{}{"ok": true, "has_files": hasFiles})
 }
 
 func (s *Server) kickBrainstorm() {

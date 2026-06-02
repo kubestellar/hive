@@ -9,9 +9,7 @@ on:
       - 'dashboard/**'
       - 'discord/**'
       - 'v2/Dockerfile'
-      - 'v2/Dockerfile.contributor'
       - 'v2/compose.yaml'
-      - 'v2/compose-contributor.yaml'
       - '.github/workflows/container-build.yml'
   pull_request:
     paths:
@@ -20,9 +18,7 @@ on:
       - 'dashboard/**'
       - 'discord/**'
       - 'v2/Dockerfile'
-      - 'v2/Dockerfile.contributor'
       - 'v2/compose.yaml'
-      - 'v2/compose-contributor.yaml'
   workflow_dispatch:
 
 env:
@@ -75,44 +71,3 @@ jobs:
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  build-contributor:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
-
-      - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (contributor)
-        id: meta
-        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-contributor
-          tags: |
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=pr
-
-      - name: Build and push contributor image
-        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
-        with:
-          context: .
-          file: v2/Dockerfile.contributor
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha,scope=contributor
-          cache-to: type=gha,mode=max,scope=contributor

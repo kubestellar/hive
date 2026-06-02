@@ -368,7 +368,6 @@
     body.light-mode.oc-agent-focused .token-usage,
     body.light-mode.oc-agent-focused .repos,
     body.light-mode.oc-agent-focused #beads-section,
-    body.light-mode.oc-agent-focused #contributors-section,
     body.light-mode.oc-agent-focused #nous-section { display: none; }
     body.light-mode.oc-strategy-focused #nous-section { display: block; }
     body.light-mode.oc-agent-focused .agent-card.oc-hidden { display: none; }
@@ -1476,11 +1475,6 @@
     <div class="beads" id="beads"></div>
   </div>
 
-  <div id="contributors-section" style="margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">👥 Contributors</h2>
-    <div id="contributors-panel" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;"></div>
-  </div>
-
   <div id="nous-section" style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">🧪 Strategy Lab <span id="nous-mode-badge" style="font-size:0.75rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span> <button onclick="openNousConfig()" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);margin-left:6px;padding:2px" title="Strategy Lab Configuration">⚙️</button></h2>
     <div id="nous-panel"></div>
@@ -2175,7 +2169,6 @@
         }
       }
 
-      html += `<a class="oc-nav-item" data-section="contributors-section" onclick="ocNavigate('contributors-section')">👥 Contributors <span id="contributor-count-badge" style="font-size:0.7rem;background:var(--green);color:var(--bg);padding:1px 6px;border-radius:9999px;margin-left:4px;display:none"></span></a>`;
       html += `<a class="oc-nav-item" data-section="nous-section" onclick="ocNavigate('nous-section')">🧪 Strategy Lab</a>`;
       html += `<div id="nous-sidebar-config" style="padding:2px 8px 6px 24px;font-size:0.65rem;color:var(--muted);line-height:1.5;display:none">`;
       html += `<div><span id="nous-sb-scope" style="font-weight:600"></span> · <span id="nous-sb-mode"></span></div>`;
@@ -3404,113 +3397,6 @@ function burnAreaChart() {
       if (el.innerHTML !== html) el.innerHTML = html;
     }
 
-    // ── Contributors rendering ───────────────────────────────────────────
-    const CONTRIBUTOR_POLL_MS = 10000;
-    let _contributorCache = null;
-
-    async function fetchContributors() {
-      try {
-        const res = await fetch('/api/contributors');
-        _contributorCache = await res.json();
-        renderContributors();
-      } catch (_) {}
-    }
-
-    function renderContributors() {
-      const panel = document.getElementById('contributors-panel');
-      const badge = document.getElementById('contributor-count-badge');
-      if (!panel || !_contributorCache) return;
-
-      const contributors = _contributorCache.contributors || [];
-      const active = contributors.filter(c => c.active);
-
-      if (badge) {
-        if (active.length > 0) {
-          badge.textContent = active.length;
-          badge.style.display = 'inline';
-        } else {
-          badge.style.display = 'none';
-        }
-      }
-
-      if (contributors.length === 0) {
-        setIfChanged(panel, `<div style="color:var(--muted);font-size:0.85rem;padding:12px;border:1px dashed var(--border);border-radius:8px">No contributors registered yet. Projects can invite contributors who run <code style="background:var(--surface);padding:2px 6px;border-radius:4px">just contribute-hive</code> to donate their CLI tokens to this hive.</div>`);
-        return;
-      }
-
-      let html = '';
-      for (const c of contributors) {
-        const isActive = c.active;
-        const dotColor = isActive ? 'var(--green)' : 'var(--muted)';
-        const tierColors = { newcomer: 'var(--yellow)', contributor: 'var(--blue)', trusted: 'var(--green)', advisor: 'var(--purple)', revoked: 'var(--red)' };
-        const tierColor = tierColors[c.trust_tier] || 'var(--muted)';
-        const taskHtml = c.active && c.currentTask
-          ? `<div style="margin-top:6px;font-size:0.75rem;color:var(--text);background:rgba(255,255,255,0.05);padding:6px 8px;border-radius:4px">Working on: <a href="https://github.com/${esc(c.currentTask.repo)}/issues/${c.currentTask.number}" target="_blank" style="color:var(--blue)">${esc(c.currentTask.repo)}#${c.currentTask.number}</a></div>`
-          : '';
-        const tmuxHtml = c.lastTmuxOutput && c.lastTmuxOutput.length
-          ? `<details style="margin-top:6px"><summary style="font-size:0.7rem;color:var(--muted);cursor:pointer">tmux output</summary><pre style="font-size:0.65rem;color:var(--muted);max-height:120px;overflow-y:auto;margin-top:4px;padding:6px;background:rgba(0,0,0,0.3);border-radius:4px">${esc(c.lastTmuxOutput.join('\n'))}</pre></details>`
-          : '';
-
-        html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
-            <a href="https://github.com/${esc(c.github_username)}" target="_blank" style="color:var(--text);font-weight:600;text-decoration:none;font-size:0.9rem">${esc(c.github_username)}</a>
-            <span style="font-size:0.7rem;padding:1px 8px;border-radius:9999px;border:1px solid ${tierColor};color:${tierColor}">${esc(c.trust_tier)}</span>
-            <span style="margin-left:auto;font-size:0.7rem;color:var(--muted)">${c.total_tasks_completed || 0} done / ${c.total_tasks_failed || 0} failed</span>
-          </div>
-          <div style="margin-top:6px;font-size:0.75rem;color:var(--muted)">
-            Registered: ${c.registered_at ? new Date(c.registered_at).toLocaleDateString() : '?'}
-            ${isActive ? '' : ' · <span style="color:var(--muted)">offline</span>'}
-          </div>
-          ${taskHtml}${tmuxHtml}
-          <div style="margin-top:8px;display:flex;gap:6px">
-            <select onchange="changeContributorTier('${esc(c.contributor_id || c.github_username)}', this.value)" style="font-size:0.7rem;padding:2px 6px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer">
-              ${['newcomer','contributor','trusted','advisor','revoked'].map(t => `<option value="${t}"${t === c.trust_tier ? ' selected' : ''}>${t}</option>`).join('')}
-            </select>
-            ${c.trust_tier !== 'revoked' ? `<button onclick="revokeContributor('${esc(c.contributor_id || c.github_username)}')" style="font-size:0.7rem;padding:2px 8px;background:var(--red);color:white;border:none;border-radius:4px;cursor:pointer">Revoke</button>` : ''}
-          </div>
-        </div>`;
-      }
-      setIfChanged(panel, html);
-    }
-
-    async function changeContributorTier(id, tier) {
-      try {
-        const res = await fetch(`/api/contributors/${id}/trust`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tier }),
-        });
-        if (res.ok) fetchContributors();
-      } catch (_) {}
-    }
-
-    async function revokeContributor(id) {
-      if (!confirm('Revoke this contributor? Their WebSocket will be disconnected and GitHub token invalidated.')) return;
-      try {
-        const res = await fetch(`/api/contributors/${id}/revoke`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.ok) fetchContributors();
-      } catch (_) {}
-    }
-
-    function updateContributorBadge(pool) {
-      const badge = document.getElementById('contributor-count-badge');
-      if (!badge) return;
-      const active = pool.active || 0;
-      if (active > 0) {
-        badge.textContent = active;
-        badge.style.display = 'inline';
-      } else {
-        badge.style.display = 'none';
-      }
-    }
-
-    fetchContributors();
-    setInterval(fetchContributors, CONTRIBUTOR_POLL_MS);
-
     // ── Strategy Lab (Nous) rendering ──────────────────────────────────────
     let _nousCache = null;
     const NOUS_POLL_MS = 30000;
@@ -4232,7 +4118,6 @@ function burnAreaChart() {
       renderTokens(data.tokens || {});
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
-      updateContributorBadge(data.contributorPool || {});
       ocUpdateSidebarAgents();
       if (_ocSelectedAgent) { ocRenderAgentDetail(); ocUpdateFocusedState(); }
       renderDebugSection();

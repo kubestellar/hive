@@ -27,16 +27,6 @@ elif [[ -n "${HIVE_GITHUB_TOKEN:-}" ]]; then
   export GH_TOKEN="$HIVE_GITHUB_TOKEN"
 fi
 
-# Contributor mode — extra restrictions for remote contributor agents
-if [[ "${HIVE_CONTRIBUTOR_MODE:-}" == "true" ]]; then
-  case "$*" in
-    *"auth "*)
-      echo "⛔ BLOCKED: gh auth is disabled for contributor agents." >&2
-      exit 1
-      ;;
-  esac
-fi
-
 # Log gh calls involving label manipulation or issues 15056/15061/15062
 if [[ "$*" == *"hold"* ]] || [[ "$*" == *"label"* ]] || [[ "$*" == *"/labels"* ]] || [[ "$*" == *"15056"* ]] || [[ "$*" == *"15061"* ]] || [[ "$*" == *"15062"* ]] || [[ "$*" == *"issue"*"edit"* ]]; then
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] GH-TRACE: gh $* | PID=$$ PPID=$PPID AGENT=${HIVE_AGENT_ID:-${HIVE_AGENT:-unknown}} | caller=$(ps -o args= -p $PPID 2>/dev/null | head -c200)" >> /tmp/hold-trace.log 2>/dev/null || true
@@ -201,13 +191,6 @@ fi
 if [[ -n "$AGENT_NAME" ]]; then
   LABELS_CSV="agent/${AGENT_NAME}"
   [[ -n "$HIVE_INSTANCE_ID" ]] && LABELS_CSV="${LABELS_CSV},hive/${HIVE_INSTANCE_ID}"
-  # Contributor labels — added when running in contributor mode
-  if [[ "${HIVE_CONTRIBUTOR_MODE:-}" == "true" ]]; then
-    CONTRIBUTOR_USER="${HIVE_CONTRIBUTOR_USERNAME:-}"
-    CONTRIBUTOR_CLI="${HIVE_CONTRIBUTOR_CLI:-}"
-    [[ -n "$CONTRIBUTOR_USER" ]] && LABELS_CSV="${LABELS_CSV},contributor/${CONTRIBUTOR_USER}"
-    [[ -n "$CONTRIBUTOR_CLI" ]] && LABELS_CSV="${LABELS_CSV},cli/${CONTRIBUTOR_CLI}"
-  fi
 
   # Ensure labels exist on the repo (cached per-session to avoid repeated API calls).
   LABEL_CACHE="/tmp/.hive-labels-ensured"

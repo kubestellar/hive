@@ -789,9 +789,7 @@ func (c *Config) validate() error {
 	if c.Project.Org == "" {
 		return fmt.Errorf("project.org is required")
 	}
-	if len(c.Project.Repos) == 0 {
-		return fmt.Errorf("project.repos must have at least one repo")
-	}
+	// Repos can be empty — L1 inception starts with just an idea, no repo.
 	if len(c.Agents) == 0 {
 		return fmt.Errorf("at least one agent must be configured")
 	}

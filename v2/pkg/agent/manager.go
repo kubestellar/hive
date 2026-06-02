@@ -1755,6 +1755,19 @@ func normalizeModelName(model string) string {
 	return model
 }
 
+// ClearAllModeOverrides clears the per-agent Config.Mode for all agents so that
+// DefaultAgentMode determines the mode based on the ACMM level. This should be
+// called before SyncModeFiles when switching levels, because Config.Mode may
+// have been set by the initial config or a previous pack and would otherwise
+// override the new level's expected default.
+func (m *Manager) ClearAllModeOverrides() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, agent := range m.agents {
+		agent.Config.Mode = ""
+	}
+}
+
 // SyncModeFiles rewrites /tmp/.hive-mode-* for all running agents to reflect the given ACMM level.
 func (m *Manager) SyncModeFiles(level int) {
 	m.mu.RLock()

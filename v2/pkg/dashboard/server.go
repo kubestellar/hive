@@ -87,6 +87,9 @@ type FrontendAgent struct {
 	State            string `json:"state"`
 	Busy             string `json:"busy"`
 	Paused           bool   `json:"paused"`
+	PausedAt         string `json:"pausedAt,omitempty"`
+	PausedReason     string `json:"pausedReason,omitempty"`
+	PausedTrigger    string `json:"pausedTrigger,omitempty"`
 	OffByCadence     bool   `json:"offByCadence"`
 	NeedsLogin       bool   `json:"needsLogin"`
 	CLI              string `json:"cli"`

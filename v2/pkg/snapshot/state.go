@@ -54,6 +54,9 @@ type ConfigOverrides struct {
 
 type AgentState struct {
 	Paused          bool             `json:"paused"`
+	PausedAt        *time.Time       `json:"paused_at,omitempty"`
+	PausedReason    string           `json:"paused_reason,omitempty"`
+	PausedTrigger   string           `json:"paused_trigger,omitempty"`
 	PinnedCLI       string           `json:"pinned_cli,omitempty"`
 	PinnedModel     string           `json:"pinned_model,omitempty"`
 	ModelOverride   string           `json:"model_override,omitempty"`

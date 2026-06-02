@@ -274,13 +274,13 @@ func (s *Server) syncAgentVisibility(level int) (paused, resumed []string) {
 	for name := range s.deps.Config.Agents {
 		if packAgents[name] {
 			if s.deps.AgentMgr.IsPaused(name) {
-				if err := s.deps.AgentMgr.Resume(s.deps.Ctx, name); err == nil {
+				if err := s.deps.AgentMgr.Resume(s.deps.Ctx, name, "acmm-pack", fmt.Sprintf("agent included in pack level %d", level)); err == nil {
 					resumed = append(resumed, name)
 				}
 			}
 		} else {
 			if !s.deps.AgentMgr.IsPaused(name) {
-				if err := s.deps.AgentMgr.Pause(name); err == nil {
+				if err := s.deps.AgentMgr.Pause(name, "acmm-pack", fmt.Sprintf("agent not in pack level %d", level)); err == nil {
 					paused = append(paused, name)
 				}
 			}

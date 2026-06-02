@@ -499,6 +499,7 @@ func (s *Server) handleKick(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.deps.Governor.RecordKick(name)
+	s.deps.Logger.Info("audit: agent kicked", "agent", name, "trigger", "dashboard-api")
 	s.refreshAfterMutation()
 	okResponse(w, map[string]string{"status": "kicked", "agent": name})
 }
@@ -512,6 +513,7 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.deps.Logger.Info("audit: backend switched", "agent", name, "backend", backend, "trigger", "dashboard-api")
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "switched", "agent": name, "backend": backend})
 }
@@ -525,6 +527,7 @@ func (s *Server) handleModelSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.deps.Logger.Info("audit: model set", "agent", name, "model", model, "trigger", "dashboard-api")
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "model_set", "agent": name, "model": model})
 }
@@ -532,7 +535,7 @@ func (s *Server) handleModelSet(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePause(w http.ResponseWriter, r *http.Request) {
 	name := s.resolveAgentParam(r.PathValue("agent"))
 
-	if err := s.deps.AgentMgr.Pause(name); err != nil {
+	if err := s.deps.AgentMgr.Pause(name, "dashboard-api", "manual pause"); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -544,7 +547,7 @@ func (s *Server) handlePause(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	name := s.resolveAgentParam(r.PathValue("agent"))
 
-	if err := s.deps.AgentMgr.Resume(s.deps.Ctx, name); err != nil {
+	if err := s.deps.AgentMgr.Resume(s.deps.Ctx, name, "dashboard-api", "manual resume"); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -598,6 +601,7 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.deps.Logger.Info("audit: agent pinned", "agent", name, "dimension", dimension, "value", body.Value, "trigger", "dashboard-api")
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "pinned", "agent": name, "dimension": dimension, "value": body.Value})
 }
@@ -622,6 +626,7 @@ func (s *Server) handleUnpin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.deps.Logger.Info("audit: agent unpinned", "agent", name, "dimension", dimension, "trigger", "dashboard-api")
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "unpinned", "agent": name, "dimension": dimension})
 }
@@ -634,6 +639,7 @@ func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.deps.Logger.Info("audit: agent restarted", "agent", name, "trigger", "dashboard-api")
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "restarted", "agent": name})
 }
@@ -646,6 +652,7 @@ func (s *Server) handleResetRestarts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.deps.Logger.Info("audit: restart count reset", "agent", name, "trigger", "dashboard-api")
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "reset", "agent": name})
 }

@@ -6,7 +6,7 @@ services:
     container_name: hive-architect
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "3002:3002"
     volumes:
       - ./architect-only.yaml:/etc/hive/hive.yaml
       - hive-data:/data
@@ -17,7 +17,7 @@ services:
       - HIVE_LEVEL=${HIVE_LEVEL:-}
       - HIVE_REPO=${HIVE_REPO:-}
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3002/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3

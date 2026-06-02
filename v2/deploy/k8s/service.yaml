@@ -11,7 +11,7 @@ spec:
     app.kubernetes.io/name: hive
   ports:
     - name: dashboard
-      port: 3001
+      port: 3002
       targetPort: dashboard
       protocol: TCP
     - name: api

@@ -5882,6 +5882,7 @@ function burnAreaChart() {
           break;
         case 'complete':
           panel.innerHTML = renderInceptionProgress('complete') + renderInceptionComplete();
+          setTimeout(loadInceptionCompleteFiles, 100);
           break;
         default:
           panel.innerHTML = renderInceptionModeSelect();
@@ -6193,15 +6194,44 @@ function burnAreaChart() {
     function renderInceptionComplete() {
       const factCount = (_inceptionState.fact_slugs || []).length;
       return `
-        <div style="max-width:600px;margin:0 auto;text-align:center;padding:40px 0">
-          <div style="font-size:2rem;margin-bottom:12px">✅</div>
-          <div style="font-size:1rem;font-weight:600;margin-bottom:8px">Inception Complete</div>
-          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:20px">${factCount} knowledge facts created. Your project is ready to grow.</div>
+        <div style="max-width:100%;margin:0">
+          <div style="text-align:center;margin-bottom:20px">
+            <div style="font-size:1rem;font-weight:600;margin-bottom:4px">Inception Complete</div>
+            <div style="font-size:0.85rem;color:var(--muted)">${factCount} knowledge facts created. Your project is ready to grow.</div>
+          </div>
+          <div id="inception-complete-files" style="margin-bottom:16px"></div>
           <div style="display:flex;gap:8px;justify-content:center">
             <button onclick="resetInception()" style="padding:8px 20px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">New Inception</button>
-            <button onclick="ocNavigate('knowledge-section')" style="padding:8px 24px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">View Knowledge Base</button>
+            <button onclick="loadInceptionCompleteFiles()" style="padding:8px 20px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--fg);cursor:pointer;font-size:0.82rem">Refresh Files</button>
           </div>
         </div>`;
+    }
+
+    async function loadInceptionCompleteFiles() {
+      const container = document.getElementById('inception-complete-files');
+      if (!container) return;
+      container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">Loading scaffold files...</div>';
+      try {
+        const r = await fetch('/api/inception/scaffold');
+        const data = await r.json();
+        if (!data.ok || !data.scaffold || !data.scaffold.files || data.scaffold.files.length === 0) {
+          container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">No scaffold files generated. The brainstorm agent may not have produced KB facts.</div>';
+          return;
+        }
+        let html = '';
+        for (const f of data.scaffold.files) {
+          html += '<details style="margin-bottom:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden">';
+          html += '<summary style="padding:10px 14px;background:var(--card-bg);cursor:pointer;font-size:0.82rem;font-weight:600;display:flex;align-items:center;gap:8px">';
+          html += '<span style="font-family:monospace">' + escapeHtml(f.path) + '</span>';
+          html += '<span style="font-size:0.7rem;color:var(--muted);font-weight:400">' + (f.is_new ? 'new' : 'amendment') + '</span>';
+          html += '</summary>';
+          html += '<pre style="padding:14px;margin:0;font-size:0.75rem;overflow-x:auto;background:var(--bg);border-top:1px solid var(--border);white-space:pre-wrap">' + escapeHtml(f.content) + '</pre>';
+          html += '</details>';
+        }
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">Error loading files: ' + escapeHtml(e.message) + '</div>';
+      }
     }
 
     function startInceptionGreenfield() {

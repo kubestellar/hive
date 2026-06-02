@@ -169,6 +169,7 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 	}
 
 	paused, resumed := s.syncAgentVisibility(level)
+	s.deps.AgentMgr.SyncModeFiles(level)
 
 	s.persistOnly()
 	go s.refreshAsync()
@@ -232,8 +233,8 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("failed to save ACMM level to hive.yaml", "error", err)
 	}
 
-	s.deps.AgentMgr.SyncModeFiles(level)
 	paused, resumed := s.syncAgentVisibility(level)
+	s.deps.AgentMgr.SyncModeFiles(level)
 
 	s.persistOnly()
 	s.refreshAsync()

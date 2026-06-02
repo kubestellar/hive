@@ -583,6 +583,10 @@
     .agent-card.off { border-color: #484f58; opacity: 0.6; }
     .agent-card.off .agent-state { color: #484f58; }
     .pause-badge { display: inline-block; font-size: 0.6rem; background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid rgba(248,81,73,0.3); border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+    .pause-info { cursor: help; font-size: 0.7rem; margin-left: 4px; opacity: 0.8; position: relative; display: inline-block; }
+    .pause-info:hover .pause-tooltip { display: block; }
+    .pause-tooltip { display: none; position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: #1c1c2e; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-size: 0.7rem; white-space: nowrap; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+    body.light-mode .pause-tooltip { background: #fff; color: #1a1a2e; border-color: #d0d7de; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
     .off-badge { display: inline-block; font-size: 0.6rem; background: rgba(72,79,88,0.25); color: #8b949e; border: 1px solid rgba(72,79,88,0.4); border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
 
     /* Health status panel */
@@ -2076,6 +2080,14 @@
     let _ocSummaryTailing = true;
     let _ocSummaryScrollTop = null;
 
+    function pauseInfoIcon(a) {
+      if (!a.paused || a.offByCadence) return '';
+      const reason = a.pausedReason || 'unknown';
+      const trigger = a.pausedTrigger || 'unknown';
+      const at = a.pausedAt ? new Date(a.pausedAt).toLocaleString() : 'unknown';
+      return `<span class="pause-info" title="${esc(reason)} (${esc(trigger)})">ℹ️<span class="pause-tooltip">Reason: ${esc(reason)}<br>Trigger: ${esc(trigger)}<br>Since: ${esc(at)}</span></span>`;
+    }
+
     function ocRenderAgentDetail() {
       const detail = document.getElementById('oc-agent-detail');
       if (!detail || !_ocSelectedAgent) return;
@@ -2179,7 +2191,7 @@
         <div class="oc-agent-detail-header">
           <span class="status-dot ${dotCls}"></span>
           <span class="agent-name-big">${esc(a.displayName || a.name)}</span>
-          <span style="font-size:0.78rem;color:#6b7280;margin-left:auto">${stateLabel}</span>
+          <span style="font-size:0.78rem;color:#6b7280;margin-left:auto">${stateLabel}${pauseInfoIcon(a)}</span>
         </div>
         <div class="oc-detail-actions">
           <button class="btn-toggle ${isPaused ? 'paused' : isOff ? 'off' : 'running'}" data-action="toggleAgent" data-agent="${esc(a.name)}" data-paused="${isPaused}" title="${isPaused ? 'Resume this agent — it will start running on its configured cadence' : isOff ? 'Start this agent — it is currently off in this governor mode' : 'Pause this agent — stops governor from kicking it until resumed'}">${isPaused ? '▶ resume' : isOff ? '▶ start' : '⏸ pause'}</button>
@@ -3063,7 +3075,7 @@
           <div class="agent-field"><span class="label" title="When the governor will next kick this agent based on its cadence interval.">next run</span><span class="value">${isPaused ? 'paused' : isOff ? 'off' : (a.nextKick || '—')}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
           <div class="agent-field"><span class="label" title="Number of times this agent has been restarted in the last 24 hours. High counts may indicate instability or rate limiting.">restarts</span><span class="value${(a.restarts || 0) > 5 ? ' restart-high' : (a.restarts || 0) > 0 ? ' restart-warn' : ''}">${a.restarts || 0}<span class="restart-label">24h</span>${(a.restarts || 0) > 0 ? `<button class="restart-reset" data-action="resetRestarts" data-agent="${esc(a.name)}" title="Reset the restart counter to zero — does not affect the agent">✕</button>` : ''}<span class="restart-spark">${restartSparkSvg(a.name)}</span></span></div>
-          <div class="agent-state ${isPaused ? 'paused' : isOff ? 'off' : a.busy}">${isPaused ? 'paused' : isOff ? 'off' : a.busy}${(() => {
+          <div class="agent-state ${isPaused ? 'paused' : isOff ? 'off' : a.busy}">${isPaused ? 'paused' : isOff ? 'off' : a.busy}${pauseInfoIcon(a)}${(() => {
             if (a.structuredStatus === 'BLOCKED') return '<span class="status-badge blocked" title="' + esc(a.statusEvidence) + '">blocked</span>';
             if (a.structuredStatus === 'NEEDS_CONTEXT') return '<span class="status-badge needs-context" title="' + esc(a.statusEvidence) + '">needs context</span>';
             if (a.structuredStatus === 'DONE_WITH_CONCERNS') return '<span class="status-badge done-concerns" title="' + esc(a.statusEvidence) + '">concerns</span>';

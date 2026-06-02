@@ -129,6 +129,8 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("GET /api/inception/ideation-facts", s.handleInceptionIdeationFacts)
 	s.mux.HandleFunc("GET /api/inception/download", s.handleInceptionDownload)
 	s.mux.HandleFunc("GET /api/inception/has-files", s.handleInceptionHasFiles)
+	s.mux.HandleFunc("PUT /api/inception/wiki-name", s.handleInceptionRenameWiki)
+	s.mux.HandleFunc("POST /api/inception/import", s.handleInceptionImport)
 
 	s.mux.HandleFunc("POST /api/chat", s.handleChat)
 

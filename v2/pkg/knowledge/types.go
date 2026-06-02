@@ -232,6 +232,7 @@ type InceptionState struct {
 	FactSlugs      []string          `json:"fact_slugs,omitempty"`
 	StartedAt      time.Time         `json:"started_at"`
 	PhaseChangedAt time.Time         `json:"phase_changed_at"`
+	WikiName       string            `json:"wiki_name,omitempty"`
 }
 
 // ScaffoldFile is a single generated file in the scaffold output.

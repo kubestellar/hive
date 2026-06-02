@@ -73,6 +73,10 @@ func NewFileStore(rootDir string, name string, logger *slog.Logger) (*FileStore,
 // Name returns the display name of this vault.
 func (s *FileStore) Name() string { return s.name }
 
+// SetName changes the display name of this vault (vanity rename).
+// The underlying directory path is unchanged.
+func (s *FileStore) SetName(name string) { s.name = name }
+
 // RootDir returns the filesystem path.
 func (s *FileStore) RootDir() string { return s.rootDir }
 

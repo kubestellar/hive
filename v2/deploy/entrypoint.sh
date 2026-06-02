@@ -13,6 +13,11 @@ if [ "$(id -u)" = "0" ]; then
   chown dev:node /etc/hive/hive.yaml 2>/dev/null || true
   mkdir -p /var/run/hive-metrics && chown dev:node /var/run/hive-metrics 2>/dev/null || true
 
+  # Fix permissions on bind-mounted secret files (host may own them as
+  # a different UID with mode 600, making them unreadable by dev/UID 1001)
+  chown dev:node /secrets/*.pem 2>/dev/null || true
+  chmod 644 /secrets/*.pem 2>/dev/null || true
+
   # Copy read-only mounted secrets so dev user can read them
   if [ -f /etc/hive/gh-app-key.pem ]; then
     cp /etc/hive/gh-app-key.pem /var/run/hive-metrics/gh-app-key.pem

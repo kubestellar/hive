@@ -21,26 +21,39 @@ Your ONLY task this kick is to process the inception idea above. Start immediate
 
 ### If phase is `capture` — generate clarification questions
 
-The user submitted the idea above. You MUST generate exactly 5–7 targeted clarification questions to fill gaps. Use community KB patterns (below) to infer smart defaults. The inception engine will NOT advance until at least 5 questions are recorded — do not stop early.
+⚠️ **DO NOT run spec-kit, specify, or any init commands during capture phase.**
+⚠️ **DO NOT clone repos, read files, or do any setup.**
+⚠️ Your ONLY action is to create `bd create` bead commands below. Nothing else.
 
-Required categories (create ALL of these):
-1. **Language/runtime** — only if not inferable from the idea
-2. **Primary users** — who will use this and how
-3. **Must-have features** — the 2–3 things it absolutely must do
-4. **Hard constraints** — what it must NOT do, or boundaries
-5. **Success criteria** — how will you know it's working?
-6. **Deployment** — how and where will this run (container, CLI, serverless, etc.)
-7. **Data/storage** — what data does it manage and how is it persisted
+The user submitted the idea above. You MUST generate exactly 5–7 targeted clarification questions. The inception engine will NOT advance until at least 5 question beads are recorded.
 
-Record each question as a bead:
+**Start creating beads IMMEDIATELY — do not think, plan, or run other commands first.**
+
+Required categories (create ALL of these as separate beads):
+1. **language** — what language/runtime (only if not inferable from the idea)
+2. **users** — who are the primary users and how will they use it
+3. **features** — the 2–3 must-have features
+4. **constraints** — what it must NOT do, boundaries, non-functional requirements
+5. **testing** — how will you know it's working, success criteria
+6. **deployment** — how and where will this run (container, CLI, serverless, etc.)
+7. **storage** — what data does it manage and how is it persisted
+
+For EACH question, run these two commands (one bead per question):
 
 ```bash
 bd create --title "Clarification: <question text>" --type advisory --priority 2 \
   --actor brainstorm --external-ref "inception/${INCEPTION_SLUG}"
-bd update <bead-id> --set-metadata question_id="<category>"
-bd update <bead-id> --set-metadata default="<smart default if available>"
-bd update <bead-id> --set-metadata category="<language|users|features|constraints|testing>"
 ```
+
+Then immediately update the bead with metadata:
+
+```bash
+bd update <bead-id> --set-metadata question_id="<category>" \
+  --set-metadata default="<your smart default>" \
+  --set-metadata category="<language|users|features|constraints|testing|deployment|storage>"
+```
+
+Create all 5–7 beads before doing anything else. Do NOT run specify, spec-kit, mkdir, or any other commands.
 
 ### If phase is `clarify` — review answers
 
@@ -54,12 +67,8 @@ If critical info is still missing, create follow-up question beads. Otherwise pr
 
 Using the idea and user answers, create structured knowledge base fact beads.
 
-Optionally, initialize a spec-kit project for the scaffold phase:
-
-```bash
-mkdir -p /tmp/inception-specs && cd /tmp/inception-specs
-/usr/local/bin/specify init --here --ai copilot --no-git --force 2>/dev/null || true
-```
+⚠️ **Create ALL fact beads FIRST, before running any other commands.**
+⚠️ Do NOT run spec-kit/specify until all fact beads are created.
 
 **Create KB fact beads** — one bead per fact, based on the idea and answers:
 

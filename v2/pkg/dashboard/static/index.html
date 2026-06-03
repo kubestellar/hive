@@ -376,7 +376,9 @@
     body.light-mode.oc-agent-focused .repos,
     body.light-mode.oc-agent-focused #beads-section,
     body.light-mode.oc-agent-focused #nous-section,
-    body.light-mode.oc-agent-focused #knowledge-section { display: none; }
+    body.light-mode.oc-agent-focused #knowledge-section,
+    body.light-mode.oc-agent-focused #contributors-section,
+    body.light-mode.oc-agent-focused #leaderboard-section { display: none; }
     body.light-mode.oc-strategy-focused #nous-section { display: block; }
     body.light-mode.oc-agent-focused .agent-card.oc-hidden { display: none; }
 
@@ -1704,6 +1706,8 @@
       <a class="oc-nav-item" data-section="beads-section" onclick="ocNavigate('beads-section')"><span class="oc-nav-emoji">🔮</span><span class="oc-nav-text">Beads</span></a>
       <a class="oc-nav-item" data-section="inception-section" onclick="ocNavigate('inception-section')"><span class="oc-nav-emoji">💡</span><span class="oc-nav-text">Inception</span></a>
       <a class="oc-nav-item" data-section="knowledge-section" onclick="ocNavigate('knowledge-section')"><span class="oc-nav-emoji">📚</span><span class="oc-nav-text">Knowledge</span></a>
+      <a class="oc-nav-item" data-section="contributors-section" onclick="ocNavigate('contributors-section')"><span class="oc-nav-emoji">👥</span><span class="oc-nav-text">Contributors</span><span id="contributors-sidebar-badge" style="display:none;margin-left:auto;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:700;background:#238636;color:#fff"></span></a>
+      <a class="oc-nav-item" data-section="leaderboard-section" onclick="ocNavigate('leaderboard-section')"><span class="oc-nav-emoji">🏆</span><span class="oc-nav-text">Leaderboard</span></a>
       <a class="oc-nav-item" data-section="nous-section" onclick="ocNavigate('nous-section')"><span class="oc-nav-emoji">🧪</span><span class="oc-nav-text">Strategy Lab</span></a>
     </div>
     <div class="oc-sidebar-footer">
@@ -1783,6 +1787,16 @@
   <div id="knowledge-section" style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">📚 Knowledge Base <span id="kb-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span></h2>
     <div id="knowledge-panel"></div>
+  </div>
+
+  <div id="contributors-section" style="margin-top: 16px; margin-bottom: 24px;">
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">👥 Contributors <span id="contributors-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span></h2>
+    <div id="contributors-panel"></div>
+  </div>
+
+  <div id="leaderboard-section" style="margin-top: 16px; margin-bottom: 24px;">
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">🏆 Leaderboard</h2>
+    <div id="leaderboard-panel"></div>
   </div>
 
   </div>
@@ -5833,6 +5847,161 @@ function burnAreaChart() {
     fetchKnowledgeStats();
     setInterval(fetchKnowledgeStats, KB_POLL_MS);
 
+    // --- Contributors & Leaderboard ---
+    const CONTRIBUTOR_POLL_MS = 10000;
+    const LEADERBOARD_POLL_MS = 30000;
+
+    const TRUST_TIER_COLORS = {
+      newcomer:    '#d29922',
+      contributor: '#58a6ff',
+      trusted:     '#3fb950',
+      advisor:     '#bc8cff',
+      revoked:     '#f85149',
+    };
+
+    function trustTierBadge(tier) {
+      const color = TRUST_TIER_COLORS[tier] || '#8b949e';
+      return `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:600;border:1px solid ${color};color:${color}">${esc(tier || 'unknown')}</span>`;
+    }
+
+    async function fetchContributors() {
+      try {
+        const res = await fetch('/api/contributors');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderContributors(data.contributors || []);
+      } catch (e) { /* silently retry on next poll */ }
+    }
+
+    function renderContributors(contributors) {
+      const panel = document.getElementById('contributors-panel');
+      if (!panel) return;
+      if (!contributors.length) {
+        setIfChanged(panel, '<div style="color:var(--muted);padding:24px;text-align:center;background:var(--card-bg);border:1px solid var(--border);border-radius:8px">No contributors registered yet.</div>');
+        return;
+      }
+      const cards = contributors.map(c => {
+        const dotColor = c.active ? '#3fb950' : '#8b949e';
+        const dotTitle = c.active ? 'Online' : 'Offline';
+        const ghLink = `https://github.com/${esc(c.github_username)}`;
+        const tierOptions = Object.keys(TRUST_TIER_COLORS).filter(t => t !== 'revoked').map(t =>
+          `<option value="${t}"${t === c.trust_tier ? ' selected' : ''}>${t}</option>`
+        ).join('');
+        return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor}" title="${dotTitle}"></span>
+            <a href="${ghLink}" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:none;font-weight:600">@${esc(c.github_username)}</a>
+            ${trustTierBadge(c.trust_tier)}
+          </div>
+          <div style="display:flex;gap:16px;margin-bottom:12px;font-size:0.8rem;color:var(--muted)">
+            <span>Completed: <strong style="color:var(--fg)">${c.total_tasks_completed || 0}</strong></span>
+            <span>Failed: <strong style="color:${(c.total_tasks_failed || 0) > 0 ? '#f85149' : 'var(--fg)'}">${c.total_tasks_failed || 0}</strong></span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;font-size:0.75rem">
+            <select onchange="changeContributorTier('${esc(c.contributor_id)}', this.value)" style="background:var(--card-bg);color:var(--fg);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:0.75rem">${tierOptions}</select>
+            <button onclick="revokeContributor('${esc(c.contributor_id)}')" style="background:#f8514922;color:#f85149;border:1px solid #f8514944;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.75rem">Revoke</button>
+          </div>
+        </div>`;
+      }).join('');
+      setIfChanged(panel, `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`);
+    }
+
+    async function fetchLeaderboard() {
+      try {
+        const res = await fetch('/api/leaderboard');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderLeaderboard(data.leaderboard || []);
+      } catch (e) { /* silently retry on next poll */ }
+    }
+
+    function renderLeaderboard(entries) {
+      const panel = document.getElementById('leaderboard-panel');
+      if (!panel) return;
+      if (!entries.length) {
+        setIfChanged(panel, '<div style="color:var(--muted);padding:24px;text-align:center;background:var(--card-bg);border:1px solid var(--border);border-radius:8px">No leaderboard data yet.</div>');
+        return;
+      }
+      const AVATAR_SIZE_PX = 28;
+      const rows = entries.map(e => {
+        const avatarHtml = e.avatar_url
+          ? `<img src="${esc(e.avatar_url)}" width="${AVATAR_SIZE_PX}" height="${AVATAR_SIZE_PX}" style="border-radius:50%;vertical-align:middle" alt="">`
+          : `<span style="display:inline-block;width:${AVATAR_SIZE_PX}px;height:${AVATAR_SIZE_PX}px;border-radius:50%;background:var(--border)"></span>`;
+        const ghLink = `https://github.com/${esc(e.github_username)}`;
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 12px;font-weight:600;color:var(--muted)">${e.rank}</td>
+          <td style="padding:8px 12px">${avatarHtml}</td>
+          <td style="padding:8px 12px"><a href="${ghLink}" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:none">@${esc(e.github_username)}</a></td>
+          <td style="padding:8px 12px">${trustTierBadge(e.trust_tier)}</td>
+          <td style="padding:8px 12px;text-align:right">${e.tasks_completed || 0}</td>
+          <td style="padding:8px 12px;text-align:right;color:${(e.tasks_failed || 0) > 0 ? '#f85149' : 'var(--muted)'}">${e.tasks_failed || 0}</td>
+        </tr>`;
+      }).join('');
+      setIfChanged(panel, `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+          <thead><tr style="background:var(--bg);border-bottom:1px solid var(--border)">
+            <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">#</th>
+            <th style="padding:8px 12px"></th>
+            <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">User</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">Tier</th>
+            <th style="padding:8px 12px;text-align:right;color:var(--muted);font-weight:600">Completed</th>
+            <th style="padding:8px 12px;text-align:right;color:var(--muted);font-weight:600">Failed</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`);
+    }
+
+    async function changeContributorTier(contributorId, tier) {
+      try {
+        const res = await fetch(`/api/contributors/${contributorId}/trust`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trust_tier: tier }),
+        });
+        if (!res.ok) { await hiveAlert('Failed to change tier: ' + res.statusText); return; }
+        fetchContributors();
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
+    }
+
+    async function revokeContributor(contributorId) {
+      const ok = await hiveConfirm('Revoke this contributor? They will lose access.');
+      if (!ok) return;
+      try {
+        const res = await fetch(`/api/contributors/${contributorId}/revoke`, { method: 'POST' });
+        if (!res.ok) { await hiveAlert('Failed to revoke: ' + res.statusText); return; }
+        fetchContributors();
+        fetchLeaderboard();
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
+    }
+
+    function updateContributorBadge(pool) {
+      const sidebarBadge = document.getElementById('contributors-sidebar-badge');
+      const statusBadge = document.getElementById('contributors-status-badge');
+      if (!pool) return;
+      const activeCount = pool.active || 0;
+      const totalCount = pool.registered || 0;
+      if (sidebarBadge) {
+        if (activeCount > 0) {
+          sidebarBadge.style.display = 'inline-block';
+          sidebarBadge.textContent = activeCount;
+          sidebarBadge.title = `${activeCount} active of ${totalCount} registered`;
+        } else {
+          sidebarBadge.style.display = 'none';
+        }
+      }
+      if (statusBadge) {
+        statusBadge.textContent = `${activeCount} active / ${totalCount} registered`;
+        statusBadge.style.background = activeCount > 0 ? '#238636' : '#30363d';
+        statusBadge.style.color = '#fff';
+      }
+    }
+
+    fetchContributors();
+    fetchLeaderboard();
+    setInterval(fetchContributors, CONTRIBUTOR_POLL_MS);
+    setInterval(fetchLeaderboard, LEADERBOARD_POLL_MS);
+
     function render(data) {
       if (!data || data.error || data.status === 'initializing') return;
       if (document.body.style.opacity === '0') document.body.style.opacity = '1';
@@ -5911,6 +6080,7 @@ function burnAreaChart() {
       renderAdvisoryDigest(data.advisoryDigest || null);
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
+      updateContributorBadge(data.contributorPool || null);
       ocUpdateSidebarAgents();
       renderDebugSection();
       updateACMMBadge(data.acmmLevel || 0, data.acmmPackAgents || null);
@@ -7478,6 +7648,8 @@ function burnAreaChart() {
       const tokenPanel = document.getElementById('token-panel');
       const reposSection = document.getElementById('repos-section');
       const beadsSection = document.getElementById('beads-section');
+      const contributorsSection = document.getElementById('contributors-section');
+      const leaderboardSection = document.getElementById('leaderboard-section');
       const nousSection = document.getElementById('nous-section');
       const debugSection = document.getElementById('debug-section');
       const logsSection = document.getElementById('logs-section');
@@ -7495,6 +7667,8 @@ function burnAreaChart() {
       const ACMM_BEADS_MIN_LEVEL = 2;
       const ACMM_REPOS_MIN_LEVEL = 2;
       const ACMM_NOUS_MIN_LEVEL = 4;
+      const ACMM_CONTRIBUTORS_MIN_LEVEL = 2;
+      const ACMM_LEADERBOARD_MIN_LEVEL = 2;
       const ACMM_DEBUG_MIN_LEVEL = 3;
       const ACMM_LOGS_MIN_LEVEL = 3;
 
@@ -7509,6 +7683,8 @@ function burnAreaChart() {
         level >= ACMM_TOKENS_MIN_LEVEL ? show(tokenPanel, '') : hide(tokenPanel);
         level >= ACMM_BEADS_MIN_LEVEL ? show(beadsSection, '') : hide(beadsSection);
         level >= ACMM_REPOS_MIN_LEVEL ? show(reposSection, '') : hide(reposSection);
+        level >= ACMM_CONTRIBUTORS_MIN_LEVEL ? show(contributorsSection, '') : hide(contributorsSection);
+        level >= ACMM_LEADERBOARD_MIN_LEVEL ? show(leaderboardSection, '') : hide(leaderboardSection);
         level >= ACMM_NOUS_MIN_LEVEL ? show(nousSection, '') : hide(nousSection);
         const nousSidebarCfg = document.getElementById('nous-sidebar-config');
         level >= ACMM_NOUS_MIN_LEVEL ? show(nousSidebarCfg, '') : hide(nousSidebarCfg);
@@ -7528,6 +7704,8 @@ function burnAreaChart() {
           if (section === 'token-panel' && level < ACMM_TOKENS_MIN_LEVEL) hide(item);
           if (section === 'repos-section' && level < ACMM_REPOS_MIN_LEVEL) hide(item);
           if (section === 'beads-section' && level < ACMM_BEADS_MIN_LEVEL) hide(item);
+          if (section === 'contributors-section' && level < ACMM_CONTRIBUTORS_MIN_LEVEL) hide(item);
+          if (section === 'leaderboard-section' && level < ACMM_LEADERBOARD_MIN_LEVEL) hide(item);
           if (section === 'nous-section' && level < ACMM_NOUS_MIN_LEVEL) hide(item);
         });
 

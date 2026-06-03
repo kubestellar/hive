@@ -43,6 +43,9 @@ type ContributorProfile struct {
 	TokenPlain         string                `json:"registration_token_plain,omitempty"`
 	TrustTier          string                `json:"trust_tier"`
 	PreferredRole      string                `json:"preferred_role,omitempty"`
+	CLIBackend         string                `json:"cli_backend,omitempty"`
+	Model              string                `json:"model,omitempty"`
+	AvatarURL          string                `json:"avatar_url,omitempty"`
 	RegisteredAt       string                `json:"registered_at"`
 	TasksCompleted     int                   `json:"total_tasks_completed"`
 	TasksFailed        int                   `json:"total_tasks_failed"`
@@ -87,7 +90,7 @@ func (s *Server) BuildContributorPoolStatus() *ContributorPoolStatus {
 }
 
 func (s *Server) registerContributeRoutes() {
-	s.contributeHub = NewContributeWSHub(s.logger)
+	s.contributeHub = NewContributeWSHub(s.logger, s)
 	s.mux.HandleFunc("GET /contribute", s.handleContributeLanding)
 	s.mux.HandleFunc("GET /api/contribute/ws", s.contributeHub.HandleWS)
 	s.mux.HandleFunc("POST /api/contribute/register", s.handleContributeRegister)

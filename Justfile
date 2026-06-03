@@ -187,6 +187,7 @@ contribute-hive mode="docker":
         --network host \
         -v "{{config_dir}}:/home/dev/.config/hive:ro" \
         -v "${HOME}/.claude:/home/dev/.claude:ro" \
+        -v "${HOME}/.claude.json:/home/dev/.claude.json:ro" \
         -v "${HOME}/.config/claude-code:/home/dev/.config/claude-code:ro" \
         -v "${HOME}/.config/gh:/home/dev/.config/gh:ro" \
         -e HIVE_HUB="{{hive_hub}}" \

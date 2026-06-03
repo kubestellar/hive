@@ -941,8 +941,9 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 		displayName = ""
 	}
 
-	// Stale timeout from config, default to 1200
-	const defaultStaleTimeoutS = 1200
+	// Stale timeout from config, default to 28800 (8 hours).
+	// Must exceed the longest cadence interval to avoid false stale flags.
+	const defaultStaleTimeoutS = 28800
 	staleTimeout := agentCfg.StaleTimeout
 	if staleTimeout == 0 {
 		staleTimeout = defaultStaleTimeoutS

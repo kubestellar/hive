@@ -49,6 +49,7 @@ agents:
     kick_template: guide-advisory.md
     include_repos: true
     bead_role: worker
+    stale_timeout: 28800  # 8h — must exceed longest cadence (4h)
   supervisor:
     id: supervisor
     backend: copilot
@@ -77,6 +78,7 @@ agents:
     kick_template: scanner-advisory.md
     include_repos: true
     bead_role: worker
+    stale_timeout: 28800  # 8h — must exceed longest cadence (4h)
   quality:
     id: quality
     backend: copilot
@@ -91,6 +93,7 @@ agents:
     kick_template: quality-full.md
     include_repos: true
     bead_role: worker
+    stale_timeout: 14400  # 4h — must exceed longest cadence (2h)
   ci-maintainer:
     id: ci-maintainer
     backend: copilot

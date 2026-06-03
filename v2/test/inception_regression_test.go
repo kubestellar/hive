@@ -1,6 +1,7 @@
 package test
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -247,6 +248,38 @@ func TestRegression_Bug50_IdeationFactsFallbackToWiki(t *testing.T) {
 	facts, _ := data["facts"].([]interface{})
 	if len(facts) == 0 {
 		t.Error("ideation-facts should return facts from wiki vault when KB layer is empty")
+	}
+	client.post("/api/inception/reset", nil)
+}
+
+func TestRegression_Bug52_StaleWikiFactsClearedOnStart(t *testing.T) {
+	client := newAPIClient()
+	// First inception: record facts
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "first project"})
+	client.post("/api/inception/facts", map[string]interface{}{
+		"facts": []map[string]string{
+			{"type": "vision", "title": "First Vision", "body": "First project description"},
+		},
+	})
+	// Second inception: start new idea
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "second project"})
+	// Scaffold should NOT contain facts from first inception
+	data, code, _ := client.get("/api/inception/scaffold")
+	if code != 200 {
+		t.Skipf("scaffold returned %d", code)
+	}
+	scaffold, _ := data["scaffold"].(map[string]interface{})
+	if scaffold != nil {
+		files, _ := scaffold["files"].([]interface{})
+		for _, f := range files {
+			fm, _ := f.(map[string]interface{})
+			content, _ := fm["content"].(string)
+			if strings.Contains(content, "First Vision") || strings.Contains(content, "First project") {
+				t.Error("scaffold contains facts from previous inception — stale wiki not cleared")
+			}
+		}
 	}
 	client.post("/api/inception/reset", nil)
 }

@@ -77,6 +77,8 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 		}
 	}
 
+	e.clearWikiVault()
+
 	e.state = &InceptionState{
 		Phase:     PhaseCapture,
 		Mode:      InceptionGreenfield,
@@ -114,6 +116,8 @@ func (e *InceptionEngine) StartBrownfield(repoURL string) (*InceptionState, erro
 	}
 
 	slug := slugify("scan-" + repoBaseName(repoURL))
+
+	e.clearWikiVault()
 
 	e.state = &InceptionState{
 		Phase:     PhaseCapture,
@@ -260,6 +264,20 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 }
 
 const inceptionWikiDir = "inception-wiki"
+
+func (e *InceptionEngine) clearWikiVault() {
+	vaultDir := filepath.Join(e.dataDir, inceptionWikiDir)
+	entries, err := os.ReadDir(vaultDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		os.Remove(filepath.Join(vaultDir, entry.Name()))
+	}
+	if len(entries) > 0 {
+		e.logger.Info("inception wiki cleared on new start", "files", len(entries))
+	}
+}
 
 // writeFactsToVault writes each fact as a markdown file with YAML frontmatter
 // into a local directory, then connects it as a KB vault so facts are available

@@ -842,6 +842,38 @@ func main() {
 		}
 	}
 
+	// Start hub heartbeat push if configured
+	hubURL := os.Getenv("HIVE_HUB_URL")
+	if hubURL != "" {
+		go hub.StartHeartbeat(ctx, hubURL, func() *hub.HeartbeatPayload {
+			statuses := agentMgr.AllStatuses()
+			govState := gov.GetState()
+			agents := make([]hub.AgentSummary, 0, len(statuses))
+			for name, proc := range statuses {
+				agents = append(agents, hub.AgentSummary{Name: name, State: string(proc.State)})
+			}
+			acmmLvl := 0
+			if cfg.ACMMLevel != nil {
+				acmmLvl = *cfg.ACMMLevel
+			}
+			return &hub.HeartbeatPayload{
+				HiveID:      cfg.HiveID,
+				Org:         cfg.Project.Org,
+				Repos:       cfg.Project.Repos,
+				PrimaryRepo: cfg.Project.PrimaryRepo,
+				ACMMLevel:   acmmLvl,
+				Agents:      agents,
+				Governor:    hub.GovernorSummary{Mode: string(govState.Mode), Issues: govState.QueueIssues, PRs: govState.QueuePRs},
+				Contributors: hub.ContributorSummary{},
+				Health:       map[string]any{},
+				DashboardURL: fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port),
+				IsPublic:     true,
+				Version:      "2.0.0",
+				GitHash:      gitShort,
+			}
+		}, time.Duration(cfg.Governor.EvalIntervalS)*time.Second, logger)
+	}
+
 	logger.Info("entering governor loop", "interval_seconds", cfg.Governor.EvalIntervalS)
 	ticker := time.NewTicker(time.Duration(cfg.Governor.EvalIntervalS) * time.Second)
 	defer ticker.Stop()

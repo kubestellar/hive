@@ -77,6 +77,7 @@ func NewHubServer(port int, logger *slog.Logger) *HubServer {
 	s.mux.HandleFunc("GET /api/hub/stats", s.handleStats)
 	s.mux.Handle("GET /", http.FileServerFS(staticFS))
 
+	s.registerOAuth()
 	go s.saveLoop()
 
 	return s

@@ -27,6 +27,16 @@ elif [[ -n "${HIVE_GITHUB_TOKEN:-}" ]]; then
   export GH_TOKEN="$HIVE_GITHUB_TOKEN"
 fi
 
+# Contributor mode — extra restrictions for remote contributor agents
+if [[ "${HIVE_CONTRIBUTOR_MODE:-}" == "true" ]]; then
+  case "$*" in
+    *"auth "*)
+      echo "⛔ BLOCKED: gh auth is disabled for contributor agents." >&2
+      exit 1
+      ;;
+  esac
+fi
+
 # Build the full command string for pattern matching
 FULL_CMD="gh $*"
 
@@ -331,6 +341,11 @@ ${footer}")
 if [[ -n "$AGENT_NAME" ]]; then
   LABELS_CSV="agent/${AGENT_DISPLAY_NAME}"
   [[ -n "$HIVE_INSTANCE_ID" ]] && LABELS_CSV="${LABELS_CSV},hive/${HIVE_INSTANCE_ID}"
+  # Contributor labels
+  if [[ "${HIVE_CONTRIBUTOR_MODE:-}" == "true" ]]; then
+    [[ -n "${HIVE_CONTRIBUTOR_USERNAME:-}" ]] && LABELS_CSV="${LABELS_CSV},contributor/${HIVE_CONTRIBUTOR_USERNAME}"
+    [[ -n "${HIVE_CONTRIBUTOR_CLI:-}" ]] && LABELS_CSV="${LABELS_CSV},cli/${HIVE_CONTRIBUTOR_CLI}"
+  fi
 
   # Ensure labels exist on the repo (cached per-session to avoid repeated API calls).
   LABEL_CACHE="/tmp/.hive-labels-ensured"

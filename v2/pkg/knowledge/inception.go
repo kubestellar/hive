@@ -539,6 +539,15 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 				Path: "src/test/java/AppTest.java", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
 			})
 		}
+	case "shell":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: projectName + ".sh", Content: buildShellMain(projectName, vision), Purpose: "main", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "test.sh", Content: buildShellTestStubs(acceptance), Purpose: "test_stub", IsNew: true,
+			})
+		}
 	}
 
 	// Makefile
@@ -1005,6 +1014,46 @@ func buildJavaTestStubs(acceptance []Fact) string {
 	return b.String()
 }
 
+func buildShellMain(name string, vision *Fact) string {
+	desc := name
+	if vision != nil && vision.Body != "" {
+		desc = vision.Body
+		if len(desc) > 80 {
+			desc = desc[:80]
+		}
+	}
+	return fmt.Sprintf(`#!/usr/bin/env bash
+set -euo pipefail
+
+# %s
+
+main() {
+    echo "Starting %s..."
+    # TODO: implement
+}
+
+main "$@"
+`, desc, name)
+}
+
+func buildShellTestStubs(acceptance []Fact) string {
+	var b strings.Builder
+	b.WriteString("#!/usr/bin/env bash\nset -euo pipefail\n\n")
+	b.WriteString("PASS=0\nFAIL=0\n\n")
+	for _, a := range acceptance {
+		funcName := toSnakeCase(a.Title)
+		fmt.Fprintf(&b, "test_%s() {\n", funcName)
+		fmt.Fprintf(&b, "    echo \"SKIP: %s\"\n", a.Title)
+		b.WriteString("    PASS=$((PASS+1))\n}\n\n")
+	}
+	b.WriteString("# Run all tests\n")
+	for _, a := range acceptance {
+		fmt.Fprintf(&b, "test_%s\n", toSnakeCase(a.Title))
+	}
+	b.WriteString("\necho \"$PASS passed, $FAIL failed\"\n")
+	return b.String()
+}
+
 func buildContributing(constitution *Fact) string {
 	var b strings.Builder
 	b.WriteString("# Contributing\n\n")
@@ -1198,6 +1247,8 @@ func buildGitignore(lang string) string {
 		return common + "# Rust\n/target/\nCargo.lock\n"
 	case "java":
 		return common + "# Java\ntarget/\n*.class\n*.jar\n.gradle/\nbuild/\n"
+	case "shell":
+		return common + "# Shell\n*.log\n"
 	default:
 		return common
 	}
@@ -1673,6 +1724,8 @@ func buildNightlyCI(lang string) string {
 		testCmd = "cargo test -- --nocapture"
 	case "java":
 		testCmd = "mvn verify -P integration-test"
+	case "shell":
+		testCmd = "bash test.sh"
 	default:
 		testCmd = "npm test -- --reporter=verbose"
 	}
@@ -1780,6 +1833,9 @@ func buildMakefile(lang, name string) string {
 		b.WriteString("test:\n\tmvn test\n\n")
 		b.WriteString("lint:\n\tmvn checkstyle:check\n\n")
 		b.WriteString("clean:\n\tmvn clean\n\n")
+	case "shell":
+		b.WriteString("test:\n\tbash test.sh\n\n")
+		b.WriteString("lint:\n\tshellcheck *.sh\n\n")
 	}
 	fmt.Fprintf(&b, "docker-build:\n\tdocker build -t %s:latest .\n\n", name)
 	fmt.Fprintf(&b, "docker-push:\n\tdocker push %s:latest\n\n", name)
@@ -1840,6 +1896,8 @@ func inferLanguage(constitution *Fact) string {
 		return "rust"
 	case strings.Contains(body, "java") || strings.Contains(body, "maven") || strings.Contains(body, "gradle"):
 		return "java"
+	case strings.Contains(body, "bash") || strings.Contains(body, "shell") || strings.Contains(body, "posix") || strings.Contains(body, "zsh"):
+		return "shell"
 	default:
 		return "go"
 	}

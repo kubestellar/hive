@@ -121,9 +121,9 @@ if [[ -n "${AGENT_MODEL:-}" ]]; then
   esac
 fi
 
-# Copy host .claude.json (mounted at staging path to avoid Colima file-mount issues)
-if [[ "$AGENT_BACKEND" == "claude" ]] && [[ -f "${HOME}/.claude-host.json" ]]; then
-  cp "${HOME}/.claude-host.json" "${HOME}/.claude.json"
+# Copy host .claude.json from hive config dir (Colima can't bind-mount files)
+if [[ "$AGENT_BACKEND" == "claude" ]] && [[ -f "${CONFIG_DIR}/claude-config.json" ]]; then
+  cp "${CONFIG_DIR}/claude-config.json" "${HOME}/.claude.json"
   chmod 600 "${HOME}/.claude.json"
 fi
 

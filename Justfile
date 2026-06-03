@@ -124,6 +124,13 @@ contribute-setup backend="claude":
         ;;
     esac
 
+    # Copy CLI config for Docker container (Colima can't bind-mount files)
+    if [[ "{{backend}}" == "claude" ]] && [[ -f "${HOME}/.claude.json" ]]; then
+      cp "${HOME}/.claude.json" "{{config_dir}}/claude-config.json"
+      chmod 600 "{{config_dir}}/claude-config.json"
+      echo "Claude config staged for Docker container."
+    fi
+
     echo ""
     echo "✓ Setup complete!"
     echo "  GitHub:  ${GH_USER}"
@@ -195,7 +202,6 @@ contribute-hive mode="docker":
         --network host \
         -v "{{config_dir}}:/home/dev/.config/hive:ro" \
         -v "${HOME}/.claude:/home/dev/.claude" \
-        -v "${HOME}/.claude.json:/home/dev/.claude-host.json:ro" \
         -v "${HOME}/.config/claude-code:/home/dev/.config/claude-code" \
         -v "${HOME}/.config/gh:/home/dev/.config/gh:ro" \
         -e HIVE_HUB="{{hive_hub}}" \

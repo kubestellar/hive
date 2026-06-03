@@ -6004,6 +6004,7 @@ function burnAreaChart() {
     };
 
     function matchesContributorFilter(c) {
+      // "All" selected — include everyone (revoked will be split out in renderContributors)
       if (_contributorFilters.size === 0) return true;
       for (const f of _contributorFilters) {
         if (f === CONTRIBUTOR_FILTER_ACTIVE && c.active) return true;
@@ -6035,35 +6036,92 @@ function burnAreaChart() {
         setIfChanged(panel, '<div style="color:var(--muted);padding:24px;text-align:center;background:var(--card-bg);border:1px solid var(--border);border-radius:8px">No contributors match the selected filters.</div>');
         return;
       }
-      const cards = filtered.map(c => {
-        const dotColor = c.active ? '#3fb950' : '#8b949e';
-        const dotTitle = c.active ? 'Online' : 'Offline';
-        const ghLink = `https://github.com/${esc(c.github_username)}`;
-        const avatar = c.avatar_url || `https://github.com/${esc(c.github_username)}.png`;
-        const cliLine = c.cli_backend ? `${esc(c.cli_backend)}${c.model ? ' · ' + esc(c.model) : ''}` : '';
-        const roleLine = c.preferred_role ? `role: ${esc(c.preferred_role)}` : '';
-        const tierOptions = Object.keys(TRUST_TIER_COLORS).filter(t => t !== 'revoked').map(t =>
-          `<option value="${t}"${t === c.trust_tier ? ' selected' : ''}>${t}</option>`
-        ).join('');
-        return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;overflow:hidden">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0" title="${dotTitle}"></span>
-            <img src="${avatar}" alt="" style="width:28px;height:28px;border-radius:50%;flex-shrink:0" onerror="this.style.display='none'">
-            <a href="${ghLink}" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">@${esc(c.github_username)}</a>
-            <span style="flex-shrink:0">${trustTierBadge(c.trust_tier)}</span>
+
+      // Split into active (non-revoked) and revoked lists
+      const showingRevokedFilter = _contributorFilters.has('revoked');
+      const nonRevoked = filtered.filter(c => c.trust_tier !== 'revoked');
+      const revoked = filtered.filter(c => c.trust_tier === 'revoked');
+
+      // --- Card grid: only non-revoked contributors ---
+      let html = '';
+      if (nonRevoked.length > 0) {
+        const cards = nonRevoked.map(c => {
+          const dotColor = c.active ? '#3fb950' : '#8b949e';
+          const dotTitle = c.active ? 'Online' : 'Offline';
+          const ghLink = `https://github.com/${esc(c.github_username)}`;
+          const avatar = c.avatar_url || `https://github.com/${esc(c.github_username)}.png`;
+          const cliLine = c.cli_backend ? `${esc(c.cli_backend)}${c.model ? ' · ' + esc(c.model) : ''}` : '';
+          const roleLine = c.preferred_role ? `role: ${esc(c.preferred_role)}` : '';
+          const tierOptions = Object.keys(TRUST_TIER_COLORS).filter(t => t !== 'revoked').map(t =>
+            `<option value="${t}"${t === c.trust_tier ? ' selected' : ''}>${t}</option>`
+          ).join('');
+          return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0" title="${dotTitle}"></span>
+              <img src="${avatar}" alt="" style="width:28px;height:28px;border-radius:50%;flex-shrink:0" onerror="this.style.display='none'">
+              <a href="${ghLink}" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">@${esc(c.github_username)}</a>
+              <span style="flex-shrink:0">${trustTierBadge(c.trust_tier)}</span>
+            </div>
+            ${cliLine ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">${cliLine}${roleLine ? ' · ' + roleLine : ''}</div>` : (roleLine ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">${roleLine}</div>` : '')}
+            <div style="display:flex;gap:16px;margin-bottom:10px;font-size:0.8rem;color:var(--muted)">
+              <span>Completed: <strong style="color:var(--fg)">${c.total_tasks_completed || 0}</strong></span>
+              <span>Failed: <strong style="color:${(c.total_tasks_failed || 0) > 0 ? '#f85149' : 'var(--fg)'}">${c.total_tasks_failed || 0}</strong></span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;font-size:0.75rem">
+              <select onchange="changeContributorTier('${esc(c.contributor_id)}', this.value)" style="background:var(--card-bg);color:var(--fg);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:0.75rem">${tierOptions}</select>
+              <button onclick="revokeContributor('${esc(c.contributor_id)}')" style="background:transparent;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.75rem">Revoke</button>
+            </div>
+          </div>`;
+        }).join('');
+        html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`;
+      } else if (!revoked.length) {
+        html += '<div style="color:var(--muted);padding:24px;text-align:center;background:var(--card-bg);border:1px solid var(--border);border-radius:8px">No contributors match the selected filters.</div>';
+      }
+
+      // --- Revoked section: collapsible, shown when revoked contributors exist ---
+      if (revoked.length > 0) {
+        const revokedRows = revoked.map(c => {
+          const ghLink = `https://github.com/${esc(c.github_username)}`;
+          const revokedDate = c.last_heartbeat || c.registered_at || '';
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 12px"><a href="${ghLink}" target="_blank" rel="noopener" style="color:#8b949e;text-decoration:none">@${esc(c.github_username)}</a></td>
+            <td style="padding:6px 12px;color:var(--muted);font-size:0.75rem">${esc(revokedDate)}</td>
+            <td style="padding:6px 12px;text-align:right">
+              <button onclick="changeContributorTier('${esc(c.contributor_id)}', 'newcomer')" style="background:transparent;color:#58a6ff;border:1px solid #30363d;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.72rem;margin-right:4px">Unrevoke</button>
+              <button onclick="deleteContributor('${esc(c.contributor_id)}')" style="background:transparent;color:#f85149;border:1px solid #30363d;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.72rem">Remove</button>
+            </td>
+          </tr>`;
+        }).join('');
+
+        // Expand by default when the Revoked filter pill is active
+        const openAttr = showingRevokedFilter ? ' open' : '';
+        html += `<details style="margin-top:16px"${openAttr}>
+          <summary style="cursor:pointer;color:var(--muted);font-size:0.8rem;font-weight:600;padding:8px 0;user-select:none">Revoked (${revoked.length})</summary>
+          <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:8px">
+            <table style="width:100%;border-collapse:collapse;font-size:0.78rem">
+              <thead><tr style="background:var(--bg);border-bottom:1px solid var(--border)">
+                <th style="padding:6px 12px;text-align:left;color:var(--muted);font-weight:600">User</th>
+                <th style="padding:6px 12px;text-align:left;color:var(--muted);font-weight:600">Date</th>
+                <th style="padding:6px 12px;text-align:right;color:var(--muted);font-weight:600">Actions</th>
+              </tr></thead>
+              <tbody>${revokedRows}</tbody>
+            </table>
           </div>
-          ${cliLine ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">${cliLine}${roleLine ? ' · ' + roleLine : ''}</div>` : (roleLine ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">${roleLine}</div>` : '')}
-          <div style="display:flex;gap:16px;margin-bottom:10px;font-size:0.8rem;color:var(--muted)">
-            <span>Completed: <strong style="color:var(--fg)">${c.total_tasks_completed || 0}</strong></span>
-            <span>Failed: <strong style="color:${(c.total_tasks_failed || 0) > 0 ? '#f85149' : 'var(--fg)'}">${c.total_tasks_failed || 0}</strong></span>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;font-size:0.75rem">
-            <select onchange="changeContributorTier('${esc(c.contributor_id)}', this.value)" style="background:var(--card-bg);color:var(--fg);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:0.75rem">${tierOptions}</select>
-            <button onclick="revokeContributor('${esc(c.contributor_id)}')" style="background:transparent;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.75rem">Revoke</button>
-          </div>
-        </div>`;
-      }).join('');
-      setIfChanged(panel, `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`);
+        </details>`;
+      }
+
+      setIfChanged(panel, html);
+    }
+
+    async function deleteContributor(contributorId) {
+      const ok = await hiveConfirm('Permanently remove this contributor? This cannot be undone.');
+      if (!ok) return;
+      try {
+        const res = await fetch('/api/contributors/' + contributorId, { method: 'DELETE' });
+        if (!res.ok) { await hiveAlert('Failed to remove: ' + res.statusText); return; }
+        fetchContributors();
+        fetchLeaderboard();
+      } catch (e) { await hiveAlert('Error: ' + e.message); }
     }
 
     async function fetchLeaderboard() {

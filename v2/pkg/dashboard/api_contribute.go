@@ -755,9 +755,15 @@ func buildLeaderboard() []LeaderboardEntry {
 	})
 
 	entries := make([]LeaderboardEntry, 0, len(profiles))
-	for i, p := range profiles {
+	rank := 0
+	for _, p := range profiles {
+		// Revoked contributors should not appear on the leaderboard.
+		if p.TrustTier == "revoked" {
+			continue
+		}
+		rank++
 		entries = append(entries, LeaderboardEntry{
-			Rank:           i + 1,
+			Rank:           rank,
 			GitHubUsername: p.GitHubUsername,
 			AvatarURL:      fmt.Sprintf("https://github.com/%s.png", p.GitHubUsername),
 			TrustTier:      p.TrustTier,

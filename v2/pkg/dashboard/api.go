@@ -1339,7 +1339,7 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 		s.logger.Warn("failed to sync agent config to process", "agent", name, "error", err)
 	}
 
-	s.refreshAndPersist()
+	s.refreshAndPersistSync()
 	okResponse(w, map[string]string{"status": "updated", "agent": name})
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -125,6 +126,9 @@ func (n *Notifier) logNtfyError(msg, errDetail string) {
 }
 
 func (n *Notifier) sendSlack(title, message string) {
+	if !strings.HasPrefix(n.cfg.Slack.Webhook, "https://") {
+		return
+	}
 	payload := map[string]string{
 		"text": fmt.Sprintf("*%s*\n%s", title, message),
 	}
@@ -139,6 +143,9 @@ func (n *Notifier) sendSlack(title, message string) {
 }
 
 func (n *Notifier) sendDiscordWebhook(title, message string) {
+	if !strings.HasPrefix(n.cfg.Discord.Webhook, "https://") {
+		return
+	}
 	payload := map[string]string{
 		"content": fmt.Sprintf("**%s**\n%s", title, message),
 	}

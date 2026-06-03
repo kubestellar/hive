@@ -408,7 +408,7 @@ func TestHandleGovernorLabels(t *testing.T) {
 
 func TestHandleGovernorBudget(t *testing.T) {
 	s, _ := apiServer(t)
-	rec := doPut(s, "/api/config/governor/budget", map[string]interface{}{"weekly_limit": 100000})
+	rec := doPut(s, "/api/config/governor/budget", map[string]interface{}{"weekly_limit": 100000, "periodDays": 7, "criticalPct": 90})
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
@@ -1332,7 +1332,7 @@ func TestHandleGovernorLabels_PUT(t *testing.T) {
 
 func TestHandleGovernorBudget_PUT(t *testing.T) {
 	s, _ := apiServer(t)
-	body := map[string]any{"weekly_limit": 500000}
+	body := map[string]any{"weekly_limit": 500000, "periodDays": 7, "criticalPct": 90}
 	rec := doPut(s, "/api/config/governor/budget", body)
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)

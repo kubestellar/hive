@@ -317,15 +317,16 @@ func TestValidateGovernorBudget(t *testing.T) {
 		errMsg      string
 	}{
 		{"valid", 1000000, 30, 80, false, ""},
-		{"zero tokens", 0, 0, 0, false, ""},
-		{"negative tokens", -1, 0, 0, true, "totalTokens must be >= 0"},
-		{"criticalPct 200", 0, 0, 200, true, "criticalPct must be between"},
-		{"criticalPct 0", 0, 0, 0, false, ""},
-		{"criticalPct 1", 0, 0, 1, false, ""},
-		{"criticalPct 100", 0, 0, 100, false, ""},
-		{"periodDays too high", 0, 400, 0, true, "periodDays must be between"},
-		{"periodDays 1", 0, 1, 0, false, ""},
-		{"periodDays 365", 0, 365, 0, false, ""},
+		{"zero tokens", 0, 1, 90, false, ""},
+		{"negative tokens", -1, 1, 90, true, "totalTokens must be >= 0"},
+		{"criticalPct 200", 0, 1, 200, true, "criticalPct must be between"},
+		{"criticalPct 0", 0, 1, 0, true, "criticalPct must be between"},
+		{"criticalPct 1", 0, 1, 1, false, ""},
+		{"criticalPct 100", 0, 1, 100, false, ""},
+		{"periodDays too high", 0, 400, 90, true, "periodDays must be between"},
+		{"periodDays 0", 0, 0, 90, true, "periodDays must be between"},
+		{"periodDays 1", 0, 1, 90, false, ""},
+		{"periodDays 365", 0, 365, 90, false, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

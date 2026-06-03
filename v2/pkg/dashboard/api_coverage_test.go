@@ -1469,7 +1469,7 @@ func TestHandleGovernorLabels_Success(t *testing.T) {
 
 func TestHandleGovernorBudget_Success(t *testing.T) {
 	s, _ := apiServer(t)
-	rec := doPut(s, "/api/config/governor/budget", map[string]interface{}{"weekly_limit": 1000000})
+	rec := doPut(s, "/api/config/governor/budget", map[string]interface{}{"weekly_limit": 1000000, "periodDays": 7, "criticalPct": 90})
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}

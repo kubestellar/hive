@@ -259,10 +259,10 @@ func validateGovernorBudget(totalTokens int64, periodDays, criticalPct int) erro
 	if totalTokens < 0 {
 		return fmt.Errorf("totalTokens must be >= 0")
 	}
-	if periodDays > 0 && (periodDays < minBudgetPeriodDays || periodDays > maxBudgetPeriodDays) {
+	if periodDays < minBudgetPeriodDays || periodDays > maxBudgetPeriodDays {
 		return fmt.Errorf("periodDays must be between %d and %d", minBudgetPeriodDays, maxBudgetPeriodDays)
 	}
-	if criticalPct > 0 && (criticalPct < minCriticalPct || criticalPct > maxCriticalPct) {
+	if criticalPct < minCriticalPct || criticalPct > maxCriticalPct {
 		return fmt.Errorf("criticalPct must be between %d and %d", minCriticalPct, maxCriticalPct)
 	}
 	return nil
@@ -289,10 +289,10 @@ func validateGovernorLogging(dir string, maxSizeMB, maxAgeDays int) error {
 	if dir != "" && !strings.HasPrefix(dir, requiredLoggingDirPrefix) {
 		return fmt.Errorf("logging dir must start with %s", requiredLoggingDirPrefix)
 	}
-	if maxSizeMB > 0 && (maxSizeMB < minLoggingMaxSizeMB || maxSizeMB > maxLoggingMaxSizeMB) {
+	if maxSizeMB != 0 && (maxSizeMB < minLoggingMaxSizeMB || maxSizeMB > maxLoggingMaxSizeMB) {
 		return fmt.Errorf("maxSizeMB must be between %d and %d", minLoggingMaxSizeMB, maxLoggingMaxSizeMB)
 	}
-	if maxAgeDays > 0 && (maxAgeDays < minLoggingMaxAgeDays || maxAgeDays > maxLoggingMaxAgeDays) {
+	if maxAgeDays != 0 && (maxAgeDays < minLoggingMaxAgeDays || maxAgeDays > maxLoggingMaxAgeDays) {
 		return fmt.Errorf("maxAgeDays must be between %d and %d", minLoggingMaxAgeDays, maxLoggingMaxAgeDays)
 	}
 	return nil

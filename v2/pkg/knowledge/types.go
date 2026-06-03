@@ -231,7 +231,7 @@ type InceptionState struct {
 	Answers        map[string]string `json:"answers,omitempty"`
 	FactSlugs      []string          `json:"fact_slugs,omitempty"`
 	StartedAt      time.Time         `json:"started_at"`
-	PhaseChangedAt time.Time         `json:"phase_changed_at"`
+	PhaseChangedAt time.Time         `json:"phase_changed_at,omitempty"`
 	WikiName       string            `json:"wiki_name,omitempty"`
 }
 

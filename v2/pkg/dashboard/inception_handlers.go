@@ -204,12 +204,20 @@ func (s *Server) handleInceptionReset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInceptionIdeationFacts(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Knowledge == nil {
+	if s.deps.Knowledge == nil && s.deps.Inception == nil {
 		jsonError(w, "knowledge API not initialized", http.StatusServiceUnavailable)
 		return
 	}
 
-	facts := s.deps.Knowledge.ListIdeationFacts(s.deps.Ctx)
+	var facts []knowledge.Fact
+	if s.deps.Knowledge != nil {
+		facts = s.deps.Knowledge.ListIdeationFacts(s.deps.Ctx)
+	}
+
+	if len(facts) == 0 && s.deps.Inception != nil {
+		facts = s.deps.Inception.GatherFactsPublic(s.deps.Ctx)
+	}
+
 	jsonResponse(w, map[string]interface{}{
 		"ok":    true,
 		"facts": facts,

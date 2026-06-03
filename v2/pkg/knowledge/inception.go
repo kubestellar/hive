@@ -653,6 +653,14 @@ func (e *InceptionEngine) saveState() error {
 
 // --- fact helpers ---
 
+// GatherFactsPublic exposes gatherFacts for the API layer when the KB project
+// layer has no ideation facts (e.g. api was nil during RecordFacts).
+func (e *InceptionEngine) GatherFactsPublic(ctx context.Context) []Fact {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.gatherFacts(ctx)
+}
+
 func (e *InceptionEngine) gatherFacts(ctx context.Context) []Fact {
 	// Read facts from the inception wiki vault files directly
 	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)

@@ -214,3 +214,39 @@ func TestRegression_Bug45_WikiNameTooLongRejected(t *testing.T) {
 		}
 	}
 }
+
+func TestRegression_Bug48_PhaseChangedAtOmitsZero(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "timestamp test"})
+	data, _, _ := client.get("/api/inception/state")
+	state, _ := data["state"].(map[string]interface{})
+	if state == nil {
+		t.Skip("no state")
+	}
+	pca, exists := state["phase_changed_at"]
+	if exists && pca == "0001-01-01T00:00:00Z" {
+		t.Error("phase_changed_at should be omitted when zero, not serialized as year 0001")
+	}
+	client.post("/api/inception/reset", nil)
+}
+
+func TestRegression_Bug50_IdeationFactsFallbackToWiki(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "fallback facts test"})
+	client.post("/api/inception/facts", map[string]interface{}{
+		"facts": []map[string]string{
+			{"type": "vision", "title": "Test Vision", "body": "A test project vision statement"},
+		},
+	})
+	data, code, _ := client.get("/api/inception/ideation-facts")
+	if code != 200 {
+		t.Skipf("ideation-facts returned %d", code)
+	}
+	facts, _ := data["facts"].([]interface{})
+	if len(facts) == 0 {
+		t.Error("ideation-facts should return facts from wiki vault when KB layer is empty")
+	}
+	client.post("/api/inception/reset", nil)
+}

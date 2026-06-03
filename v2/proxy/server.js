@@ -41,6 +41,7 @@ app.use((req, res, next) => {
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' https://cdn.redoc.ly",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "worker-src blob:",
     "img-src 'self' data: https:",
     "font-src 'self' https:",
     "connect-src 'self' https: ws: wss:",

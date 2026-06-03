@@ -6372,20 +6372,70 @@ function burnAreaChart() {
           container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">No scaffold files generated. The brainstorm agent may not have produced KB facts.</div>';
           return;
         }
-        let html = '';
-        for (const f of data.scaffold.files) {
-          html += '<details style="margin-bottom:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden">';
-          html += '<summary style="padding:10px 14px;background:var(--card-bg);cursor:pointer;font-size:0.82rem;font-weight:600;display:flex;align-items:center;gap:8px">';
-          html += '<span style="font-family:monospace">' + escapeHtml(f.path) + '</span>';
-          html += '<span style="font-size:0.7rem;color:var(--muted);font-weight:400">' + (f.is_new ? 'new' : 'amendment') + '</span>';
-          html += '</summary>';
-          html += '<pre style="padding:14px;margin:0;font-size:0.75rem;overflow-x:auto;background:var(--bg);border-top:1px solid var(--border);white-space:pre-wrap">' + escapeHtml(f.content) + '</pre>';
-          html += '</details>';
-        }
-        container.innerHTML = html;
+        container.innerHTML = renderFileTree(data.scaffold.files);
       } catch (e) {
         container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">Error loading files: ' + escapeHtml(e.message) + '</div>';
       }
+    }
+
+    function renderFileTree(files) {
+      // Build tree structure from flat paths
+      const root = {};
+      for (const f of files) {
+        const parts = f.path.split('/');
+        let node = root;
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          if (i === parts.length - 1) {
+            node[part] = { _file: f };
+          } else {
+            if (!node[part]) node[part] = {};
+            node = node[part];
+          }
+        }
+      }
+
+      function renderNode(node, prefix, isLast) {
+        let html = '';
+        const entries = Object.keys(node).sort((a, b) => {
+          const aIsDir = !node[a]._file;
+          const bIsDir = !node[b]._file;
+          if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+          return a.localeCompare(b);
+        });
+
+        entries.forEach((name, idx) => {
+          const isLastEntry = idx === entries.length - 1;
+          const connector = isLastEntry ? '└── ' : '├── ';
+          const childPrefix = prefix + (isLastEntry ? '    ' : '│   ');
+          const entry = node[name];
+
+          if (entry._file) {
+            const f = entry._file;
+            html += '<details style="margin:0;border:none">';
+            html += '<summary style="padding:2px 0;cursor:pointer;font-family:monospace;font-size:0.8rem;list-style:none;display:flex;align-items:center;gap:4px">';
+            html += '<span style="color:var(--muted);white-space:pre">' + escapeHtml(prefix + connector) + '</span>';
+            html += '<span>📄 ' + escapeHtml(name) + '</span>';
+            html += '<span style="font-size:0.68rem;color:var(--muted);margin-left:4px">' + f.content.length + ' chars</span>';
+            html += '</summary>';
+            html += '<pre style="padding:12px 12px 12px 40px;margin:0;font-size:0.72rem;overflow-x:auto;background:var(--bg);white-space:pre-wrap;border-left:2px solid var(--border);margin-left:' + (prefix.length * 8 + 24) + 'px">' + escapeHtml(f.content) + '</pre>';
+            html += '</details>';
+          } else {
+            html += '<div style="padding:2px 0;font-family:monospace;font-size:0.8rem;display:flex;align-items:center;gap:4px">';
+            html += '<span style="color:var(--muted);white-space:pre">' + escapeHtml(prefix + connector) + '</span>';
+            html += '<span>📁 <strong>' + escapeHtml(name) + '/</strong></span>';
+            html += '</div>';
+            html += renderNode(entry, childPrefix, isLastEntry);
+          }
+        });
+        return html;
+      }
+
+      let html = '<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:monospace">';
+      html += '<div style="font-size:0.82rem;font-weight:600;margin-bottom:8px">📦 Project Files (' + files.length + ')</div>';
+      html += renderNode(root, '', true);
+      html += '</div>';
+      return html;
     }
 
     function startInceptionGreenfield() {

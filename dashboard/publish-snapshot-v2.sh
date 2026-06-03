@@ -108,6 +108,29 @@ node "${SCRIPT_DIR}/build-snapshot.mjs" \
 
 cp "${PUBLISH_PATH}/light/index.html" "${PUBLISH_PATH}/index.html"
 
+# Build static Redoc API docs page with inline spec
+echo "[${INSTANCE}] Building Redoc API docs..."
+mkdir -p "${PUBLISH_PATH}/api-docs"
+SPEC_JSON=$(curl -sf --max-time 10 "${DASHBOARD_URL}/api/openapi.json" || cat "${SCRIPT_DIR}/openapi.json")
+cat > "${PUBLISH_PATH}/api-docs/index.html" <<REDOC_EOF
+<!DOCTYPE html>
+<html><head>
+  <title>Hive API Reference</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+  <style>body { margin: 0; padding: 0; }</style>
+</head><body>
+  <div id="redoc-container"></div>
+  <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+  <script>
+    var spec = ${SPEC_JSON};
+    Redoc.init(spec, {}, document.getElementById('redoc-container'));
+  </script>
+</body></html>
+REDOC_EOF
+echo "[${INSTANCE}] Redoc API docs written."
+
 # Capture the leaderboard page as a static snapshot.
 # The Go handler at /leaderboard serves a self-contained HTML page with
 # baked-in data; we just fetch and save it.

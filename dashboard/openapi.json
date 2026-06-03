@@ -1,0 +1,1001 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "KubeStellar Hive API",
+    "description": "Read-only reference for the KubeStellar Hive Dashboard API. This spec covers all GET endpoints exposed by the dashboard server.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "KubeStellar",
+      "url": "https://kubestellar.io"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001",
+      "description": "Local dashboard"
+    }
+  ],
+  "tags": [
+    { "name": "Status", "description": "Live hive status and monitoring" },
+    { "name": "History", "description": "Sparkline, trend, and timeline data" },
+    { "name": "Tokens", "description": "Token usage and cost tracking" },
+    { "name": "Governor", "description": "Governor mode and configuration" },
+    { "name": "Agents", "description": "Agent configuration and state" },
+    { "name": "Strategy Lab", "description": "Nous experiment engine" },
+    { "name": "Contributors", "description": "Contributor pool management" },
+    { "name": "Hives", "description": "Multi-instance hive registry" },
+    { "name": "System", "description": "Version, config, and diagnostics" }
+  ],
+  "paths": {
+    "/api/status": {
+      "get": {
+        "tags": ["Status"],
+        "summary": "Overall hive status",
+        "description": "Returns the full hive status including governor state, agent details, repos, queue depth, and all metrics used by the dashboard.",
+        "responses": {
+          "200": {
+            "description": "Current hive status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "governor": {
+                      "type": "object",
+                      "properties": {
+                        "mode": { "type": "string", "enum": ["surge", "busy", "quiet", "idle"], "description": "Current governor mode" },
+                        "queue": { "type": "integer", "description": "Actionable issue count" },
+                        "budgetPct": { "type": "number", "description": "Token budget usage percentage" }
+                      }
+                    },
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "status": { "type": "string" },
+                          "model": { "type": "string" },
+                          "cli": { "type": "string" },
+                          "paused": { "type": "boolean" },
+                          "restarts": { "type": "integer" },
+                          "pinned": { "type": "boolean" }
+                        }
+                      }
+                    },
+                    "repos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "issues": { "type": "integer" },
+                          "prs": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/version": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Git version info",
+        "description": "Returns the current git commit hash and dirty state of the hive repo.",
+        "responses": {
+          "200": {
+            "description": "Version info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "short": { "type": "string", "description": "Short git commit hash" },
+                    "long": { "type": "string", "description": "Full git commit hash" },
+                    "dirty": { "type": "boolean", "description": "Whether the working tree has uncommitted changes" },
+                    "behind": { "type": "integer", "description": "Commits behind origin" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Project configuration",
+        "description": "Returns the project name, org, primary repo, and dashboard title.",
+        "responses": {
+          "200": {
+            "description": "Project config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectName": { "type": "string" },
+                    "primaryRepo": { "type": "string" },
+                    "org": { "type": "string" },
+                    "dashboardTitle": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/budget-ignore": {
+      "get": {
+        "tags": ["Tokens"],
+        "summary": "Budget ignore flag",
+        "description": "Returns whether the token budget is currently being ignored.",
+        "responses": {
+          "200": {
+            "description": "Budget ignore state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ignored": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history": {
+      "get": {
+        "tags": ["History"],
+        "summary": "Sparkline history",
+        "description": "Returns ~120 downsampled status snapshots from the in-memory 12-hour rolling window (5s intervals). Used for sparkline charts.",
+        "responses": {
+          "200": {
+            "description": "Array of status snapshots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "t": { "type": "integer", "description": "Unix timestamp (ms)" },
+                      "govMode": { "type": "string" },
+                      "queue": { "type": "integer" },
+                      "budgetPct": { "type": "number" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trends": {
+      "get": {
+        "tags": ["History"],
+        "summary": "Persistent trend data",
+        "description": "Returns downsampled persistent history for the given range. Used for trend sparklines and governor mode distribution.",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["day", "week", "month"], "default": "week" },
+            "description": "Time range to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of trend data points",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "t": { "type": "integer", "description": "Unix timestamp (ms)" },
+                      "govMode": { "type": "string" },
+                      "queue": { "type": "integer" },
+                      "budgetPct": { "type": "number" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/timeline": {
+      "get": {
+        "tags": ["History"],
+        "summary": "24-hour governor timeline",
+        "description": "Returns ~200 mode snapshots over the last 24 hours for the governor timeline strip.",
+        "responses": {
+          "200": {
+            "description": "Array of timeline ticks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "t": { "type": "integer", "description": "Unix timestamp (ms)" },
+                      "mode": { "type": "string", "enum": ["surge", "busy", "quiet", "idle", "unknown"] }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pane/{agent}": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Tmux pane preview",
+        "description": "Returns the last 30 lines of the agent's tmux session output.",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Agent name (e.g. scanner, architect)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pane output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agent": { "type": "string" },
+                    "session": { "type": "string" },
+                    "lines": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Unknown agent" }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": ["Status"],
+        "summary": "SSE event stream",
+        "description": "Server-Sent Events stream of real-time status updates. Each event is a JSON-encoded status snapshot.",
+        "responses": {
+          "200": {
+            "description": "SSE stream",
+            "content": {
+              "text/event-stream": {
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tokens": {
+      "get": {
+        "tags": ["Tokens"],
+        "summary": "Token usage by agent and model",
+        "description": "Returns token consumption data broken down by agent and model.",
+        "responses": {
+          "200": {
+            "description": "Token usage data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Token usage keyed by agent name, with model-level breakdowns"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issue-costs": {
+      "get": {
+        "tags": ["Tokens"],
+        "summary": "Per-issue token costs",
+        "description": "Returns token cost data per GitHub issue, produced by the token-collector.",
+        "responses": {
+          "200": {
+            "description": "Array of issue cost entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "issue": { "type": "string" },
+                      "tokens": { "type": "integer" },
+                      "cost": { "type": "number" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-advisor": {
+      "get": {
+        "tags": ["Governor"],
+        "summary": "Governor model assignments",
+        "description": "Returns the current governor mode, budget state, and per-agent model assignments including cost weights and cadences.",
+        "responses": {
+          "200": {
+            "description": "Model advisor state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": { "type": "string", "description": "Current governor mode" },
+                    "budget": {
+                      "type": "object",
+                      "properties": {
+                        "TOTAL": { "type": "number" },
+                        "USED": { "type": "number" },
+                        "REMAINING": { "type": "number" }
+                      }
+                    },
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "backend": { "type": "string" },
+                          "model": { "type": "string" },
+                          "costWeight": { "type": "number" },
+                          "reason": { "type": "string" },
+                          "cadence": { "type": "string" },
+                          "paused": { "type": "boolean" },
+                          "changed": { "type": "boolean" },
+                          "prevBackend": { "type": "string" },
+                          "prevModel": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gh-auth": {
+      "get": {
+        "tags": ["System"],
+        "summary": "GitHub auth health",
+        "description": "Returns whether GitHub authentication is working.",
+        "responses": {
+          "200": {
+            "description": "Auth status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "lastChecked": { "type": "string", "format": "date-time", "nullable": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gh-rate-limits": {
+      "get": {
+        "tags": ["System"],
+        "summary": "GitHub rate limit alerts",
+        "description": "Returns any active GitHub API rate limit warnings.",
+        "responses": {
+          "200": {
+            "description": "Rate limit alerts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "alerts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "agent": { "type": "string" },
+                          "message": { "type": "string" },
+                          "detectedAt": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/summaries": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Agent task summaries",
+        "description": "Returns comprehensive exec summaries (task, progress, results) for all agents.",
+        "responses": {
+          "200": {
+            "description": "Summaries object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Keyed by agent name, each containing task summary, progress, and results"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/agent/{name}": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Agent configuration",
+        "description": "Returns the full configuration for a specific agent including cadences, models, pipeline settings, and restrictions.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Agent name"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "general": {
+                      "type": "object",
+                      "properties": {
+                        "launchCmd": { "type": "string" },
+                        "displayName": { "type": "string" },
+                        "cliPinned": { "type": "boolean" },
+                        "cliPinValue": { "type": "string" },
+                        "staleTimeout": { "type": "integer" },
+                        "restartStrategy": { "type": "string" },
+                        "model": { "type": "string" }
+                      }
+                    },
+                    "cadences": {
+                      "type": "object",
+                      "properties": {
+                        "surge": { "type": "integer" },
+                        "busy": { "type": "integer" },
+                        "quiet": { "type": "integer" },
+                        "idle": { "type": "integer" }
+                      }
+                    },
+                    "models": { "type": "object" },
+                    "pipeline": { "type": "object" },
+                    "restrictions": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Unknown agent" }
+        }
+      }
+    },
+    "/api/config/agent/{name}/prompt": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Agent prompt template",
+        "description": "Returns the CLAUDE.md prompt file for the given agent.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": { "type": "string" },
+                    "path": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/stat-sources": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Available stat sources",
+        "description": "Returns the list of configured stat data sources.",
+        "responses": {
+          "200": {
+            "description": "Stat sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/governor": {
+      "get": {
+        "tags": ["Governor"],
+        "summary": "Full governor configuration",
+        "description": "Returns the complete governor configuration including thresholds, labels, budget, notifications, health settings, sensing parameters, and monitored repos.",
+        "responses": {
+          "200": {
+            "description": "Governor config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agents": { "type": "array", "items": { "type": "string" } },
+                    "thresholds": {
+                      "type": "object",
+                      "properties": {
+                        "surge": { "type": "integer" },
+                        "busy": { "type": "integer" },
+                        "quiet": { "type": "integer" }
+                      }
+                    },
+                    "labels": { "type": "array", "items": { "type": "string" }, "description": "Exempt/hold labels" },
+                    "budget": {
+                      "type": "object",
+                      "properties": {
+                        "totalTokens": { "type": "integer" },
+                        "periodDays": { "type": "integer" },
+                        "criticalPct": { "type": "integer" }
+                      }
+                    },
+                    "notifications": {
+                      "type": "object",
+                      "properties": {
+                        "ntfyServer": { "type": "string" },
+                        "ntfyTopic": { "type": "string" },
+                        "discordWebhook": { "type": "string" }
+                      }
+                    },
+                    "health": {
+                      "type": "object",
+                      "properties": {
+                        "healthcheckInterval": { "type": "integer" },
+                        "restartCooldown": { "type": "integer" },
+                        "modelLock": { "type": "boolean" }
+                      }
+                    },
+                    "sensing": {
+                      "type": "object",
+                      "properties": {
+                        "ghRatePatterns": { "type": "array", "items": { "type": "string" } },
+                        "cliExcludePatterns": { "type": "array", "items": { "type": "string" } },
+                        "ttlSeconds": { "type": "integer" },
+                        "pullbackSeconds": { "type": "integer" }
+                      }
+                    },
+                    "repos": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/sidebar": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Sidebar layout configuration",
+        "description": "Returns the sidebar navigation layout configuration.",
+        "responses": {
+          "200": {
+            "description": "Sidebar config",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/backends": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Available CLI backends and models",
+        "description": "Returns the list of available CLI backends (claude, aider, codex, etc.) and their supported models.",
+        "responses": {
+          "200": {
+            "description": "Backends config",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nous/status": {
+      "get": {
+        "tags": ["Strategy Lab"],
+        "summary": "Strategy Lab status",
+        "description": "Returns the current Nous experiment engine state including mode, active experiment, pending proposals, snapshot progress, and recommendations.",
+        "responses": {
+          "200": {
+            "description": "Nous status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": { "type": "string", "enum": ["observe", "suggest", "auto"] },
+                    "scope": { "type": "string", "enum": ["governor", "repo"] },
+                    "campaign": { "type": "object" },
+                    "activeExperiment": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": { "type": "string" },
+                        "start": { "type": "integer" },
+                        "ttlSec": { "type": "integer" },
+                        "elapsed": { "type": "integer" },
+                        "progressPct": { "type": "integer" }
+                      }
+                    },
+                    "pending": { "type": "object", "nullable": true },
+                    "principleCount": { "type": "integer" },
+                    "snapshotCount": { "type": "integer" },
+                    "snapshotTarget": { "type": "integer" },
+                    "snapshotSummary": { "type": "object", "nullable": true },
+                    "hasRecommendations": { "type": "boolean" },
+                    "recommendations": { "type": "object", "nullable": true },
+                    "phases": {
+                      "type": "object",
+                      "properties": {
+                        "governor": {
+                          "type": "object",
+                          "properties": {
+                            "phase": { "type": "string" },
+                            "iteration": { "type": "integer" }
+                          }
+                        },
+                        "repo": {
+                          "type": "object",
+                          "properties": {
+                            "phase": { "type": "string" },
+                            "iteration": { "type": "integer" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nous/ledger": {
+      "get": {
+        "tags": ["Strategy Lab"],
+        "summary": "Experiment history",
+        "description": "Returns the last 200 experiment ledger entries (JSONL).",
+        "responses": {
+          "200": {
+            "description": "Array of ledger entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "ts": { "type": "string" },
+                      "action": { "type": "string" },
+                      "details": { "type": "object" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nous/principles": {
+      "get": {
+        "tags": ["Strategy Lab"],
+        "summary": "Accumulated principles",
+        "description": "Returns the accumulated knowledge base of principles learned from experiments.",
+        "responses": {
+          "200": {
+            "description": "Array of principles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "text": { "type": "string" },
+                      "source": { "type": "string" },
+                      "confidence": { "type": "number" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nous/phase": {
+      "get": {
+        "tags": ["Strategy Lab"],
+        "summary": "Experiment phase state",
+        "description": "Returns the current phase and iteration for governor and repo experiments.",
+        "responses": {
+          "200": {
+            "description": "Phase state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "governor": {
+                      "type": "object",
+                      "properties": {
+                        "phase": { "type": "string" },
+                        "iteration": { "type": "integer" }
+                      }
+                    },
+                    "repo": {
+                      "type": "object",
+                      "properties": {
+                        "phase": { "type": "string" },
+                        "iteration": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nous/gate-pending": {
+      "get": {
+        "tags": ["Strategy Lab"],
+        "summary": "Pending gate decisions",
+        "description": "Returns any pending experiment gate decisions waiting for approval.",
+        "responses": {
+          "200": {
+            "description": "Pending gates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nous/gate-response": {
+      "get": {
+        "tags": ["Strategy Lab"],
+        "summary": "Gate response",
+        "description": "Returns the current gate response state for a given experiment.",
+        "parameters": [
+          {
+            "name": "experiment_id",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gate response",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contributors": {
+      "get": {
+        "tags": ["Contributors"],
+        "summary": "List contributors",
+        "description": "Returns all registered contributors with their trust tier and active status.",
+        "responses": {
+          "200": {
+            "description": "Contributor list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contributors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "contributor_id": { "type": "string" },
+                          "github_username": { "type": "string" },
+                          "trust_tier": { "type": "string", "enum": ["newcomer", "contributor", "trusted", "advisor", "revoked"] },
+                          "active": { "type": "boolean" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contributors/{id}": {
+      "get": {
+        "tags": ["Contributors"],
+        "summary": "Contributor profile",
+        "description": "Returns the full profile for a specific contributor including active status and current task.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Contributor ID or GitHub username"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contributor profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contributor_id": { "type": "string" },
+                    "github_username": { "type": "string" },
+                    "trust_tier": { "type": "string" },
+                    "active": { "type": "boolean" },
+                    "currentTask": { "type": "object", "nullable": true },
+                    "lastTmuxOutput": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Contributor not found" }
+        }
+      }
+    },
+    "/api/contribute/status": {
+      "get": {
+        "tags": ["Contributors"],
+        "summary": "Contributor hub status",
+        "description": "Returns the contributor hub status including registration state.",
+        "responses": {
+          "200": {
+            "description": "Hub status",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hives": {
+      "get": {
+        "tags": ["Hives"],
+        "summary": "List hive instances",
+        "description": "Returns all registered hive instances including the local instance.",
+        "responses": {
+          "200": {
+            "description": "Hive list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "hives": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "project_name": { "type": "string" },
+                          "org": { "type": "string" },
+                          "primary_repo": { "type": "string" },
+                          "hub_url": { "type": "string" },
+                          "dashboard_url": { "type": "string" },
+                          "active_contributors": { "type": "integer" },
+                          "active_agents": { "type": "integer" },
+                          "actionable_items": { "type": "integer" },
+                          "registered_at": { "type": "string", "format": "date-time", "nullable": true },
+                          "last_heartbeat": { "type": "string", "format": "date-time", "nullable": true }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

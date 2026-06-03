@@ -272,6 +272,11 @@ async function main() {
       a.href = '${basePath}/leaderboard';
     });
 
+    // Fix API docs link to use snapshot base path
+    document.querySelectorAll('a[href="/api-docs"]').forEach(function(a) {
+      a.href = '${basePath}/api-docs';
+    });
+
     // Git version
     const _v = ${versionRaw};
     const _gv = document.getElementById('git-version');

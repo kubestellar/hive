@@ -3138,6 +3138,32 @@ volumes:
   });
 });
 
+// OpenAPI spec
+app.get('/api/openapi.json', (_req, res) => {
+  const specPath = path.join(__dirname, 'openapi.json');
+  try {
+    const spec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
+    res.json(spec);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load OpenAPI spec' });
+  }
+});
+
+// Redoc API documentation (read-only)
+app.get('/api-docs', (_req, res) => {
+  res.send(`<!DOCTYPE html>
+<html><head>
+  <title>Hive API Reference</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+  <style>body { margin: 0; padding: 0; }</style>
+</head><body>
+  <redoc spec-url="/api/openapi.json"></redoc>
+  <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+</body></html>`);
+});
+
 // WebSocket server for contributor agents
 const server = app.listen(PORT, () => {
   console.log(`🐝 Hive Dashboard running at http://localhost:${PORT}`);

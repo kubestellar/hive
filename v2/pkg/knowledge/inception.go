@@ -246,10 +246,13 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 		return
 	}
 
-	// Clear old wiki files before writing new ones
-	if entries, err := os.ReadDir(vaultDir); err == nil {
-		for _, entry := range entries {
-			os.Remove(filepath.Join(vaultDir, entry.Name()))
+	// Remove stale wiki files from previous inception before writing new ones.
+	if len(facts) > 0 {
+		if entries, err := os.ReadDir(vaultDir); err == nil && len(entries) > 0 {
+			for _, entry := range entries {
+				os.Remove(filepath.Join(vaultDir, entry.Name()))
+			}
+			e.logger.Info("inception wiki cleared before write", "files", len(entries), "new_facts", len(facts))
 		}
 	}
 

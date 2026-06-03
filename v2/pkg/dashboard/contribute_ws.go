@@ -87,6 +87,7 @@ type ActivityEntry struct {
 	Role      string `json:"role,omitempty"`
 	CLI       string `json:"cli,omitempty"`
 	Model     string `json:"model,omitempty"`
+	Task      string `json:"task,omitempty"`
 }
 
 type ContributeWSHub struct {
@@ -107,7 +108,7 @@ func NewContributeWSHub(logger *slog.Logger, server *Server) *ContributeWSHub {
 	}
 }
 
-func (h *ContributeWSHub) addActivity(username, action, role, cli, model string) {
+func (h *ContributeWSHub) addActivity(username, action, role, cli, model, task string) {
 	h.activityMu.Lock()
 	defer h.activityMu.Unlock()
 	h.activity = append(h.activity, ActivityEntry{
@@ -117,6 +118,7 @@ func (h *ContributeWSHub) addActivity(username, action, role, cli, model string)
 		Role:      role,
 		CLI:       cli,
 		Model:     model,
+		Task:      task,
 	})
 	if len(h.activity) > maxActivityEntries {
 		h.activity = h.activity[len(h.activity)-maxActivityEntries:]
@@ -245,7 +247,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			delete(h.connections, contributor.profile.ContributorID)
 			h.mu.Unlock()
 			h.logger.Info("[contribute-ws] disconnected", "username", contributor.profile.GitHubUsername)
-			h.addActivity(contributor.profile.GitHubUsername, "left", contributor.role, contributor.cliBackend, contributor.model)
+			h.addActivity(contributor.profile.GitHubUsername, "left", contributor.role, contributor.cliBackend, contributor.model, "")
 		}
 		conn.Close()
 	}()
@@ -361,7 +363,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				"cli", msg.CLIBackend,
 				"role", msg.Role,
 			)
-			h.addActivity(profile.GitHubUsername, "joined", msg.Role, msg.CLIBackend, msg.Model)
+			h.addActivity(profile.GitHubUsername, "joined", msg.Role, msg.CLIBackend, msg.Model, "")
 
 			select {
 			case authDone <- contributor:
@@ -402,6 +404,8 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 					h.logger.Warn("[contribute-ws] failed to send task_assign", "error", err)
 					return
 				}
+				taskDesc := fmt.Sprintf("%s %s#%d: %s", task.Kind, task.Repo, task.Number, task.Title)
+				h.addActivity(contributor.profile.GitHubUsername, "picked up", contributor.role, contributor.cliBackend, contributor.model, taskDesc)
 				h.logger.Info("[contribute-ws] task assigned",
 					"username", contributor.profile.GitHubUsername,
 					"task", task.TaskID,
@@ -433,6 +437,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				contributor.mu.Unlock()
 
 				if hasTask {
+				h.addActivity(contributor.profile.GitHubUsername, "completed", contributor.role, contributor.cliBackend, contributor.model, msg.TaskID)
 					h.logger.Info("[contribute-ws] task complete",
 						"username", contributor.profile.GitHubUsername,
 						"task", msg.TaskID,
@@ -463,6 +468,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				contributor.mu.Unlock()
 
 				if hasTask {
+					h.addActivity(contributor.profile.GitHubUsername, "failed", contributor.role, contributor.cliBackend, contributor.model, msg.TaskID)
 					h.logger.Info("[contribute-ws] task failed",
 						"username", contributor.profile.GitHubUsername,
 						"task", msg.TaskID,

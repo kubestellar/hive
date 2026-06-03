@@ -309,6 +309,9 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <li><strong>Walk away</strong> — your agent pulls work from the queue</li>
 </ol>
 </div>
+<div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">
+<a href="/leaderboard" style="display:inline-block;padding:8px 20px;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#58a6ff;text-decoration:none;font-size:.9rem">🏆 View Leaderboard</a>
+</div>
 <div class="how">
 <h3>What you bring vs. what the hive provides</h3>
 <p><strong>You bring:</strong> Your own CLI API tokens. You pay for your own model inference.</p>

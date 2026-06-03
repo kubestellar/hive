@@ -492,6 +492,9 @@ func (e *InceptionEngine) AdvanceToComplete() error {
 	if e.state == nil {
 		return fmt.Errorf("no inception in progress")
 	}
+	if e.state.Phase != PhaseScaffold && e.state.Phase != PhaseComplete {
+		return fmt.Errorf("cannot approve in phase %s — must be in scaffold phase", e.state.Phase)
+	}
 
 	e.state.Phase = PhaseComplete
 	e.logger.Info("inception complete",

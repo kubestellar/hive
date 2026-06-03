@@ -67,9 +67,10 @@ type StatusPayload struct {
 	AgentMetrics  map[string]any      `json:"agentMetrics"`
 	Hold          FrontendHold        `json:"hold"`
 	IssueToMerge  map[string]any      `json:"issueToMerge"`
-	ACMMLevel      int                 `json:"acmmLevel"`
-	ACMMPackAgents []string            `json:"acmmPackAgents"`
-	AdvisoryDigest any                 `json:"advisoryDigest,omitempty"`
+	ACMMLevel        int                 `json:"acmmLevel"`
+	ACMMPackAgents   []string            `json:"acmmPackAgents"`
+	AdvisoryDigest   any                 `json:"advisoryDigest,omitempty"`
+	ContributorPool  *ContributorPoolStatus `json:"contributorPool,omitempty"`
 }
 
 type FrontendAgent struct {
@@ -317,6 +318,8 @@ func (s *Server) UpdateStatus(status *StatusPayload) {
 		status.ACMMLevel = detectACMMLevel(s.deps.Config)
 		status.ACMMPackAgents = buildACMMPackAgents(s.deps.Config)
 	}
+	status.ContributorPool = BuildContributorPoolStatus()
+
 	s.statusMu.Lock()
 	status.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	s.status = status

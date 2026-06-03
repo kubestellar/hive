@@ -22,6 +22,7 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.deps = deps
 	s.loadSidebarFromDisk()
 	s.restoreGHUserSession()
+	s.registerContributeRoutes()
 
 	s.mux.HandleFunc("GET /api/version", s.handleVersion)
 	s.mux.HandleFunc("GET /api/config", s.handleConfig)

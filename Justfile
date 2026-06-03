@@ -208,6 +208,7 @@ contribute-hive mode="docker":
         -e GH_TOKEN="${GH_TOKEN}" \
         -e HIVE_USE_CONTRIBUTOR_GH=true \
         -e HIVE_CONTAINER_NAME=hive-contributor \
+        ${ANTHROPIC_API_KEY:+-e ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}"} \
         {{hive_image}}
     fi
 

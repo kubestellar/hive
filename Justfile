@@ -189,11 +189,8 @@ contribute-hive mode="docker":
       esac
     else
       # ── Docker mode: stop existing, pull latest, start fresh ──
-      if docker ps -q --filter name=hive-contributor 2>/dev/null | grep -q .; then
-        echo "Stopping existing contributor container..."
-        docker stop hive-contributor >/dev/null 2>&1 || true
-      fi
       docker rm -f hive-contributor >/dev/null 2>&1 || true
+      sleep 1
       echo "Pulling {{hive_image}}..."
       docker pull {{hive_image}}
       echo ""

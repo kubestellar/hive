@@ -1138,6 +1138,12 @@ func buildCIConfig(constitution *Fact) string {
 		return tsCI()
 	case "python":
 		return pythonCI()
+	case "rust":
+		return rustCI()
+	case "java":
+		return javaCI()
+	case "shell":
+		return shellCI()
 	default:
 		return goCI()
 	}
@@ -1206,6 +1212,68 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: pytest
+`
+}
+
+func rustCI() string {
+	return `name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: cargo test
+      - run: cargo clippy -- -D warnings
+`
+}
+
+func javaCI() string {
+	return `name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: mvn compile
+      - run: mvn test
+`
+}
+
+func shellCI() string {
+	return `name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+      - run: shellcheck *.sh
+      - run: bash test.sh
 `
 }
 
@@ -1609,6 +1677,30 @@ COPY src/ src/
 RUN pip install --no-cache-dir .
 ENTRYPOINT ["%s"]
 `, name)
+	case "rust":
+		return fmt.Sprintf(`FROM rust:1.78-slim AS builder
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY src/ src/
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/%s /usr/local/bin/%s
+ENTRYPOINT ["%s"]
+`, name, name, name)
+	case "java":
+		return fmt.Sprintf(`FROM maven:3.9-eclipse-temurin-21 AS builder
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline
+COPY src/ src/
+RUN mvn package -DskipTests
+
+FROM eclipse-temurin:21-jre
+COPY --from=builder /app/target/%s-*.jar /app/%s.jar
+ENTRYPOINT ["java", "-jar", "/app/%s.jar"]
+`, name, name, name)
 	default:
 		return fmt.Sprintf(`FROM node:22-alpine AS builder
 WORKDIR /app

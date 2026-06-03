@@ -193,6 +193,171 @@ func TestHivesRegisterMissingFields(t *testing.T) {
 	}
 }
 
+// ── Leaderboard tests ─────────────────────────────────────────────────────
+
+func seedContributor(t *testing.T, username string, completed, failed int) {
+	t.Helper()
+	p := &ContributorProfile{
+		GitHubUsername: username,
+		ContributorID:  "c-" + username,
+		TrustTier:      "contributor",
+		TasksCompleted: completed,
+		TasksFailed:    failed,
+		RegisteredAt:   "2025-01-01T00:00:00Z",
+	}
+	if err := saveContributorProfile(p); err != nil {
+		t.Fatalf("seedContributor(%s): %v", username, err)
+	}
+}
+
+func TestLeaderboardAPIEmpty(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Leaderboard []LeaderboardEntry `json:"leaderboard"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(resp.Leaderboard) != 0 {
+		t.Errorf("expected empty leaderboard, got %d entries", len(resp.Leaderboard))
+	}
+}
+
+func TestLeaderboardAPISorted(t *testing.T) {
+	setupContributeEnv(t)
+
+	seedContributor(t, "alice", 10, 2)
+	seedContributor(t, "bob", 25, 1)
+	seedContributor(t, "carol", 5, 0)
+
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Leaderboard []LeaderboardEntry `json:"leaderboard"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	if len(resp.Leaderboard) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(resp.Leaderboard))
+	}
+
+	// Verify sort order: bob (25) > alice (10) > carol (5)
+	expectedOrder := []string{"bob", "alice", "carol"}
+	for i, name := range expectedOrder {
+		if resp.Leaderboard[i].GitHubUsername != name {
+			t.Errorf("rank %d: expected %s, got %s", i+1, name, resp.Leaderboard[i].GitHubUsername)
+		}
+		if resp.Leaderboard[i].Rank != i+1 {
+			t.Errorf("rank %d: expected rank=%d, got rank=%d", i+1, i+1, resp.Leaderboard[i].Rank)
+		}
+	}
+
+	// Verify avatar URL format
+	if resp.Leaderboard[0].AvatarURL != "https://github.com/bob.png" {
+		t.Errorf("unexpected avatar URL: %s", resp.Leaderboard[0].AvatarURL)
+	}
+}
+
+func TestLeaderboardPageHTML(t *testing.T) {
+	setupContributeEnv(t)
+
+	seedContributor(t, "alice", 10, 2)
+
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	req := httptest.NewRequest(http.MethodGet, "/leaderboard", nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	contentType := w.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "text/html") {
+		t.Errorf("expected text/html content-type, got %s", contentType)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Leaderboard") {
+		t.Error("page missing 'Leaderboard' heading")
+	}
+	if !strings.Contains(body, "alice") {
+		t.Error("page missing contributor 'alice'")
+	}
+	if !strings.Contains(body, "https://github.com/alice.png") {
+		t.Error("page missing avatar URL for alice")
+	}
+	if !strings.Contains(body, "https://github.com/alice") {
+		t.Error("page missing GitHub profile link for alice")
+	}
+}
+
+func TestLeaderboardPageEmpty(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	req := httptest.NewRequest(http.MethodGet, "/leaderboard", nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "No contributors yet") {
+		t.Error("empty page should show 'No contributors yet' message")
+	}
+	if !strings.Contains(body, "/contribute") {
+		t.Error("empty page should link to /contribute")
+	}
+}
+
+func TestTrustTierColor(t *testing.T) {
+	cases := []struct {
+		tier  string
+		color string
+	}{
+		{"newcomer", "#8b949e"},
+		{"contributor", "#3fb950"},
+		{"trusted", "#d29922"},
+		{"advisor", "#a371f7"},
+		{"revoked", "#f85149"},
+		{"unknown", "#8b949e"},
+	}
+	for _, tc := range cases {
+		got := trustTierColor(tc.tier)
+		if got != tc.color {
+			t.Errorf("trustTierColor(%q) = %q, want %q", tc.tier, got, tc.color)
+		}
+	}
+}
+
 func TestIsValidUsername(t *testing.T) {
 	cases := []struct {
 		input string

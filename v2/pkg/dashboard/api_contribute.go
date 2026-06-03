@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -89,6 +90,9 @@ func (s *Server) registerContributeRoutes() {
 	s.mux.HandleFunc("GET /api/contributors/{id}", s.handleContributorGet)
 	s.mux.HandleFunc("PUT /api/contributors/{id}/trust", s.handleContributorTrust)
 	s.mux.HandleFunc("POST /api/contributors/{id}/revoke", s.handleContributorRevoke)
+
+	s.mux.HandleFunc("GET /leaderboard", s.handleLeaderboardPage)
+	s.mux.HandleFunc("GET /api/leaderboard", s.handleLeaderboardAPI)
 
 	s.mux.HandleFunc("GET /api/hives", s.handleHivesList)
 	s.mux.HandleFunc("POST /api/hives/register", s.handleHivesRegister)
@@ -514,6 +518,136 @@ func (s *Server) handleHivesOnboard(w http.ResponseWriter, r *http.Request) {
 			"5. Register: POST /api/hives/register",
 		},
 	})
+}
+
+// ── Leaderboard ───────────────────────────────────────────────────────────
+
+// LeaderboardEntry is the JSON shape returned by the leaderboard API.
+type LeaderboardEntry struct {
+	Rank           int    `json:"rank"`
+	GitHubUsername string `json:"github_username"`
+	AvatarURL      string `json:"avatar_url"`
+	TrustTier      string `json:"trust_tier"`
+	TasksCompleted int    `json:"tasks_completed"`
+	TasksFailed    int    `json:"tasks_failed"`
+	RegisteredAt   string `json:"registered_at"`
+}
+
+// buildLeaderboard loads all contributor profiles, sorts by tasks completed
+// descending, and returns ranked entries with secrets stripped.
+func buildLeaderboard() []LeaderboardEntry {
+	profiles := listContributorProfiles()
+	sort.Slice(profiles, func(i, j int) bool {
+		return profiles[i].TasksCompleted > profiles[j].TasksCompleted
+	})
+
+	entries := make([]LeaderboardEntry, 0, len(profiles))
+	for i, p := range profiles {
+		entries = append(entries, LeaderboardEntry{
+			Rank:           i + 1,
+			GitHubUsername: p.GitHubUsername,
+			AvatarURL:      fmt.Sprintf("https://github.com/%s.png", p.GitHubUsername),
+			TrustTier:      p.TrustTier,
+			TasksCompleted: p.TasksCompleted,
+			TasksFailed:    p.TasksFailed,
+			RegisteredAt:   p.RegisteredAt,
+		})
+	}
+	return entries
+}
+
+func (s *Server) handleLeaderboardAPI(w http.ResponseWriter, _ *http.Request) {
+	jsonResponse(w, map[string]any{"leaderboard": buildLeaderboard()})
+}
+
+// trustTierColor maps trust tiers to badge background colours.
+func trustTierColor(tier string) string {
+	switch tier {
+	case "newcomer":
+		return "#8b949e"
+	case "contributor":
+		return "#3fb950"
+	case "trusted":
+		return "#d29922"
+	case "advisor":
+		return "#a371f7"
+	case "revoked":
+		return "#f85149"
+	default:
+		return "#8b949e"
+	}
+}
+
+func (s *Server) handleLeaderboardPage(w http.ResponseWriter, _ *http.Request) {
+	entries := buildLeaderboard()
+	projectName := ""
+	if s.deps != nil && s.deps.Config != nil {
+		projectName = s.deps.Config.Project.Name
+	}
+	if projectName == "" {
+		projectName = "Hive"
+	}
+
+	var rows strings.Builder
+	for _, e := range entries {
+		rows.WriteString(fmt.Sprintf(
+			`<tr>
+<td class="rank">#%d</td>
+<td class="user"><img src="%s" width="32" height="32" alt="%s"><a href="https://github.com/%s" target="_blank" rel="noopener">%s</a></td>
+<td><span class="badge" style="background:%s">%s</span></td>
+<td class="num">%d</td>
+<td class="num">%d</td>
+<td class="date">%s</td>
+</tr>`,
+			e.Rank,
+			e.AvatarURL, e.GitHubUsername,
+			e.GitHubUsername, e.GitHubUsername,
+			trustTierColor(e.TrustTier), e.TrustTier,
+			e.TasksCompleted,
+			e.TasksFailed,
+			e.RegisteredAt,
+		))
+	}
+
+	const avatarSize = 32 // pixels for contributor avatar thumbnails
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>%s Contributor Leaderboard</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:40px;max-width:900px;margin:0 auto}
+h1{font-size:2rem;margin-bottom:8px}
+.subtitle{color:#8b949e;font-size:1.1rem;margin-bottom:32px}
+table{width:100%%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:12px;overflow:hidden}
+th{text-align:left;padding:12px 16px;color:#8b949e;font-size:.8rem;font-weight:600;border-bottom:2px solid #30363d}
+td{padding:10px 16px;border-bottom:1px solid #21262d;font-size:.9rem}
+tr:last-child td{border-bottom:none}
+tr:hover{background:#1c2128}
+.rank{font-weight:700;color:#58a6ff;width:60px}
+.user{display:flex;align-items:center;gap:10px}
+.user img{border-radius:50%%}
+.user a{color:#58a6ff;text-decoration:none}
+.user a:hover{text-decoration:underline}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:600;color:#fff;text-transform:capitalize}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.date{color:#8b949e;font-size:.8rem}
+.empty{text-align:center;padding:40px;color:#8b949e}
+</style></head><body>
+<h1>🏆 %s Contributor Leaderboard</h1>
+<p class="subtitle">Contributors ranked by completed tasks.</p>
+<table>
+<thead><tr><th>Rank</th><th>Contributor</th><th>Trust Tier</th><th style="text-align:right">Completed</th><th style="text-align:right">Failed</th><th>Registered</th></tr></thead>
+<tbody>%s</tbody>
+</table>
+%s
+</body></html>`,
+		projectName, projectName, rows.String(),
+		func() string {
+			if len(entries) == 0 {
+				return `<div class="empty">No contributors yet. <a href="/contribute" style="color:#58a6ff">Be the first!</a></div>`
+			}
+			return ""
+		}())
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

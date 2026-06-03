@@ -356,9 +356,12 @@ cmds.textContent=tpl.replace('CLI',cli);
 }
 sel.addEventListener('change',update);
 document.getElementById('copy-btn').addEventListener('click',function(){
-navigator.clipboard.writeText(cmds.textContent.trim()).then(function(){
-var b=document.getElementById('copy-btn');b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},2000);
-});
+var text=cmds.textContent.trim();
+var ok=false;
+try{var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');document.body.removeChild(ta)}catch(e){}
+if(!ok&&navigator.clipboard){navigator.clipboard.writeText(text).then(function(){done()});return}
+function done(){var b=document.getElementById('copy-btn');b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},2000)}
+if(ok)done();
 });
 })();
 </script>

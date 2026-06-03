@@ -457,6 +457,7 @@ func (s *Server) handleContributorGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleContributorTrust(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	id := r.PathValue("id")
 	p := findContributor(id)
 	if p == nil {
@@ -560,6 +561,7 @@ func (s *Server) handleHivesList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var req struct {
 		ProjectName  string `json:"project_name"`
 		Org          string `json:"org"`
@@ -601,6 +603,7 @@ func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHivesHeartbeat(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	id := r.PathValue("id")
 	reg := loadFederationRegistry()
 	var found *FederationHive
@@ -651,6 +654,7 @@ func (s *Server) handleHivesDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHivesOnboard(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	var req struct {
 		ProjectName string   `json:"project_name"`
 		Org         string   `json:"org"`

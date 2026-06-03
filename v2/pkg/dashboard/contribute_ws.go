@@ -401,12 +401,14 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 						"task", msg.TaskID,
 						"result", msg.Result,
 					)
+					contributor.mu.Lock()
 					contributor.profile.TasksCompleted++
 					contributor.profile.LastActive = time.Now().UTC().Format(time.RFC3339)
 					if contributor.profile.TrustTier == "newcomer" && contributor.profile.TasksCompleted >= contributorAutoPromoteAt {
 						contributor.profile.TrustTier = "contributor"
 						h.logger.Info("[contribute-ws] auto-promoted", "username", contributor.profile.GitHubUsername)
 					}
+					contributor.mu.Unlock()
 					_ = saveContributorProfile(contributor.profile)
 				} else {
 					h.logger.Warn("[contribute-ws] task_complete for unassigned task ignored",
@@ -429,7 +431,9 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 						"task", msg.TaskID,
 						"reason", msg.Reason,
 					)
+					contributor.mu.Lock()
 					contributor.profile.TasksFailed++
+					contributor.mu.Unlock()
 					_ = saveContributorProfile(contributor.profile)
 				} else {
 					h.logger.Warn("[contribute-ws] task_failed for unassigned task ignored",

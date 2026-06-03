@@ -109,8 +109,18 @@ func TestValidateAgentGeneralInput(t *testing.T) {
 			errMsg:  "color must be a valid hex color",
 		},
 		{
-			name:    "valid color",
+			name:    "valid color 6-digit",
 			body:    map[string]interface{}{"color": "#AABBCC"},
+			wantErr: false,
+		},
+		{
+			name:    "valid color 3-digit",
+			body:    map[string]interface{}{"color": "#FFF"},
+			wantErr: false,
+		},
+		{
+			name:    "valid color 3-digit lowercase",
+			body:    map[string]interface{}{"color": "#abc"},
 			wantErr: false,
 		},
 		{

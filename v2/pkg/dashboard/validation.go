@@ -57,8 +57,8 @@ const (
 // ---------- regex patterns ----------
 
 var (
-	// colorPattern matches valid 6-digit hex color codes.
-	colorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+	// colorPattern matches valid 3-digit or 6-digit hex color codes.
+	colorPattern = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
 	// displayNamePattern matches alphanumeric characters, spaces, hyphens, and underscores.
 	displayNamePattern = regexp.MustCompile(`^[a-zA-Z0-9 _-]+$`)
 	// kickTemplatePattern matches valid kick template filenames.

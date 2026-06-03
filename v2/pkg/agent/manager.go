@@ -2076,7 +2076,7 @@ func (m *Manager) RestartWithBootstrap(ctx context.Context, name, prompt string)
 	// Wait for the new shell to initialize before sending the launch command.
 	// Without this, $(cat /tmp/.hive-bootstrap-*.txt) can fail because the
 	// shell isn't ready to process command substitution yet.
-	const sessionReadyDelay = 500 * time.Millisecond
+	const sessionReadyDelay = 2 * time.Second
 	time.Sleep(sessionReadyDelay)
 	return m.launchInTmux(ctx, agent)
 }

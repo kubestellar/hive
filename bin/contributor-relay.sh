@@ -108,11 +108,28 @@ waitForCLI().then(() => {
   }
 }).catch(e => console.error(e.message));
 
+const ENTER_COUNT = 3;
+const ENTER_DELAY_MS = 300;
+
+function sleepMs(ms) {
+  execSync(`sleep ${ms / 1000}`, { timeout: ms + 1000 });
+}
+
+function tmuxSendEnters() {
+  for (let i = 0; i < ENTER_COUNT; i++) {
+    execSync(`tmux send-keys -t ${TMUX_SESSION} Enter`, { timeout: 5000 });
+    if (i < ENTER_COUNT - 1) sleepMs(ENTER_DELAY_MS);
+  }
+}
+
 function tmuxSendKeys(text) {
   try {
     execSync(`tmux send-keys -t ${TMUX_SESSION} C-u`, { timeout: 5000 });
-    execSync(`tmux send-keys -t ${TMUX_SESSION} -l ${shellQuote(text)}`, { timeout: 5000 });
-    execSync(`tmux send-keys -t ${TMUX_SESSION} Enter`, { timeout: 5000 });
+    sleepMs(200);
+    execSync(`tmux send-keys -t ${TMUX_SESSION} -l ${shellQuote(text)}`, { timeout: 10000 });
+    sleepMs(300);
+    tmuxSendEnters();
+    console.log('Task prompt sent to CLI');
   } catch (e) {
     console.error('tmux send-keys failed:', e.message);
   }

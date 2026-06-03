@@ -2031,17 +2031,24 @@ func inferLanguage(constitution *Fact) string {
 	}
 	body := strings.ToLower(constitution.Body + " " + constitution.Title)
 	switch {
-	case strings.Contains(body, "typescript") || strings.Contains(body, "react") || strings.Contains(body, "node"):
+	case strings.Contains(body, "typescript") || strings.Contains(body, "react") || strings.Contains(body, "angular") ||
+		strings.Contains(body, "vue") || strings.Contains(body, "next.js") || strings.Contains(body, "nest"):
 		return "typescript"
-	case strings.Contains(body, "python") || strings.Contains(body, "pytest") || strings.Contains(body, "pip"):
+	case strings.Contains(body, "python") || strings.Contains(body, "pytest") || strings.Contains(body, "pip") ||
+		strings.Contains(body, "django") || strings.Contains(body, "flask") || strings.Contains(body, "fastapi") ||
+		strings.Contains(body, "sqlalchemy") || strings.Contains(body, "poetry"):
 		return "python"
-	case strings.Contains(body, "javascript") || strings.Contains(body, "vitest"):
+	case strings.Contains(body, "javascript") || strings.Contains(body, "vitest") ||
+		strings.Contains(body, "express") || strings.Contains(body, "webpack") || strings.Contains(body, "vite"):
 		return "javascript"
-	case strings.Contains(body, "rust") || strings.Contains(body, "cargo") || strings.Contains(body, "tokio"):
+	case strings.Contains(body, "rust") || strings.Contains(body, "cargo") || strings.Contains(body, "tokio") ||
+		strings.Contains(body, "actix") || strings.Contains(body, "warp") || strings.Contains(body, "axum"):
 		return "rust"
-	case strings.Contains(body, "java") || strings.Contains(body, "maven") || strings.Contains(body, "gradle"):
+	case strings.Contains(body, "java") || strings.Contains(body, "maven") || strings.Contains(body, "gradle") ||
+		strings.Contains(body, "spring") || strings.Contains(body, "kotlin") || strings.Contains(body, "quarkus"):
 		return "java"
-	case strings.Contains(body, "bash") || strings.Contains(body, "shell") || strings.Contains(body, "posix") || strings.Contains(body, "zsh"):
+	case strings.Contains(body, "bash") || strings.Contains(body, "shell") || strings.Contains(body, "posix") ||
+		strings.Contains(body, "zsh") || strings.Contains(body, "makefile") || strings.Contains(body, "shellcheck"):
 		return "shell"
 	default:
 		return "go"

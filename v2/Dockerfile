@@ -1,6 +1,11 @@
 FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache git
 WORKDIR /src
+
+# Cache-buster: this ARG changes on every commit, invalidating all layers
+# below it so Docker never reuses a stale Go binary from a previous build.
+ARG GIT_HASH=unknown
+
 COPY .git /repo/.git
 COPY v2/ .
 RUN GIT_HASH=$(git -C /repo rev-parse HEAD 2>/dev/null || echo "unknown") && \

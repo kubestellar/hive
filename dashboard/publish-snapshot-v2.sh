@@ -138,6 +138,13 @@ echo "[${INSTANCE}] Capturing leaderboard..."
 mkdir -p "${PUBLISH_PATH}/leaderboard"
 LEADERBOARD_FETCH_TIMEOUT_S=10
 if curl -sf --max-time "$LEADERBOARD_FETCH_TIMEOUT_S" "${DASHBOARD_URL}/leaderboard" -o "${PUBLISH_PATH}/leaderboard/index.html" 2>/dev/null; then
+  # Strip interactive "Join the swarm" contribute link from snapshot
+  python3 -c "
+import re, sys
+html = open(sys.argv[1]).read()
+html = re.sub(r'<div[^>]*>\\s*<a[^>]*contribute-link[^>]*>.*?</a>\\s*</div>', '', html, flags=re.DOTALL)
+open(sys.argv[1], 'w').write(html)
+" "${PUBLISH_PATH}/leaderboard/index.html"
   echo "[${INSTANCE}] Leaderboard captured."
 else
   echo "[${INSTANCE}] WARN: leaderboard fetch failed — skipping."

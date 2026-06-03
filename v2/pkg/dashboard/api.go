@@ -649,6 +649,11 @@ func (s *Server) handleUnpin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
 	name := s.resolveAgentParam(r.PathValue("agent"))
 
+	// Serialize restart operations to prevent concurrent pause/resume cycles
+	// from interfering through shared state (tmux server, config writes).
+	s.restartMu.Lock()
+	defer s.restartMu.Unlock()
+
 	if err := s.deps.AgentMgr.Restart(s.deps.Ctx, name); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return

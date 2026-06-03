@@ -912,6 +912,24 @@ func main() {
 			return
 		case <-ticker.C:
 			restarted := agentMgr.CheckAndRestartCrashedAgents(ctx)
+			// If brainstorm crashed during inception, re-kick with the inception
+			// bootstrap instead of the standard kick. Without this, the agent
+			// restarts idle and the inception flow stalls.
+			for _, name := range restarted {
+				if name == "brainstorm" && inceptionEngine != nil {
+					if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
+						msg := sched.BuildAgentMessage("brainstorm", nil, sched.GetLastActionable())
+						if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
+							logger.Warn("inception re-kick after crash failed", "error", err)
+						} else {
+							logger.Info("brainstorm re-kicked with inception bootstrap after crash",
+								"phase", state.Phase,
+							)
+							gov.RecordKick("brainstorm")
+						}
+					}
+				}
+			}
 			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, restarted, logger)
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 		case <-agentTickCh:

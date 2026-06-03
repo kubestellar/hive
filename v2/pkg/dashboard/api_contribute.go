@@ -264,10 +264,13 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 
 // ── Registration ───────────────────────────────────────────────────────────
 
+const maxRequestBodyBytes = 4096
+
 func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		GitHubUsername string `json:"github_username"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -280,6 +283,10 @@ func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request
 
 	existing, _ := loadContributorProfile(username)
 	if existing != nil {
+		if existing.TrustTier == "revoked" {
+			jsonError(w, "Account revoked — contact the hive administrator to reinstate", http.StatusForbidden)
+			return
+		}
 		jsonResponse(w, map[string]string{
 			"contributor_id":     existing.ContributorID,
 			"registration_token": existing.TokenPlain,
@@ -480,9 +487,15 @@ func (s *Server) handleHivesHeartbeat(w http.ResponseWriter, r *http.Request) {
 		ActionableItems    int `json:"actionable_items"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-		found.ActiveContributors = req.ActiveContributors
-		found.ActiveAgents = req.ActiveAgents
-		found.ActionableItems = req.ActionableItems
+		if req.ActiveContributors >= 0 {
+			found.ActiveContributors = req.ActiveContributors
+		}
+		if req.ActiveAgents >= 0 {
+			found.ActiveAgents = req.ActiveAgents
+		}
+		if req.ActionableItems >= 0 {
+			found.ActionableItems = req.ActionableItems
+		}
 	}
 	found.LastHeartbeat = time.Now().UTC().Format(time.RFC3339)
 	_ = saveFederationRegistry(reg)

@@ -93,6 +93,14 @@ type Manager struct {
 	uidMap           *UIDMap
 }
 
+// SetACMMLevel updates the cached ACMM level used by agentMode() when
+// launching agents. Call this whenever the ACMM level changes.
+func (m *Manager) SetACMMLevel(level int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.project.ACMMLevel = level
+}
+
 func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, project ProjectContext) *Manager {
 	workDir := os.Getenv("HIVE_WORK_DIR")
 	if workDir == "" {

@@ -184,6 +184,7 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 		s.reInitSubsystems()
 	}
 
+	s.deps.AgentMgr.SetACMMLevel(level)
 	paused, resumed := s.syncAgentVisibility(level)
 	// Clear per-agent mode overrides so DefaultAgentMode determines the mode
 	// for the new level (same rationale as handlePackSetLevel).
@@ -266,6 +267,7 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("failed to save ACMM level to hive.yaml", "error", err)
 	}
 
+	s.deps.AgentMgr.SetACMMLevel(level)
 	paused, resumed := s.syncAgentVisibility(level)
 	s.deps.AgentMgr.ClearAllModeOverrides()
 	s.deps.AgentMgr.SyncModeFiles(level)

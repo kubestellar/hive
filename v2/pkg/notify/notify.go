@@ -126,7 +126,7 @@ func (n *Notifier) logNtfyError(msg, errDetail string) {
 }
 
 func (n *Notifier) sendSlack(title, message string) {
-	if !strings.HasPrefix(n.cfg.Slack.Webhook, "https://") {
+	if !strings.HasPrefix(n.cfg.Slack.Webhook, "http://") && !strings.HasPrefix(n.cfg.Slack.Webhook, "https://") {
 		return
 	}
 	payload := map[string]string{
@@ -143,7 +143,7 @@ func (n *Notifier) sendSlack(title, message string) {
 }
 
 func (n *Notifier) sendDiscordWebhook(title, message string) {
-	if !strings.HasPrefix(n.cfg.Discord.Webhook, "https://") {
+	if !strings.HasPrefix(n.cfg.Discord.Webhook, "http://") && !strings.HasPrefix(n.cfg.Discord.Webhook, "https://") {
 		return
 	}
 	payload := map[string]string{

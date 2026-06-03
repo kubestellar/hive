@@ -1167,9 +1167,12 @@ func scanForLoginRequired(
 		return
 	}
 
-	// Compile regex patterns, skipping any that fail to compile
+	// Compile regex patterns, skipping empty and invalid ones
 	compiled := make([]*regexp.Regexp, 0, len(patterns))
 	for _, p := range patterns {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
 		re, err := regexp.Compile("(?i)" + p)
 		if err != nil {
 			logger.Warn("invalid login pattern regex", "pattern", p, "error", err)

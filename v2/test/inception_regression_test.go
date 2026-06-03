@@ -72,6 +72,28 @@ func TestRegression_DownloadWithNoInception(t *testing.T) {
 	}
 }
 
+func TestRegression_ScaffoldReturns404NotState(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	_, code, _ := client.get("/api/inception/scaffold")
+	if code == 500 {
+		t.Errorf("scaffold with no state should return 404, got 500")
+	}
+	if code != 404 {
+		t.Logf("scaffold with no state returned %d (expected 404)", code)
+	}
+}
+
+func TestRegression_ApproveRequiresScaffoldPhase(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "test"})
+	data, code, _ := client.post("/api/inception/approve", nil)
+	if code == 200 {
+		t.Errorf("approve in capture phase should fail, got 200: %v", data)
+	}
+}
+
 func TestRegression_Pass0_StateWithNoInception(t *testing.T) {
 	client := newAPIClient()
 	client.post("/api/inception/reset", nil)

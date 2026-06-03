@@ -307,9 +307,9 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <div class="steps">
 <h3>How it works</h3>
 <ol>
-<li><strong>Register</strong> — <code>just contribute-register</code> or POST to <code>/api/contribute/register</code></li>
 <li><strong>Install just</strong> — <code>brew install just</code></li>
-<li><strong>Clone the hive repo</strong> — <code>git clone https://github.com/kubestellar/hive</code></li>
+<li><strong>Clone the hive repo</strong> — <code>git clone https://github.com/kubestellar/hive && cd hive</code></li>
+<li><strong>Register</strong> — <code>just contribute-register</code></li>
 <li><strong>Run</strong> — <code>just contribute-hive</code></li>
 <li><strong>Walk away</strong> — your agent pulls work from the queue</li>
 </ol>

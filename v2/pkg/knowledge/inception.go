@@ -1524,7 +1524,7 @@ dev = ["pytest", "ruff"]
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.backends._legacy:_Backend"
-`, name, desc, name, name)
+`, name, desc, name, pyPackageName(name))
 }
 
 func buildPyInit(name string, vision *Fact) string {

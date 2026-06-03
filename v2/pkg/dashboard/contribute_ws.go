@@ -145,6 +145,34 @@ func (h *ContributeWSHub) ActiveCount() int {
 	return len(h.connections)
 }
 
+type ContributorLiveState struct {
+	Active      bool          `json:"active"`
+	CurrentTask *WSTaskAssign `json:"current_task,omitempty"`
+}
+
+func (h *ContributeWSHub) LiveStates() map[string]ContributorLiveState {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := make(map[string]ContributorLiveState, len(h.connections))
+	for _, c := range h.connections {
+		c.mu.Lock()
+		cid := ""
+		if c.profile != nil {
+			cid = c.profile.ContributorID
+		}
+		var task *WSTaskAssign
+		if c.currentTask != nil {
+			t := *c.currentTask
+			task = &t
+		}
+		c.mu.Unlock()
+		if cid != "" {
+			out[cid] = ContributorLiveState{Active: true, CurrentTask: task}
+		}
+	}
+	return out
+}
+
 // RoleBreakdown returns a count of active connections grouped by role.
 // Connections without a role (task-driven mode) are counted under "task-driven".
 func (h *ContributeWSHub) RoleBreakdown() map[string]int {

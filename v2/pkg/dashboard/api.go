@@ -507,7 +507,9 @@ func (s *Server) handleKick(w http.ResponseWriter, r *http.Request) {
 		Prompt  string `json:"prompt"`
 		Message string `json:"message"`
 	}
-	_ = decodeBody(r, &body)
+	if err := decodeBody(r, &body); err != nil {
+		s.deps.Logger.Debug("kick body decode failed, using auto-generated message", "agent", name, "error", err)
+	}
 
 	msg := body.Prompt
 	if msg == "" {
@@ -588,7 +590,9 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Value string `json:"value"`
 	}
-	_ = decodeBody(r, &body)
+	if err := decodeBody(r, &body); err != nil {
+		s.deps.Logger.Debug("pin body decode failed, using current value", "agent", name, "error", err)
+	}
 
 	if body.Value == "" {
 		proc, getErr := s.deps.AgentMgr.GetStatus(name)

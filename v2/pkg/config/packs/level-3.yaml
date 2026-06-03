@@ -56,6 +56,7 @@ agents:
   mode: ADVISORY
   kick_template: supervisor-nogithub.md
   include_repos: true
+  clear_on_kick: false
   stale_timeout: 1800
   interactions: 'Monitors all agents. Escalates issues to human operators. Coordinates
     agent restarts and health checks.

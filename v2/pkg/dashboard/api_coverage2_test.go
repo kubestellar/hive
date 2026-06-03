@@ -786,7 +786,7 @@ func TestHandleAgentConfigGeneral_AllFields(t *testing.T) {
 		"description":     "Scans issues",
 		"launchCmd":       "custom-cmd --flag",
 		"staleTimeout":    3600,
-		"restartStrategy": "backoff",
+		"restartStrategy": "immediate",
 		"clearOnKick":     true,
 	})
 	if rec.Code != http.StatusOK {

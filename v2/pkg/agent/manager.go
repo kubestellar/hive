@@ -1782,7 +1782,7 @@ func (m *Manager) SyncModeFiles(level int) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for name, agent := range m.agents {
-		if agent.Paused || agent.State != StateRunning {
+		if agent.Paused {
 			continue
 		}
 		mode := DefaultAgentMode(name, level)

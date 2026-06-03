@@ -74,11 +74,23 @@ type WSTaskAssign struct {
 	Title  string `json:"title"`
 }
 
+const maxActivityEntries = 50
+
+type ActivityEntry struct {
+	Timestamp string `json:"timestamp"`
+	Username  string `json:"username"`
+	Action    string `json:"action"`
+	Role      string `json:"role,omitempty"`
+	CLI       string `json:"cli,omitempty"`
+}
+
 type ContributeWSHub struct {
 	connections map[string]*ContributorConnection
 	mu          sync.RWMutex
 	logger      *slog.Logger
 	seq         int
+	activityMu  sync.RWMutex
+	activity    []ActivityEntry
 }
 
 func NewContributeWSHub(logger *slog.Logger) *ContributeWSHub {
@@ -86,6 +98,29 @@ func NewContributeWSHub(logger *slog.Logger) *ContributeWSHub {
 		connections: make(map[string]*ContributorConnection),
 		logger:      logger,
 	}
+}
+
+func (h *ContributeWSHub) addActivity(username, action, role, cli string) {
+	h.activityMu.Lock()
+	defer h.activityMu.Unlock()
+	h.activity = append(h.activity, ActivityEntry{
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Username:  username,
+		Action:    action,
+		Role:      role,
+		CLI:       cli,
+	})
+	if len(h.activity) > maxActivityEntries {
+		h.activity = h.activity[len(h.activity)-maxActivityEntries:]
+	}
+}
+
+func (h *ContributeWSHub) RecentActivity() []ActivityEntry {
+	h.activityMu.RLock()
+	defer h.activityMu.RUnlock()
+	out := make([]ActivityEntry, len(h.activity))
+	copy(out, h.activity)
+	return out
 }
 
 func (h *ContributeWSHub) nextSeq() int {
@@ -171,6 +206,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			delete(h.connections, contributor.profile.ContributorID)
 			h.mu.Unlock()
 			h.logger.Info("[contribute-ws] disconnected", "username", contributor.profile.GitHubUsername)
+			h.addActivity(contributor.profile.GitHubUsername, "left", contributor.role, contributor.cliBackend)
 		}
 		conn.Close()
 	}()
@@ -219,6 +255,9 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			profile.LastActive = time.Now().UTC().Format(time.RFC3339)
+			_ = saveContributorProfile(profile)
+
 			contributor = &ContributorConnection{
 				ws:          conn,
 				profile:     profile,
@@ -256,6 +295,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				"cli", msg.CLIBackend,
 				"role", msg.Role,
 			)
+			h.addActivity(profile.GitHubUsername, "joined", msg.Role, msg.CLIBackend)
 
 			select {
 			case authDone <- contributor:
@@ -305,6 +345,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				contributor.mu.Unlock()
 
 				contributor.profile.TasksCompleted++
+				contributor.profile.LastActive = time.Now().UTC().Format(time.RFC3339)
 				if contributor.profile.TrustTier == "newcomer" && contributor.profile.TasksCompleted >= contributorAutoPromoteAt {
 					contributor.profile.TrustTier = "contributor"
 					h.logger.Info("[contribute-ws] auto-promoted", "username", contributor.profile.GitHubUsername)

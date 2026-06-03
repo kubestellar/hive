@@ -195,13 +195,16 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("[contribute-ws] new connection", "id", connID)
 
 	nonce := randomHex(16)
-	sendJSON(conn, WSMessage{Type: "auth_challenge", Seq: 1, Nonce: nonce})
+	if err := sendJSON(conn, WSMessage{Type: "auth_challenge", Seq: 1, Nonce: nonce}); err != nil {
+		h.logger.Warn("[contribute-ws] failed to send challenge", "id", connID, "error", err)
+		return
+	}
 
 	authDone := make(chan *ContributorConnection, 1)
 	go func() {
 		select {
 		case <-time.After(wsAuthTimeout):
-			sendJSON(conn, WSMessage{Type: "auth_failed", Reason: "Authentication timeout"})
+			_ = sendJSON(conn, WSMessage{Type: "auth_failed", Reason: "Authentication timeout"})
 			conn.Close()
 		case <-authDone:
 		}
@@ -236,7 +239,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 		switch msg.Type {
 		case "auth_response":
 			if msg.RegistrationToken == "" {
-				sendJSON(conn, WSMessage{Type: "auth_failed", Reason: "Missing registration token"})
+				_ = sendJSON(conn, WSMessage{Type: "auth_failed", Reason: "Missing registration token"})
 				conn.Close()
 				return
 			}
@@ -252,13 +255,13 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if profile == nil {
-				sendJSON(conn, WSMessage{Type: "auth_failed", Reason: "Invalid registration token"})
+				_ = sendJSON(conn, WSMessage{Type: "auth_failed", Reason: "Invalid registration token"})
 				conn.Close()
 				return
 			}
 
 			if profile.TrustTier == "revoked" {
-				sendJSON(conn, WSMessage{Type: "auth_failed", Reason: "Access has been revoked"})
+				_ = sendJSON(conn, WSMessage{Type: "auth_failed", Reason: "Access has been revoked"})
 				conn.Close()
 				return
 			}
@@ -312,14 +315,17 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				perms = []string{"metadata:read"}
 			}
 
-			sendJSON(conn, WSMessage{
+			if err := sendJSON(conn, WSMessage{
 				Type:          "auth_ok",
 				Seq:           h.nextSeq(),
 				ContributorID: profile.ContributorID,
 				TrustTier:     profile.TrustTier,
 				Permissions:   perms,
 				Role:          msg.Role,
-			})
+			}); err != nil {
+				h.logger.Warn("[contribute-ws] failed to send auth_ok", "username", profile.GitHubUsername, "error", err)
+				return
+			}
 
 			h.logger.Info("[contribute-ws] authenticated",
 				"username", profile.GitHubUsername,
@@ -364,7 +370,10 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 					Title:  task.Title,
 				}
 				contributor.mu.Unlock()
-				sendJSON(conn, *task)
+				if err := sendJSON(conn, *task); err != nil {
+					h.logger.Warn("[contribute-ws] failed to send task_assign", "error", err)
+					return
+				}
 				h.logger.Info("[contribute-ws] task assigned",
 					"username", contributor.profile.GitHubUsername,
 					"task", task.TaskID,
@@ -451,7 +460,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "ping":
-			sendJSON(conn, WSMessage{Type: "pong", Seq: msg.Seq})
+			_ = sendJSON(conn, WSMessage{Type: "pong", Seq: msg.Seq})
 		}
 	}
 }

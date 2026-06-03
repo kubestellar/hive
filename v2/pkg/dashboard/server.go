@@ -37,6 +37,7 @@ type Server struct {
 	pipelineMu     sync.RWMutex
 	hooksMu        sync.RWMutex
 	knowledgeMu    sync.Mutex
+	levelMu        sync.Mutex
 
 	tokenHistoryMu    sync.RWMutex
 	tokenHistory      []TokenSparklineEntry

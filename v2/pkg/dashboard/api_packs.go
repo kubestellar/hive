@@ -211,6 +211,9 @@ func (s *Server) handlePackApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.levelMu.Lock()
+	defer s.levelMu.Unlock()
+
 	result, err := s.ApplyPack(level)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -244,6 +247,9 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "level must be 1-6", http.StatusBadRequest)
 		return
 	}
+
+	s.levelMu.Lock()
+	defer s.levelMu.Unlock()
 
 	level := body.Level
 	s.deps.Config.ACMMLevel = &level

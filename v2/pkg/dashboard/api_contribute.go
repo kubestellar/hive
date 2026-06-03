@@ -213,7 +213,11 @@ func (s *Server) handleContributeLanding(w http.ResponseWriter, r *http.Request)
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Contribute to %s</title>
 <style>
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:40px;max-width:720px;margin:0 auto}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;margin:0;min-height:100vh}
+.page{display:flex;min-height:100vh}
+.main{flex:2;padding:40px;max-width:800px}
+.sidebar{flex:1;min-width:280px;max-width:380px;background:#161b22;border-left:1px solid #30363d;display:flex;flex-direction:column}
 h1{font-size:2rem;margin-bottom:8px}
 .subtitle{color:#8b949e;font-size:1.1rem;margin-bottom:32px}
 .stat-row{display:flex;gap:16px;margin-bottom:32px}
@@ -230,11 +234,28 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 .tier-table{width:100%%;border-collapse:collapse;margin-top:16px}
 .tier-table th,.tier-table td{padding:8px 12px;text-align:left;border-bottom:1px solid #30363d;font-size:.85rem}
 .tier-table th{color:#8b949e;font-weight:600}
+.feed-header{padding:20px 20px 12px;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:8px}
+.feed-header h3{font-size:.95rem;color:#e6edf3}
+.feed-dot{width:8px;height:8px;border-radius:50%%;background:#3fb950;animation:pulse 2s infinite}
+@keyframes pulse{0%%,100%%{opacity:1}50%%{opacity:.4}}
+.feed-count{font-size:.75rem;color:#8b949e;margin-left:auto}
+.feed-scroll{flex:1;overflow-y:auto;padding:0}
+.feed-entry{padding:10px 20px;border-bottom:1px solid #21262d;font-size:.85rem;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.feed-entry:hover{background:rgba(88,166,255,.04)}
+.feed-time{color:#8b949e;font-size:.75rem;float:right}
+.feed-role{color:#58a6ff;font-weight:500}
+.feed-cli{color:#8b949e;font-size:.8rem}
+.feed-empty{padding:40px 20px;text-align:center;color:#8b949e;font-size:.85rem}
+@media(max-width:768px){.page{flex-direction:column}.sidebar{border-left:none;border-top:1px solid #30363d;max-width:none;max-height:300px}}
 </style></head><body>
+<div class="page">
+<div class="main">
 <h1>🐝 Contribute to %s</h1>
 <p class="subtitle">Donate your CLI + API tokens to help this project's AI agent swarm.</p>
 <div class="stat-row">
-<div class="stat"><div class="stat-num">%d</div><div class="stat-label">Registered Contributors</div></div>
+<div class="stat"><div class="stat-num" id="stat-registered">%d</div><div class="stat-label">Registered</div></div>
+<div class="stat"><div class="stat-num" id="stat-active" style="color:#3fb950">0</div><div class="stat-label">Active Now</div></div>
 </div>
 <div class="steps">
 <h3>How it works</h3>
@@ -261,14 +282,45 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <tr><td>Advisor</td><td>Registration</td><td>Review agent PRs</td></tr>
 </table>
 </div>
-<div class="how">
+</div>
+<div class="sidebar">
+<div class="feed-header">
+<span class="feed-dot"></span>
 <h3>Live Activity</h3>
-<div id="activity-feed" style="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;min-height:60px;max-height:200px;overflow-y:auto;font-size:.85rem">
-<span style="color:#8b949e">Watching for contributors...</span>
+<span class="feed-count" id="feed-count"></span>
+</div>
+<div class="feed-scroll" id="activity-feed">
+<div class="feed-empty">Watching for contributors...</div>
+</div>
 </div>
 </div>
 <script>
-async function pollActivity(){try{const r=await fetch('/api/contribute/activity');const d=await r.json();const f=document.getElementById('activity-feed');if(!d.activity||!d.activity.length){f.innerHTML='<span style="color:#8b949e">No activity yet</span>';return}f.innerHTML=d.activity.slice().reverse().map(e=>{const t=new Date(e.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const icon=e.action==='joined'?'🟢':'🔴';const role=e.role?' as <b>'+e.role+'</b>':'';const cli=e.cli?' ('+e.cli+')':'';return '<div style="padding:4px 0;border-bottom:1px solid #21262d">'+icon+' <b>'+e.username+'</b> '+e.action+role+cli+' <span style="color:#8b949e;float:right">'+t+'</span></div>'}).join('')}catch(e){}}pollActivity();setInterval(pollActivity,5000);
+let prevCount=0;
+async function poll(){try{
+const[statusRes,actRes]=await Promise.all([fetch('/api/contribute/status'),fetch('/api/contribute/activity')]);
+const status=await statusRes.json();
+const act=await actRes.json();
+document.getElementById('stat-registered').textContent=status.total_registered||0;
+document.getElementById('stat-active').textContent=status.active_contributors||0;
+document.getElementById('feed-count').textContent=(act.activity||[]).length+' events';
+const f=document.getElementById('activity-feed');
+if(!act.activity||!act.activity.length){f.innerHTML='<div class="feed-empty">No activity yet — be the first to contribute!</div>';return}
+const newCount=act.activity.length;
+const isNew=newCount>prevCount;
+prevCount=newCount;
+f.innerHTML=act.activity.slice().reverse().map((e,i)=>{
+const t=new Date(e.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+const icon=e.action==='joined'?'🟢':'🔴';
+const verb=e.action==='joined'?'entered the hive':'left the hive';
+const role=e.role?' as <span class="feed-role">'+e.role+'</span>':'';
+const cli=e.cli?' <span class="feed-cli">via '+e.cli+'</span>':'';
+return '<div class="feed-entry"'+(i===0&&isNew?' style="background:rgba(63,185,80,.08)"':'')+'>'+
+'<span class="feed-time">'+t+'</span>'+
+icon+' <b>'+e.username+'</b> '+verb+role+cli+'</div>'
+}).join('');
+if(isNew)f.scrollTop=0;
+}catch(e){}}
+poll();setInterval(poll,3000);
 </script>
 </body></html>`, projectName, projectName, len(profiles))
 }

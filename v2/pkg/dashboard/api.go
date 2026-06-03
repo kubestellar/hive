@@ -1359,6 +1359,9 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 		s.logger.Warn("failed to sync agent config to process", "agent", name, "error", err)
 	}
 
+	if err := s.deps.Config.Save(); err != nil {
+		s.logger.Error("failed to persist config after agent update", "agent", name, "error", err)
+	}
 	s.refreshAndPersistSync()
 	okResponse(w, map[string]string{"status": "updated", "agent": name})
 }
@@ -1392,6 +1395,9 @@ func (s *Server) handleAgentConfigCadences(w http.ResponseWriter, r *http.Reques
 		s.deps.Config.Governor.Modes[modeName] = mode
 	}
 
+	if err := s.deps.Config.Save(); err != nil {
+		s.logger.Error("failed to persist config after cadence update", "agent", name, "error", err)
+	}
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated", "agent": name})
 }
@@ -1427,6 +1433,9 @@ func (s *Server) handleAgentConfigModels(w http.ResponseWriter, r *http.Request)
 		s.logger.Warn("failed to sync agent config to process", "agent", name, "error", err)
 	}
 
+	if err := s.deps.Config.Save(); err != nil {
+		s.logger.Error("failed to persist config after model update", "agent", name, "error", err)
+	}
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated", "agent": name})
 }

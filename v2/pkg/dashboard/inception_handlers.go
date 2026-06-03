@@ -165,7 +165,7 @@ func (s *Server) handleInceptionScaffold(w http.ResponseWriter, r *http.Request)
 
 	result, err := s.deps.Inception.ProduceScaffold(s.deps.Ctx)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		jsonError(w, err.Error(), http.StatusNotFound)
 		return
 	}
 

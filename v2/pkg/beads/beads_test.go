@@ -647,3 +647,46 @@ func TestNewStore_ReadError(t *testing.T) {
 		t.Error("expected error when beads.json is a directory")
 	}
 }
+
+// TestReload_PicksUpExternalWrites simulates the bug where agents write beads
+// to disk via the bd CLI but the in-memory store in the hive process is stale.
+// Reload must re-read the file and reflect the new beads.
+func TestReload_PicksUpExternalWrites(t *testing.T) {
+	dir := t.TempDir()
+
+	// Store 1: the "hive process" store — starts empty
+	s1, err := NewStore(dir)
+	if err != nil {
+		t.Fatalf("NewStore (hive): %v", err)
+	}
+	if s1.Count() != 0 {
+		t.Fatalf("initial count: got %d, want 0", s1.Count())
+	}
+
+	// Store 2: simulates the bd CLI writing beads to the same directory
+	s2, err := NewStore(dir)
+	if err != nil {
+		t.Fatalf("NewStore (bd): %v", err)
+	}
+	if _, err := s2.Create("external finding", TypeAdvisory, PriorityHigh, "scanner", ""); err != nil {
+		t.Fatalf("Create via bd CLI: %v", err)
+	}
+
+	// Before Reload, s1 is stale
+	if s1.Count() != 0 {
+		t.Fatalf("s1 should still be 0 before Reload, got %d", s1.Count())
+	}
+
+	// After Reload, s1 picks up the external write
+	if err := s1.Reload(); err != nil {
+		t.Fatalf("Reload: %v", err)
+	}
+	if s1.Count() != 1 {
+		t.Fatalf("after Reload: got %d, want 1", s1.Count())
+	}
+
+	beads := s1.List(ListFilter{})
+	if beads[0].Title != "external finding" {
+		t.Errorf("Title: got %q, want %q", beads[0].Title, "external finding")
+	}
+}

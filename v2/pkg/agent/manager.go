@@ -402,7 +402,16 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 			case "copilot":
 				launchCmd += fmt.Sprintf(" -i \"$(cat %s)\"", promptFile)
 			case "claude":
-				launchCmd += fmt.Sprintf(" \"$(cat %s)\"", promptFile)
+				// Write a launcher script instead of using $(cat) in send-keys.
+				// $(cat file) fails when the tmux shell hasn't fully initialized.
+				launcherFile := fmt.Sprintf("/tmp/.hive-launch-%s.sh", agent.Name)
+				launcherContent := fmt.Sprintf("#!/bin/sh\nexec %s \"$(cat %s)\"\n", launchCmd, promptFile)
+				if err := os.WriteFile(launcherFile, []byte(launcherContent), 0o755); err != nil {
+					m.logger.Warn("failed to write launcher script", "error", err)
+					launchCmd += fmt.Sprintf(" \"$(cat %s)\"", promptFile)
+				} else {
+					launchCmd = launcherFile
+				}
 			case "gemini":
 				launchCmd += fmt.Sprintf(" -i \"$(cat %s)\"", promptFile)
 			case "goose":

@@ -42,7 +42,7 @@ async function fetchJson(endpoint, fallback = '{}') {
 async function main() {
   console.log(`Fetching data from ${dashboardUrl} (mode: ${snapshotMode})...`);
 
-  const [statusRaw, historyRaw, trendsRaw, timelineRaw, configRaw, versionRaw, nousStatusRaw, nousLedgerRaw, nousPrinciplesRaw, kbStatsRaw, kbFactsRaw] = await Promise.all([
+  const [statusRaw, historyRaw, trendsRaw, timelineRaw, configRaw, versionRaw, nousStatusRaw, nousLedgerRaw, nousPrinciplesRaw, kbStatsRaw, kbFactsRaw, contributorsRaw, leaderboardRaw] = await Promise.all([
     fetchJson('/api/status'),
     fetchJson('/api/history', '[]'),
     fetchJson('/api/trends?range=week', '[]'),
@@ -54,6 +54,8 @@ async function main() {
     fetchJson('/api/nous/principles', '[]'),
     fetchJson('/api/knowledge/stats'),
     fetchJson('/api/knowledge', '{"facts":[]}'),
+    fetchJson('/api/contributors', '[]'),
+    fetchJson('/api/leaderboard', '{"leaderboard":[]}'),
   ]);
 
   // Validate status
@@ -252,6 +254,17 @@ async function main() {
     _kbInitialLoad = false;
     _kbRendered = true;
     renderKnowledge();
+
+    // Contributors
+    var _snapContributors = ${contributorsRaw};
+    _cachedContributors = Array.isArray(_snapContributors) ? _snapContributors : [];
+    renderContributorFilters(_cachedContributors);
+    renderContributors(_cachedContributors);
+
+    // Leaderboard
+    var _snapLeaderboard = ${leaderboardRaw};
+    var _lbEntries = _snapLeaderboard && _snapLeaderboard.leaderboard ? _snapLeaderboard.leaderboard : (Array.isArray(_snapLeaderboard) ? _snapLeaderboard : []);
+    renderLeaderboard(_lbEntries);
 
     // Git version
     const _v = ${versionRaw};

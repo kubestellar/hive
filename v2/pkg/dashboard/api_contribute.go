@@ -313,20 +313,16 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <div class="steps">
 <h3>How it works</h3>
 <ol>
-<li><strong>Install prerequisites</strong> — <code>brew install just gh</code> + <a href="https://docker.com/get-started" target="_blank" style="color:#58a6ff">Docker Desktop</a></li>
-<li><strong>Clone + enter repo</strong> — <code>git clone -b v2 https://github.com/kubestellar/hive && cd hive</code></li>
-<li><strong>Register</strong> — <code>just contribute-register</code></li>
-<li><strong>Login</strong> — <code>just contribute-login claude</code> (authenticates GitHub + your CLI)</li>
-<li><strong>Run</strong> — <code>just contribute-hive</code></li>
-<li><strong>Walk away</strong> — your agent pulls work from the queue</li>
+<li><strong>Install</strong> — <code>brew install just gh</code> + <a href="https://docker.com/get-started" target="_blank" style="color:#58a6ff">Docker</a> + your CLI (<code>npm i -g @anthropic-ai/claude-code</code>)</li>
+<li><strong>Setup</strong> — <code>just contribute-setup claude</code> (registers with hive + authenticates GitHub + CLI)</li>
+<li><strong>Run</strong> — <code>just contribute-hive</code> — then walk away</li>
 </ol>
 <div style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;position:relative">
 <button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent.trim());this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)" style="position:absolute;top:8px;right:8px;background:#238636;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:.75rem">Copy</button>
-<pre style="color:#e6edf3;font-size:.85rem;margin:0;overflow-x:auto;white-space:pre">brew install just gh  # also install Docker Desktop
+<pre style="color:#e6edf3;font-size:.85rem;margin:0;overflow-x:auto;white-space:pre">brew install just gh
 git clone -b v2 https://github.com/kubestellar/hive && cd hive
 export HIVE_HUB=%s
-just contribute-register
-just contribute-login claude
+just contribute-setup claude
 just contribute-hive</pre>
 </div>
 </div>

@@ -1838,6 +1838,7 @@ func (s *Server) handleGovernorBudget(w http.ResponseWriter, r *http.Request) {
 		s.deps.Config.Governor.Budget.CriticalPct = body.CriticalPct
 	}
 
+	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config after budget update", "error", err) }
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }
@@ -1879,6 +1880,7 @@ func (s *Server) handleGovernorNotifications(w http.ResponseWriter, r *http.Requ
 		}
 		s.deps.Config.Notifications.Discord.Webhook = body.DiscordWebhook
 	}
+	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config after notification update", "error", err) }
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }
@@ -1905,6 +1907,7 @@ func (s *Server) handleGovernorHealth(w http.ResponseWriter, r *http.Request) {
 		s.deps.Config.Governor.Health.RestartCooldown = body.RestartCooldown
 	}
 	s.deps.Config.Governor.Health.ModelLock = body.ModelLock
+	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config after health update", "error", err) }
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }
@@ -1941,6 +1944,7 @@ func (s *Server) handleGovernorLogging(w http.ResponseWriter, r *http.Request) {
 	if body.Level != "" {
 		s.deps.Config.Governor.Logging.Level = body.Level
 	}
+	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config after logging update", "error", err) }
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }

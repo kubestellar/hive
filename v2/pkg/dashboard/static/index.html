@@ -6039,16 +6039,21 @@ function burnAreaChart() {
         const dotColor = c.active ? '#3fb950' : '#8b949e';
         const dotTitle = c.active ? 'Online' : 'Offline';
         const ghLink = `https://github.com/${esc(c.github_username)}`;
+        const avatar = c.avatar_url || `https://github.com/${esc(c.github_username)}.png`;
+        const cliLine = c.cli_backend ? `${esc(c.cli_backend)}${c.model ? ' · ' + esc(c.model) : ''}` : '';
+        const roleLine = c.preferred_role ? `role: ${esc(c.preferred_role)}` : '';
         const tierOptions = Object.keys(TRUST_TIER_COLORS).filter(t => t !== 'revoked').map(t =>
           `<option value="${t}"${t === c.trust_tier ? ' selected' : ''}>${t}</option>`
         ).join('');
         return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;overflow:hidden">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0">
             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0" title="${dotTitle}"></span>
+            <img src="${avatar}" alt="" style="width:28px;height:28px;border-radius:50%;flex-shrink:0" onerror="this.style.display='none'">
             <a href="${ghLink}" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">@${esc(c.github_username)}</a>
             <span style="flex-shrink:0">${trustTierBadge(c.trust_tier)}</span>
           </div>
-          <div style="display:flex;gap:16px;margin-bottom:12px;font-size:0.8rem;color:var(--muted)">
+          ${cliLine ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">${cliLine}${roleLine ? ' · ' + roleLine : ''}</div>` : (roleLine ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">${roleLine}</div>` : '')}
+          <div style="display:flex;gap:16px;margin-bottom:10px;font-size:0.8rem;color:var(--muted)">
             <span>Completed: <strong style="color:var(--fg)">${c.total_tasks_completed || 0}</strong></span>
             <span>Failed: <strong style="color:${(c.total_tasks_failed || 0) > 0 ? '#f85149' : 'var(--fg)'}">${c.total_tasks_failed || 0}</strong></span>
           </div>

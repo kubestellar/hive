@@ -185,10 +185,8 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 	}
 
 	s.deps.AgentMgr.SetACMMLevel(level)
-	paused, resumed := s.syncAgentVisibility(level)
-	// Clear per-agent mode overrides so DefaultAgentMode determines the mode
-	// for the new level (same rationale as handlePackSetLevel).
 	s.deps.AgentMgr.ClearAllModeOverrides()
+	paused, resumed := s.syncAgentVisibility(level)
 	s.deps.AgentMgr.SyncModeFiles(level)
 
 	s.persistOnly()
@@ -268,8 +266,8 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.deps.AgentMgr.SetACMMLevel(level)
-	paused, resumed := s.syncAgentVisibility(level)
 	s.deps.AgentMgr.ClearAllModeOverrides()
+	paused, resumed := s.syncAgentVisibility(level)
 	s.deps.AgentMgr.SyncModeFiles(level)
 
 	s.persistOnly()

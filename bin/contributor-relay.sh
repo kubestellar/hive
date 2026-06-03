@@ -189,13 +189,19 @@ function checkTmuxIdle() {
   }
 }
 
+const TASK_GRACE_PERIOD_MS = 180000;
+let taskAssignedAt = 0;
+
 function startProgressReporting() {
   if (progressInterval) clearInterval(progressInterval);
+  taskAssignedAt = Date.now();
   progressInterval = setInterval(() => {
     if (!currentTask) return;
+    if (Date.now() - taskAssignedAt < TASK_GRACE_PERIOD_MS) return;
     const idle = checkTmuxIdle();
     const tmuxLines = captureTmuxLines(TMUX_TAIL_LINES);
     if (idle) {
+      console.log(`Task ${currentTask.task_id} completed — agent idle`);
       send({ type: 'task_complete', seq: nextSeq(), task_id: currentTask.task_id, result: 'completed', summary: 'Agent returned to idle', tmux_output: tmuxLines });
       currentTask = null;
       clearInterval(progressInterval);
@@ -234,6 +240,11 @@ function handleMessage(data) {
       break;
 
     case 'task_assign':
+      if (currentTask) {
+        console.log(`Rejecting task ${msg.repo}#${msg.number} — already working on ${currentTask.repo}#${currentTask.number}`);
+        send({ type: 'task_failed', seq: nextSeq(), task_id: msg.task_id, reason: 'Already has active task' });
+        break;
+      }
       currentTask = msg;
       console.log(`Task assigned: ${msg.kind} ${msg.repo}#${msg.number} — ${msg.title}`);
       if (msg.github_token) {

@@ -315,6 +315,9 @@ func TestLeaderboardPageHTML(t *testing.T) {
 		"var ENTRIES":         "JavaScript entries data",
 		"toggleSort":          "sort toggle function",
 		"renderRows":          "row rendering function",
+		"hover-card":          "contributor hover card CSS",
+		"hc-header":           "hover card header",
+		"hc-bar":              "hover card success rate bar",
 	}
 	for needle, desc := range checks {
 		if !strings.Contains(body, needle) {

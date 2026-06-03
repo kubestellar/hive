@@ -807,6 +807,28 @@ border-radius:8px;border:1px solid rgba(255,255,255,0.05);padding:24px}
   .row .reg-date{padding-left:44px}
 }
 
+/* ── Hover card ── */
+.hover-card-anchor{position:relative}
+.hover-card{display:none;position:absolute;left:0;top:100%%;margin-top:8px;z-index:50;
+width:320px;background:rgba(17,24,39,0.95);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+border-radius:12px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);
+overflow:hidden;pointer-events:none}
+.hover-card-anchor:hover .hover-card{display:block}
+.hover-card .hc-header{padding:16px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:12px}
+.hover-card .hc-header img{width:40px;height:40px;border-radius:50%%}
+.hover-card .hc-name{font-size:.875rem;font-weight:600;color:#fff}
+.hover-card .hc-meta{font-size:.75rem;color:#9ca3af;margin-top:2px}
+.hover-card .hc-meta .hc-pts{color:#facc15;font-weight:600}
+.hover-card .hc-section{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.05)}
+.hover-card .hc-label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:6px}
+.hover-card .hc-stats{display:flex;gap:16px}
+.hover-card .hc-stat{text-align:center;flex:1}
+.hover-card .hc-stat-num{font-size:1.25rem;font-weight:700;font-variant-numeric:tabular-nums}
+.hover-card .hc-stat-label{font-size:.625rem;color:#6b7280;margin-top:2px;text-transform:uppercase}
+.hover-card .hc-bar-wrap{height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;margin-top:8px}
+.hover-card .hc-bar{height:100%%;border-radius:3px;transition:width .3s}
+.hover-card .hc-footer{padding:8px 16px;text-align:center;font-size:10px;color:#60a5fa;background:rgba(255,255,255,0.02);border-top:1px solid rgba(255,255,255,0.05)}
+
 /* ── No-results ── */
 .no-results{text-align:center;padding:40px 16px;color:#6b7280;font-size:.875rem;display:none}
 </style></head>
@@ -931,12 +953,44 @@ function renderRows() {
     if (e.completed > 0) pills += '<span class="pill pill-completed">' + e.completed + (e.completed === 1 ? ' Task' : ' Tasks') + '</span>';
     if (e.failed > 0) pills += '<span class="pill pill-failed">' + e.failed + ' Failed</span>';
 
+    var total = e.completed + e.failed;
+    var successPct = total > 0 ? Math.round((e.completed / total) * 100) : 0;
+    var barColor = successPct >= 80 ? '#4ade80' : successPct >= 50 ? '#facc15' : '#f87171';
+
+    var hoverCard = '<div class="hover-card">'
+      + '<div class="hc-header">'
+      +   '<img src="' + e.avatar + '" alt="' + e.login + '" width="40" height="40">'
+      +   '<div><div class="hc-name">' + e.login + '</div>'
+      +   '<div class="hc-meta">Rank #' + e._rank + ' &middot; <span class="hc-pts">' + e.completed.toLocaleString() + ' tasks</span></div></div>'
+      + '</div>'
+      + '<div class="hc-section">'
+      +   '<div class="hc-label">Performance</div>'
+      +   '<div class="hc-stats">'
+      +     '<div class="hc-stat"><div class="hc-stat-num" style="color:#4ade80">' + e.completed + '</div><div class="hc-stat-label">Completed</div></div>'
+      +     '<div class="hc-stat"><div class="hc-stat-num" style="color:#f87171">' + e.failed + '</div><div class="hc-stat-label">Failed</div></div>'
+      +     '<div class="hc-stat"><div class="hc-stat-num" style="color:' + barColor + '">' + successPct + '%%</div><div class="hc-stat-label">Success</div></div>'
+      +   '</div>'
+      +   '<div class="hc-bar-wrap"><div class="hc-bar" style="width:' + successPct + '%%;background:' + barColor + '"></div></div>'
+      + '</div>'
+      + '<div class="hc-section">'
+      +   '<div class="hc-label">Details</div>'
+      +   '<div style="display:flex;justify-content:space-between;align-items:center">'
+      +     '<span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + e.tier + '</span>'
+      +     '<span style="font-size:.75rem;color:#6b7280">Joined ' + formatDate(e.registered) + '</span>'
+      +   '</div>'
+      + '</div>'
+      + '<div class="hc-footer">View on GitHub &rarr;</div>'
+      + '</div>';
+
     html += '<div class="row">'
       + '<div class="rank-cell">' + rankHTML(e._rank) + '</div>'
       + '<div class="contributor">'
       +   '<img src="' + e.avatar + '" alt="' + e.login + '" width="32" height="32" loading="lazy">'
-      +   '<a class="name" href="https://github.com/' + e.login + '" target="_blank" rel="noopener">' + e.login + '</a>'
-      +   '<a class="gh-icon" href="https://github.com/' + e.login + '" target="_blank" rel="noopener" title="View on GitHub">' + ghIcon() + '</a>'
+      +   '<div class="hover-card-anchor">'
+      +     '<a class="name" href="https://github.com/' + e.login + '" target="_blank" rel="noopener">' + e.login + '</a>'
+      +     '<a class="gh-icon" href="https://github.com/' + e.login + '" target="_blank" rel="noopener" title="View on GitHub">' + ghIcon() + '</a>'
+      +     hoverCard
+      +   '</div>'
       + '</div>'
       + '<div class="stats-cell"><div class="completed">' + e.completed.toLocaleString() + '</div></div>'
       + '<div style="display:flex;justify-content:center"><span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + e.tier + '</span></div>'

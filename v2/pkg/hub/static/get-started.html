@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Get Started — Hive Hub</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #e6edf3; }
+    .nav { position: fixed; top: 0; width: 100%; z-index: 50; background: rgba(10,10,15,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid #1e1e2e; }
+    .nav-inner { max-width: 900px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: #e6edf3; text-decoration: none; }
+    .nav-links { display: flex; gap: 20px; font-size: 0.85rem; }
+    .nav-links a { color: #8b949e; text-decoration: none; }
+    .nav-links a:hover { color: #e6edf3; }
+    .content { max-width: 900px; margin: 0 auto; padding: 80px 24px 48px; }
+    h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 24px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    h2 { font-size: 1.4rem; font-weight: 700; margin: 32px 0 12px; color: #e6edf3; }
+    h3 { font-size: 1.1rem; margin: 16px 0 8px; color: #fbbf24; }
+    p { color: #8b949e; line-height: 1.7; margin-bottom: 16px; }
+    a { color: #f59e0b; }
+    ol, ul { color: #8b949e; line-height: 1.8; margin: 0 0 16px 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #e6edf3; }
+    pre { background: #12121a; border: 1px solid #1e1e2e; border-radius: 8px; padding: 16px; margin: 12px 0 20px; overflow-x: auto; font-size: 0.85rem; color: #e6edf3; line-height: 1.6; }
+    code { background: #1e1e2e; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; color: #fbbf24; }
+    pre code { background: none; padding: 0; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; margin-left: 8px; }
+    .badge-ready { background: rgba(22,163,74,0.15); color: #22c55e; border: 1px solid rgba(22,163,74,0.3); }
+    .badge-soon { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+    .card { background: #12121a; border: 1px solid #1e1e2e; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand"><span>🐝</span> Hive Hub</a>
+      <div class="nav-links">
+        <a href="/">Hives</a>
+        <a href="/learn">Learn</a>
+        <a href="/get-started">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="content">
+    <h1>Get Started with Hive</h1>
+
+    <h2>Option 1: Local Install <span class="badge badge-ready">Ready</span></h2>
+    <p>Run Hive v2 on your own machine with Docker Compose. Your agents, your repos, your infrastructure.</p>
+
+    <h3>Prerequisites</h3>
+    <ul>
+      <li>Docker and Docker Compose</li>
+      <li>A GitHub personal access token or GitHub App credentials</li>
+      <li>A GitHub repository to manage</li>
+    </ul>
+
+    <h3>Quick Start</h3>
+    <pre><code># Clone the repo
+git clone https://github.com/kubestellar/hive.git
+cd hive/v2
+
+# Copy and edit the config
+cp deploy/hive.yaml /path/to/your/hive.yaml
+# Edit hive.yaml: set your org, repos, GitHub token
+
+# Start with Docker Compose
+docker compose up -d
+
+# Open the dashboard
+open http://localhost:3001</code></pre>
+
+    <h3>Configuration</h3>
+    <p>Edit <code>hive.yaml</code> to configure:</p>
+    <ul>
+      <li><strong>project.org</strong> &mdash; your GitHub organization</li>
+      <li><strong>project.repos</strong> &mdash; list of repos to manage</li>
+      <li><strong>github.token</strong> &mdash; PAT or App credentials</li>
+      <li><strong>agents</strong> &mdash; which agents to run (scanner, guide, quality, etc.)</li>
+      <li><strong>governor</strong> &mdash; thresholds, cadences, budget</li>
+    </ul>
+
+    <h3>Register with Hive Hub</h3>
+    <p>To make your hive visible on <a href="/">hive.kubestellar.io</a>, add this to your environment:</p>
+    <pre><code># Push status to the hub every eval cycle
+HIVE_HUB_URL=https://hive.kubestellar.io</code></pre>
+    <p>Your hive will appear in the Active Hives table within 5 minutes. Set <code>HIVE_PUBLIC=false</code> to keep it private.</p>
+
+    <h2>Option 2: SaaS <span class="badge badge-soon">Coming Soon</span></h2>
+    <p>We're building a hosted version where you can spin up a hive instance without managing infrastructure. Sign up to be notified:</p>
+    <div class="card">
+      <h3>How SaaS will work</h3>
+      <ol>
+        <li>Login with GitHub at hive.kubestellar.io</li>
+        <li>Click "Create Hive" and select your org/repos</li>
+        <li>A pre-provisioned instance is assigned to you</li>
+        <li>Invite contributors to run agents (you don't need your own compute)</li>
+        <li>Manage access: read-only, write, or admin per user</li>
+      </ol>
+      <p style="margin-top:12px"><strong>Note:</strong> SaaS hives use the <a href="/learn">contribute-hive</a> model &mdash; the platform provisions the instance, but contributors bring the compute to run agents.</p>
+    </div>
+
+    <h2>Contributing Agents</h2>
+    <p>You can contribute your compute to run agents for any public hive:</p>
+    <pre><code># Install the contribute CLI
+npx @kubestellar/hive-contribute
+
+# Connect to a hive
+hive-contribute connect https://hive.kubestellar.io/hive/HIVE_ID
+
+# Your CLI runs agents locally, tasks are assigned by the hive</code></pre>
+    <p>Contributors earn trust tiers (newcomer → contributor → trusted → advisor) based on completed tasks. See the <a href="/#leaderboard">leaderboard</a>.</p>
+  </div>
+</body>
+</html>

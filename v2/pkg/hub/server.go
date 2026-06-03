@@ -75,6 +75,8 @@ func NewHubServer(port int, logger *slog.Logger) *HubServer {
 	s.mux.HandleFunc("GET /api/registry", s.handleRegistry)
 	s.mux.HandleFunc("GET /api/hub/leaderboard", s.handleLeaderboard)
 	s.mux.HandleFunc("GET /api/hub/stats", s.handleStats)
+	s.mux.HandleFunc("GET /learn", s.serveStatic("static/learn.html"))
+	s.mux.HandleFunc("GET /get-started", s.serveStatic("static/get-started.html"))
 	s.mux.Handle("GET /", http.FileServerFS(staticFS))
 
 	s.registerOAuth()
@@ -253,6 +255,18 @@ func (s *HubServer) mergeLeaderboards() []LeaderboardEntry {
 		result = append(result, *v)
 	}
 	return result
+}
+
+func (s *HubServer) serveStatic(path string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data, err := staticFS.ReadFile(path)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(data)
+	}
 }
 
 func (s *HubServer) loadRegistry() {

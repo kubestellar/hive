@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Learn — Hive Hub</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #e6edf3; }
+    .nav { position: fixed; top: 0; width: 100%; z-index: 50; background: rgba(10,10,15,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid #1e1e2e; }
+    .nav-inner { max-width: 900px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: #e6edf3; text-decoration: none; }
+    .nav-links { display: flex; gap: 20px; font-size: 0.85rem; }
+    .nav-links a { color: #8b949e; text-decoration: none; }
+    .nav-links a:hover { color: #e6edf3; }
+    .content { max-width: 900px; margin: 0 auto; padding: 80px 24px 48px; }
+    h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 24px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    h2 { font-size: 1.4rem; font-weight: 700; margin: 32px 0 12px; color: #e6edf3; }
+    p { color: #8b949e; line-height: 1.7; margin-bottom: 16px; }
+    a { color: #f59e0b; }
+    ul { color: #8b949e; line-height: 1.8; margin: 0 0 16px 24px; }
+    li { margin-bottom: 4px; }
+    strong { color: #e6edf3; }
+    .card { background: #12121a; border: 1px solid #1e1e2e; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+    .card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+    code { background: #1e1e2e; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; color: #fbbf24; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand"><span>🐝</span> Hive Hub</a>
+      <div class="nav-links">
+        <a href="/">Hives</a>
+        <a href="/learn">Learn</a>
+        <a href="/get-started">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="content">
+    <h1>What is Hive?</h1>
+    <p>Hive is an open source AI agent orchestration system. A fleet of specialized agents autonomously maintain GitHub repositories &mdash; triaging issues, writing fixes, opening PRs, and merging on green CI. A governor dynamically adjusts agent pace based on issue queue depth.</p>
+
+    <h2>ACMM Framework</h2>
+    <p>The <strong>AI-native Codebase Maturity Model (ACMM)</strong> defines 6 levels of AI agent autonomy, from advisory-only (L1) to fully autonomous (L6). Each level controls which agents are active and what actions they can take.</p>
+    <div class="grid">
+      <div class="card"><h3>L1 — Idea</h3><p>Advisory only. Agents analyze but don't act. Beads and heartbeat logs only.</p></div>
+      <div class="card"><h3>L2 — Measured</h3><p>Agents can open issues. No PRs. Quality gates begin.</p></div>
+      <div class="card"><h3>L3 — CI/CD</h3><p>Agents open hold-gated PRs. CI must pass. Human approval required.</p></div>
+      <div class="card"><h3>L4 — Autonomous PR</h3><p>Agents open and merge PRs on green CI. Hold labels for safety.</p></div>
+      <div class="card"><h3>L5 — Self-Governing</h3><p>Full autonomy with budget controls. Governor manages pace and cost.</p></div>
+      <div class="card"><h3>L6 — Fully Autonomous</h3><p>Multi-loop orchestration. Outreach, community engagement. Highest trust.</p></div>
+    </div>
+
+    <h2>Agents</h2>
+    <ul>
+      <li><strong>Supervisor</strong> &mdash; agent health monitoring, sweep analysis, stall detection</li>
+      <li><strong>Scanner</strong> &mdash; triages issues, dispatches fixes, opens and merges PRs</li>
+      <li><strong>Guide</strong> &mdash; documentation gaps, onboarding analysis, advisory reviews</li>
+      <li><strong>CI-Maintainer</strong> &mdash; CI/CD health, workflow fixes, build monitoring</li>
+      <li><strong>Quality</strong> &mdash; test coverage, integration tests, quality gates</li>
+      <li><strong>Sec-Check</strong> &mdash; security scanning, PR security gate</li>
+      <li><strong>Architect</strong> &mdash; cross-cutting RFCs, refactors, new features</li>
+      <li><strong>Strategist</strong> &mdash; experiment design, A/B testing, strategy lab</li>
+      <li><strong>Outreach</strong> &mdash; ADOPTERS outreach, community engagement</li>
+      <li><strong>Brainstorm</strong> &mdash; on-demand ideation via Inception</li>
+    </ul>
+
+    <h2>Key Features</h2>
+    <ul>
+      <li><strong>Governor</strong> &mdash; dynamic mode switching (idle/quiet/busy/surge) with per-agent cadences</li>
+      <li><strong>Inception</strong> &mdash; interactive project scaffolding with llm-wiki and spec-kit</li>
+      <li><strong>Knowledge Base</strong> &mdash; shared facts, wiki vaults, cross-agent priming</li>
+      <li><strong>Audit Logging</strong> &mdash; all state changes logged with who/when/why</li>
+      <li><strong>ACMM Proxy</strong> &mdash; per-agent HTTP proxy enforcing mode restrictions</li>
+      <li><strong>Contributing</strong> &mdash; community agent contribution system</li>
+    </ul>
+
+    <h2>Resources</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2604.09388" target="_blank">ACMM Paper (arXiv)</a></li>
+      <li><a href="https://github.com/kubestellar/hive" target="_blank">Source Code</a></li>
+      <li><a href="https://kubestellar.io/en/acmm-leaderboard" target="_blank">ACMM Leaderboard</a></li>
+    </ul>
+  </div>
+</body>
+</html>

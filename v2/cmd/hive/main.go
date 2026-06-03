@@ -603,10 +603,19 @@ func main() {
 	inceptionEngine := knowledge.NewInceptionEngine("/data", knowledgeAPI, logger)
 	sched.SetInception(inceptionEngine)
 
-	// Brainstorm is on-demand only — always start paused. The inception
-	// watcher will resume it when needed via RestartWithBootstrap.
-	if err := agentMgr.Pause("brainstorm", "startup", "on-demand agent — triggered by inception only"); err != nil {
-		logger.Debug("brainstorm pause on startup", "error", err)
+	// Brainstorm is on-demand only. If inception is active (state on disk),
+	// resume with bootstrap override. Otherwise start paused.
+	if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
+		msg := sched.BuildAgentMessage("brainstorm", nil, nil)
+		if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
+			logger.Warn("failed to resume brainstorm for active inception", "error", err)
+		} else {
+			logger.Info("brainstorm resumed for active inception", "phase", state.Phase)
+		}
+	} else {
+		if err := agentMgr.Pause("brainstorm", "startup", "on-demand agent — triggered by inception only"); err != nil {
+			logger.Debug("brainstorm pause on startup", "error", err)
+		}
 	}
 
 	dashSrv.RegisterAPI(&dashboard.Dependencies{

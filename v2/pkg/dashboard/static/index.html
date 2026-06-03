@@ -6370,17 +6370,21 @@ function burnAreaChart() {
           const restoreName = _ocSelectedAgent;
           ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll();
           requestAnimationFrame(() => {
-            const detail = document.getElementById('oc-agent-detail');
-            if (detail) {
-              detail.classList.add('active');
-              const y = detail.getBoundingClientRect().top + window.scrollY - OC_TOPBAR_HEIGHT;
-              window.scrollTo({ top: y, behavior: 'instant' });
-            }
+            setTimeout(() => {
+              const detail = document.getElementById('oc-agent-detail');
+              if (detail) {
+                detail.classList.add('active');
+                const y = detail.getBoundingClientRect().top + window.scrollY - OC_TOPBAR_HEIGHT;
+                window.scrollTo({ top: y, behavior: 'instant' });
+              }
+            }, 100);
           });
         } else {
           const savedSection = _ocSectionFromHash();
           if (savedSection) {
-            requestAnimationFrame(() => { ocNavigate(savedSection); });
+            requestAnimationFrame(() => {
+              setTimeout(() => { ocNavigate(savedSection); }, 100);
+            });
           }
         }
       } else if (_ocSelectedAgent) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -299,14 +300,17 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
 		if s.authToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" && r.URL.Path != "/api/auth/token" {
-			token := r.Header.Get("Authorization")
-			if token == "" {
-				token = r.URL.Query().Get("token")
-			}
-			expected := "Bearer " + s.authToken
-			if token != expected && token != s.authToken {
-				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-				return
+			host, _, _ := net.SplitHostPort(r.RemoteAddr)
+			if host != "127.0.0.1" && host != "::1" {
+				token := r.Header.Get("Authorization")
+				if token == "" {
+					token = r.URL.Query().Get("token")
+				}
+				expected := "Bearer " + s.authToken
+				if token != expected && token != s.authToken {
+					http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+					return
+				}
 			}
 		}
 

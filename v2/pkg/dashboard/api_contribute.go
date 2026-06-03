@@ -772,7 +772,7 @@ func (s *Server) handleLeaderboardPage(w http.ResponseWriter, _ *http.Request) {
 	entriesJSON.WriteString("]")
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, leaderboardHTML, projectName, projectName, len(entries), entriesJSON.String())
+	fmt.Fprintf(w, leaderboardHTML, projectName, projectName, projectName, len(entries), entriesJSON.String())
 }
 
 // leaderboardHTML is the full HTML template for the leaderboard page,
@@ -951,7 +951,7 @@ overflow:hidden;pointer-events:none}
 <div class="content">
   <!-- Header -->
   <section class="header">
-    <h1>Contributor <span class="gradient-text">Leaderboard</span></h1>
+    <h1>%s Hive Contributor <span class="gradient-text">Leaderboard</span></h1>
     <p class="subtitle">Top contributors ranked by completed tasks across %s repositories</p>
     <p class="meta">Tracking contributions from <strong style="color:#e5e7eb">%d</strong> registered contributors</p>
     <div style="margin-top:24px;display:flex;justify-content:center">

@@ -199,6 +199,10 @@ func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
 	sort.Slice(resolved, func(i, j int) bool {
 		return resolved[i].ClosedAt.After(resolved[j].ClosedAt)
 	})
+	const maxRecentlyResolved = 100
+	if len(resolved) > maxRecentlyResolved {
+		resolved = resolved[:maxRecentlyResolved]
+	}
 	return &Digest{
 		GeneratedAt:      time.Now(),
 		Mode:             mode,

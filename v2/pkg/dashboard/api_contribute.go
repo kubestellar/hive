@@ -356,9 +356,13 @@ cmds.textContent=tpl.replace('CLI',cli);
 }
 sel.addEventListener('change',update);
 document.getElementById('copy-btn').addEventListener('click',function(){
-navigator.clipboard.writeText(cmds.textContent.trim()).then(function(){
-var b=document.getElementById('copy-btn');b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},2000);
-});
+var el=cmds;var btn=document.getElementById('copy-btn');
+var range=document.createRange();range.selectNodeContents(el);
+var s=window.getSelection();s.removeAllRanges();s.addRange(range);
+var ok=false;try{ok=document.execCommand('copy')}catch(e){}
+if(!ok&&navigator.clipboard){navigator.clipboard.writeText(el.textContent.trim()).catch(function(){});ok=true}
+btn.textContent=ok?'Copied!':'Select + Cmd+C';btn.style.background='#16a34a';
+setTimeout(function(){btn.textContent='Copy';btn.style.background='#238636'},2000);
 });
 })();
 </script>

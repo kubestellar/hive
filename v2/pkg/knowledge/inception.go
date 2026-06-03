@@ -432,7 +432,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	// Core documentation
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "README.md",
-		Content: buildReadme(vision, requirements, constraints, stakeholders),
+		Content: buildReadme(vision, constitution, requirements, constraints, stakeholders),
 		Purpose: "readme",
 		IsNew:   true,
 	})
@@ -834,7 +834,7 @@ func defaultConfidence(ft FactType) float64 {
 
 // --- scaffold builders ---
 
-func buildReadme(vision *Fact, reqs, constraints, stakeholders []Fact) string {
+func buildReadme(vision, constitution *Fact, reqs, constraints, stakeholders []Fact) string {
 	var b strings.Builder
 
 	title := "Project"
@@ -845,7 +845,14 @@ func buildReadme(vision *Fact, reqs, constraints, stakeholders []Fact) string {
 	fmt.Fprintf(&b, "# %s\n\n", title)
 
 	if vision != nil {
+		b.WriteString("## Overview\n\n")
 		b.WriteString(vision.Body)
+		b.WriteString("\n\n")
+	}
+
+	if constitution != nil {
+		b.WriteString("## Architecture & Principles\n\n")
+		b.WriteString(constitution.Body)
 		b.WriteString("\n\n")
 	}
 

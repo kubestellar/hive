@@ -279,7 +279,7 @@ func TestWSDisconnectCleansUp(t *testing.T) {
 	}
 }
 
-func TestWSTaskComplete(t *testing.T) {
+func TestWSTaskCompleteUnassigned(t *testing.T) {
 	s, ts := setupWSTest(t)
 	defer ts.Close()
 
@@ -301,22 +301,21 @@ func TestWSTaskComplete(t *testing.T) {
 	conn.WriteJSON(WSMessage{Type: "auth_response", RegistrationToken: reg["registration_token"], CLIBackend: "claude"})
 	readMsg(t, conn)
 
-	// Simulate task completion
+	// Send task_complete for a task that was never assigned — should be ignored
 	conn.WriteJSON(WSMessage{
 		Type:    "task_complete",
-		TaskID:  "ct-test-123",
+		TaskID:  "FAKE-NEVER-ASSIGNED",
 		Result:  "pr_created",
-		Summary: "Fixed the bug",
+		Summary: "Fake completion",
 	})
 
-	// Verify profile updated
 	time.Sleep(50 * time.Millisecond)
 	p := findContributor(reg["contributor_id"])
 	if p == nil {
 		t.Fatal("contributor not found")
 	}
-	if p.TasksCompleted != 1 {
-		t.Fatalf("expected 1 completed, got %d", p.TasksCompleted)
+	if p.TasksCompleted != 0 {
+		t.Fatalf("expected 0 completed (unassigned task ignored), got %d", p.TasksCompleted)
 	}
 }
 

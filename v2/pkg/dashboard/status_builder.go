@@ -99,6 +99,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 	currentMode := strings.ToLower(string(govState.Mode))
 
 	packAllowed := acmmPackAllowedSet(cfg)
+	onDemandSet := config.OnDemandAgentsFromPacks()
 
 	names := make([]string, 0, len(statuses))
 	for name := range statuses {
@@ -225,7 +226,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 		a.DefaultMode = defaultMode.String()
 		a.IsCustomMode = mode != defaultMode
 		a.NeedsRestart = proc.HasLaunched && proc.LaunchedMode != mode
-		a.OnDemand = agentCfg.OnDemand
+		a.OnDemand = agentCfg.OnDemand || onDemandSet[name]
 		if proxyViolationsFn != nil {
 			a.ProxyViolations = proxyViolationsFn()[name]
 		}

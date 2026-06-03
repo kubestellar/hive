@@ -182,8 +182,9 @@ function checkTmuxIdle() {
     const text = output.toString();
     const hasIdlePrompt = /bypass permissions|shift\+tab to cycle/.test(text);
     const hasCompletionMarker = /Brewed for|Honking|Crunched for|Worked for|tokens\)/.test(text);
-    const isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching/.test(text);
-    return hasIdlePrompt && hasCompletionMarker && !isWorking;
+    const isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching|ing…/.test(text);
+    const hasErrors = /Error:|BLOCKED:|fatal:|failed|Interrupted/.test(text);
+    return hasIdlePrompt && hasCompletionMarker && !isWorking && !hasErrors;
   } catch (_) {
     return false;
   }

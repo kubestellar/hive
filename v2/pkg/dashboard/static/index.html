@@ -1811,18 +1811,28 @@
 
   <aside id="hive-info-sidebar">
     <h3>What is Hive?</h3>
-    <p>Hive is an open source AI Agent Orchestration system where AI agents autonomously maintain software repos. It&rsquo;s configurable for any GitHub repository. A governor controls agent pace based on queue depth. This dashboard shows it running live on KubeStellar.</p>
+    <p>Hive is an open source AI agent orchestration system. A fleet of specialized agents autonomously maintain GitHub repositories &mdash; triaging issues, writing fixes, opening PRs, and merging on green CI. A governor dynamically adjusts agent pace based on issue queue depth across four modes (idle/quiet/busy/surge). ACMM maturity levels (1&ndash;6) control which agents are active and what actions they can take.</p>
     <h4 style="font-size:0.82rem;color:#f0f6fc;margin:14px 0 6px 0;">Agents</h4>
     <ul style="list-style:none;padding:0;margin:0 0 14px 0;font-size:0.78rem;color:#8b949e;line-height:1.6;">
-      <li><strong style="color:#c9d1d9;">Scanner</strong> &mdash; triages issues, dispatches fixes, merges PRs</li>
-      <li><strong style="color:#c9d1d9;">Guide</strong> &mdash; architecture analysis, code walkthroughs, advisory reviews</li>
-      <li><strong style="color:#c9d1d9;">CI-Maintainer</strong> &mdash; CI health, workflow fixes, GA4 monitoring</li>
-      <li><strong style="color:#c9d1d9;">Architect</strong> &mdash; cross-cutting RFCs, refactors, new features</li>
-      <li><strong style="color:#c9d1d9;">Outreach</strong> &mdash; ADOPTERS outreach, community engagement</li>
-      <li><strong style="color:#c9d1d9;">Sec-Check</strong> &mdash; security gate on PRs, contributor vetting</li>
+      <li><strong style="color:#c9d1d9;">Supervisor</strong> &mdash; agent health monitoring, sweep analysis, stall detection, escalation</li>
+      <li><strong style="color:#c9d1d9;">Scanner</strong> &mdash; triages issues, dispatches fixes, opens and merges PRs</li>
+      <li><strong style="color:#c9d1d9;">Guide</strong> &mdash; documentation gaps, onboarding analysis, advisory reviews</li>
+      <li><strong style="color:#c9d1d9;">CI-Maintainer</strong> &mdash; CI/CD health, workflow fixes, build monitoring</li>
       <li><strong style="color:#c9d1d9;">Quality</strong> &mdash; test coverage, integration tests, quality gates</li>
+      <li><strong style="color:#c9d1d9;">Sec-Check</strong> &mdash; security scanning, PR security gate, contributor vetting</li>
+      <li><strong style="color:#c9d1d9;">Architect</strong> &mdash; cross-cutting RFCs, refactors, new features</li>
       <li><strong style="color:#c9d1d9;">Strategist</strong> &mdash; experiment design, A/B testing, strategy lab</li>
-      <li><strong style="color:#c9d1d9;">Supervisor</strong> &mdash; monitors all agents, detects stalls, reports status</li>
+      <li><strong style="color:#c9d1d9;">Outreach</strong> &mdash; ADOPTERS outreach, ACMM badge campaigns, community engagement</li>
+      <li><strong style="color:#c9d1d9;">Brainstorm</strong> &mdash; on-demand ideation via Inception; proposes features and architecture directions</li>
+    </ul>
+    <h4 style="font-size:0.82rem;color:#f0f6fc;margin:14px 0 6px 0;">Key Features</h4>
+    <ul style="list-style:none;padding:0;margin:0 0 14px 0;font-size:0.78rem;color:#8b949e;line-height:1.6;">
+      <li><strong style="color:#c9d1d9;">ACMM Levels</strong> &mdash; 6 maturity levels from advisory-only (L1) to fully autonomous (L6)</li>
+      <li><strong style="color:#c9d1d9;">Governor</strong> &mdash; dynamic mode switching with per-agent cadences and budget controls</li>
+      <li><strong style="color:#c9d1d9;">Inception</strong> &mdash; interactive project scaffolding via brainstorm agent with clarify/structure/scaffold phases</li>
+      <li><strong style="color:#c9d1d9;">Knowledge Base</strong> &mdash; shared facts, wiki vaults, and cross-agent knowledge priming</li>
+      <li><strong style="color:#c9d1d9;">Audit Logging</strong> &mdash; all agent state changes logged with who/when/why for diagnostics</li>
+      <li><strong style="color:#c9d1d9;">ACMM Proxy</strong> &mdash; per-agent HTTP proxy enforcing mode-based action restrictions</li>
     </ul>
     <ul class="sidebar-links">
       <li><a href="https://arxiv.org/abs/2604.09388" target="_blank" rel="noopener">&#128196; ACMM Paper</a></li>
@@ -1830,7 +1840,7 @@
       <li><a href="https://github.com/kubestellar/hive" target="_blank" rel="noopener">&#128230; Source Code</a></li>
       <li><a href="https://kubestellar.io/en/acmm-leaderboard" target="_blank" rel="noopener">&#128202; ACMM Leaderboard</a></li>
       <li><a href="https://kubestellar.io/en/leaderboard" target="_blank" rel="noopener">&#127942; Contributor Leaderboard</a></li>
-      <li><a href="https://kubestellar.medium.com/plaque-the-silent-killer-of-ai-agent-reliability-f5c5318c4e9c" target="_blank" rel="noopener">&#128221; Blog: Plaque — Silent Killer</a></li>
+      <li><a href="https://kubestellar.medium.com/plaque-the-silent-killer-of-ai-agent-reliability-f5c5318c4e9c" target="_blank" rel="noopener">&#128221; Blog: Plaque &mdash; Silent Killer</a></li>
       <li><a href="https://kubestellar.medium.com/intentional-amnesia-why-i-wipe-my-ai-agents-memories-every-15-minutes-1c27e9dcbf0a" target="_blank" rel="noopener">&#128221; Blog: Intentional Amnesia</a></li>
       <li><a href="https://medium.com/p/b9381a7e9773" target="_blank" rel="noopener">&#128221; Blog: ACMM Framework</a></li>
     </ul>

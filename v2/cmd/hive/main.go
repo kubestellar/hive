@@ -438,6 +438,36 @@ func main() {
 		logger.Info("beads store initialized", "agent", name, "count", store.Count())
 	}
 
+	// Scan /data/beads/ for agent directories that have beads.json files on
+	// disk but are not covered by the enabled-agent loop above. This handles
+	// agents that were disabled between restarts or added by a previous ACMM
+	// pack that is no longer active.
+	const beadsRootDir = "/data/beads"
+	if entries, err := os.ReadDir(beadsRootDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			if _, exists := beadStores[name]; exists {
+				continue // already loaded from config
+			}
+			agentBeadsDir := filepath.Join(beadsRootDir, name)
+			beadsFile := filepath.Join(agentBeadsDir, "beads.json")
+			if _, statErr := os.Stat(beadsFile); statErr != nil {
+				continue // no beads.json in this directory
+			}
+			store, err := beads.NewStore(agentBeadsDir)
+			if err != nil {
+				logger.Warn("failed to load orphan beads store", "agent", name, "error", err)
+				continue
+			}
+			store.SetHiveID(cfg.HiveID)
+			beadStores[name] = store
+			logger.Info("orphan beads store loaded from disk", "agent", name, "count", store.Count())
+		}
+	}
+
 	initAgentConfigDrivenSystems(cfg)
 
 	tokenCollector := tokens.NewCollector(cfg.Data.MetricsDir, logger)
@@ -1024,6 +1054,15 @@ func runEvalCycle(
 			if persisted := advisory.PersistAsBeads(findings, beadStores); persisted > 0 {
 				logger.Info("advisory findings persisted as beads", "count", persisted)
 			}
+		}
+	}
+
+	// Reload bead stores from disk before building the digest. Agents write
+	// beads via the bd CLI which persists directly to disk, so the in-memory
+	// stores can become stale between eval cycles.
+	for name, store := range beadStores {
+		if err := store.Reload(); err != nil {
+			logger.Warn("failed to reload beads from disk", "agent", name, "error", err)
 		}
 	}
 

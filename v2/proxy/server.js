@@ -61,9 +61,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/api', createProxyMiddleware({
+const apiProxy = createProxyMiddleware({
   target: GO_API_URL,
   changeOrigin: true,
+  ws: true,
   pathRewrite: (path) => `/api${path}`,
   on: {
     error(err, req, res) {
@@ -74,7 +75,8 @@ app.use('/api', createProxyMiddleware({
       }
     },
   },
-}));
+});
+app.use('/api', apiProxy);
 
 const ttydProxy = createProxyMiddleware({
   target: TTYD_URL,
@@ -125,6 +127,10 @@ const server = app.listen(PROXY_PORT, () => {
 });
 
 server.on('upgrade', (req, socket, head) => {
+  if (req.url.startsWith('/api/contribute/ws')) {
+    apiProxy.upgrade(req, socket, head);
+    return;
+  }
   if (req.url.startsWith('/terminal')) {
     if (DASHBOARD_TOKEN) {
       const params = new URL(req.url, `http://${req.headers.host}`).searchParams;

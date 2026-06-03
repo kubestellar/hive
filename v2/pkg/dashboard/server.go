@@ -49,6 +49,8 @@ type Server struct {
 	deviceFlowMu    sync.Mutex
 	deviceFlowState *github.DeviceFlowState
 
+	contributeHub *ContributeWSHub
+
 	ready bool
 }
 
@@ -319,7 +321,7 @@ func (s *Server) UpdateStatus(status *StatusPayload) {
 		status.ACMMLevel = detectACMMLevel(s.deps.Config)
 		status.ACMMPackAgents = buildACMMPackAgents(s.deps.Config)
 	}
-	status.ContributorPool = BuildContributorPoolStatus()
+	status.ContributorPool = s.BuildContributorPoolStatus()
 
 	s.statusMu.Lock()
 	status.Timestamp = time.Now().UTC().Format(time.RFC3339)

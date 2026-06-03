@@ -875,6 +875,7 @@ func main() {
 	}
 
 	logger.Info("entering governor loop", "interval_seconds", cfg.Governor.EvalIntervalS)
+	lastEvalInterval := cfg.Governor.EvalIntervalS
 	ticker := time.NewTicker(time.Duration(cfg.Governor.EvalIntervalS) * time.Second)
 	defer ticker.Stop()
 
@@ -932,6 +933,12 @@ func main() {
 			}
 			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, restarted, logger)
 			persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
+			if cfg.Governor.EvalIntervalS != lastEvalInterval && cfg.Governor.EvalIntervalS > 0 {
+				logger.Info("eval interval changed, resetting ticker",
+					"from", lastEvalInterval, "to", cfg.Governor.EvalIntervalS)
+				ticker.Reset(time.Duration(cfg.Governor.EvalIntervalS) * time.Second)
+				lastEvalInterval = cfg.Governor.EvalIntervalS
+			}
 		case <-agentTickCh:
 			govState := gov.GetState()
 			agentStatuses := agentMgr.AllStatuses()

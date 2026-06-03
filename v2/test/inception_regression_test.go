@@ -322,3 +322,25 @@ func TestRegression_Bug56_UnknownAnswerIDRejected(t *testing.T) {
 	}
 	client.post("/api/inception/reset", nil)
 }
+
+func TestRegression_Bug58_EmptyFactsArrayRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "empty facts test"})
+	data, code, _ := client.post("/api/inception/facts", map[string]interface{}{
+		"facts": []map[string]string{},
+	})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("RecordFacts should reject empty facts array")
+		}
+	}
+	// Verify phase did NOT advance
+	stateData, _, _ := client.get("/api/inception/state")
+	state, _ := stateData["state"].(map[string]interface{})
+	if state != nil && state["phase"] == "scaffold" {
+		t.Error("phase should not advance to scaffold with empty facts")
+	}
+	client.post("/api/inception/reset", nil)
+}

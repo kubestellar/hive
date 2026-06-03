@@ -230,6 +230,10 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 		return fmt.Errorf("no inception in progress")
 	}
 
+	if len(facts) == 0 {
+		return fmt.Errorf("at least one fact is required")
+	}
+
 	for _, f := range facts {
 		if !f.Type.IsIdeation() {
 			return fmt.Errorf("invalid ideation fact type: %q", f.Type)

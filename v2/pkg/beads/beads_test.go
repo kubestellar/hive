@@ -409,8 +409,8 @@ func TestSetMetadata_StoresKeyValue(t *testing.T) {
 	}
 
 	got, _ := s.Get(b.ID)
-	if got.Metadata["env"] != "prod" {
-		t.Errorf("Metadata[env]: got %q, want %q", got.Metadata["env"], "prod")
+	if got.Meta("env") != "prod" {
+		t.Errorf("Metadata[env]: got %q, want %q", got.Meta("env"), "prod")
 	}
 }
 

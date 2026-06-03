@@ -86,12 +86,23 @@ type Bead struct {
 	Priority    Priority          `json:"priority"`
 	Actor       string            `json:"actor"`
 	ExternalRef string            `json:"external_ref,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 	Notes       string            `json:"notes,omitempty"`
 	CreatedAt   flexTime          `json:"created_at"`
 	UpdatedAt   flexTime          `json:"updated_at"`
 	ClosedAt    *flexTime         `json:"closed_at,omitempty"`
 	DependsOn   []string          `json:"depends_on,omitempty"`
+}
+
+// Meta returns a metadata value as a string, or "" if missing/non-string.
+func (b *Bead) Meta(key string) string {
+	if v, ok := b.Metadata[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+		return fmt.Sprintf("%v", v)
+	}
+	return ""
 }
 
 type Store struct {
@@ -133,7 +144,7 @@ func (s *Store) Create(title string, beadType BeadType, priority Priority, actor
 	defer s.mu.Unlock()
 
 	now := flexTime{time.Now().UTC()}
-	metadata := make(map[string]string)
+	metadata := make(map[string]interface{})
 	if s.hiveID != "" {
 		metadata[hiveIDMetadataKey] = s.hiveID
 	}
@@ -261,7 +272,7 @@ func (s *Store) AddDependency(beadID, dependsOnID string) error {
 func (s *Store) SetMetadata(id, key, value string) error {
 	return s.Update(id, func(b *Bead) {
 		if b.Metadata == nil {
-			b.Metadata = make(map[string]string)
+			b.Metadata = make(map[string]interface{})
 		}
 		b.Metadata[key] = value
 	})
@@ -336,7 +347,7 @@ func (s *Store) CloseAll(reason string) (int, error) {
 			b.ClosedAt = &now
 			b.UpdatedAt = now
 			if b.Metadata == nil {
-				b.Metadata = make(map[string]string)
+				b.Metadata = make(map[string]interface{})
 			}
 			b.Metadata["close_reason"] = reason
 			closed++

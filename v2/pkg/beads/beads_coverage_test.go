@@ -23,8 +23,8 @@ func TestSetHiveID(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if b.Metadata[hiveIDMetadataKey] != "test-hive-42" {
-		t.Errorf("hive_id metadata = %q, want test-hive-42", b.Metadata[hiveIDMetadataKey])
+	if b.Meta(hiveIDMetadataKey) != "test-hive-42" {
+		t.Errorf("hive_id metadata = %q, want test-hive-42", b.Meta(hiveIDMetadataKey))
 	}
 }
 
@@ -41,7 +41,7 @@ func TestSetHiveID_Empty(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if _, ok := b.Metadata[hiveIDMetadataKey]; ok {
+	if b.Meta(hiveIDMetadataKey) != "" {
 		t.Error("hive_id should not be set when SetHiveID was not called")
 	}
 }

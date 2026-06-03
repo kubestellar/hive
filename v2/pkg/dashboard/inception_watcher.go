@@ -190,7 +190,7 @@ func (w *InceptionWatcher) findInceptionBeads() []*beads.Bead {
 func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 	var questions []knowledge.Question
 	for _, b := range inceptionBeads {
-		cat := b.Metadata["category"]
+		cat := b.Meta("category")
 		if cat == "" {
 			// Detect question beads by title prefix when metadata is missing
 			if strings.HasPrefix(b.Title, "Clarification:") || strings.HasPrefix(b.Title, "clarification:") {
@@ -199,7 +199,7 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 				continue
 			}
 		}
-		qID := b.Metadata["question_id"]
+		qID := b.Meta("question_id")
 		if qID == "" {
 			qID = cat
 		}
@@ -211,7 +211,7 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 		questions = append(questions, knowledge.Question{
 			ID:       qID,
 			Text:     title,
-			Default:  b.Metadata["default"],
+			Default:  b.Meta("default"),
 			Category: cat,
 		})
 	}
@@ -237,7 +237,7 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 func (w *InceptionWatcher) checkForFacts(ctx context.Context, inceptionBeads []*beads.Bead) {
 	var facts []knowledge.IdeationFact
 	for _, b := range inceptionBeads {
-		factType := b.Metadata["fact_type"]
+		factType := b.Meta("fact_type")
 		if factType == "" {
 			// Infer fact type from title when metadata is missing
 			factType = inferFactType(b.Title)
@@ -246,9 +246,9 @@ func (w *InceptionWatcher) checkForFacts(ctx context.Context, inceptionBeads []*
 			}
 		}
 
-		body := b.Metadata["fact_body"]
+		body := b.Meta("fact_body")
 		if body == "" {
-			body = b.Metadata["detail"]
+			body = b.Meta("detail")
 		}
 		if body == "" {
 			body = b.Notes
@@ -258,7 +258,7 @@ func (w *InceptionWatcher) checkForFacts(ctx context.Context, inceptionBeads []*
 		}
 
 		var tags []string
-		if t := b.Metadata["fact_tags"]; t != "" {
+		if t := b.Meta("fact_tags"); t != "" {
 			tags = strings.Split(t, ",")
 			for i := range tags {
 				tags[i] = strings.TrimSpace(tags[i])

@@ -186,10 +186,10 @@ func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
 				Detail:    b.Notes,
 				File:      b.ExternalRef,
 			}
-			if ft, ok := b.Metadata["finding_type"]; ok {
+			if ft := b.Meta("finding_type"); ft != "" {
 				f.Type = ft
 			}
-			if d, ok := b.Metadata["detail"]; ok && f.Detail == "" {
+			if d := b.Meta("detail"); d != "" && f.Detail == "" {
 				f.Detail = d
 			}
 			byAgent[agentName] = append(byAgent[agentName], f)

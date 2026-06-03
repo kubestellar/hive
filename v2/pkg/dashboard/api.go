@@ -2719,6 +2719,17 @@ func (s *Server) handleHiveIDSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const maxHiveIDLen = 64
+	if len(body.ID) > maxHiveIDLen {
+		jsonError(w, fmt.Sprintf("id must be at most %d characters", maxHiveIDLen), http.StatusBadRequest)
+		return
+	}
+	if !displayNamePattern.MatchString(body.ID) {
+		jsonError(w, "id must contain only alphanumeric characters, spaces, hyphens, and underscores", http.StatusBadRequest)
+		return
+	}
+	body.ID = sanitizeString(body.ID)
+
 	if s.deps != nil && s.deps.Config != nil {
 		s.deps.Config.HiveID = body.ID
 	}

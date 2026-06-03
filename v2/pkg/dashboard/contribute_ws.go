@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -477,6 +478,15 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 
 			title, _ := issue["title"].(string)
 			url, _ := issue["url"].(string)
+			author, _ := issue["author"].(string)
+
+			titleLower := strings.ToLower(title)
+			if strings.Contains(titleLower, "dependency dashboard") ||
+				strings.Contains(titleLower, "renovate dashboard") ||
+				strings.Contains(titleLower, "epic:") ||
+				strings.HasSuffix(author, "[bot]") {
+				continue
+			}
 
 			ghToken := ""
 			if h.server.deps != nil && h.server.deps.GHAppAuth != nil {

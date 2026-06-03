@@ -63,6 +63,52 @@ function injectGhToken(token) {
   fs.writeFileSync(GH_TOKEN_CACHE, token, { mode: 0o600 });
 }
 
+const CLI_READY_POLL_MS = 2000;
+const CLI_READY_TIMEOUT_MS = 120000;
+
+function isCLIReady() {
+  try {
+    const output = execSync(
+      `tmux capture-pane -t ${TMUX_SESSION} -p -S -3 2>/dev/null`,
+      { encoding: 'utf8', timeout: 5000 }
+    );
+    const lines = output.trim().split('\n');
+    const lastLine = lines[lines.length - 1] || '';
+    return /^>\s*$/.test(lastLine);
+  } catch (_) {
+    return false;
+  }
+}
+
+function waitForCLI() {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const check = () => {
+      if (isCLIReady()) {
+        console.log('CLI ready — accepting tasks');
+        resolve();
+      } else if (Date.now() - start > CLI_READY_TIMEOUT_MS) {
+        reject(new Error('CLI did not become ready within timeout'));
+      } else {
+        setTimeout(check, CLI_READY_POLL_MS);
+      }
+    };
+    check();
+  });
+}
+
+let cliReady = false;
+let pendingTask = null;
+
+waitForCLI().then(() => {
+  cliReady = true;
+  if (pendingTask) {
+    const task = pendingTask;
+    pendingTask = null;
+    tmuxSendKeys(task);
+  }
+}).catch(e => console.error(e.message));
+
 function tmuxSendKeys(text) {
   try {
     execSync(`tmux send-keys -t ${TMUX_SESSION} C-u`, { timeout: 5000 });
@@ -157,7 +203,13 @@ function handleMessage(data) {
       }
       fs.writeFileSync(TASK_FILE, JSON.stringify(msg, null, 2));
       send({ type: 'task_accepted', seq: nextSeq(), task_id: msg.task_id });
-      tmuxSendKeys(msg.prompt || `Work on ${msg.kind} ${msg.repo}#${msg.number}: ${msg.title}`);
+      const taskPrompt = msg.prompt || `Work on ${msg.kind} ${msg.repo}#${msg.number}: ${msg.title}`;
+      if (cliReady) {
+        tmuxSendKeys(taskPrompt);
+      } else {
+        console.log('CLI not ready yet — queuing task prompt');
+        pendingTask = taskPrompt;
+      }
       startProgressReporting();
       break;
 

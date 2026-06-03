@@ -2006,10 +2006,9 @@ func (m *Manager) SeedPauseState(name string, pausedAt time.Time, trigger, reaso
 
 func (m *Manager) Resume(ctx context.Context, name, trigger, reason string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	agent, ok := m.agents[name]
 	if !ok {
+		m.mu.Unlock()
 		return fmt.Errorf("agent %s not found", name)
 	}
 
@@ -2019,6 +2018,16 @@ func (m *Manager) Resume(ctx context.Context, name, trigger, reason string) erro
 	agent.PausedAt = time.Time{}
 	agent.PausedReason = ""
 	agent.PausedTrigger = ""
+	needsRelaunch := agent.State == StatePaused
+	if needsRelaunch {
+		agent.forceRelaunch = true
+	}
+	// Release the global agents-map lock before slow per-agent tmux
+	// operations (ensureTmuxSession + launchInTmux ~2s each). This allows
+	// concurrent Resume() calls for different agents to run in parallel
+	// instead of serializing on the mutex.
+	m.mu.Unlock()
+
 	m.logger.Info("audit: agent resumed",
 		"name", name,
 		"trigger", trigger,
@@ -2026,8 +2035,7 @@ func (m *Manager) Resume(ctx context.Context, name, trigger, reason string) erro
 		"prev_trigger", prevTrigger,
 		"prev_reason", prevReason,
 	)
-	if agent.State == StatePaused {
-		agent.forceRelaunch = true
+	if needsRelaunch {
 		if err := m.ensureTmuxSession(agent); err != nil {
 			return err
 		}

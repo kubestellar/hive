@@ -41,11 +41,32 @@ git checkout main 2>/dev/null || git checkout -b main origin/main
 git reset --hard origin/main
 
 # Build all three snapshots from the same API data
-mkdir -p public/live/hive/light public/live/hive/classic
+mkdir -p public/live/hive/light public/live/hive/classic public/live/hive/api-docs
 
 node "${SCRIPT_DIR}/build-snapshot.mjs" --mode light "$DASHBOARD_URL" public/live/hive/light/index.html
 node "${SCRIPT_DIR}/build-snapshot.mjs" --mode classic "$DASHBOARD_URL" public/live/hive/classic/index.html
 cp public/live/hive/light/index.html public/live/hive/index.html
+
+# Build static Redoc API docs page with inline spec
+SPEC_JSON=$(curl -sf "${DASHBOARD_URL}/api/openapi.json" || cat "${SCRIPT_DIR}/openapi.json")
+cat > public/live/hive/api-docs/index.html <<REDOC_EOF
+<!DOCTYPE html>
+<html><head>
+  <title>Hive API Reference</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+  <style>body { margin: 0; padding: 0; }</style>
+</head><body>
+  <div id="redoc-container"></div>
+  <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+  <script>
+    var spec = ${SPEC_JSON};
+    Redoc.init(spec, {}, document.getElementById('redoc-container'));
+  </script>
+</body></html>
+REDOC_EOF
+echo "Redoc API docs written to public/live/hive/api-docs/index.html"
 
 # Check if anything changed
 if git diff --quiet -- public/live/hive/; then

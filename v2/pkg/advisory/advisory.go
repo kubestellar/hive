@@ -167,7 +167,7 @@ func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
 					resolved = append(resolved, ResolvedFinding{
 						Agent:    agentName,
 						Title:    b.Title,
-						ClosedAt: *b.ClosedAt,
+						ClosedAt: b.ClosedAt.Time,
 						File:     b.ExternalRef,
 					})
 				}
@@ -179,7 +179,7 @@ func BuildDigestFromBeads(stores map[string]*beads.Store, mode string) *Digest {
 			seen[b.Title] = true
 			f := Finding{
 				Agent:     agentName,
-				Timestamp: b.CreatedAt,
+				Timestamp: b.CreatedAt.Time,
 				Type:      string(b.Type),
 				Severity:  beadPriorityToSeverity(b.Priority),
 				Title:     b.Title,

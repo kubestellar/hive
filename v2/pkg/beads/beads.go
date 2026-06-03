@@ -44,6 +44,40 @@ const (
 	PriorityMinor    Priority = 4
 )
 
+// flexTime wraps time.Time with lenient JSON parsing that accepts
+// RFC3339 and common short forms like "2006-01-02T15:04Z".
+type flexTime struct{ time.Time }
+
+var flexTimeFormats = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04Z",
+	"2006-01-02T15:04-07:00",
+	"2006-01-02T15:04:05",
+	"2006-01-02",
+}
+
+func (ft *flexTime) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	if s == "" {
+		return nil
+	}
+	for _, layout := range flexTimeFormats {
+		if t, err := time.Parse(layout, s); err == nil {
+			ft.Time = t
+			return nil
+		}
+	}
+	return fmt.Errorf("parsing time %q: no matching format", s)
+}
+
+func (ft flexTime) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ft.Time.Format(time.RFC3339Nano))
+}
+
 type Bead struct {
 	ID          string            `json:"id"`
 	Title       string            `json:"title"`
@@ -54,9 +88,9 @@ type Bead struct {
 	ExternalRef string            `json:"external_ref,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 	Notes       string            `json:"notes,omitempty"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
-	ClosedAt    *time.Time        `json:"closed_at,omitempty"`
+	CreatedAt   flexTime          `json:"created_at"`
+	UpdatedAt   flexTime          `json:"updated_at"`
+	ClosedAt    *flexTime         `json:"closed_at,omitempty"`
 	DependsOn   []string          `json:"depends_on,omitempty"`
 }
 
@@ -131,7 +165,7 @@ func (s *Store) Update(id string, fn func(b *Bead)) error {
 	}
 
 	fn(b)
-	b.UpdatedAt = time.Now().UTC()
+	b.UpdatedAt = flexTime{time.Now().UTC()}
 
 	return s.persist(b)
 }
@@ -144,7 +178,7 @@ func (s *Store) Claim(id string) error {
 
 func (s *Store) Close(id string) error {
 	return s.Update(id, func(b *Bead) {
-		now := time.Now().UTC()
+		now := flexTime{time.Now().UTC()}
 		b.Status = StatusClosed
 		b.ClosedAt = &now
 	})
@@ -294,7 +328,7 @@ func (s *Store) CloseAll(reason string) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	now := time.Now().UTC()
+	now := flexTime{time.Now().UTC()}
 	closed := 0
 	for _, b := range s.beads {
 		if b.Status == StatusOpen || b.Status == StatusInProgress || b.Status == StatusBlocked {

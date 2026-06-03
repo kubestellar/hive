@@ -52,6 +52,7 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	rawIdea = strings.TrimSpace(rawIdea)
 	if rawIdea == "" {
 		return nil, fmt.Errorf("idea text is required")
 	}

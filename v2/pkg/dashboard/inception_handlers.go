@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
@@ -341,6 +342,10 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 		if f.FileInfo().IsDir() {
 			continue
 		}
+		baseName := filepath.Base(f.Name)
+		if !strings.HasSuffix(baseName, ".md") {
+			continue
+		}
 		rc, err := f.Open()
 		if err != nil {
 			continue
@@ -348,7 +353,7 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 		content, _ := io.ReadAll(rc)
 		rc.Close()
 
-		outPath := filepath.Join(wikiDir, filepath.Base(f.Name))
+		outPath := filepath.Join(wikiDir, baseName)
 		if err := os.WriteFile(outPath, content, 0o644); err != nil {
 			continue
 		}

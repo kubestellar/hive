@@ -53,6 +53,25 @@ func TestRegression_Pass2_WatcherIgnoresOldBeads(t *testing.T) {
 	}
 }
 
+func TestRegression_ApproveInCapturePhase(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "test"})
+	data, code, _ := client.post("/api/inception/approve", nil)
+	if code == 200 {
+		t.Errorf("approve in capture should fail, got 200: %v", data)
+	}
+}
+
+func TestRegression_DownloadWithNoInception(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	_, code, _ := client.get("/api/inception/download")
+	if code == 500 {
+		t.Errorf("download with no inception should return 404, got 500")
+	}
+}
+
 func TestRegression_Pass0_StateWithNoInception(t *testing.T) {
 	client := newAPIClient()
 	client.post("/api/inception/reset", nil)

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -262,9 +263,15 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 
 			profile.LastActive = time.Now().UTC().Format(time.RFC3339)
-			profile.CLIBackend = msg.CLIBackend
-			profile.Model = msg.Model
-			profile.AvatarURL = fmt.Sprintf("https://github.com/%s.png", profile.GitHubUsername)
+			if msg.CLIBackend != "" {
+				profile.CLIBackend = msg.CLIBackend
+			}
+			if msg.Model != "" {
+				profile.Model = msg.Model
+			}
+			if profile.AvatarURL == "" {
+				profile.AvatarURL = fmt.Sprintf("https://github.com/%s.png", profile.GitHubUsername)
+			}
 			if msg.Role != "" {
 				profile.PreferredRole = msg.Role
 			}
@@ -472,10 +479,22 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 			url, _ := issue["url"].(string)
 
 			ghToken := ""
-			if h.server.deps != nil && h.server.deps.GHClient != nil {
-				if tokenBytes, err := os.ReadFile("/var/run/hive-metrics/gh-app-token.cache"); err == nil {
-					ghToken = string(tokenBytes)
+			if h.server.deps != nil && h.server.deps.GHAppAuth != nil {
+				ctx := h.server.deps.Ctx
+				if ctx == nil {
+					ctx = context.Background()
 				}
+				if tok, err := h.server.deps.GHAppAuth.ScopedToken(ctx, c.profile.TrustTier); err == nil {
+					ghToken = tok
+				} else {
+					h.logger.Warn("[contribute-ws] failed to mint scoped token, falling back to cache",
+						"tier", c.profile.TrustTier, "error", err)
+					if tokenBytes, err := os.ReadFile("/var/run/hive-metrics/gh-app-token.cache"); err == nil {
+						ghToken = string(tokenBytes)
+					}
+				}
+			} else if tokenBytes, err := os.ReadFile("/var/run/hive-metrics/gh-app-token.cache"); err == nil {
+				ghToken = string(tokenBytes)
 			}
 
 			taskID := fmt.Sprintf("ct-%s-%d-%d", repo.Full, number, time.Now().Unix())

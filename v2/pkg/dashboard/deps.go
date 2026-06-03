@@ -24,6 +24,7 @@ type Dependencies struct {
 	AgentMgr         *agent.Manager
 	Governor         *governor.Governor
 	GHClient         *ghpkg.Client
+	GHAppAuth        *ghpkg.AppAuth
 	Tokens           *tokens.Collector
 	Knowledge        *knowledge.KnowledgeAPI
 	Inception        *knowledge.InceptionEngine

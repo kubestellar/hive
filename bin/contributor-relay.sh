@@ -64,28 +64,47 @@ function injectGhToken(token) {
 }
 
 const CLI_READY_POLL_MS = 2000;
-const CLI_READY_TIMEOUT_MS = 120000;
+const CLI_READY_TIMEOUT_MS = 600000;
+const CONTAINER_NAME = process.env.HIVE_CONTAINER_NAME || 'hive-contributor';
 
-function isCLIReady() {
+function getCLIState() {
   try {
     const output = execSync(
-      `tmux capture-pane -t ${TMUX_SESSION} -p -S -10 2>/dev/null`,
+      `tmux capture-pane -t ${TMUX_SESSION} -p -S -15 2>/dev/null`,
       { encoding: 'utf8', timeout: 5000 }
     );
     const text = output.toString();
-    return /bypass permissions|Welcome back|Try "how does/.test(text);
+    if (/Not logged in|Please run \/login/.test(text)) return 'needs-login';
+    if (/bypass permissions|Welcome back|Try "how does|medium.*effort|@gmail\.com|@.*\.com.*Organization/.test(text)) return 'ready';
+    if (/Choose the text style|trust this folder/.test(text)) return 'onboarding';
+    return 'starting';
   } catch (_) {
-    return false;
+    return 'starting';
   }
 }
 
 function waitForCLI() {
+  let loginMessageShown = false;
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const check = () => {
-      if (isCLIReady()) {
+      const state = getCLIState();
+      if (state === 'ready') {
         console.log('CLI ready — accepting tasks');
         resolve();
+      } else if (state === 'needs-login' && !loginMessageShown) {
+        loginMessageShown = true;
+        console.log('');
+        console.log('╔══════════════════════════════════════════════════════════╗');
+        console.log('║  Claude Code needs authentication.                      ║');
+        console.log('║  In another terminal, run:                              ║');
+        console.log(`║  docker exec -it ${CONTAINER_NAME} tmux attach -t ${TMUX_SESSION}`);
+        console.log('║  Then type: /login                                      ║');
+        console.log('║  Complete the login, then press Ctrl-B D to detach.     ║');
+        console.log('║  Waiting for login to complete...                       ║');
+        console.log('╚══════════════════════════════════════════════════════════╝');
+        console.log('');
+        setTimeout(check, CLI_READY_POLL_MS);
       } else if (Date.now() - start > CLI_READY_TIMEOUT_MS) {
         reject(new Error('CLI did not become ready within timeout'));
       } else {

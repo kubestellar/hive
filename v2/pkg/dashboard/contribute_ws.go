@@ -298,12 +298,18 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			h.connections[profile.ContributorID] = contributor
 			h.mu.Unlock()
 
-			perms := []string{"issues:read", "issues:comment"}
-			if profile.TrustTier == "contributor" || profile.TrustTier == "trusted" {
-				perms = []string{"issues:read", "issues:write", "contents:write", "pulls:write"}
-			}
-			if profile.TrustTier == "trusted" {
-				perms = append(perms, "pulls:merge")
+			var perms []string
+			switch profile.TrustTier {
+			case "newcomer":
+				perms = []string{"issues:write"}
+			case "contributor":
+				perms = []string{"issues:write", "contents:write", "pulls:write"}
+			case "trusted":
+				perms = []string{"issues:write", "contents:write", "pulls:write", "checks:read"}
+			case "advisor":
+				perms = []string{"metadata:read", "pulls:read"}
+			default:
+				perms = []string{"metadata:read"}
 			}
 
 			sendJSON(conn, WSMessage{

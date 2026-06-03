@@ -219,6 +219,7 @@ jobs:
         working-directory: /tmp/contrib-digests
         run: |
           docker buildx imagetools create \
+            -t ghcr.io/kubestellar/hive-contributor:latest \
             -t ghcr.io/kubestellar/hive-contributor:v2-latest \
             -t ghcr.io/kubestellar/hive-contributor:${{ steps.meta.outputs.git_short }} \
             $(printf 'ghcr.io/kubestellar/hive-contributor@sha256:%s ' *)

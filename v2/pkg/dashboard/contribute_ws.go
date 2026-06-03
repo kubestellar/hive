@@ -103,12 +103,17 @@ type ContributeWSHub struct {
 	seq         int
 	activityMu  sync.RWMutex
 	activity    []ActivityEntry
-	server      *Server
+	server         *Server
+	completedTasks map[string]time.Time
+	completedMu    sync.Mutex
 }
+
+const completedTaskCooldownHours = 4
 
 func NewContributeWSHub(logger *slog.Logger, server *Server) *ContributeWSHub {
 	return &ContributeWSHub{
-		connections: make(map[string]*ContributorConnection),
+		connections:    make(map[string]*ContributorConnection),
+		completedTasks: make(map[string]time.Time),
 		logger:      logger,
 		server:      server,
 	}
@@ -137,6 +142,28 @@ func (h *ContributeWSHub) RecentActivity() []ActivityEntry {
 	out := make([]ActivityEntry, len(h.activity))
 	copy(out, h.activity)
 	return out
+}
+
+func (h *ContributeWSHub) markTaskCompleted(repo string, number int) {
+	key := fmt.Sprintf("%s#%d", repo, number)
+	h.completedMu.Lock()
+	h.completedTasks[key] = time.Now()
+	h.completedMu.Unlock()
+}
+
+func (h *ContributeWSHub) isTaskInCooldown(repo string, number int) bool {
+	key := fmt.Sprintf("%s#%d", repo, number)
+	h.completedMu.Lock()
+	defer h.completedMu.Unlock()
+	t, ok := h.completedTasks[key]
+	if !ok {
+		return false
+	}
+	if time.Since(t) > completedTaskCooldownHours*time.Hour {
+		delete(h.completedTasks, key)
+		return false
+	}
+	return true
 }
 
 func (h *ContributeWSHub) nextSeq() int {
@@ -438,12 +465,16 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			if contributor != nil {
 				contributor.mu.Lock()
 				hasTask := contributor.currentTask != nil && contributor.currentTask.TaskID == msg.TaskID
+				completedTask := contributor.currentTask
 				contributor.currentTask = nil
 				contributor.tmuxOutput = msg.TmuxOutput
 				contributor.mu.Unlock()
 
 				if hasTask {
-				h.addActivity(contributor.profile.GitHubUsername, "completed", contributor.role, contributor.cliBackend, contributor.model, msg.TaskID)
+					if completedTask != nil {
+						h.markTaskCompleted(completedTask.Repo, completedTask.Number)
+					}
+					h.addActivity(contributor.profile.GitHubUsername, "completed", contributor.role, contributor.cliBackend, contributor.model, msg.TaskID)
 					h.logger.Info("[contribute-ws] task complete",
 						"username", contributor.profile.GitHubUsername,
 						"task", msg.TaskID,
@@ -563,6 +594,9 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 				number = n
 			}
 			if number == 0 {
+				continue
+			}
+			if h.isTaskInCooldown(repo.Full, number) {
 				continue
 			}
 

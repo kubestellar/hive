@@ -196,9 +196,12 @@ func (e *InceptionEngine) SubmitAnswers(answers map[string]string) (*InceptionSt
 		for _, q := range e.state.Questions {
 			qIDs[q.ID] = true
 		}
-		for id := range answers {
+		for id, val := range answers {
 			if !qIDs[id] {
 				return nil, fmt.Errorf("answer key %q does not match any question ID", id)
+			}
+			if strings.TrimSpace(val) == "" {
+				return nil, fmt.Errorf("answer for %q is empty", id)
 			}
 		}
 	}

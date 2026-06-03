@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -200,9 +201,15 @@ func TestIsValidUsername(t *testing.T) {
 		{"testuser", true},
 		{"test-user", true},
 		{"test_user123", true},
+		{"j.doe", true},
+		{"user.name.with.dots", true},
 		{"bad user!", false},
 		{"", false},
 		{"user@name", false},
+		{"<script>alert(1)</script>", false},
+		{"../../../etc/passwd", false},
+		{strings.Repeat("a", 39), true},
+		{strings.Repeat("a", 40), false},
 	}
 	for _, tc := range cases {
 		got := isValidUsername(tc.input)

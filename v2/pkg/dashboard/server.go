@@ -74,6 +74,7 @@ type StatusPayload struct {
 	ACMMPackAgents   []string            `json:"acmmPackAgents"`
 	AdvisoryDigest   any                 `json:"advisoryDigest,omitempty"`
 	ContributorPool  *ContributorPoolStatus `json:"contributorPool,omitempty"`
+	SystemResources  *SystemResources    `json:"systemResources,omitempty"`
 }
 
 type FrontendAgent struct {

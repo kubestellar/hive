@@ -123,6 +123,52 @@
     }
     .oc-sidebar-footer .layout-toggle:hover { background: #f3f4f6; color: #111827; }
 
+    /* System resource gauges */
+    .system-gauges {
+      padding: 8px 20px 4px;
+      border-top: 1px solid #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .sys-gauge-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.65rem;
+      color: #9ca3af;
+      line-height: 1;
+    }
+    .sys-gauge-label {
+      width: 16px;
+      flex-shrink: 0;
+      text-align: center;
+      font-size: 0.6rem;
+    }
+    .sys-gauge-spark {
+      flex-shrink: 0;
+    }
+    .sys-gauge-spark svg {
+      display: block;
+    }
+    .sys-gauge-val {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .sys-gauge-bar-wrap {
+      flex: 1;
+      height: 3px;
+      background: #f3f4f6;
+      border-radius: 2px;
+      overflow: hidden;
+      min-width: 30px;
+    }
+    .sys-gauge-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.5s ease, background 0.5s ease;
+    }
+
     /* Light top bar */
     .oc-topbar {
       position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: 48px;
@@ -1709,6 +1755,26 @@
       <a class="oc-nav-item" data-section="contributors-section" onclick="ocNavigate('contributors-section')"><span class="oc-nav-emoji">👥</span><span class="oc-nav-text">Contributors</span><span id="contributors-sidebar-badge" style="display:none;margin-left:auto;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:700;background:#238636;color:#fff"></span></a>
       <a class="oc-nav-item" data-section="leaderboard-section" onclick="ocNavigate('leaderboard-section')"><span class="oc-nav-emoji">🏆</span><span class="oc-nav-text">Leaderboard</span></a>
       <a class="oc-nav-item" data-section="nous-section" onclick="ocNavigate('nous-section')"><span class="oc-nav-emoji">🧪</span><span class="oc-nav-text">Strategy Lab</span></a>
+    </div>
+    <div class="system-gauges" id="system-gauges">
+      <div class="sys-gauge-row" id="sys-gauge-disk">
+        <span class="sys-gauge-label" title="Disk">💾</span>
+        <span class="sys-gauge-spark" id="sys-spark-disk"></span>
+        <span class="sys-gauge-val" id="sys-val-disk">--</span>
+        <div class="sys-gauge-bar-wrap"><div class="sys-gauge-bar-fill" id="sys-bar-disk" style="width:0%"></div></div>
+      </div>
+      <div class="sys-gauge-row" id="sys-gauge-mem">
+        <span class="sys-gauge-label" title="Memory">🧠</span>
+        <span class="sys-gauge-spark" id="sys-spark-mem"></span>
+        <span class="sys-gauge-val" id="sys-val-mem">--</span>
+        <div class="sys-gauge-bar-wrap"><div class="sys-gauge-bar-fill" id="sys-bar-mem" style="width:0%"></div></div>
+      </div>
+      <div class="sys-gauge-row" id="sys-gauge-cpu">
+        <span class="sys-gauge-label" title="CPU">⚡</span>
+        <span class="sys-gauge-spark" id="sys-spark-cpu"></span>
+        <span class="sys-gauge-val" id="sys-val-cpu">--</span>
+        <div class="sys-gauge-bar-wrap"><div class="sys-gauge-bar-fill" id="sys-bar-cpu" style="width:0%"></div></div>
+      </div>
     </div>
     <div class="oc-sidebar-footer">
     </div>
@@ -6013,6 +6079,106 @@ function burnAreaChart() {
     setInterval(fetchContributors, CONTRIBUTOR_POLL_MS);
     setInterval(fetchLeaderboard, LEADERBOARD_POLL_MS);
 
+    // ── System resource gauge history for sparklines ──
+    const SYS_GAUGE_HISTORY_MAX = 60;
+    const _sysGaugeHistory = { disk: [], mem: [], cpu: [] };
+
+    const SYS_GAUGE_GREEN_MAX = 70;
+    const SYS_GAUGE_YELLOW_MAX = 85;
+    const SYS_GAUGE_ORANGE_MAX = 95;
+
+    const SYS_GAUGE_SPARK_W = 40;
+    const SYS_GAUGE_SPARK_H = 10;
+
+    function sysGaugeColor(pct) {
+      if (pct < SYS_GAUGE_GREEN_MAX) return '#9ca3af';   // muted gray-green (subtle)
+      if (pct < SYS_GAUGE_YELLOW_MAX) return '#d97706';  // amber
+      if (pct < SYS_GAUGE_ORANGE_MAX) return '#ea580c';  // orange
+      return '#dc2626';                                    // red
+    }
+
+    function sysGaugeMiniSpark(values, color) {
+      if (!values || values.length < 2) return '';
+      const max = Math.max(...values, 1);
+      const pts = values.map((v, i) => {
+        const x = (i / (values.length - 1)) * SYS_GAUGE_SPARK_W;
+        const y = SYS_GAUGE_SPARK_H - (v / max) * (SYS_GAUGE_SPARK_H - 1) - 0.5;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      });
+      return `<svg width="${SYS_GAUGE_SPARK_W}" height="${SYS_GAUGE_SPARK_H}" viewBox="0 0 ${SYS_GAUGE_SPARK_W} ${SYS_GAUGE_SPARK_H}">` +
+        `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>` +
+        `</svg>`;
+    }
+
+    function renderSystemGauges(sysRes) {
+      if (!sysRes) return;
+
+      // Push to history
+      _sysGaugeHistory.disk.push(sysRes.diskPct || 0);
+      _sysGaugeHistory.mem.push(sysRes.memPct || 0);
+      _sysGaugeHistory.cpu.push(sysRes.cpuPct || 0);
+      if (_sysGaugeHistory.disk.length > SYS_GAUGE_HISTORY_MAX) _sysGaugeHistory.disk.shift();
+      if (_sysGaugeHistory.mem.length > SYS_GAUGE_HISTORY_MAX) _sysGaugeHistory.mem.shift();
+      if (_sysGaugeHistory.cpu.length > SYS_GAUGE_HISTORY_MAX) _sysGaugeHistory.cpu.shift();
+
+      // Disk
+      const diskPct = sysRes.diskPct || 0;
+      const diskColor = sysGaugeColor(diskPct);
+      const diskBar = document.getElementById('sys-bar-disk');
+      if (diskBar) {
+        diskBar.style.width = diskPct + '%';
+        diskBar.style.background = diskColor;
+      }
+      const diskVal = document.getElementById('sys-val-disk');
+      if (diskVal) {
+        diskVal.textContent = sysRes.diskTotalGB > 0
+          ? `${sysRes.diskUsedGB}/${sysRes.diskTotalGB}`
+          : `${diskPct.toFixed(0)}%`;
+        diskVal.style.color = diskPct >= SYS_GAUGE_GREEN_MAX ? diskColor : '';
+      }
+      const diskSpark = document.getElementById('sys-spark-disk');
+      if (diskSpark) diskSpark.innerHTML = sysGaugeMiniSpark(_sysGaugeHistory.disk, diskColor);
+
+      // Memory
+      const memPct = sysRes.memPct || 0;
+      const memColor = sysGaugeColor(memPct);
+      const memBar = document.getElementById('sys-bar-mem');
+      if (memBar) {
+        memBar.style.width = memPct + '%';
+        memBar.style.background = memColor;
+      }
+      const memVal = document.getElementById('sys-val-mem');
+      if (memVal) {
+        const MEM_MB_PER_GB = 1024;
+        if (sysRes.memTotalMB > MEM_MB_PER_GB) {
+          memVal.textContent = `${(sysRes.memUsedMB / MEM_MB_PER_GB).toFixed(1)}/${(sysRes.memTotalMB / MEM_MB_PER_GB).toFixed(1)}`;
+        } else if (sysRes.memTotalMB > 0) {
+          memVal.textContent = `${Math.round(sysRes.memUsedMB)}/${Math.round(sysRes.memTotalMB)}`;
+        } else {
+          memVal.textContent = `${memPct.toFixed(0)}%`;
+        }
+        memVal.style.color = memPct >= SYS_GAUGE_GREEN_MAX ? memColor : '';
+      }
+      const memSpark = document.getElementById('sys-spark-mem');
+      if (memSpark) memSpark.innerHTML = sysGaugeMiniSpark(_sysGaugeHistory.mem, memColor);
+
+      // CPU
+      const cpuPct = sysRes.cpuPct || 0;
+      const cpuColor = sysGaugeColor(cpuPct);
+      const cpuBar = document.getElementById('sys-bar-cpu');
+      if (cpuBar) {
+        cpuBar.style.width = Math.min(cpuPct, 100) + '%';
+        cpuBar.style.background = cpuColor;
+      }
+      const cpuVal = document.getElementById('sys-val-cpu');
+      if (cpuVal) {
+        cpuVal.textContent = `${cpuPct.toFixed(0)}%`;
+        cpuVal.style.color = cpuPct >= SYS_GAUGE_GREEN_MAX ? cpuColor : '';
+      }
+      const cpuSpark = document.getElementById('sys-spark-cpu');
+      if (cpuSpark) cpuSpark.innerHTML = sysGaugeMiniSpark(_sysGaugeHistory.cpu, cpuColor);
+    }
+
     function render(data) {
       if (!data || data.error || data.status === 'initializing') return;
       if (document.body.style.opacity === '0') document.body.style.opacity = '1';
@@ -6092,6 +6258,7 @@ function burnAreaChart() {
       renderRepos(data.repos || []);
       renderBeads(data.beads || {});
       updateContributorBadge(data.contributorPool || null);
+      renderSystemGauges(data.systemResources || null);
       ocUpdateSidebarAgents();
       renderDebugSection();
       updateACMMBadge(data.acmmLevel || 0, data.acmmPackAgents || null);

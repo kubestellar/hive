@@ -215,9 +215,9 @@ func (s *Server) handleContributeLanding(w http.ResponseWriter, r *http.Request)
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;margin:0;min-height:100vh}
-.page{display:flex;min-height:100vh}
-.main{flex:2;padding:40px;max-width:800px}
-.sidebar{flex:1;min-width:280px;max-width:380px;background:#161b22;border-left:1px solid #30363d;display:flex;flex-direction:column}
+.page{display:flex;min-height:100vh;width:100%%}
+.main{flex:2;padding:40px;overflow-y:auto}
+.sidebar{flex:1;background:#161b22;border-left:1px solid #30363d;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
 h1{font-size:2rem;margin-bottom:8px}
 .subtitle{color:#8b949e;font-size:1.1rem;margin-bottom:32px}
 .stat-row{display:flex;gap:16px;margin-bottom:32px}
@@ -313,10 +313,10 @@ const t=new Date(e.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-di
 const icon=e.action==='joined'?'🟢':'🔴';
 const verb=e.action==='joined'?'entered the hive':'left the hive';
 const role=e.role?' as <span class="feed-role">'+e.role+'</span>':'';
-const cli=e.cli?' <span class="feed-cli">via '+e.cli+'</span>':'';
+const cliModel=e.cli?(e.model?' <span class="feed-cli">via '+e.cli+' CLI with '+e.model+'</span>':' <span class="feed-cli">via '+e.cli+' CLI</span>'):'';
 return '<div class="feed-entry"'+(i===0&&isNew?' style="background:rgba(63,185,80,.08)"':'')+'>'+
 '<span class="feed-time">'+t+'</span>'+
-icon+' <b>'+e.username+'</b> '+verb+role+cli+'</div>'
+icon+' <b>'+e.username+'</b> '+verb+role+cliModel+'</div>'
 }).join('');
 if(isNew)f.scrollTop=0;
 }catch(e){}}

@@ -82,6 +82,7 @@ type ActivityEntry struct {
 	Action    string `json:"action"`
 	Role      string `json:"role,omitempty"`
 	CLI       string `json:"cli,omitempty"`
+	Model     string `json:"model,omitempty"`
 }
 
 type ContributeWSHub struct {
@@ -100,7 +101,7 @@ func NewContributeWSHub(logger *slog.Logger) *ContributeWSHub {
 	}
 }
 
-func (h *ContributeWSHub) addActivity(username, action, role, cli string) {
+func (h *ContributeWSHub) addActivity(username, action, role, cli, model string) {
 	h.activityMu.Lock()
 	defer h.activityMu.Unlock()
 	h.activity = append(h.activity, ActivityEntry{
@@ -109,6 +110,7 @@ func (h *ContributeWSHub) addActivity(username, action, role, cli string) {
 		Action:    action,
 		Role:      role,
 		CLI:       cli,
+		Model:     model,
 	})
 	if len(h.activity) > maxActivityEntries {
 		h.activity = h.activity[len(h.activity)-maxActivityEntries:]
@@ -206,7 +208,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			delete(h.connections, contributor.profile.ContributorID)
 			h.mu.Unlock()
 			h.logger.Info("[contribute-ws] disconnected", "username", contributor.profile.GitHubUsername)
-			h.addActivity(contributor.profile.GitHubUsername, "left", contributor.role, contributor.cliBackend)
+			h.addActivity(contributor.profile.GitHubUsername, "left", contributor.role, contributor.cliBackend, contributor.model)
 		}
 		conn.Close()
 	}()
@@ -295,7 +297,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				"cli", msg.CLIBackend,
 				"role", msg.Role,
 			)
-			h.addActivity(profile.GitHubUsername, "joined", msg.Role, msg.CLIBackend)
+			h.addActivity(profile.GitHubUsername, "joined", msg.Role, msg.CLIBackend, msg.Model)
 
 			select {
 			case authDone <- contributor:

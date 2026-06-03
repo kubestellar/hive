@@ -108,6 +108,18 @@ node "${SCRIPT_DIR}/build-snapshot.mjs" \
 
 cp "${PUBLISH_PATH}/light/index.html" "${PUBLISH_PATH}/index.html"
 
+# Capture the leaderboard page as a static snapshot.
+# The Go handler at /leaderboard serves a self-contained HTML page with
+# baked-in data; we just fetch and save it.
+echo "[${INSTANCE}] Capturing leaderboard..."
+mkdir -p "${PUBLISH_PATH}/leaderboard"
+LEADERBOARD_FETCH_TIMEOUT_S=10
+if curl -sf --max-time "$LEADERBOARD_FETCH_TIMEOUT_S" "${DASHBOARD_URL}/leaderboard" -o "${PUBLISH_PATH}/leaderboard/index.html" 2>/dev/null; then
+  echo "[${INSTANCE}] Leaderboard captured."
+else
+  echo "[${INSTANCE}] WARN: leaderboard fetch failed — skipping."
+fi
+
 # Stage first so both new and modified files are detected
 git add "${PUBLISH_PATH}/"
 if git diff --cached --quiet -- "${PUBLISH_PATH}/"; then

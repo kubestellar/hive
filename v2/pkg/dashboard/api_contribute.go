@@ -209,6 +209,43 @@ func (s *Server) handleContributeLanding(w http.ResponseWriter, r *http.Request)
 		projectName = "Hive"
 	}
 
+	// Count profiles by trust tier and active status
+	activeCount := 0
+	if s.contributeHub != nil {
+		activeCount = s.contributeHub.ActiveCount()
+	}
+	tierCounts := map[string]int{
+		"newcomer":    0,
+		"contributor": 0,
+		"trusted":     0,
+		"advisor":     0,
+		"revoked":     0,
+	}
+	for _, p := range profiles {
+		tierCounts[p.TrustTier]++
+	}
+
+	// Build tier stat boxes HTML
+	type tierStat struct {
+		label string
+		color string
+		count int
+	}
+	tierStats := []tierStat{
+		{"Active", "#3fb950", activeCount},
+		{"Newcomer", "#d29922", tierCounts["newcomer"]},
+		{"Contributor", "#58a6ff", tierCounts["contributor"]},
+		{"Trusted", "#3fb950", tierCounts["trusted"]},
+		{"Advisor", "#bc8cff", tierCounts["advisor"]},
+		{"Revoked", "#f85149", tierCounts["revoked"]},
+	}
+	var tierBoxes strings.Builder
+	for _, ts := range tierStats {
+		fmt.Fprintf(&tierBoxes,
+			`<div class="stat" style="flex:0 1 auto;min-width:80px"><div class="stat-num" style="color:%s;font-size:1.4rem">%d</div><div class="stat-label">%s</div></div>`,
+			ts.color, ts.count, ts.label)
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Contribute to %s</title>
@@ -220,10 +257,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sidebar{flex:1;min-width:280px;max-width:380px;background:#161b22;border-left:1px solid #30363d;display:flex;flex-direction:column}
 h1{font-size:2rem;margin-bottom:8px}
 .subtitle{color:#8b949e;font-size:1.1rem;margin-bottom:32px}
-.stat-row{display:flex;gap:16px;margin-bottom:32px}
-.stat{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px 20px;flex:1;text-align:center}
+.stat-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:stretch}
+.stat{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:12px 16px;flex:1;text-align:center;min-width:80px}
 .stat-num{font-size:1.8rem;font-weight:700;color:#58a6ff}
-.stat-label{font-size:.8rem;color:#8b949e;margin-top:4px}
+.stat-label{font-size:.75rem;color:#8b949e;margin-top:4px;text-transform:capitalize}
+.stat-total{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:12px 20px;text-align:center;display:flex;align-items:center;gap:8px;justify-content:center}
+.stat-total .stat-num{font-size:1.6rem;color:#58a6ff}
+.stat-total .stat-label{font-size:.75rem;color:#8b949e;margin-top:0}
 .steps{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;margin-top:24px}
 .steps h3{margin-top:0;color:#58a6ff}
 .steps ol{padding-left:20px;line-height:2}
@@ -254,9 +294,9 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <h1>🐝 Contribute to %s</h1>
 <p class="subtitle">Donate your CLI + API tokens to help this project's AI agent swarm.</p>
 <div class="stat-row">
-<div class="stat"><div class="stat-num" id="stat-registered">%d</div><div class="stat-label">Registered</div></div>
-<div class="stat"><div class="stat-num" id="stat-active" style="color:#3fb950">0</div><div class="stat-label">Active Now</div></div>
+%s
 </div>
+<div class="stat-total"><div class="stat-num">%d</div><div class="stat-label">Total Contributors</div></div>
 <div class="steps">
 <h3>How it works</h3>
 <ol>
@@ -300,8 +340,6 @@ async function poll(){try{
 const[statusRes,actRes]=await Promise.all([fetch('/api/contribute/status'),fetch('/api/contribute/activity')]);
 const status=await statusRes.json();
 const act=await actRes.json();
-document.getElementById('stat-registered').textContent=status.total_registered||0;
-document.getElementById('stat-active').textContent=status.active_contributors||0;
 document.getElementById('feed-count').textContent=(act.activity||[]).length+' events';
 const f=document.getElementById('activity-feed');
 if(!act.activity||!act.activity.length){f.innerHTML='<div class="feed-empty">No activity yet — be the first to contribute!</div>';return}
@@ -322,7 +360,7 @@ if(isNew)f.scrollTop=0;
 }catch(e){}}
 poll();setInterval(poll,3000);
 </script>
-</body></html>`, projectName, projectName, len(profiles))
+</body></html>`, projectName, projectName, tierBoxes.String(), len(profiles))
 }
 
 // ── Registration ───────────────────────────────────────────────────────────

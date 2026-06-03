@@ -1791,6 +1791,7 @@
 
   <div id="contributors-section" style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">👥 Contributors <span id="contributors-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span></h2>
+    <div id="contributors-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
     <div id="contributors-panel"></div>
   </div>
 
@@ -5875,12 +5876,83 @@ function burnAreaChart() {
       return `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:600;border:1px solid ${color};color:${color}">${esc(tier || 'unknown')}</span>`;
     }
 
+    // Active contributor filter set — empty means "all"
+    let _contributorFilters = new Set();
+    // Cache the last fetched contributor list for re-rendering on filter change
+    let _cachedContributors = [];
+
+    const CONTRIBUTOR_FILTER_ALL = 'all';
+    const CONTRIBUTOR_FILTER_ACTIVE = 'active';
+    const CONTRIBUTOR_FILTER_TIERS = ['newcomer', 'contributor', 'trusted', 'advisor', 'revoked'];
+
+    function contributorFilterColor(filter) {
+      if (filter === CONTRIBUTOR_FILTER_ACTIVE) return '#3fb950';
+      return TRUST_TIER_COLORS[filter] || '#8b949e';
+    }
+
+    function renderContributorFilters(contributors) {
+      const bar = document.getElementById('contributors-filters');
+      if (!bar) return;
+      // Count per category
+      const activeCount = (contributors || []).filter(c => c.active).length;
+      const tierCounts = {};
+      for (const t of CONTRIBUTOR_FILTER_TIERS) tierCounts[t] = 0;
+      for (const c of (contributors || [])) {
+        if (tierCounts.hasOwnProperty(c.trust_tier)) tierCounts[c.trust_tier]++;
+      }
+      const totalCount = (contributors || []).length;
+
+      const isAllActive = _contributorFilters.size === 0;
+
+      function pill(key, label, count) {
+        const active = key === CONTRIBUTOR_FILTER_ALL ? isAllActive : _contributorFilters.has(key);
+        const color = key === CONTRIBUTOR_FILTER_ALL ? '#58a6ff' : contributorFilterColor(key);
+        const bg = active ? color : 'transparent';
+        const fg = active ? '#0d1117' : color;
+        const border = color;
+        return `<button onclick="toggleContributorFilter('${key}')" style="display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:9999px;font-size:0.72rem;font-weight:600;cursor:pointer;border:1px solid ${border};background:${bg};color:${fg};transition:all 0.15s">${esc(label)} <span style="opacity:0.8">${count}</span></button>`;
+      }
+
+      let html = pill(CONTRIBUTOR_FILTER_ALL, 'All', totalCount);
+      html += pill(CONTRIBUTOR_FILTER_ACTIVE, 'Active', activeCount);
+      for (const t of CONTRIBUTOR_FILTER_TIERS) {
+        html += pill(t, t.charAt(0).toUpperCase() + t.slice(1), tierCounts[t]);
+      }
+      setIfChanged(bar, html);
+    }
+
+    // Exposed globally for onclick
+    window.toggleContributorFilter = function(key) {
+      if (key === CONTRIBUTOR_FILTER_ALL) {
+        _contributorFilters.clear();
+      } else {
+        if (_contributorFilters.has(key)) {
+          _contributorFilters.delete(key);
+        } else {
+          _contributorFilters.add(key);
+        }
+      }
+      renderContributorFilters(_cachedContributors);
+      renderContributors(_cachedContributors);
+    };
+
+    function matchesContributorFilter(c) {
+      if (_contributorFilters.size === 0) return true;
+      for (const f of _contributorFilters) {
+        if (f === CONTRIBUTOR_FILTER_ACTIVE && c.active) return true;
+        if (f === c.trust_tier) return true;
+      }
+      return false;
+    }
+
     async function fetchContributors() {
       try {
         const res = await fetch('/api/contributors');
         if (!res.ok) return;
         const data = await res.json();
-        renderContributors(data.contributors || []);
+        _cachedContributors = data.contributors || [];
+        renderContributorFilters(_cachedContributors);
+        renderContributors(_cachedContributors);
       } catch (e) { /* silently retry on next poll */ }
     }
 
@@ -5891,7 +5963,12 @@ function burnAreaChart() {
         setIfChanged(panel, '<div style="color:var(--muted);padding:24px;text-align:center;background:var(--card-bg);border:1px solid var(--border);border-radius:8px">No contributors registered yet.</div>');
         return;
       }
-      const cards = contributors.map(c => {
+      const filtered = contributors.filter(matchesContributorFilter);
+      if (!filtered.length) {
+        setIfChanged(panel, '<div style="color:var(--muted);padding:24px;text-align:center;background:var(--card-bg);border:1px solid var(--border);border-radius:8px">No contributors match the selected filters.</div>');
+        return;
+      }
+      const cards = filtered.map(c => {
         const dotColor = c.active ? '#3fb950' : '#8b949e';
         const dotTitle = c.active ? 'Online' : 'Offline';
         const ghLink = `https://github.com/${esc(c.github_username)}`;

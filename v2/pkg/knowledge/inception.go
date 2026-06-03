@@ -154,6 +154,12 @@ func (e *InceptionEngine) SetQuestions(questions []Question) error {
 
 	seen := make(map[string]bool, len(questions))
 	for _, q := range questions {
+		if q.ID == "" {
+			return fmt.Errorf("question ID is required")
+		}
+		if q.Text == "" {
+			return fmt.Errorf("question text is required for %q", q.ID)
+		}
 		if seen[q.ID] {
 			return fmt.Errorf("duplicate question ID: %q", q.ID)
 		}
@@ -181,6 +187,19 @@ func (e *InceptionEngine) SubmitAnswers(answers map[string]string) (*InceptionSt
 	// are still valuable context for the next kick.
 	if e.state.Phase != PhaseClarify && e.state.Phase != PhaseStructure {
 		return nil, fmt.Errorf("cannot submit answers in phase %s", e.state.Phase)
+	}
+
+	// Validate answer keys match known question IDs
+	if len(e.state.Questions) > 0 {
+		qIDs := make(map[string]bool, len(e.state.Questions))
+		for _, q := range e.state.Questions {
+			qIDs[q.ID] = true
+		}
+		for id := range answers {
+			if !qIDs[id] {
+				return nil, fmt.Errorf("answer key %q does not match any question ID", id)
+			}
+		}
 	}
 
 	e.state.Answers = answers

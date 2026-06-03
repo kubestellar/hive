@@ -283,3 +283,42 @@ func TestRegression_Bug52_StaleWikiFactsClearedOnStart(t *testing.T) {
 	}
 	client.post("/api/inception/reset", nil)
 }
+
+func TestRegression_Bug55_EmptyQuestionTextRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "empty text test"})
+	data, code, _ := client.post("/api/inception/questions", map[string]interface{}{
+		"questions": []map[string]string{
+			{"id": "q1", "text": "", "category": "tech", "default": "Go"},
+		},
+	})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("SetQuestions should reject questions with empty text")
+		}
+	}
+	client.post("/api/inception/reset", nil)
+}
+
+func TestRegression_Bug56_UnknownAnswerIDRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "unknown id test"})
+	client.post("/api/inception/questions", map[string]interface{}{
+		"questions": []map[string]string{
+			{"id": "q1", "text": "What lang?", "category": "tech", "default": "Go"},
+		},
+	})
+	data, code, _ := client.post("/api/inception/answer", map[string]interface{}{
+		"answers": map[string]string{"nonexistent": "value"},
+	})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("SubmitAnswers should reject answer keys that don't match any question ID")
+		}
+	}
+	client.post("/api/inception/reset", nil)
+}

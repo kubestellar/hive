@@ -356,12 +356,19 @@ cmds.textContent=tpl.replace('CLI',cli);
 }
 sel.addEventListener('change',update);
 document.getElementById('copy-btn').addEventListener('click',function(){
-var text=cmds.textContent.trim();
+var el=document.getElementById('copy-cmds');
+var btn=document.getElementById('copy-btn');
+var range=document.createRange();
+range.selectNodeContents(el);
+var sel=window.getSelection();
+sel.removeAllRanges();
+sel.addRange(range);
 var ok=false;
-try{var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');document.body.removeChild(ta)}catch(e){}
-if(!ok&&navigator.clipboard){navigator.clipboard.writeText(text).then(function(){done()});return}
-function done(){var b=document.getElementById('copy-btn');b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},2000)}
-if(ok)done();
+try{ok=document.execCommand('copy')}catch(e){}
+if(!ok&&navigator.clipboard){navigator.clipboard.writeText(el.textContent.trim()).catch(function(){});ok=true}
+btn.textContent=ok?'Copied!':'Select + Cmd+C';
+btn.style.background='#16a34a';
+setTimeout(function(){btn.textContent='Copy';btn.style.background='#238636'},2000);
 });
 })();
 </script>
@@ -421,6 +428,16 @@ return '<div class="feed-entry"'+(i===0&&isNew?' style="background:rgba(63,185,8
 if(isNew)f.scrollTop=0;
 }catch(e){}}
 poll();setInterval(poll,3000);
+</script>
+<div style="margin-top:40px;padding:16px 0;border-top:1px solid #30363d;font-size:.75rem;color:#8b949e;display:flex;align-items:center;gap:8px">
+  <span id="hive-version">loading...</span>
+</div>
+<script>
+fetch('/api/version').then(function(r){return r.json()}).then(function(d){
+  var el=document.getElementById('hive-version');
+  var dot=d.behind?'\u{1F7E1}':'\u{1F7E2}';
+  el.innerHTML=dot+' Hive v'+d.version+' ('+d.short+')' + (d.behind?' · <span style="color:#d29922">update available</span>':' · up to date');
+}).catch(function(){});
 </script>
 </body></html>`, projectName, projectName, len(profiles), tierBoxes.String(), hubURL, hubURL)
 }

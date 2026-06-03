@@ -289,6 +289,12 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 
 			h.mu.Lock()
+			if old, exists := h.connections[profile.ContributorID]; exists {
+				h.logger.Info("[contribute-ws] replacing existing connection",
+					"username", profile.GitHubUsername,
+				)
+				old.ws.Close()
+			}
 			h.connections[profile.ContributorID] = contributor
 			h.mu.Unlock()
 
@@ -327,6 +333,15 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 		case "ready":
 			if contributor == nil {
 				continue
+			}
+			contributor.mu.Lock()
+			abandoned := contributor.currentTask
+			contributor.mu.Unlock()
+			if abandoned != nil {
+				h.logger.Warn("[contribute-ws] task abandoned without completion",
+					"username", contributor.profile.GitHubUsername,
+					"abandoned_task", abandoned.TaskID,
+				)
 			}
 			h.logger.Info("[contribute-ws] ready for work",
 				"username", contributor.profile.GitHubUsername,

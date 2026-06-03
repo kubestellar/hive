@@ -16,7 +16,7 @@ import (
 const (
 	inceptionWatchIntervalS  = 5 * time.Second
 	inceptionBeadRefPrefix   = "inception/"
-	minQuestionsForAdvance   = 2
+	minQuestionsForAdvance   = 5
 	minFactsForAdvance       = 3
 )
 

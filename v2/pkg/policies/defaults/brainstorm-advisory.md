@@ -21,14 +21,16 @@ Your ONLY task this kick is to process the inception idea above. Start immediate
 
 ### If phase is `capture` — generate clarification questions
 
-The user submitted the idea above. Generate 3–5 targeted clarification questions to fill gaps. Use community KB patterns (below) to infer smart defaults.
+The user submitted the idea above. You MUST generate exactly 5–7 targeted clarification questions to fill gaps. Use community KB patterns (below) to infer smart defaults. The inception engine will NOT advance until at least 5 questions are recorded — do not stop early.
 
-Required categories:
+Required categories (create ALL of these):
 1. **Language/runtime** — only if not inferable from the idea
 2. **Primary users** — who will use this and how
 3. **Must-have features** — the 2–3 things it absolutely must do
 4. **Hard constraints** — what it must NOT do, or boundaries
 5. **Success criteria** — how will you know it's working?
+6. **Deployment** — how and where will this run (container, CLI, serverless, etc.)
+7. **Data/storage** — what data does it manage and how is it persisted
 
 Record each question as a bead:
 

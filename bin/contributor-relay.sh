@@ -143,7 +143,10 @@ function tmuxSendEnters() {
 
 function tmuxSendKeys(text) {
   try {
-    execSync(`tmux send-keys -t ${TMUX_SESSION} C-u`, { timeout: 5000 });
+    execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 5000 });
+    sleepMs(200);
+    execSync(`tmux send-keys -t ${TMUX_SESSION} C-a`, { timeout: 5000 });
+    execSync(`tmux send-keys -t ${TMUX_SESSION} C-k`, { timeout: 5000 });
     sleepMs(200);
     execSync(`tmux send-keys -t ${TMUX_SESSION} -l ${shellQuote(text)}`, { timeout: 10000 });
     sleepMs(300);
@@ -173,13 +176,14 @@ function captureTmuxLines(n) {
 function checkTmuxIdle() {
   try {
     const output = execSync(
-      `tmux capture-pane -t ${TMUX_SESSION} -p -S -5 2>/dev/null`,
+      `tmux capture-pane -t ${TMUX_SESSION} -p -S -15 2>/dev/null`,
       { encoding: 'utf8', timeout: 5000 }
     );
-    const lines = output.trim().split('\n');
-    const lastLine = lines[lines.length - 1] || '';
-    const idlePatterns = [/\$\s*$/, />\s*$/, /\?\s*$/, /claude.*>\s*$/i];
-    return idlePatterns.some(p => p.test(lastLine));
+    const text = output.toString();
+    const hasIdlePrompt = /bypass permissions|shift\+tab to cycle/.test(text);
+    const hasCompletionMarker = /Brewed for|Honking|Crunched for|Worked for|tokens\)/.test(text);
+    const isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching/.test(text);
+    return hasIdlePrompt && hasCompletionMarker && !isWorking;
   } catch (_) {
     return false;
   }

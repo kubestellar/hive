@@ -416,7 +416,7 @@ if(!act.activity||!act.activity.length){f.innerHTML='<div class="feed-empty">No 
 const newCount=act.activity.length;
 const isNew=newCount>prevCount;
 prevCount=newCount;
-f.innerHTML=act.activity.slice().reverse().map((e,i)=>{
+const html=act.activity.slice().reverse().map((e,i)=>{
 const d=new Date(e.timestamp);const t=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const tz=d.toLocaleTimeString([],{timeZoneName:'short'}).split(' ').pop();
 const icons={joined:'🟢',left:'🔴','picked up':'🔧',completed:'✅',failed:'❌'};
 const verbs={joined:'entered the hive',left:'left the hive','picked up':'picked up','completed':'completed','failed':'failed'};
@@ -429,7 +429,7 @@ return '<div class="feed-entry"'+(i===0&&isNew?' style="background:rgba(63,185,8
 '<div class="feed-text">'+icon+' <b>'+e.username+'</b> '+verb+taskInfo+role+cliModel+'</div>'+
 '<span class="feed-time">'+t+' '+tz+'</span></div>'
 }).join('');
-if(isNew)f.scrollTop=0;
+if(f.innerHTML!==html){f.innerHTML=html;if(isNew)f.scrollTop=0;}
 }catch(e){}}
 poll();setInterval(poll,3000);
 </script>

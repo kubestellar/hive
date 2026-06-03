@@ -165,10 +165,17 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			liveSummary = strings.Join(pane, "\n")
 		}
 		var detailSummary string
+		const maxDetailLines = 50
 		if buf := proc.OutputBuffer; buf != nil && buf.Count() > 0 {
 			lines := agent.DeduplicateBlocks(buf.Last(buf.Count()))
+			if len(lines) > maxDetailLines {
+				lines = lines[len(lines)-maxDetailLines:]
+			}
 			detailSummary = strings.Join(lines, "\n")
 		} else if pane := proc.FilteredPaneLines(0); len(pane) > 0 {
+			if len(pane) > maxDetailLines {
+				pane = pane[len(pane)-maxDetailLines:]
+			}
 			detailSummary = strings.Join(pane, "\n")
 		}
 

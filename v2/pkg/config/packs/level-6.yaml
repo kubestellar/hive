@@ -71,6 +71,7 @@ agents:
   mode: ADVISORY
   kick_template: supervisor-nogithub.md
   include_repos: true
+  clear_on_kick: false
   stale_timeout: 600
   interactions: 'Full autonomous oversight of all agents. Triggers self-healing actions
     without human intervention.

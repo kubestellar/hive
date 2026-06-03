@@ -63,6 +63,7 @@ agents:
     color: "#e74c3c"
     kick_template: supervisor-CLAUDE.md
     include_repos: true
+    clear_on_kick: false
     bead_role: supervisor
   scanner:
     id: scanner

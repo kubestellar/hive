@@ -240,7 +240,10 @@ func (s *Server) refreshAndPersistSync() {
 // watcher reload to prevent the watcher from overwriting concurrent
 // in-memory mutations with a stale file read.
 func (s *Server) saveConfig() error {
-	if s.deps != nil && s.deps.SkipReloadFunc != nil {
+	if s.deps == nil || s.deps.Config == nil || s.deps.Config.SourcePath == "" {
+		return nil
+	}
+	if s.deps.SkipReloadFunc != nil {
 		s.deps.SkipReloadFunc()
 	}
 	return s.deps.Config.Save()

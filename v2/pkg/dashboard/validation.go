@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // ---------- validation constants ----------
@@ -120,7 +121,7 @@ func validateAgentGeneralInput(body map[string]interface{}) error {
 	}
 	if v, ok := body["emoji"]; ok {
 		if s, ok := v.(string); ok {
-			if len(s) > maxEmojiLen {
+			if utf8.RuneCountInString(s) > maxEmojiLen {
 				return fmt.Errorf("emoji must be at most %d characters", maxEmojiLen)
 			}
 		}
@@ -133,7 +134,10 @@ func validateAgentGeneralInput(body map[string]interface{}) error {
 		}
 	}
 	if v, ok := body["role"]; ok {
-		if s, ok := v.(string); ok && s != "" {
+		if s, ok := v.(string); ok {
+			if s == "" {
+				return fmt.Errorf("role must not be empty")
+			}
 			if !knownRoles[s] {
 				return fmt.Errorf("role must be one of: %s", knownRolesList())
 			}

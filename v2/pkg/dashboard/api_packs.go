@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/kubestellar/hive/v2/pkg/config"
 )
@@ -304,6 +305,8 @@ func (s *Server) syncAgentVisibility(level int) (paused, resumed []string) {
 		}
 	}
 
+	// Collect agents to resume and agents to pause.
+	var toResume []string
 	for name := range s.deps.Config.Agents {
 		if packAgents[name] {
 			// On-demand agents (e.g. brainstorm) should never auto-resume;
@@ -312,11 +315,10 @@ func (s *Server) syncAgentVisibility(level int) (paused, resumed []string) {
 				continue
 			}
 			if s.deps.AgentMgr.IsPaused(name) {
-				if err := s.deps.AgentMgr.Resume(s.deps.Ctx, name, "acmm-pack", fmt.Sprintf("agent included in pack level %d", level)); err == nil {
-					resumed = append(resumed, name)
-				}
+				toResume = append(toResume, name)
 			}
 		} else {
+			// Pause sequentially — it's fast and order can matter.
 			if !s.deps.AgentMgr.IsPaused(name) {
 				if err := s.deps.AgentMgr.Pause(name, "acmm-pack", fmt.Sprintf("agent not in pack level %d", level)); err == nil {
 					paused = append(paused, name)
@@ -324,6 +326,26 @@ func (s *Server) syncAgentVisibility(level int) (paused, resumed []string) {
 			}
 		}
 	}
+
+	// Resume agents in parallel — each Resume() call takes ~2s,
+	// so sequential resume of N agents blocks the API for N*2s.
+	var (
+		wg sync.WaitGroup
+		mu sync.Mutex
+	)
+	for _, name := range toResume {
+		wg.Add(1)
+		go func(agentName string) {
+			defer wg.Done()
+			if err := s.deps.AgentMgr.Resume(s.deps.Ctx, agentName, "acmm-pack", fmt.Sprintf("agent included in pack level %d", level)); err == nil {
+				mu.Lock()
+				resumed = append(resumed, agentName)
+				mu.Unlock()
+			}
+		}(name)
+	}
+	wg.Wait()
+
 	return paused, resumed
 }
 

@@ -1796,6 +1796,10 @@ func (m *Manager) SyncModeFiles(level int) {
 		mode := DefaultAgentMode(name, level)
 		if modeStr := agent.Config.Mode; modeStr != "" {
 			if parsed, ok := ParseAgentMode(modeStr); ok {
+				m.logger.Info("SyncModeFiles: Config.Mode override",
+					"agent", name, "level", level,
+					"default", DefaultAgentMode(name, level).String(),
+					"override", modeStr)
 				mode = parsed
 			}
 		}

@@ -1092,7 +1092,27 @@ func buildContributing(constitution *Fact) string {
 	b.WriteString("# Contributing\n\n")
 	b.WriteString("Thank you for your interest in contributing!\n\n")
 	b.WriteString("## Development Setup\n\n")
-	b.WriteString("TODO: Add development setup instructions.\n\n")
+	if constitution != nil {
+		lang := inferLanguage(constitution)
+		switch lang {
+		case "go":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\ngo mod download\ngo build ./...\ngo test ./...\n```\n\n")
+		case "python":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\npython -m venv .venv && source .venv/bin/activate\npip install -e '.[dev]'\npytest\n```\n\n")
+		case "typescript", "javascript":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nnpm install\nnpm test\n```\n\n")
+		case "rust":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\ncargo build\ncargo test\n```\n\n")
+		case "java":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nmvn compile\nmvn test\n```\n\n")
+		case "shell":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nchmod +x *.sh\nbash test.sh\n```\n\n")
+		default:
+			b.WriteString("TODO: Add development setup instructions.\n\n")
+		}
+	} else {
+		b.WriteString("TODO: Add development setup instructions.\n\n")
+	}
 	b.WriteString("## Pull Request Process\n\n")
 	b.WriteString("1. Fork the repository and create your branch from `main`\n")
 	b.WriteString("2. Ensure tests pass before submitting\n")

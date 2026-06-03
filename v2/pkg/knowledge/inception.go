@@ -443,7 +443,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	// Core documentation
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "README.md",
-		Content: buildReadme(vision, constitution, requirements, constraints, stakeholders),
+		Content: buildReadme(e.state.IdeaText, vision, constitution, requirements, constraints, stakeholders),
 		Purpose: "readme",
 		IsNew:   true,
 	})
@@ -854,7 +854,7 @@ func defaultConfidence(ft FactType) float64 {
 
 // --- scaffold builders ---
 
-func buildReadme(vision, constitution *Fact, reqs, constraints, stakeholders []Fact) string {
+func buildReadme(ideaText string, vision, constitution *Fact, reqs, constraints, stakeholders []Fact) string {
 	var b strings.Builder
 
 	title := "Project"
@@ -868,6 +868,11 @@ func buildReadme(vision, constitution *Fact, reqs, constraints, stakeholders []F
 		b.WriteString("## Overview\n\n")
 		b.WriteString(vision.Body)
 		b.WriteString("\n\n")
+	}
+
+	if ideaText != "" && (vision == nil || len(vision.Body) < 100) {
+		b.WriteString("## About This Project\n\n")
+		fmt.Fprintf(&b, "This project was conceived from the idea: *%s*\n\n", ideaText)
 	}
 
 	if constitution != nil {

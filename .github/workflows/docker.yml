@@ -6,6 +6,13 @@ on:
       - v2
   workflow_dispatch:
 
+# Serialize Docker builds so concurrent merges don't race to tag v2-latest.
+# If a newer commit triggers a build while one is in progress, the older
+# build is cancelled — only the latest commit tags v2-latest.
+concurrency:
+  group: docker-build-v2
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
@@ -86,12 +93,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify build commit is still HEAD of v2
+        id: head-check
+        run: |
+          CURRENT_HEAD=$(git ls-remote https://github.com/${{ github.repository }} v2 | awk '{print $1}')
+          if [ "${{ github.sha }}" != "$CURRENT_HEAD" ]; then
+            echo "Build is stale (built ${{ github.sha }} but v2 HEAD is $CURRENT_HEAD) — skipping tag"
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Extract git metadata
+        if: steps.head-check.outputs.stale != 'true'
         id: meta
         run: |
           echo "git_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Create manifest list and push
+        if: steps.head-check.outputs.stale != 'true'
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
@@ -174,12 +194,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify build commit is still HEAD of v2
+        id: head-check
+        run: |
+          CURRENT_HEAD=$(git ls-remote https://github.com/${{ github.repository }} v2 | awk '{print $1}')
+          if [ "${{ github.sha }}" != "$CURRENT_HEAD" ]; then
+            echo "Build is stale (built ${{ github.sha }} but v2 HEAD is $CURRENT_HEAD) — skipping tag"
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Extract git metadata
+        if: steps.head-check.outputs.stale != 'true'
         id: meta
         run: |
           echo "git_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Create contributor manifest list and push
+        if: steps.head-check.outputs.stale != 'true'
         working-directory: /tmp/contrib-digests
         run: |
           docker buildx imagetools create \

@@ -42,6 +42,7 @@ type ContributorProfile struct {
 	RegistrationToken  string                `json:"registration_token"`
 	TokenPlain         string                `json:"registration_token_plain,omitempty"`
 	TrustTier          string                `json:"trust_tier"`
+	PreferredRole      string                `json:"preferred_role,omitempty"`
 	RegisteredAt       string                `json:"registered_at"`
 	TasksCompleted     int                   `json:"total_tasks_completed"`
 	TasksFailed        int                   `json:"total_tasks_failed"`
@@ -64,19 +65,23 @@ type ContributorPool struct {
 var contributorPool = &ContributorPool{}
 
 type ContributorPoolStatus struct {
-	Active     int `json:"active"`
-	Registered int `json:"registered"`
+	Active     int            `json:"active"`
+	Registered int            `json:"registered"`
+	ByRole     map[string]int `json:"by_role,omitempty"`
 }
 
 func (s *Server) BuildContributorPoolStatus() *ContributorPoolStatus {
 	profiles := listContributorProfiles()
 	active := 0
+	var byRole map[string]int
 	if s.contributeHub != nil {
 		active = s.contributeHub.ActiveCount()
+		byRole = s.contributeHub.RoleBreakdown()
 	}
 	return &ContributorPoolStatus{
 		Active:     active,
 		Registered: len(profiles),
+		ByRole:     byRole,
 	}
 }
 

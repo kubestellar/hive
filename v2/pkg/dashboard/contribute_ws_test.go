@@ -319,3 +319,216 @@ func TestWSTaskComplete(t *testing.T) {
 		t.Fatalf("expected 1 completed, got %d", p.TasksCompleted)
 	}
 }
+
+func TestWSAuthWithRole(t *testing.T) {
+	s, ts := setupWSTest(t)
+	defer ts.Close()
+
+	// Register a contributor
+	body := `{"github_username":"role-auth-user"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/contribute/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	var reg map[string]string
+	json.Unmarshal(w.Body.Bytes(), &reg)
+	token := reg["registration_token"]
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL(ts), nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	readMsg(t, conn) // challenge
+
+	// Send auth response with role
+	conn.WriteJSON(WSMessage{
+		Type:              "auth_response",
+		RegistrationToken: token,
+		CLIBackend:        "claude",
+		Model:             "opus-4-6",
+		Role:              "scanner",
+	})
+
+	authOk := readMsg(t, conn)
+	if authOk.Type != "auth_ok" {
+		t.Fatalf("expected auth_ok, got %s: %s", authOk.Type, authOk.Reason)
+	}
+	if authOk.Role != "scanner" {
+		t.Fatalf("expected role 'scanner' in auth_ok, got %q", authOk.Role)
+	}
+
+	// Verify the connection has the role stored
+	conns := s.contributeHub.ActiveConnections()
+	if len(conns) != 1 {
+		t.Fatalf("expected 1 active connection, got %d", len(conns))
+	}
+	if conns[0].role != "scanner" {
+		t.Fatalf("expected connection role 'scanner', got %q", conns[0].role)
+	}
+}
+
+func TestWSAuthWithoutRole(t *testing.T) {
+	s, ts := setupWSTest(t)
+	defer ts.Close()
+
+	body := `{"github_username":"norole-user"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/contribute/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	var reg map[string]string
+	json.Unmarshal(w.Body.Bytes(), &reg)
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL(ts), nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	readMsg(t, conn) // challenge
+
+	conn.WriteJSON(WSMessage{
+		Type:              "auth_response",
+		RegistrationToken: reg["registration_token"],
+		CLIBackend:        "claude",
+		Model:             "opus-4-6",
+	})
+
+	authOk := readMsg(t, conn)
+	if authOk.Type != "auth_ok" {
+		t.Fatalf("expected auth_ok, got %s", authOk.Type)
+	}
+	if authOk.Role != "" {
+		t.Fatalf("expected empty role for task-driven mode, got %q", authOk.Role)
+	}
+}
+
+func TestWSRoleBreakdown(t *testing.T) {
+	s, ts := setupWSTest(t)
+	defer ts.Close()
+
+	// Register three contributors
+	usernames := []string{"role-breakdown-1", "role-breakdown-2", "role-breakdown-3"}
+	tokens := make([]string, len(usernames))
+	for i, u := range usernames {
+		body := `{"github_username":"` + u + `"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/contribute/register", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		s.mux.ServeHTTP(w, req)
+		var reg map[string]string
+		json.Unmarshal(w.Body.Bytes(), &reg)
+		tokens[i] = reg["registration_token"]
+	}
+
+	// Connect: user1 as scanner, user2 as reviewer, user3 as task-driven (no role)
+	roles := []string{"scanner", "reviewer", ""}
+	conns := make([]*websocket.Conn, len(usernames))
+	for i, tok := range tokens {
+		c, _, err := websocket.DefaultDialer.Dial(wsURL(ts), nil)
+		if err != nil {
+			t.Fatalf("dial %d: %v", i, err)
+		}
+		defer c.Close()
+		conns[i] = c
+
+		readMsg(t, c) // challenge
+		msg := WSMessage{
+			Type:              "auth_response",
+			RegistrationToken: tok,
+			CLIBackend:        "claude",
+			Model:             "opus-4-6",
+		}
+		if roles[i] != "" {
+			msg.Role = roles[i]
+		}
+		c.WriteJSON(msg)
+		readMsg(t, c) // auth_ok
+	}
+
+	// Check role breakdown
+	breakdown := s.contributeHub.RoleBreakdown()
+	if breakdown["scanner"] != 1 {
+		t.Fatalf("expected 1 scanner, got %d", breakdown["scanner"])
+	}
+	if breakdown["reviewer"] != 1 {
+		t.Fatalf("expected 1 reviewer, got %d", breakdown["reviewer"])
+	}
+	if breakdown["task-driven"] != 1 {
+		t.Fatalf("expected 1 task-driven, got %d", breakdown["task-driven"])
+	}
+
+	// Check pool status includes role breakdown
+	poolStatus := s.BuildContributorPoolStatus()
+	if poolStatus.Active != 3 {
+		t.Fatalf("expected 3 active, got %d", poolStatus.Active)
+	}
+	if poolStatus.ByRole == nil {
+		t.Fatal("expected non-nil ByRole in pool status")
+	}
+	if poolStatus.ByRole["scanner"] != 1 {
+		t.Fatalf("pool status: expected 1 scanner, got %d", poolStatus.ByRole["scanner"])
+	}
+}
+
+func TestWSRoleBasedReady(t *testing.T) {
+	s, ts := setupWSTest(t)
+	defer ts.Close()
+
+	body := `{"github_username":"role-ready-user"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/contribute/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	var reg map[string]string
+	json.Unmarshal(w.Body.Bytes(), &reg)
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL(ts), nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	readMsg(t, conn) // challenge
+	conn.WriteJSON(WSMessage{
+		Type:              "auth_response",
+		RegistrationToken: reg["registration_token"],
+		CLIBackend:        "claude",
+		Model:             "opus-4-6",
+		Role:              "ci-maintainer",
+	})
+	readMsg(t, conn) // auth_ok
+
+	// Send ready — role-based contributors should not get task assignments
+	conn.WriteJSON(WSMessage{Type: "ready", Seq: 1})
+
+	// Verify connection is still alive
+	conn.WriteJSON(WSMessage{Type: "ping", Seq: 99})
+	pong := readMsg(t, conn)
+	if pong.Type != "pong" {
+		t.Fatalf("expected pong after role-based ready, got %s", pong.Type)
+	}
+}
+
+func TestContributorProfilePreferredRole(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HIVE_CONTRIBUTORS_DIR", tmpDir)
+
+	profile, _ := createContributorProfile("role-pref-user")
+	profile.PreferredRole = "scanner"
+	if err := saveContributorProfile(profile); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := loadContributorProfile("role-pref-user")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.PreferredRole != "scanner" {
+		t.Fatalf("expected preferred_role 'scanner', got %q", loaded.PreferredRole)
+	}
+}

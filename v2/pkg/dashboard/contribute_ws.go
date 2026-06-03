@@ -28,6 +28,7 @@ type ContributorConnection struct {
 	profile      *ContributorProfile
 	cliBackend   string
 	model        string
+	role         string // empty = task-driven mode, "scanner"/"reviewer"/etc. = role mode
 	connectedAt  time.Time
 	currentTask  *WSTaskAssign
 	lastPong     time.Time
@@ -57,6 +58,7 @@ type WSMessage struct {
 	GitHubToken       string          `json:"github_token,omitempty"`
 	TokenExpiresAt    string          `json:"token_expires_at,omitempty"`
 	Restrictions      json.RawMessage `json:"restrictions,omitempty"`
+	Role              string          `json:"role,omitempty"`
 	ContribLabels     []string        `json:"contributor_labels,omitempty"`
 	Status            string          `json:"status,omitempty"`
 	Result            string          `json:"result,omitempty"`
@@ -100,6 +102,24 @@ func (h *ContributeWSHub) ActiveCount() int {
 	return len(h.connections)
 }
 
+// RoleBreakdown returns a count of active connections grouped by role.
+// Connections without a role (task-driven mode) are counted under "task-driven".
+func (h *ContributeWSHub) RoleBreakdown() map[string]int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	breakdown := make(map[string]int)
+	for _, c := range h.connections {
+		c.mu.Lock()
+		role := c.role
+		c.mu.Unlock()
+		if role == "" {
+			role = "task-driven"
+		}
+		breakdown[role]++
+	}
+	return breakdown
+}
+
 func (h *ContributeWSHub) ActiveConnections() []ContributorConnection {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -110,6 +130,7 @@ func (h *ContributeWSHub) ActiveConnections() []ContributorConnection {
 			profile:     c.profile,
 			cliBackend:  c.cliBackend,
 			model:       c.model,
+			role:        c.role,
 			connectedAt: c.connectedAt,
 			currentTask: c.currentTask,
 			tmuxOutput:  append([]string{}, c.tmuxOutput...),
@@ -203,6 +224,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				profile:     profile,
 				cliBackend:  msg.CLIBackend,
 				model:       msg.Model,
+				role:        msg.Role,
 				connectedAt: time.Now(),
 				lastPong:    time.Now(),
 			}
@@ -225,12 +247,14 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				ContributorID: profile.ContributorID,
 				TrustTier:     profile.TrustTier,
 				Permissions:   perms,
+				Role:          msg.Role,
 			})
 
 			h.logger.Info("[contribute-ws] authenticated",
 				"username", profile.GitHubUsername,
 				"tier", profile.TrustTier,
 				"cli", msg.CLIBackend,
+				"role", msg.Role,
 			)
 
 			select {
@@ -244,9 +268,19 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			if contributor == nil {
 				continue
 			}
-			h.logger.Info("[contribute-ws] ready for work", "username", contributor.profile.GitHubUsername)
-			// Task assignment would happen here — for now, log that the contributor is ready
-			// The hub needs access to actionable.json to assign tasks
+			if contributor.role != "" {
+				h.logger.Info("[contribute-ws] role-based contributor ready",
+					"username", contributor.profile.GitHubUsername,
+					"role", contributor.role,
+				)
+				// Role-based contributors act as remote instances of an agent role
+				// (e.g., scanner, reviewer). The hive operator can pause the local
+				// agent for that role to save tokens while this contributor covers it.
+			} else {
+				h.logger.Info("[contribute-ws] ready for work", "username", contributor.profile.GitHubUsername)
+				// Task assignment would happen here — for now, log that the contributor is ready
+				// The hub needs access to actionable.json to assign tasks
+			}
 
 		case "task_accepted":
 			// acknowledged

@@ -646,8 +646,12 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 			prompt := fmt.Sprintf(
 				"You are a contributor to the %s hive. Work on issue %s#%d: \"%s\". "+
 					"Read the issue, understand what's needed, and take action. "+
-					"Use the provided GitHub token for all gh commands.",
-				repo.Full, repo.Full, number, title,
+					"You do NOT have push access to the upstream repo. "+
+					"Fork it first with 'gh repo fork %s --clone=false', "+
+					"add the fork as a remote, push your branch there, "+
+					"then open a PR from your fork. "+
+					"Use the GH_TOKEN env var for all gh commands (do NOT use 'unset GITHUB_TOKEN').",
+				repo.Full, repo.Full, number, title, repo.Full,
 			)
 
 			return &WSMessage{

@@ -102,15 +102,16 @@ mkdir -p /var/run/hive-metrics 2>/dev/null || true
 
 # Configure git credentials so push works (fork + PR model).
 # GH_TOKEN is the contributor's personal token — enough to fork and push.
-cat > /usr/local/bin/git-credential-hive <<CRED
+CRED_HELPER="${HOME}/.git-credential-hive"
+cat > "$CRED_HELPER" <<CRED
 #!/bin/sh
 echo "protocol=https"
 echo "host=github.com"
 echo "username=x-access-token"
 echo "password=${GH_TOKEN}"
 CRED
-chmod +x /usr/local/bin/git-credential-hive
-git config --global credential.helper hive
+chmod +x "$CRED_HELPER"
+git config --global credential.helper "$CRED_HELPER"
 git config --global user.email "${HIVE_CONTRIBUTOR_USERNAME:-contributor}@users.noreply.github.com"
 git config --global user.name "${HIVE_CONTRIBUTOR_USERNAME:-Hive Contributor}"
 

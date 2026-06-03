@@ -115,7 +115,7 @@ func (s *Scheduler) substituteTemplate(template string, actionable *github.Actio
 	if actionable == nil {
 		actionable = &github.ActionableResult{}
 	}
-	now := time.Now().In(time.FixedZone("EDT", -4*3600))
+	now := time.Now().Local()
 
 	issueList := s.formatIssueList(filterByLane(issues, agentName))
 	prList := s.formatPRList(actionable)
@@ -416,7 +416,7 @@ func (s *Scheduler) buildCIMaintainerMessage(actionable *github.ActionableResult
 }
 
 func (s *Scheduler) buildSupervisorMessage(actionable *github.ActionableResult) string {
-	now := time.Now().In(time.FixedZone("EDT", -4*3600))
+	now := time.Now().Local()
 	var b strings.Builder
 	b.WriteString("[agent:supervisor] [KICK]\n")
 	b.WriteString(fmt.Sprintf("MONITORING PASS %s\n\n", now.Format("1/2 3:04 PM MST")))
@@ -604,7 +604,7 @@ func (s *Scheduler) buildArchitectMessage(issues []github.Issue, actionable *git
 }
 
 func (s *Scheduler) buildOutreachMessage(actionable *github.ActionableResult) string {
-	now := time.Now().In(time.FixedZone("EDT", -4*3600))
+	now := time.Now().Local()
 	var b strings.Builder
 	b.WriteString("[agent:outreach] [KICK]\n")
 	b.WriteString(fmt.Sprintf("Full outreach pass. Time: %s\n\n", now.Format("1/2 3:04 PM MST")))
@@ -629,7 +629,7 @@ func (s *Scheduler) buildOutreachMessage(actionable *github.ActionableResult) st
 }
 
 func (s *Scheduler) buildSecCheckMessage(actionable *github.ActionableResult) string {
-	now := time.Now().In(time.FixedZone("EDT", -4*3600))
+	now := time.Now().Local()
 	var b strings.Builder
 	b.WriteString("[agent:sec-check] [KICK]\n")
 	b.WriteString(fmt.Sprintf("Security review pass. Time: %s\n\n", now.Format("1/2 3:04 PM MST")))

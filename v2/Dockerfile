@@ -78,6 +78,12 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && npm cache
 # --- Application layers ---
 ENV HOME=/home/dev
 
+# Cache-buster: re-declare in the final stage so ALL COPY layers below
+# (proxy/, deploy/, dashboard/, bin/) are invalidated on every commit.
+# Without this, only the Go binary (from the builder stage) gets rebuilt
+# while nginx config, Node.js proxy, and script changes stay stale.
+ARG GIT_HASH=unknown
+
 COPY --from=builder /hive /usr/local/bin/hive
 COPY --from=builder /bd /usr/local/bin/bd
 

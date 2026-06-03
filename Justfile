@@ -162,11 +162,19 @@ contribute-hive mode="docker":
       echo "Starting local relay..."
       echo "WebSocket: ${WS_URL}"
       RELAY_PID=""
-      if [[ -f "v2/proxy/relay.js" ]]; then
-        HIVE_WS_URL="${WS_URL}" node v2/proxy/relay.js &
+      RELAY_SCRIPT="bin/contributor-relay.sh"
+      if [[ -f "$RELAY_SCRIPT" ]]; then
+        HIVE_HUB="${WS_URL}" \
+        HIVE_REGISTRATION_TOKEN="${HIVE_REGISTRATION_TOKEN:-}" \
+        AGENT_BACKEND="${BACKEND}" \
+        node "$RELAY_SCRIPT" &
         RELAY_PID=$!
         trap "kill ${RELAY_PID} 2>/dev/null || true" EXIT
         sleep 1
+        echo "Relay PID: ${RELAY_PID}"
+      else
+        echo "WARNING: Relay script not found at ${RELAY_SCRIPT}"
+        echo "Hub connection will not be established."
       fi
       echo "Launching ${BACKEND} CLI (interactive)..."
       case "${BACKEND}" in

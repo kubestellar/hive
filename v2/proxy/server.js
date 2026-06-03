@@ -21,6 +21,7 @@ if (!DASHBOARD_TOKEN && process.env.NODE_ENV === 'production') {
 }
 
 const app = express();
+app.disable('x-powered-by');
 
 function requireAuth(req, res, next) {
   if (!DASHBOARD_TOKEN) return next();

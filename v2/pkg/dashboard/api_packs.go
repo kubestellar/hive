@@ -238,7 +238,7 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 		Level int `json:"level"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		jsonError(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		jsonError(w, "level must be an integer between 1 and 6", http.StatusBadRequest)
 		return
 	}
 

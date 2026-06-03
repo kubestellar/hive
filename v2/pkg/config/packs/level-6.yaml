@@ -96,7 +96,7 @@ agents:
   mode: ISSUES_PRS_MERGE
   kick_template: scanner-automerge.md
   include_repos: true
-  stale_timeout: 900
+  stale_timeout: 3600  # 1h — must exceed longest cadence (30m idle)
   lane_keywords:
   - bug
   - triage
@@ -124,7 +124,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: ci-maintainer-full.md
   include_repos: true
-  stale_timeout: 900
+  stale_timeout: 3600  # 1h — must exceed longest cadence (30m idle)
   lane_keywords:
   - ci
   - build
@@ -153,7 +153,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: quality-full.md
   include_repos: true
-  stale_timeout: 900
+  stale_timeout: 7200  # 2h — must exceed longest cadence (1h idle)
   interactions: 'Auto-approves PRs when coverage + CI gates pass.
 
     '
@@ -197,7 +197,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: sec-check-full.md
   include_repos: true
-  stale_timeout: 900
+  stale_timeout: 14400  # 4h — must exceed longest cadence (2h idle)
   lane_keywords:
   - security
   - cve
@@ -225,7 +225,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: architect-full.md
   include_repos: true
-  stale_timeout: 1800
+  stale_timeout: 14400  # 4h — must exceed longest cadence (2h idle)
   lane_keywords:
   - refactor
   - architecture
@@ -253,7 +253,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: strategist-full.md
   include_repos: false
-  stale_timeout: 1800
+  stale_timeout: 28800  # 8h — must exceed longest cadence (4h idle)
   lane_keywords:
   - strategy
   - roadmap
@@ -280,7 +280,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: outreach-full.md
   include_repos: false
-  stale_timeout: 1800
+  stale_timeout: 28800  # 8h — must exceed longest cadence (4h idle)
   lane_keywords:
   - community
   - adopters

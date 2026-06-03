@@ -81,7 +81,7 @@ agents:
   mode: ADVISORY
   kick_template: scanner-advisory.md
   include_repos: true
-  stale_timeout: 7200
+  stale_timeout: 28800  # 8h — must exceed longest cadence (4h)
   lane_keywords:
   - bug
   - triage
@@ -107,7 +107,7 @@ agents:
   mode: ADVISORY
   kick_template: ci-maintainer-advisory.md
   include_repos: true
-  stale_timeout: 3600
+  stale_timeout: 28800  # 8h — must exceed longest cadence (4h)
   lane_keywords:
   - ci
   - build
@@ -137,7 +137,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: quality-holdgated.md
   include_repos: true
-  stale_timeout: 3600
+  stale_timeout: 14400  # 4h — must exceed longest cadence (2h)
   interactions: 'Opens issues and hold-gated PRs about testing. Complements scanner
     and ci-maintainer advisory findings with actionable test improvements.
 
@@ -162,7 +162,7 @@ agents:
   mode: ADVISORY
   kick_template: guide-advisory.md
   include_repos: true
-  stale_timeout: 3600
+  stale_timeout: 28800  # 8h — must exceed longest cadence (4h)
   interactions: Works alongside scanner. Reviews scanner's suggestions when asked.
   knowledge_use: 'Reads community wiki and project patterns. Starts contributing review
     insights as knowledge entries.

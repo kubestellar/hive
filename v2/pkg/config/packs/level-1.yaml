@@ -32,7 +32,7 @@ agents:
     mode: ADVISORY
     kick_template: guide-advisory.md
     include_repos: false
-    stale_timeout: 7200
+    stale_timeout: 28800  # 8h — must exceed longest cadence (4h idle)
     interactions: "Standalone. Responds to user queries only."
     knowledge_use: >
       Heavy consumer — reads community wiki, project patterns, and scaffolding

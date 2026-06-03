@@ -86,7 +86,7 @@ agents:
   mode: ISSUES_ONLY
   kick_template: scanner-issues.md
   include_repos: true
-  stale_timeout: 7200
+  stale_timeout: 28800  # 8h — must exceed longest cadence (4h)
   lane_keywords:
   - bug
   - triage
@@ -115,7 +115,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: ci-maintainer-holdgated.md
   include_repos: true
-  stale_timeout: 3600
+  stale_timeout: 28800  # 8h — must exceed longest cadence (4h)
   lane_keywords:
   - ci
   - build
@@ -144,7 +144,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: quality-holdgated.md
   include_repos: true
-  stale_timeout: 3600
+  stale_timeout: 14400  # 4h — must exceed longest cadence (2h)
   interactions: 'Creates testing-related issues. Produces advisory beads. No PRs.
 
     '
@@ -168,7 +168,7 @@ agents:
   mode: ISSUES_ONLY
   kick_template: guide-issues.md
   include_repos: true
-  stale_timeout: 3600
+  stale_timeout: 28800  # 8h — must exceed longest cadence (4h)
   interactions: 'Creates documentation issues. Produces advisory beads. No PRs.
 
     '
@@ -193,7 +193,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: sec-check-holdgated.md
   include_repos: true
-  stale_timeout: 3600
+  stale_timeout: 28800  # 8h — must exceed longest cadence (4h)
   lane_keywords:
   - security
   - cve

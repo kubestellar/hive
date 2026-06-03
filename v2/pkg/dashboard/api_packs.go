@@ -306,6 +306,12 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if packErr == nil && (len(pack.Governor.Cadences) > 0 || len(pack.Governor.Thresholds) > 0 || pack.Governor.EvalIntervalS > 0) {
+		if err := s.saveConfig(); err != nil {
+			s.logger.Error("failed to persist config after pack cadence update", "error", err)
+		}
+	}
+
 	s.logger.Info("ACMM level set", "level", body.Level, "paused", len(paused), "resumed", len(resumed))
 	jsonResponse(w, map[string]interface{}{
 		"ok":         true,

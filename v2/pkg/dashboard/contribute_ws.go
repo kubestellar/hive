@@ -119,9 +119,19 @@ func NewContributeWSHub(logger *slog.Logger, server *Server) *ContributeWSHub {
 	}
 }
 
+const activityDebounceSecs = 60
+
 func (h *ContributeWSHub) addActivity(username, action, role, cli, model, task string) {
 	h.activityMu.Lock()
 	defer h.activityMu.Unlock()
+	if len(h.activity) > 0 && (action == "joined" || action == "left") {
+		last := h.activity[len(h.activity)-1]
+		if last.Username == username && last.Action == action {
+			if t, err := time.Parse(time.RFC3339, last.Timestamp); err == nil && time.Since(t) < activityDebounceSecs*time.Second {
+				return
+			}
+		}
+	}
 	h.activity = append(h.activity, ActivityEntry{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Username:  username,

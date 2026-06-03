@@ -20,11 +20,14 @@ REAL_GH="/usr/bin/gh"
 RESTRICTIONS_DIR="/etc/hive/restrictions"
 
 # Inject GitHub App token for agent gh calls (15k/hr vs PAT's 5k/hr).
+# Contributors keep their personal token — they fork+PR with their own identity.
 GH_APP_TOKEN_CACHE="/var/run/hive-metrics/gh-app-token.cache"
-if [[ -f "$GH_APP_TOKEN_CACHE" ]]; then
-  export GH_TOKEN="$(cat "$GH_APP_TOKEN_CACHE")"
-elif [[ -n "${HIVE_GITHUB_TOKEN:-}" ]]; then
-  export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+if [[ "${HIVE_CONTRIBUTOR_MODE:-}" != "true" ]]; then
+  if [[ -f "$GH_APP_TOKEN_CACHE" ]]; then
+    export GH_TOKEN="$(cat "$GH_APP_TOKEN_CACHE")"
+  elif [[ -n "${HIVE_GITHUB_TOKEN:-}" ]]; then
+    export GH_TOKEN="$HIVE_GITHUB_TOKEN"
+  fi
 fi
 
 # Contributor mode — extra restrictions for remote contributor agents

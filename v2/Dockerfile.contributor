@@ -20,6 +20,14 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     > /etc/apt/sources.list.d/github-cli.list \
   && apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
 
+# Install Go (needed for building/testing Go projects)
+ARG GO_VERSION=1.24.4
+RUN ARCH=$(dpkg --print-architecture) \
+  && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" \
+    | tar -C /usr/local -xzf - \
+  && ln -s /usr/local/go/bin/go /usr/local/bin/go \
+  && ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+
 # Install ws for contributor-relay
 RUN mkdir -p /opt/hive/node_modules && cd /opt/hive && npm install ws
 

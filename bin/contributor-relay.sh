@@ -181,9 +181,10 @@ function checkTmuxIdle() {
     );
     const text = output.toString();
     const hasIdlePrompt = /bypass permissions|shift\+tab to cycle/.test(text);
-    const hasCompletionMarker = /Brewed for|Honking|Crunched for|Worked for|tokens\)/.test(text);
-    const isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching/.test(text);
-    return hasIdlePrompt && hasCompletionMarker && !isWorking;
+    const hasCompletionMarker = /[A-Z][a-z]+ed for \d+[ms]|Honking|tokens\)/.test(text);
+    const isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching|ing…/.test(text);
+    const hasErrors = /Error:|BLOCKED:|fatal:|failed|Interrupted/.test(text);
+    return hasIdlePrompt && hasCompletionMarker && !isWorking && !hasErrors;
   } catch (_) {
     return false;
   }
@@ -231,7 +232,11 @@ function handleMessage(data) {
     case 'auth_ok':
       console.log(`Authenticated as ${msg.contributor_id} (tier: ${msg.trust_tier})`);
       reconnectDelay = BASE_RECONNECT_DELAY_MS;
-      send({ type: 'ready', seq: nextSeq() });
+      if (!currentTask) {
+        send({ type: 'ready', seq: nextSeq() });
+      } else {
+        console.log(`Reconnected while working on ${currentTask.repo}#${currentTask.number} — not requesting new task`);
+      }
       break;
 
     case 'auth_failed':

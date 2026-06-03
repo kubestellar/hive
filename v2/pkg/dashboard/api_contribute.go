@@ -432,7 +432,7 @@ func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
 			reg.Hives[i].HubURL = req.HubURL
 			reg.Hives[i].DashboardURL = req.DashboardURL
 			_ = saveFederationRegistry(reg)
-			jsonResponse(w, map[string]any{"ok": true, "id": hiveID})
+			jsonResponse(w, map[string]any{"ok": true, "id": hiveID, "updated": true})
 			return
 		}
 	}
@@ -518,12 +518,17 @@ func (s *Server) handleHivesOnboard(w http.ResponseWriter, r *http.Request) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+const maxUsernameLength = 39 // GitHub max username length
+
 func isValidUsername(s string) bool {
+	if len(s) == 0 || len(s) > maxUsernameLength {
+		return false
+	}
 	for _, c := range s {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.') {
 			return false
 		}
 	}
-	return len(s) > 0
+	return true
 }
 

@@ -110,6 +110,11 @@ function serveIndex(_req, res) {
   }
 }
 
+app.use('/contribute', createProxyMiddleware({
+  target: GO_API_URL,
+  changeOrigin: true,
+}));
+
 app.get('/', serveIndex);
 app.get('/{*splat}', serveIndex);
 

@@ -42,6 +42,14 @@ type GitHubProxy struct {
 
 	mu         sync.RWMutex
 	violations map[string]int // agent name -> blocked request count
+
+	certMu    sync.RWMutex
+	certCache map[string]cachedCert
+}
+
+type cachedCert struct {
+	cert      tls.Certificate
+	expiresAt time.Time
 }
 
 // NewGitHubProxy creates a proxy with a self-signed CA for MITM.
@@ -590,6 +598,13 @@ func readAgentMode(agentName string) agent.AgentMode {
 // forgeCert generates a TLS certificate for the given hostname,
 // signed by the proxy's CA.
 func (p *GitHubProxy) forgeCert(host string) (tls.Certificate, error) {
+	p.certMu.RLock()
+	if cached, ok := p.certCache[host]; ok && time.Now().Before(cached.expiresAt) {
+		p.certMu.RUnlock()
+		return cached.cert, nil
+	}
+	p.certMu.RUnlock()
+
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return tls.Certificate{}, err
@@ -627,7 +642,19 @@ func (p *GitHubProxy) forgeCert(host string) (tls.Certificate, error) {
 	}
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 
-	return tls.X509KeyPair(certPEM, keyPEM)
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return cert, err
+	}
+
+	p.certMu.Lock()
+	if p.certCache == nil {
+		p.certCache = make(map[string]cachedCert)
+	}
+	p.certCache[host] = cachedCert{cert: cert, expiresAt: time.Now().Add(time.Hour)}
+	p.certMu.Unlock()
+
+	return cert, nil
 }
 
 // generateCA creates a self-signed CA certificate for MITM.

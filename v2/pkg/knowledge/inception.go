@@ -246,6 +246,13 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 		return
 	}
 
+	// Clear old wiki files before writing new ones
+	if entries, err := os.ReadDir(vaultDir); err == nil {
+		for _, entry := range entries {
+			os.Remove(filepath.Join(vaultDir, entry.Name()))
+		}
+	}
+
 	for _, f := range facts {
 		slug := slugify(string(f.Type) + "-" + truncateSlug(f.Title))
 		filename := slug + ".md"
@@ -548,14 +555,9 @@ func (e *InceptionEngine) Reset() error {
 		return fmt.Errorf("removing state file: %w", err)
 	}
 
-	// Clear inception wiki files from previous run
-	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)
-	if entries, err := os.ReadDir(wikiDir); err == nil {
-		for _, entry := range entries {
-			os.Remove(filepath.Join(wikiDir, entry.Name()))
-		}
-		e.logger.Info("inception wiki cleared", "dir", wikiDir, "files", len(entries))
-	}
+	// Don't clear wiki on reset — keep last inception's facts visible
+	// in the KB until a new inception writes new facts (writeFactsToVault
+	// clears before writing).
 
 	e.logger.Info("inception reset")
 	return nil

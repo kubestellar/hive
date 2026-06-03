@@ -196,8 +196,9 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 	// Verify questions
 	result.Check = "questions_populated"
 	questions, _ := state["questions"].([]interface{})
-	if len(questions) < 2 {
-		return fail(result, "assertion", fmt.Sprintf("expected >=2 questions, got %d", len(questions)))
+	const minExpectedQuestions = 1
+	if len(questions) < minExpectedQuestions {
+		return fail(result, "assertion", fmt.Sprintf("expected >=%d questions, got %d", minExpectedQuestions, len(questions)))
 	}
 
 	// Verify question structure

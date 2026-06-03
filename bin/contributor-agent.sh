@@ -121,6 +121,12 @@ if [[ -n "${AGENT_MODEL:-}" ]]; then
   esac
 fi
 
+# Run a throwaway non-interactive command to complete onboarding (theme etc.)
+if [[ "$AGENT_BACKEND" == "claude" ]]; then
+  echo "Initializing Claude Code (first-run setup)..."
+  $CMD -p "echo ready" --dangerously-skip-permissions >/dev/null 2>&1 || true
+fi
+
 tmux send-keys -t "$TMUX_SESSION" "$CMD $PERM_FLAG $MODEL_FLAG" Enter
 
 echo ""

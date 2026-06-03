@@ -927,6 +927,10 @@ func buildTestStubs(acceptance []Fact, constitution *Fact) string {
 		return buildTSTestStubs(acceptance)
 	case "python":
 		return buildPythonTestStubs(acceptance)
+	case "rust":
+		return buildRustTestStubs(acceptance)
+	case "java":
+		return buildJavaTestStubs(acceptance)
 	default:
 		return buildGoTestStubs(acceptance)
 	}
@@ -963,6 +967,31 @@ func buildPythonTestStubs(acceptance []Fact) string {
 		fmt.Fprintf(&b, "@pytest.mark.skip(reason=\"TODO: %s\")\n", a.Title)
 		fmt.Fprintf(&b, "def %s():\n    pass\n\n", funcName)
 	}
+	return b.String()
+}
+
+func buildRustTestStubs(acceptance []Fact) string {
+	var b strings.Builder
+	b.WriteString("#[cfg(test)]\nmod tests {\n\n")
+	for _, a := range acceptance {
+		funcName := toSnakeCase(a.Title)
+		fmt.Fprintf(&b, "    #[test]\n    #[ignore = \"TODO: %s\"]\n", a.Title)
+		fmt.Fprintf(&b, "    fn %s() {\n        todo!()\n    }\n\n", funcName)
+	}
+	b.WriteString("}\n")
+	return b.String()
+}
+
+func buildJavaTestStubs(acceptance []Fact) string {
+	var b strings.Builder
+	b.WriteString("import org.junit.jupiter.api.Disabled;\nimport org.junit.jupiter.api.Test;\n\n")
+	b.WriteString("class AppTest {\n\n")
+	for _, a := range acceptance {
+		funcName := "test" + toPascalCase(a.Title)
+		fmt.Fprintf(&b, "    @Test\n    @Disabled(\"TODO: %s\")\n", a.Title)
+		fmt.Fprintf(&b, "    void %s() {\n        // TODO: implement\n    }\n\n", funcName)
+	}
+	b.WriteString("}\n")
 	return b.String()
 }
 
@@ -1165,7 +1194,7 @@ func buildGitignore(lang string) string {
 }
 
 func buildGoMod(name string) string {
-	return fmt.Sprintf("module github.com/example/%s\n\ngo 1.22\n", name)
+	return fmt.Sprintf("module %s\n\ngo 1.22\n", name)
 }
 
 func buildGoMain(name string, vision *Fact) string {

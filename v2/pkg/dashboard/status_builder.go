@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/agent"
@@ -89,8 +92,9 @@ func BuildFrontendStatus(
 		AgentMetrics: agentMetrics,
 		Hold:         buildHold(actionable),
 		IssueToMerge: issueToMerge,
-		ACMMLevel:      detectACMMLevel(cfg),
-		ACMMPackAgents: buildACMMPackAgents(cfg),
+		ACMMLevel:       detectACMMLevel(cfg),
+		ACMMPackAgents:  buildACMMPackAgents(cfg),
+		SystemResources: collectSystemResources(),
 	}
 	return payload
 }
@@ -946,4 +950,129 @@ func formatOptionalTime(t time.Time) string {
 		return ""
 	}
 	return t.Format(time.RFC3339)
+}
+
+// SystemResources contains disk and memory usage metrics for the host system.
+type SystemResources struct {
+	DiskUsedGB  float64 `json:"diskUsedGB"`
+	DiskTotalGB float64 `json:"diskTotalGB"`
+	DiskPct     float64 `json:"diskPct"`
+	MemUsedMB   float64 `json:"memUsedMB"`
+	MemTotalMB  float64 `json:"memTotalMB"`
+	MemPct      float64 `json:"memPct"`
+	CpuPct      float64 `json:"cpuPct"`
+}
+
+const (
+	bytesPerGB          = 1024.0 * 1024.0 * 1024.0
+	bytesPerMB          = 1024.0 * 1024.0
+	microsecondsPerSec  = 1_000_000.0
+	pctMultiplierSysRes = 100.0
+	cpuSampleDelayMs    = 200
+
+	// dataVolumePath is the mount point for the hive data volume.
+	dataVolumePath = "/data"
+
+	// cgroupMemCurrent is the cgroup v2 file for current memory usage.
+	cgroupMemCurrent = "/sys/fs/cgroup/memory.current"
+
+	// cgroupMemMax is the cgroup v2 file for memory limit.
+	cgroupMemMax = "/sys/fs/cgroup/memory.max"
+
+	// cgroupCPUStat is the cgroup v2 file for CPU accounting.
+	cgroupCPUStat = "/sys/fs/cgroup/cpu.stat"
+
+	// maxCgroupMemBytes is the sentinel value cgroups uses to indicate "no limit".
+	maxCgroupMemBytes = 1 << 62
+)
+
+// collectSystemResources gathers disk, memory, and CPU usage.
+// Disk comes from syscall.Statfs on /data.
+// Memory comes from cgroup v2 files.
+// CPU comes from cgroup v2 cpu.stat (usage_usec sampled twice).
+func collectSystemResources() *SystemResources {
+	res := &SystemResources{}
+
+	// --- Disk ---
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(dataVolumePath, &stat); err == nil {
+		totalBytes := stat.Blocks * uint64(stat.Bsize)
+		freeBytes := stat.Bavail * uint64(stat.Bsize)
+		usedBytes := totalBytes - freeBytes
+		res.DiskTotalGB = roundTo(float64(totalBytes)/bytesPerGB, 1)
+		res.DiskUsedGB = roundTo(float64(usedBytes)/bytesPerGB, 1)
+		if totalBytes > 0 {
+			res.DiskPct = roundTo(float64(usedBytes)/float64(totalBytes)*pctMultiplierSysRes, 1)
+		}
+	}
+
+	// --- Memory (cgroup v2) ---
+	memCurrent := readCgroupInt64(cgroupMemCurrent)
+	memMax := readCgroupInt64(cgroupMemMax)
+	if memCurrent > 0 && memMax > 0 && memMax < maxCgroupMemBytes {
+		res.MemUsedMB = roundTo(float64(memCurrent)/bytesPerMB, 0)
+		res.MemTotalMB = roundTo(float64(memMax)/bytesPerMB, 0)
+		res.MemPct = roundTo(float64(memCurrent)/float64(memMax)*pctMultiplierSysRes, 1)
+	}
+
+	// --- CPU (cgroup v2, sampled) ---
+	usec1 := readCgroupCPUUsageUsec(cgroupCPUStat)
+	if usec1 >= 0 {
+		time.Sleep(cpuSampleDelayMs * time.Millisecond)
+		usec2 := readCgroupCPUUsageUsec(cgroupCPUStat)
+		if usec2 > usec1 {
+			deltaUsec := float64(usec2 - usec1)
+			deltaSec := float64(cpuSampleDelayMs) / 1000.0
+			// usage_usec tracks total CPU time; divide by wall-clock to get fraction
+			cpuFraction := deltaUsec / (deltaSec * microsecondsPerSec)
+			res.CpuPct = roundTo(cpuFraction*pctMultiplierSysRes, 1)
+		}
+	}
+
+	return res
+}
+
+// readCgroupInt64 reads a single int64 from a cgroup file. Returns -1 on error
+// or if the value is "max" (unlimited).
+func readCgroupInt64(path string) int64 {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return -1
+	}
+	s := strings.TrimSpace(string(data))
+	if s == "max" {
+		return -1
+	}
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return -1
+	}
+	return v
+}
+
+// readCgroupCPUUsageUsec parses usage_usec from a cgroup v2 cpu.stat file.
+// Returns -1 if unavailable.
+func readCgroupCPUUsageUsec(path string) int64 {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return -1
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "usage_usec ") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				v, err := strconv.ParseInt(parts[1], 10, 64)
+				if err == nil {
+					return v
+				}
+			}
+		}
+	}
+	return -1
+}
+
+// roundTo rounds f to the specified number of decimal places.
+func roundTo(f float64, decimals int) float64 {
+	shift := math.Pow10(decimals)
+	return math.Round(f*shift) / shift
 }

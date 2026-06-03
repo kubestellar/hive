@@ -255,9 +255,9 @@ async function main() {
     _kbRendered = true;
     renderKnowledge();
 
-    // Contributors
+    // Contributors — API returns {contributors: [...]}
     var _snapContributors = ${contributorsRaw};
-    _cachedContributors = Array.isArray(_snapContributors) ? _snapContributors : [];
+    _cachedContributors = _snapContributors && _snapContributors.contributors ? _snapContributors.contributors : (Array.isArray(_snapContributors) ? _snapContributors : []);
     renderContributorFilters(_cachedContributors);
     renderContributors(_cachedContributors);
 

@@ -22,6 +22,9 @@ const (
 	stakeholderDefaultConf = 0.7
 	acceptanceDefaultConf  = 0.6
 	brownfieldConfBoost = 0.15
+
+	maxDescriptionLen = 80
+	maxSlugLen        = 30
 )
 
 // InceptionEngine manages the Level 1 ideation workflow — from raw idea to
@@ -640,7 +643,9 @@ func (e *InceptionEngine) SetWikiName(name string) {
 	defer e.mu.Unlock()
 	if e.state != nil {
 		e.state.WikiName = name
-		e.saveState()
+		if err := e.saveState(); err != nil {
+			e.logger.Warn("failed to persist wiki name", "name", name, "error", err)
+		}
 	}
 }
 
@@ -1053,8 +1058,8 @@ func buildShellMain(name string, vision *Fact) string {
 	desc := name
 	if vision != nil && vision.Body != "" {
 		desc = vision.Body
-		if len(desc) > 80 {
-			desc = desc[:80]
+		if len(desc) > maxDescriptionLen {
+			desc = desc[:maxDescriptionLen]
 		}
 	}
 	return fmt.Sprintf(`#!/usr/bin/env bash
@@ -1303,8 +1308,8 @@ func inferProjectName(vision *Fact, state *InceptionState) string {
 	}
 	if state != nil && state.IdeaSlug != "" {
 		slug := strings.TrimPrefix(state.IdeaSlug, "idea-")
-		if len(slug) > 30 {
-			slug = slug[:30]
+		if len(slug) > maxSlugLen {
+			slug = slug[:maxSlugLen]
 		}
 		return slug
 	}
@@ -1447,8 +1452,8 @@ func buildRustMain(name string, vision *Fact) string {
 	desc := name
 	if vision != nil && vision.Body != "" {
 		desc = vision.Body
-		if len(desc) > 80 {
-			desc = desc[:80]
+		if len(desc) > maxDescriptionLen {
+			desc = desc[:maxDescriptionLen]
 		}
 	}
 	return fmt.Sprintf(`// %s
@@ -1484,8 +1489,8 @@ func buildJavaMain(name string, vision *Fact) string {
 	desc := name
 	if vision != nil && vision.Body != "" {
 		desc = vision.Body
-		if len(desc) > 80 {
-			desc = desc[:80]
+		if len(desc) > maxDescriptionLen {
+			desc = desc[:maxDescriptionLen]
 		}
 	}
 	return fmt.Sprintf(`// %s

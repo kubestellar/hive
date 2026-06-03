@@ -1410,7 +1410,7 @@ func (s *Server) handleAgentConfigCadences(w http.ResponseWriter, r *http.Reques
 		s.deps.Config.Governor.Modes[modeName] = mode
 	}
 
-	if err := s.deps.Config.Save(); err != nil {
+	if err := s.saveConfig(); err != nil {
 		s.logger.Error("failed to persist config after cadence update", "agent", name, "error", err)
 	}
 	s.refreshAndPersist()

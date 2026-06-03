@@ -446,8 +446,14 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 			continue
 		}
 		for _, raw := range repo.ActionableIssues {
-			issue, ok := raw.(map[string]any)
-			if !ok {
+			// ActionableIssues contains ghpkg.Issue structs stored as any.
+			// Marshal/unmarshal to get a map we can read fields from.
+			b, err := json.Marshal(raw)
+			if err != nil {
+				continue
+			}
+			var issue map[string]any
+			if json.Unmarshal(b, &issue) != nil {
 				continue
 			}
 

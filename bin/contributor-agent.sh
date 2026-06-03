@@ -109,6 +109,7 @@ echo "Starting relay connection to hub..."
 node "${SCRIPT_DIR}/contributor-relay.sh" &
 RELAY_PID=$!
 
+
 # Launch the CLI in the tmux session
 CMD=$(backend_binary "$AGENT_BACKEND")
 PERM_FLAG=$(backend_perm_flag "$AGENT_BACKEND")
@@ -120,13 +121,37 @@ if [[ -n "${AGENT_MODEL:-}" ]]; then
   esac
 fi
 
+# Copy host .claude.json from hive config dir (Colima can't bind-mount files)
+if [[ "$AGENT_BACKEND" == "claude" ]] && [[ -f "${CONFIG_DIR}/claude-config.json" ]]; then
+  cp "${CONFIG_DIR}/claude-config.json" "${HOME}/.claude.json"
+  chmod 600 "${HOME}/.claude.json"
+fi
+
 tmux send-keys -t "$TMUX_SESSION" "$CMD $PERM_FLAG $MODEL_FLAG" Enter
 
+# Auto-dismiss Claude startup prompts (workspace trust, etc.)
+if [[ "$AGENT_BACKEND" == "claude" ]]; then
+  AUTO_DISMISS_ATTEMPTS=10
+  AUTO_DISMISS_INTERVAL=3
+  (
+    for i in $(seq 1 $AUTO_DISMISS_ATTEMPTS); do
+      sleep "$AUTO_DISMISS_INTERVAL"
+      PANE=$(tmux capture-pane -t "$TMUX_SESSION" -p -S -5 2>/dev/null || true)
+      if echo "$PANE" | grep -q "trust this folder\|Enter to confirm"; then
+        tmux send-keys -t "$TMUX_SESSION" "1" Enter 2>/dev/null || true
+      elif echo "$PANE" | grep -q "^> *$"; then
+        break
+      fi
+    done
+  ) &
+fi
+
 echo ""
+CONTAINER_NAME="${HIVE_CONTAINER_NAME:-hive-contributor}"
 echo "Contributor agent is running."
 echo "  CLI:   $CMD"
 echo "  Relay: PID $RELAY_PID"
-echo "  Tmux:  tmux attach -t $TMUX_SESSION"
+echo "  Tmux:  docker exec -it $CONTAINER_NAME tmux attach -t $TMUX_SESSION"
 echo ""
 echo "Press Ctrl-C to stop contributing."
 

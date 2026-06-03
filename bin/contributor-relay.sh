@@ -63,11 +63,92 @@ function injectGhToken(token) {
   fs.writeFileSync(GH_TOKEN_CACHE, token, { mode: 0o600 });
 }
 
+const CLI_READY_POLL_MS = 2000;
+const CLI_READY_TIMEOUT_MS = 600000;
+const CONTAINER_NAME = process.env.HIVE_CONTAINER_NAME || 'hive-contributor';
+
+function getCLIState() {
+  try {
+    const output = execSync(
+      `tmux capture-pane -t ${TMUX_SESSION} -p -S -15 2>/dev/null`,
+      { encoding: 'utf8', timeout: 5000 }
+    );
+    const text = output.toString();
+    if (/Not logged in|Please run \/login/.test(text)) return 'needs-login';
+    if (/bypass permissions|Welcome back|Try "how does|medium.*effort|@gmail\.com|@.*\.com.*Organization/.test(text)) return 'ready';
+    if (/Choose the text style|trust this folder/.test(text)) return 'onboarding';
+    return 'starting';
+  } catch (_) {
+    return 'starting';
+  }
+}
+
+function waitForCLI() {
+  let loginMessageShown = false;
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const check = () => {
+      const state = getCLIState();
+      if (state === 'ready') {
+        console.log('CLI ready — accepting tasks');
+        resolve();
+      } else if (state === 'needs-login' && !loginMessageShown) {
+        loginMessageShown = true;
+        console.log('');
+        console.log('╔══════════════════════════════════════════════════════════╗');
+        console.log('║  Claude Code needs authentication.                      ║');
+        console.log('║  In another terminal, run:                              ║');
+        console.log(`║  docker exec -it ${CONTAINER_NAME} tmux attach -t ${TMUX_SESSION}`);
+        console.log('║  Then type: /login                                      ║');
+        console.log('║  Complete the login, then press Ctrl-B D to detach.     ║');
+        console.log('║  Waiting for login to complete...                       ║');
+        console.log('╚══════════════════════════════════════════════════════════╝');
+        console.log('');
+        setTimeout(check, CLI_READY_POLL_MS);
+      } else if (Date.now() - start > CLI_READY_TIMEOUT_MS) {
+        reject(new Error('CLI did not become ready within timeout'));
+      } else {
+        setTimeout(check, CLI_READY_POLL_MS);
+      }
+    };
+    check();
+  });
+}
+
+let cliReady = false;
+let pendingTask = null;
+
+waitForCLI().then(() => {
+  cliReady = true;
+  if (pendingTask) {
+    const task = pendingTask;
+    pendingTask = null;
+    tmuxSendKeys(task);
+  }
+}).catch(e => console.error(e.message));
+
+const ENTER_COUNT = 3;
+const ENTER_DELAY_MS = 300;
+
+function sleepMs(ms) {
+  execSync(`sleep ${ms / 1000}`, { timeout: ms + 1000 });
+}
+
+function tmuxSendEnters() {
+  for (let i = 0; i < ENTER_COUNT; i++) {
+    execSync(`tmux send-keys -t ${TMUX_SESSION} Enter`, { timeout: 5000 });
+    if (i < ENTER_COUNT - 1) sleepMs(ENTER_DELAY_MS);
+  }
+}
+
 function tmuxSendKeys(text) {
   try {
     execSync(`tmux send-keys -t ${TMUX_SESSION} C-u`, { timeout: 5000 });
-    execSync(`tmux send-keys -t ${TMUX_SESSION} -l ${shellQuote(text)}`, { timeout: 5000 });
-    execSync(`tmux send-keys -t ${TMUX_SESSION} Enter`, { timeout: 5000 });
+    sleepMs(200);
+    execSync(`tmux send-keys -t ${TMUX_SESSION} -l ${shellQuote(text)}`, { timeout: 10000 });
+    sleepMs(300);
+    tmuxSendEnters();
+    console.log('Task prompt sent to CLI');
   } catch (e) {
     console.error('tmux send-keys failed:', e.message);
   }
@@ -157,7 +238,13 @@ function handleMessage(data) {
       }
       fs.writeFileSync(TASK_FILE, JSON.stringify(msg, null, 2));
       send({ type: 'task_accepted', seq: nextSeq(), task_id: msg.task_id });
-      tmuxSendKeys(msg.prompt || `Work on ${msg.kind} ${msg.repo}#${msg.number}: ${msg.title}`);
+      const taskPrompt = msg.prompt || `Work on ${msg.kind} ${msg.repo}#${msg.number}: ${msg.title}`;
+      if (cliReady) {
+        tmuxSendKeys(taskPrompt);
+      } else {
+        console.log('CLI not ready yet — queuing task prompt');
+        pendingTask = taskPrompt;
+      }
       startProgressReporting();
       break;
 

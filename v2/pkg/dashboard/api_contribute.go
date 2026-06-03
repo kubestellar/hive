@@ -52,6 +52,7 @@ type ContributorProfile struct {
 	LastActive         string                `json:"last_active,omitempty"`
 	RateLimits         ContributorRateLimits `json:"rate_limits"`
 	Active             bool                  `json:"active,omitempty"`
+	CurrentTask        *WSTaskAssign         `json:"current_task,omitempty"`
 }
 
 type ContributorRateLimits struct {
@@ -417,12 +418,15 @@ const isNew=newCount>prevCount;
 prevCount=newCount;
 f.innerHTML=act.activity.slice().reverse().map((e,i)=>{
 const d=new Date(e.timestamp);const t=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const tz=d.toLocaleTimeString([],{timeZoneName:'short'}).split(' ').pop();
-const icon=e.action==='joined'?'🟢':'🔴';
-const verb=e.action==='joined'?'entered the hive':'left the hive';
+const icons={joined:'🟢',left:'🔴','picked up':'🔧',completed:'✅',failed:'❌'};
+const verbs={joined:'entered the hive',left:'left the hive','picked up':'picked up','completed':'completed','failed':'failed'};
+const icon=icons[e.action]||'⚡';
+const verb=verbs[e.action]||e.action;
+const taskInfo=e.task?' <span class="feed-cli">'+e.task+'</span>':'';
 const role=e.role?' as <span class="feed-role">'+e.role+'</span>':'';
 const cliModel=e.cli?(e.model?' <span class="feed-cli">via '+e.cli+' CLI with '+e.model+'</span>':' <span class="feed-cli">via '+e.cli+' CLI</span>'):'';
 return '<div class="feed-entry"'+(i===0&&isNew?' style="background:rgba(63,185,80,.08)"':'')+'>'+
-'<div class="feed-text">'+icon+' <b>'+e.username+'</b> '+verb+role+cliModel+'</div>'+
+'<div class="feed-text">'+icon+' <b>'+e.username+'</b> '+verb+taskInfo+role+cliModel+'</div>'+
 '<span class="feed-time">'+t+' '+tz+'</span></div>'
 }).join('');
 if(isNew)f.scrollTop=0;
@@ -511,9 +515,17 @@ func (s *Server) handleContributeActivity(w http.ResponseWriter, r *http.Request
 
 func (s *Server) handleContributorsList(w http.ResponseWriter, r *http.Request) {
 	profiles := listContributorProfiles()
+	var liveStates map[string]ContributorLiveState
+	if s.contributeHub != nil {
+		liveStates = s.contributeHub.LiveStates()
+	}
 	for i := range profiles {
 		profiles[i].TokenPlain = ""
 		profiles[i].RegistrationToken = ""
+		if ls, ok := liveStates[profiles[i].ContributorID]; ok {
+			profiles[i].Active = ls.Active
+			profiles[i].CurrentTask = ls.CurrentTask
+		}
 	}
 	jsonResponse(w, map[string]any{"contributors": profiles})
 }

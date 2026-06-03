@@ -242,7 +242,7 @@ func (s *Server) handleContributeLanding(w http.ResponseWriter, r *http.Request)
 	var tierBoxes strings.Builder
 	for _, ts := range tierStats {
 		fmt.Fprintf(&tierBoxes,
-			`<div class="stat" style="flex:0 1 auto;min-width:80px"><div class="stat-num" style="color:%s;font-size:1.4rem">%d</div><div class="stat-label">%s</div></div>`,
+			`<div class="stat"><div class="stat-num" style="color:%s">%d</div><div class="stat-label">%s</div></div>`,
 			ts.color, ts.count, ts.label)
 	}
 
@@ -253,17 +253,14 @@ func (s *Server) handleContributeLanding(w http.ResponseWriter, r *http.Request)
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;margin:0;min-height:100vh}
 .page{display:flex;min-height:100vh;width:100%%}
-.main{flex:2;padding:40px;overflow-y:auto}
+.main{flex:3;padding:40px 48px;overflow-y:auto}
 .sidebar{flex:1;background:#161b22;border-left:1px solid #30363d;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
 h1{font-size:2rem;margin-bottom:8px}
 .subtitle{color:#8b949e;font-size:1.1rem;margin-bottom:32px}
-.stat-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:stretch}
-.stat{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:12px 16px;flex:1;text-align:center;min-width:80px}
-.stat-num{font-size:1.8rem;font-weight:700;color:#58a6ff}
-.stat-label{font-size:.75rem;color:#8b949e;margin-top:4px;text-transform:capitalize}
-.stat-total{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:12px 20px;text-align:center;display:flex;align-items:center;gap:8px;justify-content:center}
-.stat-total .stat-num{font-size:1.6rem;color:#58a6ff}
-.stat-total .stat-label{font-size:.75rem;color:#8b949e;margin-top:0}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:10px;margin-bottom:24px}
+.stat{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 8px;text-align:center}
+.stat-num{font-size:1.5rem;font-weight:700;color:#58a6ff}
+.stat-label{font-size:.7rem;color:#8b949e;margin-top:4px}
 .steps{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;margin-top:24px}
 .steps h3{margin-top:0;color:#58a6ff}
 .steps ol{padding-left:20px;line-height:2}
@@ -280,10 +277,11 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 @keyframes pulse{0%%,100%%{opacity:1}50%%{opacity:.4}}
 .feed-count{font-size:.75rem;color:#8b949e;margin-left:auto}
 .feed-scroll{flex:1;overflow-y:auto;padding:0}
-.feed-entry{padding:10px 20px;border-bottom:1px solid #21262d;font-size:.85rem;animation:fadeIn .3s ease}
+.feed-entry{padding:10px 20px;border-bottom:1px solid #21262d;font-size:.85rem;animation:fadeIn .3s ease;display:flex;align-items:flex-start;gap:12px}
 @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 .feed-entry:hover{background:rgba(88,166,255,.04)}
-.feed-time{color:#8b949e;font-size:.75rem;float:right}
+.feed-text{flex:1;min-width:0}
+.feed-time{color:#8b949e;font-size:.75rem;white-space:nowrap;flex-shrink:0}
 .feed-role{color:#58a6ff;font-weight:500}
 .feed-cli{color:#8b949e;font-size:.8rem}
 .feed-empty{padding:40px 20px;text-align:center;color:#8b949e;font-size:.85rem}
@@ -294,9 +292,9 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <h1>🐝 Contribute to %s</h1>
 <p class="subtitle">Donate your CLI + API tokens to help this project's AI agent swarm.</p>
 <div class="stat-row">
+<div class="stat"><div class="stat-num" style="color:#58a6ff">%d</div><div class="stat-label">Total</div></div>
 %s
 </div>
-<div class="stat-total"><div class="stat-num">%d</div><div class="stat-label">Total Contributors</div></div>
 <div class="steps">
 <h3>How it works</h3>
 <ol>
@@ -347,20 +345,20 @@ const newCount=act.activity.length;
 const isNew=newCount>prevCount;
 prevCount=newCount;
 f.innerHTML=act.activity.slice().reverse().map((e,i)=>{
-const t=new Date(e.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+const d=new Date(e.timestamp);const t=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const tz=d.toLocaleTimeString([],{timeZoneName:'short'}).split(' ').pop();
 const icon=e.action==='joined'?'🟢':'🔴';
 const verb=e.action==='joined'?'entered the hive':'left the hive';
 const role=e.role?' as <span class="feed-role">'+e.role+'</span>':'';
 const cliModel=e.cli?(e.model?' <span class="feed-cli">via '+e.cli+' CLI with '+e.model+'</span>':' <span class="feed-cli">via '+e.cli+' CLI</span>'):'';
 return '<div class="feed-entry"'+(i===0&&isNew?' style="background:rgba(63,185,80,.08)"':'')+'>'+
-'<span class="feed-time">'+t+'</span>'+
-icon+' <b>'+e.username+'</b> '+verb+role+cliModel+'</div>'
+'<div class="feed-text">'+icon+' <b>'+e.username+'</b> '+verb+role+cliModel+'</div>'+
+'<span class="feed-time">'+t+' '+tz+'</span></div>'
 }).join('');
 if(isNew)f.scrollTop=0;
 }catch(e){}}
 poll();setInterval(poll,3000);
 </script>
-</body></html>`, projectName, projectName, tierBoxes.String(), len(profiles))
+</body></html>`, projectName, projectName, len(profiles), tierBoxes.String())
 }
 
 // ── Registration ───────────────────────────────────────────────────────────

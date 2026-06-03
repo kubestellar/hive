@@ -126,6 +126,60 @@ func (a *AppAuth) Token(ctx context.Context) (string, error) {
 	return a.cachedToken, nil
 }
 
+// ScopedToken creates a short-lived installation token with permissions
+// scoped to a contributor's trust tier. Unlike Token(), this is NOT
+// cached — each call creates a fresh token.
+func (a *AppAuth) ScopedToken(ctx context.Context, tier string) (string, error) {
+	jwtToken, err := a.generateJWT()
+	if err != nil {
+		return "", fmt.Errorf("generating JWT: %w", err)
+	}
+
+	var perms *gh.InstallationPermissions
+	switch tier {
+	case "newcomer":
+		perms = &gh.InstallationPermissions{
+			Issues:   gh.Ptr("write"),
+			Metadata: gh.Ptr("read"),
+		}
+	case "contributor":
+		perms = &gh.InstallationPermissions{
+			Issues:       gh.Ptr("write"),
+			Contents:     gh.Ptr("write"),
+			PullRequests: gh.Ptr("write"),
+			Metadata:     gh.Ptr("read"),
+		}
+	case "trusted":
+		perms = &gh.InstallationPermissions{
+			Issues:       gh.Ptr("write"),
+			Contents:     gh.Ptr("write"),
+			PullRequests: gh.Ptr("write"),
+			Checks:       gh.Ptr("read"),
+			Metadata:     gh.Ptr("read"),
+		}
+	case "advisor":
+		perms = &gh.InstallationPermissions{
+			Issues:   gh.Ptr("read"),
+			Metadata: gh.Ptr("read"),
+		}
+	default:
+		perms = &gh.InstallationPermissions{
+			Issues:   gh.Ptr("read"),
+			Metadata: gh.Ptr("read"),
+		}
+	}
+
+	opts := &gh.InstallationTokenOptions{Permissions: perms}
+	jwtClient := gh.NewClient(nil).WithAuthToken(jwtToken)
+	installToken, _, err := jwtClient.Apps.CreateInstallationToken(ctx, a.installationID, opts)
+	if err != nil {
+		return "", fmt.Errorf("creating scoped token for tier %s: %w", tier, err)
+	}
+
+	a.logger.Info("scoped token minted", "tier", tier, "expires_at", installToken.GetExpiresAt().Format(time.RFC3339))
+	return installToken.GetToken(), nil
+}
+
 type appTransport struct {
 	auth *AppAuth
 	base http.RoundTripper

@@ -86,6 +86,7 @@ func main() {
 	}()
 
 	var ghClient *github.Client
+	var appAuth *github.AppAuth
 	if cfg.GitHub.AppID != 0 {
 		keyFile := cfg.GitHub.KeyFile
 		if envKey := os.Getenv("GH_APP_KEY_FILE"); envKey != "" {
@@ -94,7 +95,8 @@ func main() {
 		if keyFile == "" {
 			keyFile = "/secrets/gh-app-key.pem"
 		}
-		appAuth, err := github.NewAppAuth(cfg.GitHub.AppID, cfg.GitHub.InstallationID, keyFile, logger)
+		var err error
+		appAuth, err = github.NewAppAuth(cfg.GitHub.AppID, cfg.GitHub.InstallationID, keyFile, logger)
 		if err != nil {
 			logger.Error("failed to init GitHub App auth", "error", err)
 			os.Exit(1)
@@ -623,6 +625,7 @@ func main() {
 		AgentMgr:         agentMgr,
 		Governor:         gov,
 		GHClient:         ghClient,
+		GHAppAuth:        appAuth,
 		Tokens:           tokenCollector,
 		Knowledge:        knowledgeAPI,
 		Inception:        inceptionEngine,

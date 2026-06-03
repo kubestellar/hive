@@ -22,6 +22,9 @@ const (
 	stakeholderDefaultConf = 0.7
 	acceptanceDefaultConf  = 0.6
 	brownfieldConfBoost = 0.15
+
+	maxDescriptionLen = 80
+	maxSlugLen        = 30
 )
 
 // InceptionEngine manages the Level 1 ideation workflow — from raw idea to
@@ -52,8 +55,13 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	rawIdea = strings.TrimSpace(rawIdea)
 	if rawIdea == "" {
 		return nil, fmt.Errorf("idea text is required")
+	}
+
+	if e.state != nil && e.state.Phase != PhaseComplete {
+		return nil, fmt.Errorf("inception already in progress (phase: %s) — reset first", e.state.Phase)
 	}
 
 	slug := slugify("idea-" + truncateSlug(rawIdea))
@@ -73,12 +81,15 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 		}
 	}
 
+	e.clearWikiVault()
+
 	e.state = &InceptionState{
 		Phase:     PhaseCapture,
 		Mode:      InceptionGreenfield,
 		IdeaText:  rawIdea,
 		IdeaSlug:  slug,
 		FactSlugs: []string{slug},
+		Questions: []Question{},
 		Answers:   make(map[string]string),
 		StartedAt: time.Now(),
 	}
@@ -104,8 +115,17 @@ func (e *InceptionEngine) StartBrownfield(repoURL string) (*InceptionState, erro
 	if repoURL == "" {
 		return nil, fmt.Errorf("repo URL is required")
 	}
+	if !strings.HasPrefix(repoURL, "https://") && !strings.HasPrefix(repoURL, "http://") {
+		return nil, fmt.Errorf("repo URL must start with https:// or http://")
+	}
+
+	if e.state != nil && e.state.Phase != PhaseComplete {
+		return nil, fmt.Errorf("inception already in progress (phase: %s) — reset first", e.state.Phase)
+	}
 
 	slug := slugify("scan-" + repoBaseName(repoURL))
+
+	e.clearWikiVault()
 
 	e.state = &InceptionState{
 		Phase:     PhaseCapture,
@@ -113,6 +133,7 @@ func (e *InceptionEngine) StartBrownfield(repoURL string) (*InceptionState, erro
 		IdeaSlug:  slug,
 		RepoURL:   repoURL,
 		FactSlugs: []string{},
+		Questions: []Question{},
 		Answers:   make(map[string]string),
 		StartedAt: time.Now(),
 	}
@@ -140,6 +161,24 @@ func (e *InceptionEngine) SetQuestions(questions []Question) error {
 		return fmt.Errorf("no inception in progress")
 	}
 
+	if len(questions) == 0 {
+		return fmt.Errorf("at least one question is required")
+	}
+
+	seen := make(map[string]bool, len(questions))
+	for _, q := range questions {
+		if q.ID == "" {
+			return fmt.Errorf("question ID is required")
+		}
+		if q.Text == "" {
+			return fmt.Errorf("question text is required for %q", q.ID)
+		}
+		if seen[q.ID] {
+			return fmt.Errorf("duplicate question ID: %q", q.ID)
+		}
+		seen[q.ID] = true
+	}
+
 	e.state.Questions = questions
 	e.state.Phase = PhaseClarify
 
@@ -161,6 +200,22 @@ func (e *InceptionEngine) SubmitAnswers(answers map[string]string) (*InceptionSt
 	// are still valuable context for the next kick.
 	if e.state.Phase != PhaseClarify && e.state.Phase != PhaseStructure {
 		return nil, fmt.Errorf("cannot submit answers in phase %s", e.state.Phase)
+	}
+
+	// Validate answer keys match known question IDs
+	if len(e.state.Questions) > 0 {
+		qIDs := make(map[string]bool, len(e.state.Questions))
+		for _, q := range e.state.Questions {
+			qIDs[q.ID] = true
+		}
+		for id, val := range answers {
+			if !qIDs[id] {
+				return nil, fmt.Errorf("answer key %q does not match any question ID", id)
+			}
+			if strings.TrimSpace(val) == "" {
+				return nil, fmt.Errorf("answer for %q is empty", id)
+			}
+		}
 	}
 
 	e.state.Answers = answers
@@ -191,7 +246,20 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 		return fmt.Errorf("no inception in progress")
 	}
 
+	if len(facts) == 0 {
+		return fmt.Errorf("at least one fact is required")
+	}
+
 	for _, f := range facts {
+		if !f.Type.IsIdeation() {
+			return fmt.Errorf("invalid ideation fact type: %q", f.Type)
+		}
+		if f.Title == "" {
+			return fmt.Errorf("fact title is required")
+		}
+		if f.Body == "" {
+			return fmt.Errorf("fact body is required for type %q", f.Type)
+		}
 		conf := defaultConfidence(f.Type)
 		if e.state.Mode == InceptionBrownfield {
 			conf += brownfieldConfBoost
@@ -220,7 +288,6 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 				"type", f.Type,
 				"error", err,
 			)
-			continue
 		}
 
 		slug := slugify(string(f.Type) + "-" + truncateSlug(f.Title))
@@ -235,6 +302,20 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 }
 
 const inceptionWikiDir = "inception-wiki"
+
+func (e *InceptionEngine) clearWikiVault() {
+	vaultDir := filepath.Join(e.dataDir, inceptionWikiDir)
+	entries, err := os.ReadDir(vaultDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		os.Remove(filepath.Join(vaultDir, entry.Name()))
+	}
+	if len(entries) > 0 {
+		e.logger.Info("inception wiki cleared on new start", "files", len(entries))
+	}
+}
 
 // writeFactsToVault writes each fact as a markdown file with YAML frontmatter
 // into a local directory, then connects it as a KB vault so facts are available
@@ -366,7 +447,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	// Core documentation
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "README.md",
-		Content: buildReadme(vision, requirements, constraints, stakeholders),
+		Content: buildReadme(e.state.IdeaText, vision, constitution, requirements, constraints, stakeholders),
 		Purpose: "readme",
 		IsNew:   true,
 	})
@@ -423,8 +504,8 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	case "python":
 		result.Files = append(result.Files,
 			ScaffoldFile{Path: "pyproject.toml", Content: buildPyprojectToml(projectName, vision), Purpose: "pyproject", IsNew: true},
-			ScaffoldFile{Path: "src/" + projectName + "/__init__.py", Content: buildPyInit(projectName, vision), Purpose: "main", IsNew: true},
-			ScaffoldFile{Path: "src/" + projectName + "/cli.py", Content: buildPyCLI(projectName, vision), Purpose: "cmd", IsNew: true},
+			ScaffoldFile{Path: "src/" + pyPackageName(projectName) + "/__init__.py", Content: buildPyInit(projectName, vision), Purpose: "main", IsNew: true},
+			ScaffoldFile{Path: "src/" + pyPackageName(projectName) + "/cli.py", Content: buildPyCLI(projectName, vision), Purpose: "cmd", IsNew: true},
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
@@ -440,6 +521,35 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
 				Path: "src/__tests__/acceptance.test.ts", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+			})
+		}
+	case "rust":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "Cargo.toml", Content: buildCargoToml(projectName, vision), Purpose: "cargo_toml", IsNew: true},
+			ScaffoldFile{Path: "src/main.rs", Content: buildRustMain(projectName, vision), Purpose: "main", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "tests/acceptance.rs", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+			})
+		}
+	case "java":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "pom.xml", Content: buildPomXml(projectName, vision), Purpose: "pom", IsNew: true},
+			ScaffoldFile{Path: "src/main/java/App.java", Content: buildJavaMain(projectName, vision), Purpose: "main", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "src/test/java/AppTest.java", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+			})
+		}
+	case "shell":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: projectName + ".sh", Content: buildShellMain(projectName, vision), Purpose: "main", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "test.sh", Content: buildShellTestStubs(acceptance), Purpose: "test_stub", IsNew: true,
 			})
 		}
 	}
@@ -532,7 +642,9 @@ func (e *InceptionEngine) SetWikiName(name string) {
 	defer e.mu.Unlock()
 	if e.state != nil {
 		e.state.WikiName = name
-		e.saveState()
+		if err := e.saveState(); err != nil {
+			e.logger.Warn("failed to persist wiki name", "name", name, "error", err)
+		}
 	}
 }
 
@@ -627,6 +739,14 @@ func (e *InceptionEngine) saveState() error {
 }
 
 // --- fact helpers ---
+
+// GatherFactsPublic exposes gatherFacts for the API layer when the KB project
+// layer has no ideation facts (e.g. api was nil during RecordFacts).
+func (e *InceptionEngine) GatherFactsPublic(ctx context.Context) []Fact {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.gatherFacts(ctx)
+}
 
 func (e *InceptionEngine) gatherFacts(ctx context.Context) []Fact {
 	// Read facts from the inception wiki vault files directly
@@ -740,7 +860,7 @@ func defaultConfidence(ft FactType) float64 {
 
 // --- scaffold builders ---
 
-func buildReadme(vision *Fact, reqs, constraints, stakeholders []Fact) string {
+func buildReadme(ideaText string, vision, constitution *Fact, reqs, constraints, stakeholders []Fact) string {
 	var b strings.Builder
 
 	title := "Project"
@@ -751,7 +871,19 @@ func buildReadme(vision *Fact, reqs, constraints, stakeholders []Fact) string {
 	fmt.Fprintf(&b, "# %s\n\n", title)
 
 	if vision != nil {
+		b.WriteString("## Overview\n\n")
 		b.WriteString(vision.Body)
+		b.WriteString("\n\n")
+	}
+
+	if ideaText != "" && (vision == nil || len(vision.Body) < 100) {
+		b.WriteString("## About This Project\n\n")
+		fmt.Fprintf(&b, "This project was conceived from the idea: *%s*\n\n", ideaText)
+	}
+
+	if constitution != nil {
+		b.WriteString("## Architecture & Principles\n\n")
+		b.WriteString(constitution.Body)
 		b.WriteString("\n\n")
 	}
 
@@ -766,7 +898,11 @@ func buildReadme(vision *Fact, reqs, constraints, stakeholders []Fact) string {
 	if len(reqs) > 0 {
 		b.WriteString("## Features\n\n")
 		for _, r := range reqs {
-			fmt.Fprintf(&b, "- %s\n", r.Title)
+			if r.Body != "" && r.Body != r.Title {
+				fmt.Fprintf(&b, "- **%s** — %s\n", r.Title, r.Body)
+			} else {
+				fmt.Fprintf(&b, "- %s\n", r.Title)
+			}
 		}
 		b.WriteString("\n")
 	}
@@ -774,13 +910,37 @@ func buildReadme(vision *Fact, reqs, constraints, stakeholders []Fact) string {
 	if len(constraints) > 0 {
 		b.WriteString("## Constraints\n\n")
 		for _, c := range constraints {
-			fmt.Fprintf(&b, "- %s\n", c.Title)
+			if c.Body != "" && c.Body != c.Title {
+				fmt.Fprintf(&b, "- **%s** — %s\n", c.Title, c.Body)
+			} else {
+				fmt.Fprintf(&b, "- %s\n", c.Title)
+			}
 		}
 		b.WriteString("\n")
 	}
 
 	b.WriteString("## Getting Started\n\n")
-	b.WriteString("TODO: Add setup instructions.\n\n")
+	if constitution != nil {
+		lang := inferLanguage(constitution)
+		switch lang {
+		case "go":
+			b.WriteString("```bash\ngo build -o bin/ .\n./bin/<project>\n```\n\n")
+		case "python":
+			b.WriteString("```bash\npip install -e .\npython -m <project>\n```\n\n")
+		case "typescript", "javascript":
+			b.WriteString("```bash\nnpm install\nnpm run dev\n```\n\n")
+		case "rust":
+			b.WriteString("```bash\ncargo build --release\n./target/release/<project>\n```\n\n")
+		case "java":
+			b.WriteString("```bash\nmvn package\njava -jar target/<project>.jar\n```\n\n")
+		case "shell":
+			b.WriteString("```bash\nchmod +x *.sh\n./<project>.sh\n```\n\n")
+		default:
+			b.WriteString("TODO: Add setup instructions.\n\n")
+		}
+	} else {
+		b.WriteString("TODO: Add setup instructions.\n\n")
+	}
 
 	b.WriteString("## License\n\n")
 	b.WriteString("TODO: Choose a license.\n")
@@ -825,6 +985,10 @@ func buildTestStubs(acceptance []Fact, constitution *Fact) string {
 		return buildTSTestStubs(acceptance)
 	case "python":
 		return buildPythonTestStubs(acceptance)
+	case "rust":
+		return buildRustTestStubs(acceptance)
+	case "java":
+		return buildJavaTestStubs(acceptance)
 	default:
 		return buildGoTestStubs(acceptance)
 	}
@@ -864,12 +1028,97 @@ func buildPythonTestStubs(acceptance []Fact) string {
 	return b.String()
 }
 
+func buildRustTestStubs(acceptance []Fact) string {
+	var b strings.Builder
+	b.WriteString("#[cfg(test)]\nmod tests {\n\n")
+	for _, a := range acceptance {
+		funcName := toSnakeCase(a.Title)
+		fmt.Fprintf(&b, "    #[test]\n    #[ignore = \"TODO: %s\"]\n", a.Title)
+		fmt.Fprintf(&b, "    fn %s() {\n        todo!()\n    }\n\n", funcName)
+	}
+	b.WriteString("}\n")
+	return b.String()
+}
+
+func buildJavaTestStubs(acceptance []Fact) string {
+	var b strings.Builder
+	b.WriteString("import org.junit.jupiter.api.Disabled;\nimport org.junit.jupiter.api.Test;\n\n")
+	b.WriteString("class AppTest {\n\n")
+	for _, a := range acceptance {
+		funcName := "test" + toPascalCase(a.Title)
+		fmt.Fprintf(&b, "    @Test\n    @Disabled(\"TODO: %s\")\n", a.Title)
+		fmt.Fprintf(&b, "    void %s() {\n        // TODO: implement\n    }\n\n", funcName)
+	}
+	b.WriteString("}\n")
+	return b.String()
+}
+
+func buildShellMain(name string, vision *Fact) string {
+	desc := name
+	if vision != nil && vision.Body != "" {
+		desc = vision.Body
+		if len(desc) > maxDescriptionLen {
+			desc = desc[:maxDescriptionLen]
+		}
+	}
+	return fmt.Sprintf(`#!/usr/bin/env bash
+set -euo pipefail
+
+# %s
+
+main() {
+    echo "Starting %s..."
+    # TODO: implement
+}
+
+main "$@"
+`, desc, name)
+}
+
+func buildShellTestStubs(acceptance []Fact) string {
+	var b strings.Builder
+	b.WriteString("#!/usr/bin/env bash\nset -euo pipefail\n\n")
+	b.WriteString("PASS=0\nFAIL=0\n\n")
+	for _, a := range acceptance {
+		funcName := toSnakeCase(a.Title)
+		fmt.Fprintf(&b, "test_%s() {\n", funcName)
+		fmt.Fprintf(&b, "    echo \"SKIP: %s\"\n", a.Title)
+		b.WriteString("    PASS=$((PASS+1))\n}\n\n")
+	}
+	b.WriteString("# Run all tests\n")
+	for _, a := range acceptance {
+		fmt.Fprintf(&b, "test_%s\n", toSnakeCase(a.Title))
+	}
+	b.WriteString("\necho \"$PASS passed, $FAIL failed\"\n")
+	return b.String()
+}
+
 func buildContributing(constitution *Fact) string {
 	var b strings.Builder
 	b.WriteString("# Contributing\n\n")
 	b.WriteString("Thank you for your interest in contributing!\n\n")
 	b.WriteString("## Development Setup\n\n")
-	b.WriteString("TODO: Add development setup instructions.\n\n")
+	if constitution != nil {
+		lang := inferLanguage(constitution)
+		switch lang {
+		case "go":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\ngo mod download\ngo build ./...\ngo test ./...\n```\n\n")
+		case "python":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\npython -m venv .venv && source .venv/bin/activate\npip install -e '.[dev]'\npytest\n```\n\n")
+		case "typescript", "javascript":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nnpm install\nnpm test\n```\n\n")
+		case "rust":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\ncargo build\ncargo test\n```\n\n")
+		case "java":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nmvn compile\nmvn test\n```\n\n")
+		case "shell":
+			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nchmod +x *.sh\nbash test.sh\n```\n\n")
+		default:
+			b.WriteString("TODO: Add development setup instructions.\n\n")
+		}
+	} else {
+		b.WriteString("TODO: Add development setup instructions.\n\n")
+	}
 	b.WriteString("## Pull Request Process\n\n")
 	b.WriteString("1. Fork the repository and create your branch from `main`\n")
 	b.WriteString("2. Ensure tests pass before submitting\n")
@@ -895,6 +1144,12 @@ func buildCIConfig(constitution *Fact) string {
 		return tsCI()
 	case "python":
 		return pythonCI()
+	case "rust":
+		return rustCI()
+	case "java":
+		return javaCI()
+	case "shell":
+		return shellCI()
 	default:
 		return goCI()
 	}
@@ -966,6 +1221,68 @@ jobs:
 `
 }
 
+func rustCI() string {
+	return `name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: cargo test
+      - run: cargo clippy -- -D warnings
+`
+}
+
+func javaCI() string {
+	return `name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: mvn compile
+      - run: mvn test
+`
+}
+
+func shellCI() string {
+	return `name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+      - run: shellcheck *.sh
+      - run: bash test.sh
+`
+}
+
 func inferProjectName(vision *Fact, state *InceptionState) string {
 	if vision != nil {
 		words := strings.Fields(strings.ToLower(vision.Title))
@@ -990,8 +1307,8 @@ func inferProjectName(vision *Fact, state *InceptionState) string {
 	}
 	if state != nil && state.IdeaSlug != "" {
 		slug := strings.TrimPrefix(state.IdeaSlug, "idea-")
-		if len(slug) > 30 {
-			slug = slug[:30]
+		if len(slug) > maxSlugLen {
+			slug = slug[:maxSlugLen]
 		}
 		return slug
 	}
@@ -1053,13 +1370,19 @@ func buildGitignore(lang string) string {
 		return common + "# Python\n__pycache__/\n*.pyc\n*.egg-info/\ndist/\nbuild/\n.venv/\nvenv/\n.pytest_cache/\n"
 	case "typescript", "javascript":
 		return common + "# Node\nnode_modules/\ndist/\ncoverage/\n*.tsbuildinfo\n"
+	case "rust":
+		return common + "# Rust\n/target/\nCargo.lock\n"
+	case "java":
+		return common + "# Java\ntarget/\n*.class\n*.jar\n.gradle/\nbuild/\n"
+	case "shell":
+		return common + "# Shell\n*.log\n"
 	default:
 		return common
 	}
 }
 
 func buildGoMod(name string) string {
-	return fmt.Sprintf("module github.com/example/%s\n\ngo 1.22\n", name)
+	return fmt.Sprintf("module %s\n\ngo 1.22\n", name)
 }
 
 func buildGoMain(name string, vision *Fact) string {
@@ -1075,7 +1398,7 @@ import "%s/cmd"
 func main() {
 	cmd.Execute()
 }
-`, "github.com/example/"+name, desc)
+`, name, desc)
 }
 
 func buildGoCmdRoot(name string, vision *Fact) string {
@@ -1109,6 +1432,75 @@ func Execute() {
 `, name, desc)
 }
 
+func buildCargoToml(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`[package]
+name = "%s"
+version = "0.1.0"
+edition = "2021"
+description = "%s"
+
+[dependencies]
+`, name, desc)
+}
+
+func buildRustMain(name string, vision *Fact) string {
+	desc := name
+	if vision != nil && vision.Body != "" {
+		desc = vision.Body
+		if len(desc) > maxDescriptionLen {
+			desc = desc[:maxDescriptionLen]
+		}
+	}
+	return fmt.Sprintf(`// %s
+fn main() {
+    println!("Starting %s...");
+}
+`, desc, name)
+}
+
+func buildPomXml(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>%s</artifactId>
+    <version>0.1.0</version>
+    <name>%s</name>
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+    </properties>
+</project>
+`, name, desc)
+}
+
+func buildJavaMain(name string, vision *Fact) string {
+	desc := name
+	if vision != nil && vision.Body != "" {
+		desc = vision.Body
+		if len(desc) > maxDescriptionLen {
+			desc = desc[:maxDescriptionLen]
+		}
+	}
+	return fmt.Sprintf(`// %s
+public class App {
+    public static void main(String[] args) {
+        System.out.println("Starting %s...");
+    }
+}
+`, desc, name)
+}
+
 func buildPyprojectToml(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
@@ -1132,7 +1524,7 @@ dev = ["pytest", "ruff"]
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.backends._legacy:_Backend"
-`, name, desc, name, name)
+`, name, desc, name, pyPackageName(name))
 }
 
 func buildPyInit(name string, vision *Fact) string {
@@ -1291,6 +1683,30 @@ COPY src/ src/
 RUN pip install --no-cache-dir .
 ENTRYPOINT ["%s"]
 `, name)
+	case "rust":
+		return fmt.Sprintf(`FROM rust:1.78-slim AS builder
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY src/ src/
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/%s /usr/local/bin/%s
+ENTRYPOINT ["%s"]
+`, name, name, name)
+	case "java":
+		return fmt.Sprintf(`FROM maven:3.9-eclipse-temurin-21 AS builder
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline
+COPY src/ src/
+RUN mvn package -DskipTests
+
+FROM eclipse-temurin:21-jre
+COPY --from=builder /app/target/%s-*.jar /app/%s.jar
+ENTRYPOINT ["java", "-jar", "/app/%s.jar"]
+`, name, name, name)
 	default:
 		return fmt.Sprintf(`FROM node:22-alpine AS builder
 WORKDIR /app
@@ -1455,6 +1871,12 @@ func buildNightlyCI(lang string) string {
 		testCmd = "go test -race -cover -count=3 ./..."
 	case "python":
 		testCmd = "pytest --tb=long -v"
+	case "rust":
+		testCmd = "cargo test -- --nocapture"
+	case "java":
+		testCmd = "mvn verify -P integration-test"
+	case "shell":
+		testCmd = "bash test.sh"
 	default:
 		testCmd = "npm test -- --reporter=verbose"
 	}
@@ -1552,6 +1974,19 @@ func buildMakefile(lang, name string) string {
 		b.WriteString("test:\n\tnpm test\n\n")
 		b.WriteString("lint:\n\tnpm run lint\n\n")
 		b.WriteString("clean:\n\trm -rf dist/ node_modules/\n\n")
+	case "rust":
+		b.WriteString("build:\n\tcargo build --release\n\n")
+		b.WriteString("test:\n\tcargo test\n\n")
+		b.WriteString("lint:\n\tcargo clippy -- -D warnings\n\n")
+		b.WriteString("clean:\n\tcargo clean\n\n")
+	case "java":
+		b.WriteString("build:\n\tmvn package\n\n")
+		b.WriteString("test:\n\tmvn test\n\n")
+		b.WriteString("lint:\n\tmvn checkstyle:check\n\n")
+		b.WriteString("clean:\n\tmvn clean\n\n")
+	case "shell":
+		b.WriteString("test:\n\tbash test.sh\n\n")
+		b.WriteString("lint:\n\tshellcheck *.sh\n\n")
 	}
 	fmt.Fprintf(&b, "docker-build:\n\tdocker build -t %s:latest .\n\n", name)
 	fmt.Fprintf(&b, "docker-push:\n\tdocker push %s:latest\n\n", name)
@@ -1561,6 +1996,10 @@ func buildMakefile(lang, name string) string {
 }
 
 // --- string helpers ---
+
+func pyPackageName(name string) string {
+	return strings.ReplaceAll(name, "-", "_")
+}
 
 func slugify(s string) string {
 	s = strings.ToLower(s)
@@ -1600,14 +2039,27 @@ func inferLanguage(constitution *Fact) string {
 	if constitution == nil {
 		return "go"
 	}
-	body := strings.ToLower(constitution.Body)
+	body := strings.ToLower(constitution.Body + " " + constitution.Title)
 	switch {
-	case strings.Contains(body, "typescript") || strings.Contains(body, "react") || strings.Contains(body, "node"):
+	case strings.Contains(body, "typescript") || strings.Contains(body, "react") || strings.Contains(body, "angular") ||
+		strings.Contains(body, "vue") || strings.Contains(body, "next.js") || strings.Contains(body, "nest"):
 		return "typescript"
-	case strings.Contains(body, "python") || strings.Contains(body, "pytest") || strings.Contains(body, "pip"):
+	case strings.Contains(body, "python") || strings.Contains(body, "pytest") || strings.Contains(body, "pip") ||
+		strings.Contains(body, "django") || strings.Contains(body, "flask") || strings.Contains(body, "fastapi") ||
+		strings.Contains(body, "sqlalchemy") || strings.Contains(body, "poetry"):
 		return "python"
-	case strings.Contains(body, "javascript") || strings.Contains(body, "vitest"):
+	case strings.Contains(body, "javascript") || strings.Contains(body, "vitest") ||
+		strings.Contains(body, "express") || strings.Contains(body, "webpack") || strings.Contains(body, "vite"):
 		return "javascript"
+	case strings.Contains(body, "rust") || strings.Contains(body, "cargo") || strings.Contains(body, "tokio") ||
+		strings.Contains(body, "actix") || strings.Contains(body, "warp") || strings.Contains(body, "axum"):
+		return "rust"
+	case strings.Contains(body, "java") || strings.Contains(body, "maven") || strings.Contains(body, "gradle") ||
+		strings.Contains(body, "spring") || strings.Contains(body, "kotlin") || strings.Contains(body, "quarkus"):
+		return "java"
+	case strings.Contains(body, "bash") || strings.Contains(body, "shell") || strings.Contains(body, "posix") ||
+		strings.Contains(body, "zsh") || strings.Contains(body, "makefile") || strings.Contains(body, "shellcheck"):
+		return "shell"
 	default:
 		return "go"
 	}

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
@@ -204,12 +205,20 @@ func (s *Server) handleInceptionReset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInceptionIdeationFacts(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Knowledge == nil {
+	if s.deps.Knowledge == nil && s.deps.Inception == nil {
 		jsonError(w, "knowledge API not initialized", http.StatusServiceUnavailable)
 		return
 	}
 
-	facts := s.deps.Knowledge.ListIdeationFacts(s.deps.Ctx)
+	var facts []knowledge.Fact
+	if s.deps.Knowledge != nil {
+		facts = s.deps.Knowledge.ListIdeationFacts(s.deps.Ctx)
+	}
+
+	if len(facts) == 0 && s.deps.Inception != nil {
+		facts = s.deps.Inception.GatherFactsPublic(s.deps.Ctx)
+	}
+
 	jsonResponse(w, map[string]interface{}{
 		"ok":    true,
 		"facts": facts,
@@ -266,12 +275,18 @@ func (s *Server) handleInceptionHasFiles(w http.ResponseWriter, r *http.Request)
 	jsonResponse(w, map[string]interface{}{"ok": true, "has_files": hasFiles})
 }
 
+const maxWikiNameLen = 80
+
 func (s *Server) handleInceptionRenameWiki(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
 	if err := readJSON(r, &req); err != nil || req.Name == "" {
 		jsonError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if len(req.Name) > maxWikiNameLen {
+		jsonError(w, fmt.Sprintf("name must be %d characters or fewer", maxWikiNameLen), http.StatusBadRequest)
 		return
 	}
 	if s.deps.Knowledge == nil {
@@ -327,6 +342,10 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 		if f.FileInfo().IsDir() {
 			continue
 		}
+		baseName := filepath.Base(f.Name)
+		if !strings.HasSuffix(baseName, ".md") {
+			continue
+		}
 		rc, err := f.Open()
 		if err != nil {
 			continue
@@ -334,7 +353,7 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 		content, _ := io.ReadAll(rc)
 		rc.Close()
 
-		outPath := filepath.Join(wikiDir, filepath.Base(f.Name))
+		outPath := filepath.Join(wikiDir, baseName)
 		if err := os.WriteFile(outPath, content, 0o644); err != nil {
 			continue
 		}

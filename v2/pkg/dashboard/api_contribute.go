@@ -1165,8 +1165,17 @@ renderRows();
 
 const maxUsernameLength = 39 // GitHub max username length
 
+var reservedUsernames = map[string]bool{
+	"null": true, "undefined": true, "true": true, "false": true,
+	"admin": true, "root": true, "system": true, "hive": true,
+	"api": true, "contribute": true, "leaderboard": true,
+}
+
 func isValidUsername(s string) bool {
 	if len(s) == 0 || len(s) > maxUsernameLength {
+		return false
+	}
+	if reservedUsernames[strings.ToLower(s)] {
 		return false
 	}
 	for _, c := range s {

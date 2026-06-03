@@ -368,38 +368,54 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 		case "task_complete":
 			if contributor != nil {
-				h.logger.Info("[contribute-ws] task complete",
-					"username", contributor.profile.GitHubUsername,
-					"task", msg.TaskID,
-					"result", msg.Result,
-				)
 				contributor.mu.Lock()
+				hasTask := contributor.currentTask != nil && contributor.currentTask.TaskID == msg.TaskID
 				contributor.currentTask = nil
 				contributor.tmuxOutput = msg.TmuxOutput
 				contributor.mu.Unlock()
 
-				contributor.profile.TasksCompleted++
-				contributor.profile.LastActive = time.Now().UTC().Format(time.RFC3339)
-				if contributor.profile.TrustTier == "newcomer" && contributor.profile.TasksCompleted >= contributorAutoPromoteAt {
-					contributor.profile.TrustTier = "contributor"
-					h.logger.Info("[contribute-ws] auto-promoted", "username", contributor.profile.GitHubUsername)
+				if hasTask {
+					h.logger.Info("[contribute-ws] task complete",
+						"username", contributor.profile.GitHubUsername,
+						"task", msg.TaskID,
+						"result", msg.Result,
+					)
+					contributor.profile.TasksCompleted++
+					contributor.profile.LastActive = time.Now().UTC().Format(time.RFC3339)
+					if contributor.profile.TrustTier == "newcomer" && contributor.profile.TasksCompleted >= contributorAutoPromoteAt {
+						contributor.profile.TrustTier = "contributor"
+						h.logger.Info("[contribute-ws] auto-promoted", "username", contributor.profile.GitHubUsername)
+					}
+					_ = saveContributorProfile(contributor.profile)
+				} else {
+					h.logger.Warn("[contribute-ws] task_complete for unassigned task ignored",
+						"username", contributor.profile.GitHubUsername,
+						"task", msg.TaskID,
+					)
 				}
-				_ = saveContributorProfile(contributor.profile)
 			}
 
 		case "task_failed":
 			if contributor != nil {
-				h.logger.Info("[contribute-ws] task failed",
-					"username", contributor.profile.GitHubUsername,
-					"task", msg.TaskID,
-					"reason", msg.Reason,
-				)
 				contributor.mu.Lock()
+				hasTask := contributor.currentTask != nil && contributor.currentTask.TaskID == msg.TaskID
 				contributor.currentTask = nil
 				contributor.mu.Unlock()
 
-				contributor.profile.TasksFailed++
-				_ = saveContributorProfile(contributor.profile)
+				if hasTask {
+					h.logger.Info("[contribute-ws] task failed",
+						"username", contributor.profile.GitHubUsername,
+						"task", msg.TaskID,
+						"reason", msg.Reason,
+					)
+					contributor.profile.TasksFailed++
+					_ = saveContributorProfile(contributor.profile)
+				} else {
+					h.logger.Warn("[contribute-ws] task_failed for unassigned task ignored",
+						"username", contributor.profile.GitHubUsername,
+						"task", msg.TaskID,
+					)
+				}
 			}
 
 		case "pong":

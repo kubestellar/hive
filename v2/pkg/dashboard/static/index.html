@@ -6281,9 +6281,14 @@ function burnAreaChart() {
       if (cpuSpark) cpuSpark.innerHTML = sysGaugeMiniSpark(_sysGaugeHistory.cpu, cpuColor);
     }
 
+    let _hashScrollPending = false;
     function _afterPaint(callback) {
+      _hashScrollPending = true;
       requestAnimationFrame(function() {
-        requestAnimationFrame(callback);
+        requestAnimationFrame(function() {
+          callback();
+          setTimeout(function() { _hashScrollPending = false; }, 500);
+        });
       });
     }
 
@@ -6391,9 +6396,9 @@ function burnAreaChart() {
         }
       } else if (_ocSelectedAgent) {
         ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll();
-        window.scrollTo(0, scrollY);
+        if (!_hashScrollPending) window.scrollTo(0, scrollY);
       } else {
-        window.scrollTo(0, scrollY);
+        if (!_hashScrollPending) window.scrollTo(0, scrollY);
       }
     }
 

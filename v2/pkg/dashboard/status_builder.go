@@ -605,20 +605,8 @@ func buildTokens(collector *tokens.Collector) FrontendTokens {
 		ft.ByModel[modelName] = bucket
 	}
 
-	// Build individual session list for Active Sessions
-	for _, sess := range summary.Sessions {
-		fs := FrontendSession{
-			ID:       sess.SessionID,
-			Agent:    sess.Agent,
-			Model:    sess.Model,
-			Total:    sess.TotalTokens,
-			Messages: sess.Messages,
-		}
-		if sess.LastActive > 0 {
-			fs.LastActive = time.UnixMilli(sess.LastActive).UTC().Format(time.RFC3339)
-		}
-		ft.Sessions = append(ft.Sessions, fs)
-	}
+	// Individual sessions are omitted from the status payload to reduce size
+	// (~70% savings). Use GET /api/tokens for the full session list.
 
 	return ft
 }

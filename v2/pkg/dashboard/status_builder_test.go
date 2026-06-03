@@ -688,8 +688,8 @@ func TestBuildTokens_WithSessionData(t *testing.T) {
 	if ft.Totals.Input <= 0 {
 		t.Errorf("expected positive total input, got %d", ft.Totals.Input)
 	}
-	if len(ft.Sessions) != 1 {
-		t.Errorf("sessions len = %d, want 1", len(ft.Sessions))
+	if len(ft.Sessions) != 0 {
+		t.Errorf("sessions len = %d, want 0 (sessions excluded from status payload)", len(ft.Sessions))
 	}
 	if ft.Totals.Sessions != 1 {
 		t.Errorf("totals.sessions = %d, want 1", ft.Totals.Sessions)

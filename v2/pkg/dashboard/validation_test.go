@@ -197,6 +197,22 @@ func TestValidateAgentGeneralInput(t *testing.T) {
 			errMsg:  "emoji must be at most",
 		},
 		{
+			name:    "flag emoji accepted (multi-byte rune)",
+			body:    map[string]interface{}{"emoji": "\U0001F1FA\U0001F1F8"},
+			wantErr: false,
+		},
+		{
+			name:    "single emoji accepted",
+			body:    map[string]interface{}{"emoji": "\U0001F680"},
+			wantErr: false,
+		},
+		{
+			name:    "empty role rejected",
+			body:    map[string]interface{}{"role": ""},
+			wantErr: true,
+			errMsg:  "role must not be empty",
+		},
+		{
 			name:    "staleTimeout negative",
 			body:    map[string]interface{}{"staleTimeout": float64(-1)},
 			wantErr: true,
@@ -375,6 +391,7 @@ func TestValidateGovernorLogging(t *testing.T) {
 		{"valid", "/data/logs", 100, 30, false},
 		{"empty dir", "", 100, 30, false},
 		{"bad dir prefix", "/tmp/logs", 100, 30, true},
+		{"path traversal rejected", "/etc/passwd", 100, 30, true},
 		{"size too small", "/data/logs", 0, 30, false}, // 0 means not set
 		{"size too large", "/data/logs", 1001, 30, true},
 		{"age too large", "/data/logs", 100, 400, true},

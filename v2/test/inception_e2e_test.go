@@ -129,6 +129,26 @@ func runSinglePass(t *testing.T, client *apiClient, pass int, idea string) PassR
 		t.Logf("Pass %d CDP warning (capture): %s", pass, cdpErr)
 	}
 
+	// Step 2.3: Verify brainstorm agent actually started (not stuck at no output)
+	result.Check = "agent_started"
+	{
+		const agentStartWait = 30 * time.Second
+		const agentStartPoll = 5 * time.Second
+		deadline := time.Now().Add(agentStartWait)
+		started := false
+		for time.Now().Before(deadline) {
+			lines, _ := client.paneOutput("brainstorm")
+			if len(lines) > 2 {
+				started = true
+				break
+			}
+			time.Sleep(agentStartPoll)
+		}
+		if !started {
+			return fail(result, "agent_error", "brainstorm agent has no output after 30s — RestartWithBootstrap may have failed")
+		}
+	}
+
 	// Step 2.5: Verify brainstorm agent is processing the inception idea
 	result.Phase = "capture"
 	result.Check = "agent_on_task"

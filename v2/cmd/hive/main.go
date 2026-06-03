@@ -780,6 +780,7 @@ func main() {
 		initAgentConfigDrivenSystems(cfg)
 		refreshDashboard()
 	}, logger)
+	dashSrv.SetSkipReloadFunc(configWatcher.SkipNext)
 	go configWatcher.Start(ctx)
 
 	githubProxy, err := proxy.NewGitHubProxy(logger)

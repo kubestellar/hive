@@ -21,9 +21,20 @@ type Watcher struct {
 	onChange func(*Config)
 	logger   *slog.Logger
 
-	mu      sync.Mutex
-	timer   *time.Timer
-	stopped bool
+	mu       sync.Mutex
+	timer    *time.Timer
+	stopped  bool
+	skipNext bool
+}
+
+// SkipNext tells the watcher to ignore the next file change event.
+// Call this before a programmatic Config.Save() to prevent the watcher
+// from reloading the file we just wrote (the in-memory config is already
+// correct, and a reload could race with concurrent mutations).
+func (w *Watcher) SkipNext() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.skipNext = true
 }
 
 // NewWatcher creates a Watcher that will reload the config at path
@@ -106,6 +117,15 @@ func (w *Watcher) cancelTimer() {
 }
 
 func (w *Watcher) reload() {
+	w.mu.Lock()
+	if w.skipNext {
+		w.skipNext = false
+		w.mu.Unlock()
+		w.logger.Debug("config reload skipped (programmatic save)")
+		return
+	}
+	w.mu.Unlock()
+
 	cfg, err := Load(w.path)
 	if err != nil {
 		w.logger.Warn("config reload failed", "path", w.path, "error", err)

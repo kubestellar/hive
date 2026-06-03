@@ -269,6 +269,15 @@ func NewServerWithAuth(port int, authToken string, logger *slog.Logger) *Server 
 	return s
 }
 
+// SetSkipReloadFunc sets the callback used by saveConfig to skip the
+// config watcher's next reload after a programmatic save. Call after
+// the watcher is created but before it starts.
+func (s *Server) SetSkipReloadFunc(fn func()) {
+	if s.deps != nil {
+		s.deps.SkipReloadFunc = fn
+	}
+}
+
 func (s *Server) registerCoreRoutes() {
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
 	s.mux.HandleFunc("GET /api/status", s.handleStatus)

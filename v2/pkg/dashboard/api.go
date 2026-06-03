@@ -236,6 +236,16 @@ func (s *Server) refreshAndPersistSync() {
 	}
 }
 
+// saveConfig persists the in-memory config to disk, skipping the next
+// watcher reload to prevent the watcher from overwriting concurrent
+// in-memory mutations with a stale file read.
+func (s *Server) saveConfig() error {
+	if s.deps != nil && s.deps.SkipReloadFunc != nil {
+		s.deps.SkipReloadFunc()
+	}
+	return s.deps.Config.Save()
+}
+
 func (s *Server) persistOnly() {
 	if s.deps != nil && s.deps.PersistFunc != nil {
 		s.deps.PersistFunc()
@@ -1359,7 +1369,7 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 		s.logger.Warn("failed to sync agent config to process", "agent", name, "error", err)
 	}
 
-	if err := s.deps.Config.Save(); err != nil {
+	if err := s.saveConfig(); err != nil {
 		s.logger.Error("failed to persist config after agent update", "agent", name, "error", err)
 	}
 	s.refreshAndPersistSync()

@@ -131,7 +131,7 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 	}
 
 	s.deps.Config.ACMMLevel = &level
-	if err := s.deps.Config.Save(); err != nil {
+	if err := s.saveConfig(); err != nil {
 		s.logger.Error("failed to save ACMM level to hive.yaml", "error", err)
 	}
 
@@ -261,7 +261,7 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 		ac.Mode = ""
 		s.deps.Config.Agents[name] = ac
 	}
-	if err := s.deps.Config.Save(); err != nil {
+	if err := s.saveConfig(); err != nil {
 		s.logger.Error("failed to save ACMM level to hive.yaml", "error", err)
 	}
 

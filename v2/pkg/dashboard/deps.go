@@ -36,6 +36,7 @@ type Dependencies struct {
 	Ctx              context.Context
 	RefreshFunc      func()
 	PersistFunc      func()
+	SkipReloadFunc   func()
 	ReInitFunc       func()
 	SetUserClient    func(token string)
 	EnumerateFunc    func()

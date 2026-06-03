@@ -84,6 +84,32 @@ const apiProxy = createProxyMiddleware({
     },
   },
 });
+// OpenAPI spec — serve from dashboard dir (bypasses Go API proxy)
+const DASHBOARD_DIR = process.env.HIVE_DASHBOARD_DIR || path.join(__dirname, '..', 'dashboard');
+app.get('/api/openapi.json', (_req, res) => {
+  const specPath = path.join(DASHBOARD_DIR, 'openapi.json');
+  try {
+    res.type('json').send(fs.readFileSync(specPath, 'utf8'));
+  } catch {
+    res.status(404).json({ error: 'OpenAPI spec not found' });
+  }
+});
+
+// Redoc API documentation (read-only)
+app.get('/api-docs', (_req, res) => {
+  res.type('html').send(`<!DOCTYPE html>
+<html><head>
+  <title>Hive API Reference</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+  <style>body { margin: 0; padding: 0; }</style>
+</head><body>
+  <redoc spec-url="/api/openapi.json"></redoc>
+  <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+</body></html>`);
+});
+
 app.use('/api', apiProxy);
 
 const ttydProxy = createProxyMiddleware({

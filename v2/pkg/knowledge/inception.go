@@ -221,7 +221,8 @@ func (e *InceptionEngine) SubmitAnswers(answers map[string]string) (*InceptionSt
 	e.state.Answers = answers
 	if e.state.Phase == PhaseClarify {
 		e.state.Phase = PhaseStructure
-		e.state.PhaseChangedAt = time.Now()
+		now := time.Now()
+		e.state.PhaseChangedAt = &now
 	}
 
 	if err := e.saveState(); err != nil {

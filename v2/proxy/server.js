@@ -69,6 +69,11 @@ const apiProxy = createProxyMiddleware({
   ws: true,
   pathRewrite: (path) => `/api${path}`,
   on: {
+    proxyReq(proxyReq) {
+      if (DASHBOARD_TOKEN) {
+        proxyReq.setHeader('X-Hive-Internal', DASHBOARD_TOKEN);
+      }
+    },
     error(err, req, res) {
       console.error(`[proxy] ${req.method} ${req.url} → ${err.message}`);
       if (res.writeHead) {

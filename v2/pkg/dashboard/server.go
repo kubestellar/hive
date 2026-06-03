@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -300,8 +299,8 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
 		if s.authToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" && r.URL.Path != "/api/auth/token" {
-			host, _, _ := net.SplitHostPort(r.RemoteAddr)
-			if host != "127.0.0.1" && host != "::1" {
+			trusted := r.Header.Get("X-Hive-Internal") == s.authToken
+			if !trusted {
 				token := r.Header.Get("Authorization")
 				if token == "" {
 					token = r.URL.Query().Get("token")

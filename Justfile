@@ -132,35 +132,75 @@ contribute-setup backend="claude":
     echo ""
     echo "Run 'just contribute-hive' to start contributing."
 
-# Start contributing — launches the agent container
-contribute-hive backend="claude":
+# Start contributing — Docker (default) or local mode
+# Usage: just contribute-hive        (Docker, reads CLI from contributor.env)
+#        just contribute-hive local   (native, starts relay + CLI directly)
+contribute-hive mode="docker":
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ ! -f "{{config_dir}}/contributor.env" ]]; then
-      echo "Not set up yet. Run: just contribute-setup {{backend}}"
+      echo "Not set up yet. Run: just contribute-setup <cli>"
       exit 1
     fi
     if [[ ! -f "{{config_dir}}/gh-auth.env" ]]; then
-      echo "Not set up yet. Run: just contribute-setup {{backend}}"
+      echo "Not set up yet. Run: just contribute-setup <cli>"
       exit 1
     fi
     source "{{config_dir}}/gh-auth.env"
+    source "{{config_dir}}/contributor.env"
+    BACKEND="${AGENT_BACKEND:-claude}"
     echo "=== Hive Contributor Agent ==="
-    echo "Backend:  {{backend}}"
+    echo "Backend:  ${BACKEND}"
     echo "Hub:      {{hive_hub}}"
     echo "GitHub:   $(gh api user --jq '.login' 2>/dev/null || echo 'authenticated')"
     echo ""
-    docker run -it --rm \
-      --name hive-contributor \
-      -v "{{config_dir}}:/home/dev/.config/hive:ro" \
-      -v "${HOME}/.claude:/home/dev/.claude:ro" \
-      -v "${HOME}/.config/claude-code:/home/dev/.config/claude-code:ro" \
-      -v "${HOME}/.config/gh:/home/dev/.config/gh:ro" \
-      -e HIVE_HUB="{{hive_hub}}" \
-      -e AGENT_BACKEND="{{backend}}" \
-      -e GH_TOKEN="${GH_TOKEN}" \
-      -e HIVE_USE_CONTRIBUTOR_GH=true \
-      {{hive_image}}
+
+    if [[ "{{mode}}" == "local" ]]; then
+      # ── Local mode: start node relay in background + launch CLI directly ──
+      echo "Starting local relay..."
+      RELAY_PID=""
+      if [[ -f "v2/proxy/relay.js" ]]; then
+        node v2/proxy/relay.js &
+        RELAY_PID=$!
+        trap "kill ${RELAY_PID} 2>/dev/null || true" EXIT
+        sleep 1
+      fi
+      echo "Launching ${BACKEND} CLI..."
+      case "${BACKEND}" in
+        claude)
+          claude --prompt "You are a Hive contributor agent. Connect to ${HIVE_HUB} and pick up tasks."
+          ;;
+        copilot)
+          gh copilot suggest "Connect to Hive hub at ${HIVE_HUB} and pick up tasks"
+          ;;
+        bob)
+          bob --prompt "You are a Hive contributor agent. Connect to ${HIVE_HUB} and pick up tasks."
+          ;;
+        gemini)
+          gemini --prompt "You are a Hive contributor agent. Connect to ${HIVE_HUB} and pick up tasks."
+          ;;
+        goose)
+          goose session start --prompt "You are a Hive contributor agent. Connect to ${HIVE_HUB} and pick up tasks."
+          ;;
+        *)
+          echo "ERROR: Unknown backend '${BACKEND}'"
+          exit 1
+          ;;
+      esac
+    else
+      # ── Docker mode: read saved AGENT_BACKEND from contributor.env ──
+      docker run -it --rm \
+        --name hive-contributor \
+        -v "{{config_dir}}:/home/dev/.config/hive:ro" \
+        -v "${HOME}/.claude:/home/dev/.claude:ro" \
+        -v "${HOME}/.config/claude-code:/home/dev/.config/claude-code:ro" \
+        -v "${HOME}/.config/gh:/home/dev/.config/gh:ro" \
+        -e HIVE_HUB="{{hive_hub}}" \
+        -e AGENT_BACKEND="${BACKEND}" \
+        -e GH_TOKEN="${GH_TOKEN}" \
+        -e HIVE_USE_CONTRIBUTOR_GH=true \
+        {{hive_image}}
+    fi
 
 # Check hub status and your contributor profile
 contribute-status:

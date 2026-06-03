@@ -286,8 +286,11 @@ sleep 1
 # Install the MITM proxy CA into the system trust store so that
 # agent sub-processes (git, curl) trust the forged certificates.
 if [ -f /data/proxy-ca.pem ]; then
-  cp /data/proxy-ca.pem /usr/local/share/ca-certificates/hive-proxy-ca.crt
-  update-ca-certificates 2>/dev/null && echo "[entrypoint] proxy CA installed to system trust store" || true
+  if cp /data/proxy-ca.pem /usr/local/share/ca-certificates/hive-proxy-ca.crt 2>/dev/null; then
+    update-ca-certificates 2>/dev/null && echo "[entrypoint] proxy CA installed to system trust store"
+  else
+    echo "[entrypoint] WARN: could not install proxy CA to system store (non-root)"
+  fi
 fi
 
 echo "[entrypoint] Starting Node.js proxy on :${HIVE_PROXY_PORT} → :${HIVE_API_PORT}"

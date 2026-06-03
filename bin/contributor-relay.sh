@@ -69,12 +69,11 @@ const CLI_READY_TIMEOUT_MS = 120000;
 function isCLIReady() {
   try {
     const output = execSync(
-      `tmux capture-pane -t ${TMUX_SESSION} -p -S -3 2>/dev/null`,
+      `tmux capture-pane -t ${TMUX_SESSION} -p -S -10 2>/dev/null`,
       { encoding: 'utf8', timeout: 5000 }
     );
-    const lines = output.trim().split('\n');
-    const lastLine = lines[lines.length - 1] || '';
-    return /^>\s*$/.test(lastLine);
+    const text = output.toString();
+    return /bypass permissions|Welcome back|Try "how does/.test(text);
   } catch (_) {
     return false;
   }

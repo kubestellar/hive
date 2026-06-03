@@ -152,6 +152,7 @@ async function main() {
     .layout-toggle { display: none !important; }
     .oc-chat-prompt { display: none !important; }
     .oc-detail-actions { display: none !important; }
+    a[href="/contribute"] { display: none !important; }
     button[onclick] { pointer-events: none !important; opacity: 0.5 !important; }
     /* Hide interactive KB action buttons in snapshot */
     button[onclick*="kbOpenImport"],
@@ -265,6 +266,11 @@ async function main() {
     var _snapLeaderboard = ${leaderboardRaw};
     var _lbEntries = _snapLeaderboard && _snapLeaderboard.leaderboard ? _snapLeaderboard.leaderboard : (Array.isArray(_snapLeaderboard) ? _snapLeaderboard : []);
     renderLeaderboard(_lbEntries);
+
+    // Fix leaderboard link to use snapshot base path
+    document.querySelectorAll('a[href="/leaderboard"]').forEach(function(a) {
+      a.href = '${basePath}/leaderboard';
+    });
 
     // Git version
     const _v = ${versionRaw};

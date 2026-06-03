@@ -369,3 +369,32 @@ func TestRegression_Bug62_ImportOnlyMdFiles(t *testing.T) {
 		t.Skipf("has-files not available: %d", code)
 	}
 }
+
+func TestRegression_Bug67_EmptyQuestionsRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "empty questions test"})
+	data, code, _ := client.post("/api/inception/questions", map[string]interface{}{
+		"questions": []map[string]string{},
+	})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("SetQuestions should reject empty questions array")
+		}
+	}
+	client.post("/api/inception/reset", nil)
+}
+
+func TestRegression_Bug68_BareStringRepoURLRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	data, code, _ := client.post("/api/inception/scan", map[string]string{"repo_url": "not-a-url"})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("brownfield scan should reject non-URL repo_url")
+		}
+	}
+	client.post("/api/inception/reset", nil)
+}

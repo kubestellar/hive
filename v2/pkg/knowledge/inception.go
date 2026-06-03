@@ -111,6 +111,9 @@ func (e *InceptionEngine) StartBrownfield(repoURL string) (*InceptionState, erro
 	if repoURL == "" {
 		return nil, fmt.Errorf("repo URL is required")
 	}
+	if !strings.HasPrefix(repoURL, "https://") && !strings.HasPrefix(repoURL, "http://") {
+		return nil, fmt.Errorf("repo URL must start with https:// or http://")
+	}
 
 	if e.state != nil && e.state.Phase != PhaseComplete {
 		return nil, fmt.Errorf("inception already in progress (phase: %s) — reset first", e.state.Phase)
@@ -151,6 +154,10 @@ func (e *InceptionEngine) SetQuestions(questions []Question) error {
 
 	if e.state == nil {
 		return fmt.Errorf("no inception in progress")
+	}
+
+	if len(questions) == 0 {
+		return fmt.Errorf("at least one question is required")
 	}
 
 	seen := make(map[string]bool, len(questions))

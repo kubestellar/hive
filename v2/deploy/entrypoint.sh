@@ -6,13 +6,27 @@ export HIVE_API_PORT="${HIVE_API_PORT:-3002}"
 export HIVE_PROXY_PORT="${HIVE_PROXY_PORT:-3001}"
 export HIVE_STATIC_DIR="${HIVE_STATIC_DIR:-/opt/hive/proxy/public}"
 
-# ── Config file sanity check ──────────────────────────────────────────
-# After `docker compose down -v`, the bind-mounted hive.yaml may exist
-# but be empty (0 bytes). Detect this early and exit with a clear message
-# instead of letting the Go binary crash-loop with "project.org is required".
+# ── Config backup/restore across container recreation ─────────────────
+# When Watchtower recreates the container (pull new image, stop old, start
+# new), the Go binary's config.Save() may write an empty/default config to
+# the bind-mounted hive.yaml during shutdown or early startup, wiping the
+# host file. /data/ is a Docker named volume that persists across container
+# recreations, so we keep a rolling backup there.
 HIVE_CONFIG_PATH="${HIVE_CONFIG:-/etc/hive/hive.yaml}"
-if [ -f "$HIVE_CONFIG_PATH" ] && [ ! -s "$HIVE_CONFIG_PATH" ]; then
+HIVE_CONFIG_BACKUP="/data/hive.yaml.bak"
+
+if [ -f "$HIVE_CONFIG_PATH" ] && [ -s "$HIVE_CONFIG_PATH" ]; then
+  # Config exists and is non-empty — back it up to the persistent volume
+  cp "$HIVE_CONFIG_PATH" "$HIVE_CONFIG_BACKUP"
+  echo "[entrypoint] Config backed up: $HIVE_CONFIG_PATH -> $HIVE_CONFIG_BACKUP"
+elif [ -f "$HIVE_CONFIG_PATH" ] && [ ! -s "$HIVE_CONFIG_PATH" ] && [ -f "$HIVE_CONFIG_BACKUP" ] && [ -s "$HIVE_CONFIG_BACKUP" ]; then
+  # Config was wiped to 0 bytes (Watchtower recreation) but backup exists — restore
+  cp "$HIVE_CONFIG_BACKUP" "$HIVE_CONFIG_PATH"
+  echo "[entrypoint] RECOVERED: $HIVE_CONFIG_PATH was empty (0 bytes), restored from $HIVE_CONFIG_BACKUP"
+elif [ -f "$HIVE_CONFIG_PATH" ] && [ ! -s "$HIVE_CONFIG_PATH" ]; then
+  # Config is empty and no backup exists — fatal, cannot recover
   echo "[entrypoint] ERROR: $HIVE_CONFIG_PATH exists but is empty (0 bytes)."
+  echo "[entrypoint] No backup found at $HIVE_CONFIG_BACKUP."
   echo "[entrypoint] This usually happens after 'docker compose down -v' wipes the data volume."
   echo "[entrypoint] Restore your hive.yaml from backup or version control and restart."
   exit 1
@@ -290,6 +304,13 @@ TTYD_PID=$!
 
 cleanup() {
   echo "[entrypoint] Shutting down..."
+  # Backup config before exit so it survives container recreation.
+  # The Go binary may overwrite the bind-mounted file with empty state
+  # during shutdown, so we capture it while it's still valid.
+  if [ -f "$HIVE_CONFIG_PATH" ] && [ -s "$HIVE_CONFIG_PATH" ]; then
+    cp "$HIVE_CONFIG_PATH" "$HIVE_CONFIG_BACKUP"
+    echo "[entrypoint] Config backed up on shutdown: $HIVE_CONFIG_PATH -> $HIVE_CONFIG_BACKUP"
+  fi
   kill "$TTYD_PID" 2>/dev/null || true
   kill "$PROXY_PID" 2>/dev/null || true
   kill "$HIVE_PID" 2>/dev/null || true

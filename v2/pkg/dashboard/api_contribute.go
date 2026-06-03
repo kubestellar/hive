@@ -46,6 +46,7 @@ type ContributorProfile struct {
 	RegisteredAt       string                `json:"registered_at"`
 	TasksCompleted     int                   `json:"total_tasks_completed"`
 	TasksFailed        int                   `json:"total_tasks_failed"`
+	LastActive         string                `json:"last_active,omitempty"`
 	RateLimits         ContributorRateLimits `json:"rate_limits"`
 	Active             bool                  `json:"active,omitempty"`
 }
@@ -91,6 +92,7 @@ func (s *Server) registerContributeRoutes() {
 	s.mux.HandleFunc("GET /api/contribute/ws", s.contributeHub.HandleWS)
 	s.mux.HandleFunc("POST /api/contribute/register", s.handleContributeRegister)
 	s.mux.HandleFunc("GET /api/contribute/status", s.handleContributeStatus)
+	s.mux.HandleFunc("GET /api/contribute/activity", s.handleContributeActivity)
 	s.mux.HandleFunc("GET /api/contributors", s.handleContributorsList)
 	s.mux.HandleFunc("GET /api/contributors/{id}", s.handleContributorGet)
 	s.mux.HandleFunc("PUT /api/contributors/{id}/trust", s.handleContributorTrust)
@@ -259,6 +261,15 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <tr><td>Advisor</td><td>Registration</td><td>Review agent PRs</td></tr>
 </table>
 </div>
+<div class="how">
+<h3>Live Activity</h3>
+<div id="activity-feed" style="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;min-height:60px;max-height:200px;overflow-y:auto;font-size:.85rem">
+<span style="color:#8b949e">Watching for contributors...</span>
+</div>
+</div>
+<script>
+async function pollActivity(){try{const r=await fetch('/api/contribute/activity');const d=await r.json();const f=document.getElementById('activity-feed');if(!d.activity||!d.activity.length){f.innerHTML='<span style="color:#8b949e">No activity yet</span>';return}f.innerHTML=d.activity.slice().reverse().map(e=>{const t=new Date(e.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const icon=e.action==='joined'?'🟢':'🔴';const role=e.role?' as <b>'+e.role+'</b>':'';const cli=e.cli?' ('+e.cli+')':'';return '<div style="padding:4px 0;border-bottom:1px solid #21262d">'+icon+' <b>'+e.username+'</b> '+e.action+role+cli+' <span style="color:#8b949e;float:right">'+t+'</span></div>'}).join('')}catch(e){}}pollActivity();setInterval(pollActivity,5000);
+</script>
 </body></html>`, projectName, projectName, len(profiles))
 }
 
@@ -307,12 +318,24 @@ func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request
 
 func (s *Server) handleContributeStatus(w http.ResponseWriter, r *http.Request) {
 	profiles := listContributorProfiles()
+	active := 0
+	if s.contributeHub != nil {
+		active = s.contributeHub.ActiveCount()
+	}
 	jsonResponse(w, map[string]any{
 		"hub":                  "online",
-		"active_contributors": 0,
+		"active_contributors": active,
 		"total_registered":    len(profiles),
 		"actionable_items":    0,
 	})
+}
+
+func (s *Server) handleContributeActivity(w http.ResponseWriter, r *http.Request) {
+	if s.contributeHub == nil {
+		jsonResponse(w, map[string]any{"activity": []any{}})
+		return
+	}
+	jsonResponse(w, map[string]any{"activity": s.contributeHub.RecentActivity()})
 }
 
 // ── Contributor management ─────────────────────────────────────────────────

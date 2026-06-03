@@ -123,10 +123,11 @@ fi
 tmux send-keys -t "$TMUX_SESSION" "$CMD $PERM_FLAG $MODEL_FLAG" Enter
 
 echo ""
+CONTAINER_NAME="${HIVE_CONTAINER_NAME:-hive-contributor}"
 echo "Contributor agent is running."
 echo "  CLI:   $CMD"
 echo "  Relay: PID $RELAY_PID"
-echo "  Tmux:  tmux attach -t $TMUX_SESSION"
+echo "  Tmux:  docker exec -it $CONTAINER_NAME tmux attach -t $TMUX_SESSION"
 echo ""
 echo "Press Ctrl-C to stop contributing."
 

@@ -148,6 +148,14 @@ func (e *InceptionEngine) SetQuestions(questions []Question) error {
 		return fmt.Errorf("no inception in progress")
 	}
 
+	seen := make(map[string]bool, len(questions))
+	for _, q := range questions {
+		if seen[q.ID] {
+			return fmt.Errorf("duplicate question ID: %q", q.ID)
+		}
+		seen[q.ID] = true
+	}
+
 	e.state.Questions = questions
 	e.state.Phase = PhaseClarify
 
@@ -202,6 +210,12 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 	for _, f := range facts {
 		if !f.Type.IsIdeation() {
 			return fmt.Errorf("invalid ideation fact type: %q", f.Type)
+		}
+		if f.Title == "" {
+			return fmt.Errorf("fact title is required")
+		}
+		if f.Body == "" {
+			return fmt.Errorf("fact body is required for type %q", f.Type)
 		}
 		conf := defaultConfidence(f.Type)
 		if e.state.Mode == InceptionBrownfield {

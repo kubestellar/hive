@@ -144,3 +144,73 @@ func TestRegression_Bug40_InvalidFactTypeRejected(t *testing.T) {
 	}
 	client.post("/api/inception/reset", nil)
 }
+
+func TestRegression_Bug41_EmptyFactBodyRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "empty body test"})
+	data, code, _ := client.post("/api/inception/facts", map[string]interface{}{
+		"facts": []map[string]string{
+			{"type": "vision", "title": "My Vision", "body": ""},
+		},
+	})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("RecordFacts should reject facts with empty body")
+		}
+	}
+	client.post("/api/inception/reset", nil)
+}
+
+func TestRegression_Bug42_EmptyFactTitleRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "empty title test"})
+	data, code, _ := client.post("/api/inception/facts", map[string]interface{}{
+		"facts": []map[string]string{
+			{"type": "requirement", "title": "", "body": "Some body"},
+		},
+	})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("RecordFacts should reject facts with empty title")
+		}
+	}
+	client.post("/api/inception/reset", nil)
+}
+
+func TestRegression_Bug44_DuplicateQuestionIDsRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	client.post("/api/inception/start", map[string]string{"idea": "dupe question test"})
+	data, code, _ := client.post("/api/inception/questions", map[string]interface{}{
+		"questions": []map[string]string{
+			{"id": "q1", "text": "First?", "category": "tech", "default": "a"},
+			{"id": "q1", "text": "Duplicate!", "category": "tech", "default": "b"},
+		},
+	})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("SetQuestions should reject duplicate question IDs")
+		}
+	}
+	client.post("/api/inception/reset", nil)
+}
+
+func TestRegression_Bug45_WikiNameTooLongRejected(t *testing.T) {
+	client := newAPIClient()
+	longName := ""
+	for i := 0; i < 100; i++ {
+		longName += "AAAAA"
+	}
+	data, code, _ := client.put("/api/inception/wiki-name", map[string]string{"name": longName})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("wiki rename should reject names > 80 characters")
+		}
+	}
+}

@@ -266,12 +266,18 @@ func (s *Server) handleInceptionHasFiles(w http.ResponseWriter, r *http.Request)
 	jsonResponse(w, map[string]interface{}{"ok": true, "has_files": hasFiles})
 }
 
+const maxWikiNameLen = 80
+
 func (s *Server) handleInceptionRenameWiki(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
 	if err := readJSON(r, &req); err != nil || req.Name == "" {
 		jsonError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if len(req.Name) > maxWikiNameLen {
+		jsonError(w, fmt.Sprintf("name must be %d characters or fewer", maxWikiNameLen), http.StatusBadRequest)
 		return
 	}
 	if s.deps.Knowledge == nil {

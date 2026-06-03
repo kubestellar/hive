@@ -88,6 +88,34 @@ func (c *apiClient) post(path string, payload interface{}) (map[string]interface
 	return result, resp.StatusCode, nil
 }
 
+func (c *apiClient) put(path string, payload interface{}) (map[string]interface{}, int, error) {
+	var bodyReader io.Reader
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return nil, 0, err
+		}
+		bodyReader = bytes.NewReader(data)
+	}
+	req, err := http.NewRequest("PUT", c.baseURL+path, bodyReader)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]interface{}
+	json.Unmarshal(body, &result)
+	return result, resp.StatusCode, nil
+}
+
 func (c *apiClient) inceptionState() (map[string]interface{}, error) {
 	data, code, err := c.get("/api/inception/state")
 	if err != nil {

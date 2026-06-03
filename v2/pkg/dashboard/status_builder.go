@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -1009,13 +1010,20 @@ func collectSystemResources() *SystemResources {
 	// --- Memory (cgroup v2) ---
 	memCurrent := readCgroupInt64(cgroupMemCurrent)
 	memMax := readCgroupInt64(cgroupMemMax)
-	if memCurrent > 0 && memMax > 0 && memMax < maxCgroupMemBytes {
+	// When no memory limit is set (Docker without --memory), memory.max contains
+	// "max" which readCgroupInt64 returns as -1. Fall back to host total memory.
+	if memMax <= 0 || memMax >= maxCgroupMemBytes {
+		memMax = readProcMemTotalBytes()
+	}
+	if memCurrent > 0 && memMax > 0 {
 		res.MemUsedMB = roundTo(float64(memCurrent)/bytesPerMB, 0)
 		res.MemTotalMB = roundTo(float64(memMax)/bytesPerMB, 0)
 		res.MemPct = roundTo(float64(memCurrent)/float64(memMax)*pctMultiplierSysRes, 1)
 	}
 
 	// --- CPU (cgroup v2, sampled) ---
+	// usage_usec accumulates total CPU time across all cores. To get a 0-100%
+	// value we divide by (wall-clock time * number of CPUs).
 	usec1 := readCgroupCPUUsageUsec(cgroupCPUStat)
 	if usec1 >= 0 {
 		time.Sleep(cpuSampleDelayMs * time.Millisecond)
@@ -1023,8 +1031,11 @@ func collectSystemResources() *SystemResources {
 		if usec2 > usec1 {
 			deltaUsec := float64(usec2 - usec1)
 			deltaSec := float64(cpuSampleDelayMs) / 1000.0
-			// usage_usec tracks total CPU time; divide by wall-clock to get fraction
-			cpuFraction := deltaUsec / (deltaSec * microsecondsPerSec)
+			numCPUs := float64(runtime.NumCPU())
+			if numCPUs < 1 {
+				numCPUs = 1
+			}
+			cpuFraction := deltaUsec / (deltaSec * microsecondsPerSec * numCPUs)
 			res.CpuPct = roundTo(cpuFraction*pctMultiplierSysRes, 1)
 		}
 	}
@@ -1048,6 +1059,33 @@ func readCgroupInt64(path string) int64 {
 		return -1
 	}
 	return v
+}
+
+// procMeminfo is the path to the host memory info file.
+const procMeminfo = "/proc/meminfo"
+
+// kbToBytes converts kB (as reported by /proc/meminfo) to bytes.
+const kbToBytes = 1024
+
+// readProcMemTotalBytes reads MemTotal from /proc/meminfo and returns
+// the value in bytes. Returns -1 on error.
+func readProcMemTotalBytes() int64 {
+	data, err := os.ReadFile(procMeminfo)
+	if err != nil {
+		return -1
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "MemTotal:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				kb, err := strconv.ParseInt(fields[1], 10, 64)
+				if err == nil {
+					return kb * kbToBytes
+				}
+			}
+		}
+	}
+	return -1
 }
 
 // readCgroupCPUUsageUsec parses usage_usec from a cgroup v2 cpu.stat file.

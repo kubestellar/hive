@@ -879,3 +879,46 @@ func TestComputeNextKick_ValidCadenceNoLastKick(t *testing.T) {
 		t.Error("expected non-empty result for valid cadence without last kick")
 	}
 }
+
+func TestReadCgroupInt64_MaxReturnsNegOne(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/memory.max"
+	os.WriteFile(path, []byte("max\n"), 0o644)
+	result := readCgroupInt64(path)
+	if result != -1 {
+		t.Errorf("readCgroupInt64('max') = %d, want -1", result)
+	}
+}
+
+func TestReadCgroupInt64_ValidNumber(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/memory.max"
+	os.WriteFile(path, []byte("1073741824\n"), 0o644)
+	result := readCgroupInt64(path)
+	if result != 1073741824 {
+		t.Errorf("readCgroupInt64 = %d, want 1073741824", result)
+	}
+}
+
+func TestReadProcMemTotalBytes_ValidFile(t *testing.T) {
+	// We can't easily mock procMeminfo path, but we can verify the function
+	// returns a reasonable value on Linux or -1 on other platforms.
+	result := readProcMemTotalBytes()
+	// On macOS (test environment) this will be -1 since /proc/meminfo doesn't exist.
+	// On Linux it should be > 0.
+	if result == 0 {
+		t.Error("readProcMemTotalBytes should never return 0 (either >0 or -1)")
+	}
+}
+
+func TestCollectSystemResources_DoesNotPanic(t *testing.T) {
+	// Ensure collectSystemResources doesn't panic on any platform.
+	res := collectSystemResources()
+	if res == nil {
+		t.Fatal("expected non-nil SystemResources")
+	}
+	// CPU percentage should be in [0, 100] range (not 354%)
+	if res.CpuPct < 0 || res.CpuPct > 100 {
+		t.Errorf("CpuPct = %.1f, want [0, 100]", res.CpuPct)
+	}
+}

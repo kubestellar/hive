@@ -38,6 +38,7 @@ type Server struct {
 	hooksMu        sync.RWMutex
 	knowledgeMu    sync.Mutex
 	levelMu        sync.Mutex
+	restartMu      sync.Mutex // serializes concurrent agent restart operations
 
 	tokenHistoryMu    sync.RWMutex
 	tokenHistory      []TokenSparklineEntry

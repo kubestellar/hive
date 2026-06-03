@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hive Hub — AI Agent Orchestration for GitHub</title>
+  <style>
+    :root {
+      --bg: #0a0a0f; --surface: #12121a; --border: #1e1e2e;
+      --text: #e6edf3; --muted: #8b949e; --accent: #f59e0b;
+      --green: #16a34a; --blue: #3b82f6; --red: #ef4444;
+      --purple: #8b5cf6; --cyan: #06b6d4;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Nav */
+    .nav { position: fixed; top: 0; width: 100%; z-index: 50; background: rgba(10,10,15,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+    .nav-inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; }
+    .nav-links { display: flex; align-items: center; gap: 20px; font-size: 0.85rem; }
+    .nav-links a { color: var(--muted); transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-login { padding: 6px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 0.8rem; }
+    .nav-login:hover { border-color: var(--accent); color: var(--text); }
+
+    /* Hero */
+    .hero { padding: 100px 24px 48px; text-align: center; }
+    .hero h1 { font-size: 3.5rem; font-weight: 800; background: linear-gradient(135deg, #f59e0b, #fbbf24, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p { margin-top: 16px; font-size: 1.15rem; color: var(--muted); max-width: 640px; margin-left: auto; margin-right: auto; line-height: 1.6; }
+    .hero-ctas { margin-top: 28px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+    .btn-primary { padding: 10px 24px; background: var(--accent); color: #0a0a0f; font-weight: 600; border-radius: 8px; font-size: 0.9rem; transition: background 0.2s; }
+    .btn-primary:hover { background: #fbbf24; text-decoration: none; }
+    .btn-secondary { padding: 10px 24px; background: var(--surface); border: 1px solid var(--border); color: var(--text); font-weight: 600; border-radius: 8px; font-size: 0.9rem; transition: all 0.2s; }
+    .btn-secondary:hover { border-color: var(--accent); text-decoration: none; }
+    .hero-stats { margin-top: 24px; display: flex; justify-content: center; gap: 24px; font-size: 0.85rem; color: var(--muted); }
+    .hero-stats .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--border); align-self: center; }
+
+    /* Hive Table */
+    .section { max-width: 1200px; margin: 0 auto; padding: 0 24px 48px; }
+    .section h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .hive-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .hive-table th { text-align: left; padding: 10px 12px; color: var(--muted); font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .hive-table td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .hive-table tr:hover td { background: rgba(245,158,11,0.04); }
+    .hive-name { font-weight: 600; color: var(--text); }
+    .hive-org { color: var(--muted); font-size: 0.75rem; }
+    .acmm-badge { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
+    .acmm-1 { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+    .acmm-2 { background: rgba(6,182,212,0.15); color: #22d3ee; border: 1px solid rgba(6,182,212,0.3); }
+    .acmm-3 { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+    .acmm-4 { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+    .acmm-5 { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .acmm-6 { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+    .mode-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+    .mode-idle { background: rgba(22,163,74,0.12); color: #22c55e; }
+    .mode-quiet { background: rgba(59,130,246,0.12); color: #60a5fa; }
+    .mode-busy { background: rgba(245,158,11,0.12); color: #fbbf24; }
+    .mode-surge { background: rgba(239,68,68,0.12); color: #f87171; }
+    .online-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .online-dot.on { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+    .online-dot.off { background: #6b7280; }
+    .repo-link { font-size: 0.75rem; color: var(--blue); }
+
+    /* Logo Ticker */
+    .ticker { border-top: 1px solid var(--border); padding: 20px 0; overflow: hidden; position: relative; }
+    .ticker-track { display: flex; gap: 48px; animation: ticker-scroll 30s linear infinite; width: max-content; }
+    .ticker-track img { height: 36px; width: 36px; border-radius: 50%; opacity: 0.6; transition: opacity 0.2s; }
+    .ticker-track img:hover { opacity: 1; }
+    @keyframes ticker-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+    /* Footer */
+    .footer { border-top: 1px solid var(--border); padding: 24px; text-align: center; font-size: 0.8rem; color: var(--muted); }
+    .footer-links { display: flex; justify-content: center; gap: 20px; margin-bottom: 12px; }
+    .footer-links a { color: var(--muted); }
+    .footer-links a:hover { color: var(--text); }
+
+    /* Sparkline */
+    .sparkline { display: inline-block; vertical-align: middle; }
+
+    /* Loading */
+    .loading { text-align: center; padding: 48px; color: var(--muted); }
+
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2.2rem; }
+      .hive-table { font-size: 0.75rem; }
+      .hive-table th:nth-child(n+6), .hive-table td:nth-child(n+6) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <div class="nav-brand"><span>🐝</span> Hive Hub</div>
+      <div class="nav-links">
+        <a href="#hives">Hives</a>
+        <a href="#leaderboard">Leaderboard</a>
+        <a href="/learn">Learn</a>
+        <a href="/get-started">Get Started</a>
+        <a href="/login" class="nav-login">Login</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <h1>Hive</h1>
+    <p>AI Agent Orchestration for GitHub. A fleet of specialized agents autonomously maintain your repositories &mdash; triaging issues, writing fixes, opening PRs, and merging on green CI.</p>
+    <div class="hero-ctas">
+      <a href="/get-started" class="btn-primary">Get Started</a>
+      <a href="/learn" class="btn-secondary">Learn More</a>
+      <a href="https://arxiv.org/abs/2604.09388" target="_blank" class="btn-secondary">Read the Paper</a>
+    </div>
+    <div class="hero-stats" id="hero-stats"></div>
+  </section>
+
+  <section class="section" id="hives">
+    <h2>🐝 Active Hives</h2>
+    <div id="hive-table-container"><div class="loading">Loading hives...</div></div>
+  </section>
+
+  <section class="section" id="leaderboard">
+    <h2>🏆 Cross-Hive Leaderboard</h2>
+    <div id="leaderboard-container"><div class="loading">Loading leaderboard...</div></div>
+  </section>
+
+  <section class="ticker" id="ticker"></section>
+
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="https://github.com/kubestellar/hive">Source Code</a>
+      <a href="https://arxiv.org/abs/2604.09388">ACMM Paper</a>
+      <a href="https://kubestellar.io">KubeStellar</a>
+    </div>
+    <p style="color:#484f58">Hive is an open source project by KubeStellar</p>
+  </footer>
+
+  <script>
+    function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function acmmBadge(level) {
+      var names = {1:'Idea',2:'Measured',3:'CI/CD',4:'Autonomous PR',5:'Self-Governing',6:'Fully Autonomous'};
+      return '<span class="acmm-badge acmm-' + level + '">L' + level + ' ' + esc(names[level] || '') + '</span>';
+    }
+
+    function modeBadge(mode) {
+      return '<span class="mode-badge mode-' + (mode || 'idle') + '">' + esc(mode || 'idle') + '</span>';
+    }
+
+    function sparkSvg(values, color) {
+      if (!values || !values.length) return '';
+      var w = 60, h = 20, max = Math.max.apply(null, values) || 1;
+      var pts = values.map(function(v, i) { return (i / (values.length - 1)) * w + ',' + (h - (v / max) * h); }).join(' ');
+      return '<svg class="sparkline" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"><polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.5" /></svg>';
+    }
+
+    async function loadRegistry() {
+      try {
+        var res = await fetch('/api/registry');
+        var data = await res.json();
+        renderHives(data.hives || []);
+        renderStats(data.hives || []);
+        renderTicker(data.hives || []);
+      } catch (e) {
+        document.getElementById('hive-table-container').innerHTML = '<div class="loading">Unable to load hive registry</div>';
+      }
+    }
+
+    async function loadLeaderboard() {
+      try {
+        var res = await fetch('/api/hub/leaderboard');
+        var data = await res.json();
+        renderLeaderboard(data.leaderboard || []);
+      } catch (e) {
+        document.getElementById('leaderboard-container').innerHTML = '<div class="loading">Unable to load leaderboard</div>';
+      }
+    }
+
+    function renderStats(hives) {
+      var agents = 0, contributors = 0, online = 0;
+      hives.forEach(function(h) { agents += h.agentCount || 0; contributors += h.contributorCount || 0; if (h.online) online++; });
+      document.getElementById('hero-stats').innerHTML =
+        '<span>' + online + '/' + hives.length + ' hives online</span>' +
+        '<span class="dot"></span><span>' + agents + ' agents running</span>' +
+        '<span class="dot"></span><span>' + contributors + ' contributors</span>';
+    }
+
+    function renderHives(hives) {
+      var pub = hives.filter(function(h) { return h.isPublic !== false; });
+      if (!pub.length) { document.getElementById('hive-table-container').innerHTML = '<div class="loading">No public hives registered yet</div>'; return; }
+      var rows = pub.map(function(h, i) {
+        var dot = '<span class="online-dot ' + (h.online ? 'on' : 'off') + '"></span>';
+        var link = h.snapshotUrl ? '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="repo-link">snapshot</a>' : '';
+        var dash = h.dashboardUrl ? ' <a href="' + esc(h.dashboardUrl) + '" target="_blank" class="repo-link">live</a>' : '';
+        var repoLink = h.primaryRepo ? '<a href="https://github.com/' + esc(h.primaryRepo) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
+        return '<tr>' +
+          '<td>' + (i + 1) + '</td>' +
+          '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
+          '<td>' + repoLink + '</td>' +
+          '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
+          '<td>' + (h.agentCount || 0) + '</td>' +
+          '<td>' + modeBadge(h.governorMode) + '</td>' +
+          '<td>' + (h.actionableIssues || 0) + '</td>' +
+          '<td>' + (h.actionablePRs || 0) + '</td>' +
+          '<td>' + (h.contributorCount || 0) + '</td>' +
+          '<td>' + link + dash + '</td>' +
+          '</tr>';
+      }).join('');
+      document.getElementById('hive-table-container').innerHTML =
+        '<table class="hive-table"><thead><tr>' +
+        '<th>#</th><th>Hive</th><th>Repo</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Links</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+
+    function renderLeaderboard(entries) {
+      if (!entries.length) { document.getElementById('leaderboard-container').innerHTML = '<div class="loading">No contributors yet</div>'; return; }
+      entries.sort(function(a, b) { return (b.tasks_completed || 0) - (a.tasks_completed || 0); });
+      var rows = entries.map(function(e, i) {
+        var avatar = e.avatar_url ? '<img src="' + esc(e.avatar_url) + '" width="24" height="24" style="border-radius:50%;vertical-align:middle;margin-right:6px">' : '';
+        return '<tr>' +
+          '<td>' + (i + 1) + '</td>' +
+          '<td>' + avatar + '<a href="https://github.com/' + esc(e.github_username) + '" target="_blank">' + esc(e.github_username) + '</a></td>' +
+          '<td>' + (e.tasks_completed || 0) + '</td>' +
+          '<td>' + (e.tasks_failed || 0) + '</td>' +
+          '<td><span class="acmm-badge acmm-2">' + esc(e.trust_tier || 'newcomer') + '</span></td>' +
+          '</tr>';
+      }).join('');
+      document.getElementById('leaderboard-container').innerHTML =
+        '<table class="hive-table"><thead><tr>' +
+        '<th>#</th><th>Contributor</th><th>Completed</th><th>Failed</th><th>Tier</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+
+    function renderTicker(hives) {
+      var orgs = [];
+      var seen = {};
+      hives.forEach(function(h) {
+        if (!seen[h.org]) { orgs.push(h.org); seen[h.org] = true; }
+      });
+      if (!orgs.length) return;
+      var imgs = orgs.map(function(o) { return '<img src="https://github.com/' + esc(o) + '.png" alt="' + esc(o) + '" title="' + esc(o) + '">'; });
+      var track = imgs.join('') + imgs.join('');
+      document.getElementById('ticker').innerHTML = '<div class="ticker-track">' + track + '</div>';
+    }
+
+    loadRegistry();
+    loadLeaderboard();
+    setInterval(loadRegistry, 60000);
+    setInterval(loadLeaderboard, 60000);
+  </script>
+</body>
+</html>

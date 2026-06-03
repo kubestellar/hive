@@ -21,6 +21,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/kubestellar/hive/v2/pkg/advisory"
+	"github.com/kubestellar/hive/v2/pkg/hub"
 	"github.com/kubestellar/hive/v2/pkg/agent"
 	"github.com/kubestellar/hive/v2/pkg/beads"
 	"github.com/kubestellar/hive/v2/pkg/classify"
@@ -50,6 +51,11 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
+
+	if os.Getenv("HIVE_MODE") == "hub" {
+		runHub(logger)
+		return
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
@@ -1683,4 +1689,29 @@ func parseColorInt(color string) int {
 	var result int
 	fmt.Sscanf(color, "%x", &result)
 	return result
+}
+
+func runHub(logger *slog.Logger) {
+	port := 3001
+	if p := os.Getenv("HIVE_HUB_PORT"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil {
+			port = parsed
+		}
+	}
+	logger.Info("starting in HUB mode", "port", port)
+
+	hubSrv := hub.NewHubServer(port, logger)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigCh
+		logger.Info("hub received signal, shutting down", "signal", sig)
+		os.Exit(0)
+	}()
+
+	if err := hubSrv.Start(port); err != nil {
+		logger.Error("hub server failed", "error", err)
+		os.Exit(1)
+	}
 }

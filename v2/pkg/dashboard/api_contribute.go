@@ -97,6 +97,7 @@ func (s *Server) registerContributeRoutes() {
 	s.mux.HandleFunc("GET /api/contributors/{id}", s.handleContributorGet)
 	s.mux.HandleFunc("PUT /api/contributors/{id}/trust", s.handleContributorTrust)
 	s.mux.HandleFunc("POST /api/contributors/{id}/revoke", s.handleContributorRevoke)
+	s.mux.HandleFunc("DELETE /api/contributors/{id}", s.handleContributorDelete)
 
 	s.mux.HandleFunc("GET /leaderboard", s.handleLeaderboardPage)
 	s.mux.HandleFunc("GET /api/leaderboard", s.handleLeaderboardAPI)
@@ -488,6 +489,22 @@ func (s *Server) handleContributorRevoke(w http.ResponseWriter, r *http.Request)
 	_ = saveContributorProfile(p)
 	s.logger.Info("contributor revoked", "username", p.GitHubUsername)
 	jsonResponse(w, map[string]any{"ok": true})
+}
+
+func (s *Server) handleContributorDelete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	p := findContributor(id)
+	if p == nil {
+		jsonError(w, "Contributor not found", http.StatusNotFound)
+		return
+	}
+	path := filepath.Join(getContributorsDir(), p.GitHubUsername+".json")
+	if err := os.Remove(path); err != nil {
+		jsonError(w, "Failed to delete", http.StatusInternalServerError)
+		return
+	}
+	s.logger.Info("contributor deleted", "username", p.GitHubUsername)
+	jsonResponse(w, map[string]any{"ok": true, "deleted": p.GitHubUsername})
 }
 
 // ── Federation registry ────────────────────────────────────────────────────

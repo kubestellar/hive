@@ -527,6 +527,103 @@ func TestHandleAgentConfigGet_NotFound(t *testing.T) {
 	}
 }
 
+// TestHandleAgentConfigGet_MultilineDescription verifies that agents whose
+// description contains literal newlines, tabs, and other control characters
+// (as produced by YAML block scalars) still produce valid JSON in the config
+// API response. Python's json.loads(strict=True) rejects unescaped control
+// characters, so the JSON must contain \n / \t / \uXXXX escapes rather than
+// raw bytes.
+func TestHandleAgentConfigGet_MultilineDescription(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	s := NewServer(0, logger)
+
+	multilineDesc := "Creates and auto-merges documentation PRs.\n" +
+		"Reviews PRs on request.\n" +
+		"\tIndented line with tab.\n" +
+		"Line with carriage return.\r\n" +
+		"Final line."
+
+	cfg := &config.Config{
+		Project: config.ProjectConfig{Org: "myorg", Repos: []string{"repo1"}, AIAuthor: "bot"},
+		GitHub:  config.GitHubConfig{Token: "tok"},
+		Agents: map[string]config.AgentConfig{
+			"scanner": {
+				Backend:     "claude",
+				Model:       "sonnet",
+				Enabled:     true,
+				Description: multilineDesc,
+			},
+		},
+		Governor: config.GovernorConfig{
+			EvalIntervalS: 300,
+			Modes: map[string]config.ModeConfig{
+				"busy": {Threshold: 10, Cadences: map[string]string{"scanner": "5m"}},
+			},
+		},
+	}
+
+	gov := governor.New(cfg.Governor, cfg.Agents, logger)
+	mgr := agent.NewManager(cfg.Agents, logger, agent.ProjectContext{})
+
+	s.RegisterAPI(&Dependencies{
+		Config:      cfg,
+		AgentMgr:    mgr,
+		Governor:    gov,
+		Logger:      logger,
+		Ctx:         context.Background(),
+		RefreshFunc: func() {},
+		PersistFunc: func() {},
+	})
+
+	rec := doGet(s, "/api/config/agent/scanner")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	// The response body must be valid JSON — json.Decoder must not reject it.
+	rawBody := rec.Body.Bytes()
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(rawBody, &parsed); err != nil {
+		t.Fatalf("response is not valid JSON: %v\nbody: %s", err, rawBody)
+	}
+
+	// Verify the description survived round-trip intact.
+	general, ok := parsed["general"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected general section in response")
+	}
+	gotDesc, ok := general["description"].(string)
+	if !ok {
+		t.Fatal("expected description to be a string")
+	}
+	if gotDesc != multilineDesc {
+		t.Errorf("description mismatch:\n  got:  %q\n  want: %q", gotDesc, multilineDesc)
+	}
+
+	// Additionally, verify no raw control characters (U+0000–U+001F) are
+	// present in the JSON bytes except as part of valid escape sequences.
+	// This catches the exact bug Python's json.loads(strict=True) rejects.
+	inString := false
+	escaped := false
+	for i, b := range rawBody {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if b == '\\' && inString {
+			escaped = true
+			continue
+		}
+		if b == '"' {
+			inString = !inString
+			continue
+		}
+		if inString && b < 0x20 {
+			t.Errorf("raw control character 0x%02x at byte offset %d inside JSON string", b, i)
+		}
+	}
+}
+
 func TestHandleAgentConfigGeneral(t *testing.T) {
 	s, _ := apiServer(t)
 	enabled := true

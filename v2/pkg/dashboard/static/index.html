@@ -4750,8 +4750,14 @@ function burnAreaChart() {
         url = '/api/knowledge/search?q=' + encodeURIComponent(query) + '&limit=50';
         if (typeFilter) url += '&type=' + encodeURIComponent(typeFilter);
       } else if (layer && layer !== 'all') {
-        url = '/api/knowledge/' + encodeURIComponent(layer);
-        if (typeFilter) url += '?type=' + encodeURIComponent(typeFilter);
+        // Check if this is a vault (not a standard layer type)
+        const standardLayers = ['personal','project','org','community'];
+        if (!standardLayers.includes(layer) && !layer.startsWith('git_source:')) {
+          url = '/api/knowledge/vaults/' + encodeURIComponent(layer) + '/facts';
+        } else {
+          url = '/api/knowledge/' + encodeURIComponent(layer);
+        }
+        if (typeFilter) url += (url.includes('?') ? '&' : '?') + 'type=' + encodeURIComponent(typeFilter);
       } else {
         url = '/api/knowledge';
         const params = [];

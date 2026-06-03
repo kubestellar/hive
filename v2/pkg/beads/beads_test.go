@@ -102,7 +102,7 @@ func TestCreate_CorrectFields(t *testing.T) {
 	if b.CreatedAt.Before(before) || b.CreatedAt.After(after) {
 		t.Errorf("CreatedAt %v outside expected range [%v, %v]", b.CreatedAt, before, after)
 	}
-	if !b.UpdatedAt.Equal(b.CreatedAt) {
+	if !b.UpdatedAt.Equal(b.CreatedAt.Time) {
 		t.Errorf("UpdatedAt %v should equal CreatedAt %v on creation", b.UpdatedAt, b.CreatedAt)
 	}
 	if b.ClosedAt != nil {
@@ -318,7 +318,7 @@ func TestList_IsSortedByCreatedAt(t *testing.T) {
 
 	all := s.List(ListFilter{})
 	for i := 1; i < len(all); i++ {
-		if !all[i-1].CreatedAt.Before(all[i].CreatedAt) {
+		if !all[i-1].CreatedAt.Before(all[i].CreatedAt.Time) {
 			t.Errorf("list not sorted: index %d (%v) >= index %d (%v)",
 				i-1, all[i-1].CreatedAt, i, all[i].CreatedAt)
 		}
@@ -592,7 +592,7 @@ func TestPersistence_ClosedAtSurvivesReload(t *testing.T) {
 	if got.ClosedAt == nil {
 		t.Fatal("ClosedAt nil after reload")
 	}
-	if !got.ClosedAt.Equal(wantClosedAt) {
+	if !got.ClosedAt.Equal(wantClosedAt.Time) {
 		t.Errorf("ClosedAt mismatch: got %v, want %v", *got.ClosedAt, wantClosedAt)
 	}
 }

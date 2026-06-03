@@ -157,31 +157,24 @@ contribute-hive mode="docker":
 
     if [[ "{{mode}}" == "local" ]]; then
       # ── Local mode: start node relay in background + launch CLI directly ──
+      HUB="${HIVE_HUB:-{{hive_hub}}}"
+      WS_URL=$(echo "$HUB" | sed 's|/contribute/*$|/api/contribute/ws|')
       echo "Starting local relay..."
+      echo "WebSocket: ${WS_URL}"
       RELAY_PID=""
       if [[ -f "v2/proxy/relay.js" ]]; then
-        node v2/proxy/relay.js &
+        HIVE_WS_URL="${WS_URL}" node v2/proxy/relay.js &
         RELAY_PID=$!
         trap "kill ${RELAY_PID} 2>/dev/null || true" EXIT
         sleep 1
       fi
-      echo "Launching ${BACKEND} CLI..."
+      echo "Launching ${BACKEND} CLI (interactive)..."
       case "${BACKEND}" in
-        claude)
-          claude --prompt "You are a Hive contributor agent. Connect to ${HIVE_HUB} and pick up tasks."
-          ;;
-        copilot)
-          gh copilot suggest "Connect to Hive hub at ${HIVE_HUB} and pick up tasks"
-          ;;
-        bob)
-          bob --prompt "You are a Hive contributor agent. Connect to ${HIVE_HUB} and pick up tasks."
-          ;;
-        gemini)
-          gemini --prompt "You are a Hive contributor agent. Connect to ${HIVE_HUB} and pick up tasks."
-          ;;
-        goose)
-          goose session start --prompt "You are a Hive contributor agent. Connect to ${HIVE_HUB} and pick up tasks."
-          ;;
+        claude)  claude --dangerously-skip-permissions ;;
+        copilot) copilot ;;
+        bob)     bob --accept-license ;;
+        gemini)  gemini --yolo ;;
+        goose)   goose --no-confirm ;;
         *)
           echo "ERROR: Unknown backend '${BACKEND}'"
           exit 1

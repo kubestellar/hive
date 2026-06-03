@@ -54,6 +54,8 @@ jobs:
           context: .
           file: v2/Dockerfile
           platforms: ${{ matrix.platform }}
+          build-args: |
+            GIT_HASH=${{ github.sha }}
           outputs: type=image,name=ghcr.io/kubestellar/hive,push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ steps.slug.outputs.slug }}
           cache-to: type=gha,scope=${{ steps.slug.outputs.slug }},mode=max

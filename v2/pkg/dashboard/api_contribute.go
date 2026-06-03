@@ -67,16 +67,22 @@ type ContributorPoolStatus struct {
 	Registered int `json:"registered"`
 }
 
-func BuildContributorPoolStatus() *ContributorPoolStatus {
+func (s *Server) BuildContributorPoolStatus() *ContributorPoolStatus {
 	profiles := listContributorProfiles()
+	active := 0
+	if s.contributeHub != nil {
+		active = s.contributeHub.ActiveCount()
+	}
 	return &ContributorPoolStatus{
-		Active:     0,
+		Active:     active,
 		Registered: len(profiles),
 	}
 }
 
 func (s *Server) registerContributeRoutes() {
+	s.contributeHub = NewContributeWSHub(s.logger)
 	s.mux.HandleFunc("GET /contribute", s.handleContributeLanding)
+	s.mux.HandleFunc("GET /api/contribute/ws", s.contributeHub.HandleWS)
 	s.mux.HandleFunc("POST /api/contribute/register", s.handleContributeRegister)
 	s.mux.HandleFunc("GET /api/contribute/status", s.handleContributeStatus)
 	s.mux.HandleFunc("GET /api/contributors", s.handleContributorsList)

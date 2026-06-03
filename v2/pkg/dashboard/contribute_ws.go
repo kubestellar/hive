@@ -2,8 +2,10 @@ package dashboard
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -92,12 +94,14 @@ type ContributeWSHub struct {
 	seq         int
 	activityMu  sync.RWMutex
 	activity    []ActivityEntry
+	server      *Server
 }
 
-func NewContributeWSHub(logger *slog.Logger) *ContributeWSHub {
+func NewContributeWSHub(logger *slog.Logger, server *Server) *ContributeWSHub {
 	return &ContributeWSHub{
 		connections: make(map[string]*ContributorConnection),
 		logger:      logger,
+		server:      server,
 	}
 }
 
@@ -258,6 +262,12 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 
 			profile.LastActive = time.Now().UTC().Format(time.RFC3339)
+			profile.CLIBackend = msg.CLIBackend
+			profile.Model = msg.Model
+			profile.AvatarURL = fmt.Sprintf("https://github.com/%s.png", profile.GitHubUsername)
+			if msg.Role != "" {
+				profile.PreferredRole = msg.Role
+			}
 			_ = saveContributorProfile(profile)
 
 			contributor = &ContributorConnection{
@@ -310,18 +320,32 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			if contributor == nil {
 				continue
 			}
-			if contributor.role != "" {
-				h.logger.Info("[contribute-ws] role-based contributor ready",
+			h.logger.Info("[contribute-ws] ready for work",
+				"username", contributor.profile.GitHubUsername,
+				"role", contributor.role,
+			)
+			task := h.selectTask(contributor)
+			if task != nil {
+				contributor.mu.Lock()
+				contributor.currentTask = &WSTaskAssign{
+					TaskID: task.TaskID,
+					Kind:   task.Kind,
+					Repo:   task.Repo,
+					Number: task.Number,
+					Title:  task.Title,
+				}
+				contributor.mu.Unlock()
+				sendJSON(conn, *task)
+				h.logger.Info("[contribute-ws] task assigned",
 					"username", contributor.profile.GitHubUsername,
-					"role", contributor.role,
+					"task", task.TaskID,
+					"repo", task.Repo,
+					"number", task.Number,
 				)
-				// Role-based contributors act as remote instances of an agent role
-				// (e.g., scanner, reviewer). The hive operator can pause the local
-				// agent for that role to save tokens while this contributor covers it.
 			} else {
-				h.logger.Info("[contribute-ws] ready for work", "username", contributor.profile.GitHubUsername)
-				// Task assignment would happen here — for now, log that the contributor is ready
-				// The hub needs access to actionable.json to assign tasks
+				h.logger.Info("[contribute-ws] no tasks available",
+					"username", contributor.profile.GitHubUsername,
+				)
 			}
 
 		case "task_accepted":
@@ -402,6 +426,79 @@ func (h *ContributeWSHub) heartbeatLoop(c *ContributorConnection) {
 			return
 		}
 	}
+}
+
+func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
+	if h.server == nil {
+		return nil
+	}
+
+	h.server.statusMu.RLock()
+	status := h.server.status
+	h.server.statusMu.RUnlock()
+
+	if status == nil {
+		return nil
+	}
+
+	for _, repo := range status.Repos {
+		if len(repo.ActionableIssues) == 0 {
+			continue
+		}
+		for _, raw := range repo.ActionableIssues {
+			issue, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			number := 0
+			switch n := issue["number"].(type) {
+			case float64:
+				number = int(n)
+			case int:
+				number = n
+			}
+			if number == 0 {
+				continue
+			}
+
+			title, _ := issue["title"].(string)
+			url, _ := issue["url"].(string)
+
+			ghToken := ""
+			if h.server.deps != nil && h.server.deps.GHClient != nil {
+				if tokenBytes, err := os.ReadFile("/var/run/hive-metrics/gh-app-token.cache"); err == nil {
+					ghToken = string(tokenBytes)
+				}
+			}
+
+			taskID := fmt.Sprintf("ct-%s-%d-%d", repo.Full, number, time.Now().Unix())
+
+			prompt := fmt.Sprintf(
+				"You are a contributor to the %s hive. Work on issue %s#%d: \"%s\". "+
+					"Read the issue, understand what's needed, and take action. "+
+					"Use the provided GitHub token for all gh commands.",
+				repo.Full, repo.Full, number, title,
+			)
+
+			return &WSMessage{
+				Type:           "task_assign",
+				Seq:            h.nextSeq(),
+				TaskID:         taskID,
+				Kind:           "issue",
+				Repo:           repo.Full,
+				Number:         number,
+				Title:          title,
+				URL:            url,
+				GitHubToken:    ghToken,
+				TokenExpiresAt: time.Now().Add(55 * time.Minute).UTC().Format(time.RFC3339),
+				Prompt:         prompt,
+				ContribLabels:  []string{"contributor/" + c.profile.GitHubUsername},
+			}
+		}
+	}
+
+	return nil
 }
 
 func sendJSON(conn *websocket.Conn, msg WSMessage) error {

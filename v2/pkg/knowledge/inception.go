@@ -500,8 +500,8 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	case "python":
 		result.Files = append(result.Files,
 			ScaffoldFile{Path: "pyproject.toml", Content: buildPyprojectToml(projectName, vision), Purpose: "pyproject", IsNew: true},
-			ScaffoldFile{Path: "src/" + projectName + "/__init__.py", Content: buildPyInit(projectName, vision), Purpose: "main", IsNew: true},
-			ScaffoldFile{Path: "src/" + projectName + "/cli.py", Content: buildPyCLI(projectName, vision), Purpose: "cmd", IsNew: true},
+			ScaffoldFile{Path: "src/" + pyPackageName(projectName) + "/__init__.py", Content: buildPyInit(projectName, vision), Purpose: "main", IsNew: true},
+			ScaffoldFile{Path: "src/" + pyPackageName(projectName) + "/cli.py", Content: buildPyCLI(projectName, vision), Purpose: "cmd", IsNew: true},
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
@@ -1990,6 +1990,10 @@ func buildMakefile(lang, name string) string {
 }
 
 // --- string helpers ---
+
+func pyPackageName(name string) string {
+	return strings.ReplaceAll(name, "-", "_")
+}
 
 func slugify(s string) string {
 	s = strings.ToLower(s)

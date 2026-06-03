@@ -254,14 +254,19 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 
 	level := body.Level
 	s.deps.Config.ACMMLevel = &level
+	// Clear per-agent mode from the persisted config so the fsnotify watcher
+	// does not re-apply stale pack modes when it reloads the file. Without
+	// this, Config.Save → fsnotify reload → old mode restored → governor
+	// kick writes wrong mode file.
+	for name, ac := range s.deps.Config.Agents {
+		ac.Mode = ""
+		s.deps.Config.Agents[name] = ac
+	}
 	if err := s.deps.Config.Save(); err != nil {
 		s.logger.Error("failed to save ACMM level to hive.yaml", "error", err)
 	}
 
 	paused, resumed := s.syncAgentVisibility(level)
-	// Clear per-agent mode overrides so DefaultAgentMode determines the mode
-	// for the new level. Without this, stale Config.Mode from a prior level
-	// or initial config would override the expected default.
 	s.deps.AgentMgr.ClearAllModeOverrides()
 	s.deps.AgentMgr.SyncModeFiles(level)
 

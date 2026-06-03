@@ -128,6 +128,10 @@ const server = app.listen(PROXY_PORT, () => {
 
 server.on('upgrade', (req, socket, head) => {
   if (req.url.startsWith('/api/contribute/ws')) {
+    // Strip the /api prefix so pathRewrite produces /api/contribute/ws
+    // (not /api/api/contribute/ws). Express middleware strips the mount
+    // path for HTTP requests, but the upgrade handler receives the full URL.
+    req.url = req.url.replace(/^\/api/, '');
     apiProxy.upgrade(req, socket, head);
     return;
   }

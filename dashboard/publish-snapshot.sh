@@ -68,11 +68,14 @@ cat > public/live/hive/api-docs/index.html <<REDOC_EOF
 REDOC_EOF
 echo "Redoc API docs written to public/live/hive/api-docs/index.html"
 
-# Check if anything changed
-if git diff --quiet -- public/live/hive/; then
+# Check if anything changed (tracked or untracked)
+git add public/live/hive/
+if git diff --cached --quiet -- public/live/hive/; then
   echo "No changes to snapshot — skipping."
+  git reset HEAD -- public/live/hive/ >/dev/null 2>&1
   exit 0
 fi
+git reset HEAD -- public/live/hive/ >/dev/null 2>&1
 
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
 SNAPSHOT_BRANCH="chore/hive-snapshot-$(date -u '+%Y%m%d-%H%M%S')"

@@ -485,6 +485,26 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 				Path: "src/__tests__/acceptance.test.ts", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
 			})
 		}
+	case "rust":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "Cargo.toml", Content: buildCargoToml(projectName, vision), Purpose: "cargo_toml", IsNew: true},
+			ScaffoldFile{Path: "src/main.rs", Content: buildRustMain(projectName, vision), Purpose: "main", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "tests/acceptance.rs", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+			})
+		}
+	case "java":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "pom.xml", Content: buildPomXml(projectName, vision), Purpose: "pom", IsNew: true},
+			ScaffoldFile{Path: "src/main/java/App.java", Content: buildJavaMain(projectName, vision), Purpose: "main", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "src/test/java/AppTest.java", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+			})
+		}
 	}
 
 	// Makefile
@@ -1104,6 +1124,10 @@ func buildGitignore(lang string) string {
 		return common + "# Python\n__pycache__/\n*.pyc\n*.egg-info/\ndist/\nbuild/\n.venv/\nvenv/\n.pytest_cache/\n"
 	case "typescript", "javascript":
 		return common + "# Node\nnode_modules/\ndist/\ncoverage/\n*.tsbuildinfo\n"
+	case "rust":
+		return common + "# Rust\n/target/\nCargo.lock\n"
+	case "java":
+		return common + "# Java\ntarget/\n*.class\n*.jar\n.gradle/\nbuild/\n"
 	default:
 		return common
 	}
@@ -1158,6 +1182,75 @@ func Execute() {
 	}
 }
 `, name, desc)
+}
+
+func buildCargoToml(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`[package]
+name = "%s"
+version = "0.1.0"
+edition = "2021"
+description = "%s"
+
+[dependencies]
+`, name, desc)
+}
+
+func buildRustMain(name string, vision *Fact) string {
+	desc := name
+	if vision != nil && vision.Body != "" {
+		desc = vision.Body
+		if len(desc) > 80 {
+			desc = desc[:80]
+		}
+	}
+	return fmt.Sprintf(`// %s
+fn main() {
+    println!("Starting %s...");
+}
+`, desc, name)
+}
+
+func buildPomXml(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>%s</artifactId>
+    <version>0.1.0</version>
+    <name>%s</name>
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+    </properties>
+</project>
+`, name, desc)
+}
+
+func buildJavaMain(name string, vision *Fact) string {
+	desc := name
+	if vision != nil && vision.Body != "" {
+		desc = vision.Body
+		if len(desc) > 80 {
+			desc = desc[:80]
+		}
+	}
+	return fmt.Sprintf(`// %s
+public class App {
+    public static void main(String[] args) {
+        System.out.println("Starting %s...");
+    }
+}
+`, desc, name)
 }
 
 func buildPyprojectToml(name string, vision *Fact) string {
@@ -1506,6 +1599,10 @@ func buildNightlyCI(lang string) string {
 		testCmd = "go test -race -cover -count=3 ./..."
 	case "python":
 		testCmd = "pytest --tb=long -v"
+	case "rust":
+		testCmd = "cargo test -- --nocapture"
+	case "java":
+		testCmd = "mvn verify -P integration-test"
 	default:
 		testCmd = "npm test -- --reporter=verbose"
 	}
@@ -1603,6 +1700,16 @@ func buildMakefile(lang, name string) string {
 		b.WriteString("test:\n\tnpm test\n\n")
 		b.WriteString("lint:\n\tnpm run lint\n\n")
 		b.WriteString("clean:\n\trm -rf dist/ node_modules/\n\n")
+	case "rust":
+		b.WriteString("build:\n\tcargo build --release\n\n")
+		b.WriteString("test:\n\tcargo test\n\n")
+		b.WriteString("lint:\n\tcargo clippy -- -D warnings\n\n")
+		b.WriteString("clean:\n\tcargo clean\n\n")
+	case "java":
+		b.WriteString("build:\n\tmvn package\n\n")
+		b.WriteString("test:\n\tmvn test\n\n")
+		b.WriteString("lint:\n\tmvn checkstyle:check\n\n")
+		b.WriteString("clean:\n\tmvn clean\n\n")
 	}
 	fmt.Fprintf(&b, "docker-build:\n\tdocker build -t %s:latest .\n\n", name)
 	fmt.Fprintf(&b, "docker-push:\n\tdocker push %s:latest\n\n", name)
@@ -1651,7 +1758,7 @@ func inferLanguage(constitution *Fact) string {
 	if constitution == nil {
 		return "go"
 	}
-	body := strings.ToLower(constitution.Body)
+	body := strings.ToLower(constitution.Body + " " + constitution.Title)
 	switch {
 	case strings.Contains(body, "typescript") || strings.Contains(body, "react") || strings.Contains(body, "node"):
 		return "typescript"
@@ -1659,6 +1766,10 @@ func inferLanguage(constitution *Fact) string {
 		return "python"
 	case strings.Contains(body, "javascript") || strings.Contains(body, "vitest"):
 		return "javascript"
+	case strings.Contains(body, "rust") || strings.Contains(body, "cargo") || strings.Contains(body, "tokio"):
+		return "rust"
+	case strings.Contains(body, "java") || strings.Contains(body, "maven") || strings.Contains(body, "gradle"):
+		return "java"
 	default:
 		return "go"
 	}

@@ -188,12 +188,14 @@ contribute-hive mode="docker":
           ;;
       esac
     else
-      # ── Docker mode: stop existing, pull latest, start fresh ──
+      # ── Docker mode: stop existing, start fresh ──
       docker rm -f hive-contributor >/dev/null 2>&1 || true
       sleep 1
-      echo "Pulling {{hive_image}}..."
-      docker pull {{hive_image}}
-      echo ""
+      if [[ "${HIVE_SKIP_PULL:-}" != "true" ]]; then
+        echo "Pulling {{hive_image}}..."
+        docker pull {{hive_image}} 2>/dev/null || echo "Pull failed — using local image"
+        echo ""
+      fi
       docker run -it --rm \
         --name hive-contributor \
         --network host \

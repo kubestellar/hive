@@ -46,7 +46,7 @@ agents:
     mode: ADVISORY
     kick_template: supervisor-nogithub.md
     include_repos: true
-    stale_timeout: 1800
+    stale_timeout: 28800
     interactions: >
       Monitors all agents. Escalates issues to human operators. Coordinates
       agent restarts and health checks.
@@ -68,7 +68,7 @@ agents:
     mode: ADVISORY
     kick_template: guide-advisory.md
     include_repos: true
-    stale_timeout: 3600
+    stale_timeout: 28800
     interactions: "Works alongside scanner. Reviews scanner's suggestions when asked."
     knowledge_use: >
       Reads community wiki and project patterns. Starts contributing review

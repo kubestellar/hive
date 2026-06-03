@@ -175,7 +175,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: guide-full.md
   include_repos: true
-  stale_timeout: 3600
+  stale_timeout: 28800
   interactions: 'Creates documentation PRs autonomously.
 
     '
@@ -225,7 +225,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: architect-full.md
   include_repos: true
-  stale_timeout: 1800
+  stale_timeout: 28800
   lane_keywords:
   - refactor
   - architecture
@@ -253,7 +253,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: strategist-full.md
   include_repos: false
-  stale_timeout: 1800
+  stale_timeout: 28800
   lane_keywords:
   - strategy
   - roadmap
@@ -280,7 +280,7 @@ agents:
   mode: ISSUES_AND_PRS
   kick_template: outreach-full.md
   include_repos: false
-  stale_timeout: 1800
+  stale_timeout: 28800
   lane_keywords:
   - community
   - adopters

@@ -70,14 +70,25 @@ func NewGitHubProxy(logger *slog.Logger) (*GitHubProxy, error) {
 		logger.Info("proxy loaded UID map", "agents", len(uidMap.Agents), "iptables", uidMap.IptablesActive)
 	}
 
-	return &GitHubProxy{
+	p := &GitHubProxy{
 		listenAddr: fmt.Sprintf("127.0.0.1:%d", proxyListenPort),
 		caCert:     caCert,
 		caX509:     caX509,
 		logger:     logger,
 		uidMap:     uidMap,
 		violations: make(map[string]int),
-	}, nil
+		certCache:  make(map[string]cachedCert),
+	}
+
+	// Pre-warm cert cache for known GitHub hosts to avoid startup burst
+	for host := range githubHosts {
+		if cert, err := p.forgeCert(host); err == nil {
+			_ = cert
+			logger.Info("pre-warmed cert cache", "host", host)
+		}
+	}
+
+	return p, nil
 }
 
 // ListenAddr returns the proxy listen address.

@@ -6041,11 +6041,11 @@ function burnAreaChart() {
         const tierOptions = Object.keys(TRUST_TIER_COLORS).filter(t => t !== 'revoked').map(t =>
           `<option value="${t}"${t === c.trust_tier ? ' selected' : ''}>${t}</option>`
         ).join('');
-        return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor}" title="${dotTitle}"></span>
-            <a href="${ghLink}" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:none;font-weight:600">@${esc(c.github_username)}</a>
-            ${trustTierBadge(c.trust_tier)}
+        return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;min-width:0">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0" title="${dotTitle}"></span>
+            <a href="${ghLink}" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">@${esc(c.github_username)}</a>
+            <span style="flex-shrink:0">${trustTierBadge(c.trust_tier)}</span>
           </div>
           <div style="display:flex;gap:16px;margin-bottom:12px;font-size:0.8rem;color:var(--muted)">
             <span>Completed: <strong style="color:var(--fg)">${c.total_tasks_completed || 0}</strong></span>

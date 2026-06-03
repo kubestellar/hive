@@ -232,7 +232,11 @@ function handleMessage(data) {
     case 'auth_ok':
       console.log(`Authenticated as ${msg.contributor_id} (tier: ${msg.trust_tier})`);
       reconnectDelay = BASE_RECONNECT_DELAY_MS;
-      send({ type: 'ready', seq: nextSeq() });
+      if (!currentTask) {
+        send({ type: 'ready', seq: nextSeq() });
+      } else {
+        console.log(`Reconnected while working on ${currentTask.repo}#${currentTask.number} — not requesting new task`);
+      }
       break;
 
     case 'auth_failed':

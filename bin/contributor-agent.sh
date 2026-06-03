@@ -105,15 +105,32 @@ mkdir -p /var/run/hive-metrics 2>/dev/null || true
 CRED_HELPER="${HOME}/.git-credential-hive"
 cat > "$CRED_HELPER" <<CRED
 #!/bin/sh
-echo "protocol=https"
-echo "host=github.com"
-echo "username=x-access-token"
-echo "password=${GH_TOKEN}"
+# Git credential helper protocol: only respond to "get" requests
+case "\$1" in
+  get)
+    echo "protocol=https"
+    echo "host=github.com"
+    echo "username=x-access-token"
+    echo "password=${GH_TOKEN}"
+    ;;
+esac
 CRED
 chmod +x "$CRED_HELPER"
 git config --global credential.helper "$CRED_HELPER"
 git config --global user.email "${HIVE_CONTRIBUTOR_USERNAME:-contributor}@users.noreply.github.com"
 git config --global user.name "${HIVE_CONTRIBUTOR_USERNAME:-Hive Contributor}"
+
+# Disable Claude auto-updates inside container (no npm write permission)
+if [[ "$AGENT_BACKEND" == "claude" ]] && [[ -f "${HOME}/.claude.json" ]]; then
+  python3 -c "
+import json
+p = '${HOME}/.claude.json'
+with open(p) as f: d = json.load(f)
+d['autoUpdates'] = False
+d['installMethod'] = 'npm'
+with open(p, 'w') as f: json.dump(d, f, indent=2)
+" 2>/dev/null || true
+fi
 
 # Create tmux session for the agent
 tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true

@@ -5946,8 +5946,7 @@ function burnAreaChart() {
     };
 
     function trustTierBadge(tier) {
-      const color = TRUST_TIER_COLORS[tier] || '#8b949e';
-      return `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:600;border:1px solid ${color};color:${color}">${esc(tier || 'unknown')}</span>`;
+      return `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.7rem;color:#8b949e;border:1px solid #30363d">${esc(tier || 'unknown')}</span>`;
     }
 
     // Active contributor filter set — empty means "all"
@@ -5958,11 +5957,6 @@ function burnAreaChart() {
     const CONTRIBUTOR_FILTER_ALL = 'all';
     const CONTRIBUTOR_FILTER_ACTIVE = 'active';
     const CONTRIBUTOR_FILTER_TIERS = ['newcomer', 'contributor', 'trusted', 'advisor', 'revoked'];
-
-    function contributorFilterColor(filter) {
-      if (filter === CONTRIBUTOR_FILTER_ACTIVE) return '#3fb950';
-      return TRUST_TIER_COLORS[filter] || '#8b949e';
-    }
 
     function renderContributorFilters(contributors) {
       const bar = document.getElementById('contributors-filters');
@@ -5980,10 +5974,9 @@ function burnAreaChart() {
 
       function pill(key, label, count) {
         const active = key === CONTRIBUTOR_FILTER_ALL ? isAllActive : _contributorFilters.has(key);
-        const color = key === CONTRIBUTOR_FILTER_ALL ? '#58a6ff' : contributorFilterColor(key);
-        const bg = active ? color : 'transparent';
-        const fg = active ? '#0d1117' : color;
-        const border = color;
+        const bg = active ? '#30363d' : 'transparent';
+        const fg = active ? '#e6edf3' : '#8b949e';
+        const border = '#30363d';
         return `<button onclick="toggleContributorFilter('${key}')" style="display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:9999px;font-size:0.72rem;font-weight:600;cursor:pointer;border:1px solid ${border};background:${bg};color:${fg};transition:all 0.15s">${esc(label)} <span style="opacity:0.8">${count}</span></button>`;
       }
 
@@ -6061,7 +6054,7 @@ function burnAreaChart() {
           </div>
           <div style="display:flex;gap:8px;align-items:center;font-size:0.75rem">
             <select onchange="changeContributorTier('${esc(c.contributor_id)}', this.value)" style="background:var(--card-bg);color:var(--fg);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:0.75rem">${tierOptions}</select>
-            <button onclick="revokeContributor('${esc(c.contributor_id)}')" style="background:#f8514922;color:#f85149;border:1px solid #f8514944;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.75rem">Revoke</button>
+            <button onclick="revokeContributor('${esc(c.contributor_id)}')" style="background:transparent;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.75rem">Revoke</button>
           </div>
         </div>`;
       }).join('');

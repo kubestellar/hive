@@ -442,3 +442,282 @@ func TestIsValidUsername(t *testing.T) {
 		}
 	}
 }
+
+// ── Handler coverage tests ──────────────────────────────────────────────
+
+func registerTestUser(t *testing.T, s *Server, username string) (contributorID, token string) {
+	t.Helper()
+	body := `{"github_username":"` + username + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/contribute/register", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("register %s: %d %s", username, w.Code, w.Body.String())
+	}
+	var resp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	return resp["contributor_id"], resp["registration_token"]
+}
+
+func TestContributorsList(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	registerTestUser(t, s, "list-a")
+	registerTestUser(t, s, "list-b")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/contributors", nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		Contributors []ContributorProfile `json:"contributors"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if len(resp.Contributors) != 2 {
+		t.Fatalf("expected 2, got %d", len(resp.Contributors))
+	}
+	for _, c := range resp.Contributors {
+		if c.RegistrationToken != "" || c.TokenPlain != "" {
+			t.Errorf("token leaked for %s", c.GitHubUsername)
+		}
+	}
+}
+
+func TestContributorGet(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	cid, _ := registerTestUser(t, s, "get-test")
+
+	// Get by ID
+	req := httptest.NewRequest(http.MethodGet, "/api/contributors/"+cid, nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("by ID: expected 200, got %d", w.Code)
+	}
+
+	// Get by username
+	req2 := httptest.NewRequest(http.MethodGet, "/api/contributors/get-test", nil)
+	w2 := httptest.NewRecorder()
+	s.mux.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("by username: expected 200, got %d", w2.Code)
+	}
+}
+
+func TestContributorTrust(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	cid, _ := registerTestUser(t, s, "trust-test")
+
+	// Valid tier change
+	body := `{"tier":"contributor"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/contributors/"+cid+"/trust", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Invalid tier
+	body2 := `{"tier":"superadmin"}`
+	req2 := httptest.NewRequest(http.MethodPut, "/api/contributors/"+cid+"/trust", bytes.NewBufferString(body2))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	s.mux.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid tier, got %d", w2.Code)
+	}
+}
+
+func TestContributorDelete(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	cid, _ := registerTestUser(t, s, "delete-test")
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/contributors/"+cid, nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Verify gone
+	req2 := httptest.NewRequest(http.MethodGet, "/api/contributors/"+cid, nil)
+	w2 := httptest.NewRecorder()
+	s.mux.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 after delete, got %d", w2.Code)
+	}
+}
+
+func TestContributorRevoke(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	cid, _ := registerTestUser(t, s, "revoke-test")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/contributors/"+cid+"/revoke", nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Re-register blocked
+	body := `{"github_username":"revoke-test"}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/contribute/register", bytes.NewBufferString(body))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	s.mux.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for revoked re-register, got %d", w2.Code)
+	}
+}
+
+func TestContributeActivity(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/contribute/activity", nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		Activity []any `json:"activity"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+}
+
+func TestHivesHeartbeat(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	// Register a hive first
+	body := `{"project_name":"hb","org":"hb-org","hub_url":"wss://x:3001/c"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/hives/register", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	// Heartbeat
+	hb := `{"active_contributors":5,"active_agents":3}`
+	req2 := httptest.NewRequest(http.MethodPost, "/api/hives/hive-hb-org-hb/heartbeat", bytes.NewBufferString(hb))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	s.mux.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w2.Code, w2.Body.String())
+	}
+
+	// 404 for unknown hive
+	req3 := httptest.NewRequest(http.MethodPost, "/api/hives/nonexistent/heartbeat", bytes.NewBufferString(hb))
+	req3.Header.Set("Content-Type", "application/json")
+	w3 := httptest.NewRecorder()
+	s.mux.ServeHTTP(w3, req3)
+	if w3.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w3.Code)
+	}
+}
+
+func TestHivesDelete(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	body := `{"project_name":"del","org":"del-org","hub_url":"wss://x:3001/c"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/hives/register", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	req2 := httptest.NewRequest(http.MethodDelete, "/api/hives/hive-del-org-del", nil)
+	w2 := httptest.NewRecorder()
+	s.mux.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w2.Code)
+	}
+
+	// 404 for already deleted
+	req3 := httptest.NewRequest(http.MethodDelete, "/api/hives/hive-del-org-del", nil)
+	w3 := httptest.NewRecorder()
+	s.mux.ServeHTTP(w3, req3)
+	if w3.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w3.Code)
+	}
+}
+
+func TestHivesOnboard(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	body := `{"project_name":"ob","org":"ob-org","repos":["ob-org/repo1"]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/hives/onboard", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		NextSteps []string `json:"next_steps"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if len(resp.NextSteps) < 3 {
+		t.Errorf("expected >=3 steps, got %d", len(resp.NextSteps))
+	}
+}
+
+func TestReservedUsernames(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	reserved := []string{"null", "undefined", "admin", "root", "system", "hive", "api", "contribute", "leaderboard"}
+	for _, name := range reserved {
+		body := `{"github_username":"` + name + `"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/contribute/register", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		s.mux.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("reserved name %q: expected 400, got %d", name, w.Code)
+		}
+	}
+}
+
+func TestBodySizeLimit(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	huge := `{"github_username":"x","padding":"` + strings.Repeat("A", 50000) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/contribute/register", bytes.NewBufferString(huge))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for huge body, got %d", w.Code)
+	}
+}

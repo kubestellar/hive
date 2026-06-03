@@ -1261,3 +1261,60 @@ func TestFormatCadenceDuration(t *testing.T) {
 		}
 	}
 }
+
+func TestSanitizeString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "plain text unchanged",
+			input: "my-agent",
+			want:  "my-agent",
+		},
+		{
+			name:  "script tag stripped",
+			input: `<script>alert(1)</script>`,
+			want:  "alert(1)",
+		},
+		{
+			name:  "nested tags stripped",
+			input: `<b><i>bold italic</i></b>`,
+			want:  "bold italic",
+		},
+		{
+			name:  "img tag with onerror stripped",
+			input: `<img src=x onerror=alert(1)>`,
+			want:  "",
+		},
+		{
+			name:  "mixed content",
+			input: `Agent <script>steal()</script> Name`,
+			want:  "Agent steal() Name",
+		},
+		{
+			name:  "whitespace trimmed",
+			input: "  hello  ",
+			want:  "hello",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "self-closing tag stripped",
+			input: `test<br/>value`,
+			want:  "testvalue",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeString(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeString(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

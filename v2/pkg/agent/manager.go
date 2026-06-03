@@ -1184,6 +1184,9 @@ func (m *Manager) CheckAndRestartCrashedAgents(ctx context.Context) []string {
 		if agent.Paused {
 			continue
 		}
+		if agent.Config.OnDemand {
+			continue
+		}
 		if !m.tmuxSessionExistsForAgent(agent) {
 			var uptimeSeconds float64
 			if agent.StartedAt != nil {

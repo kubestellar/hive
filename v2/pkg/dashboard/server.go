@@ -275,7 +275,26 @@ func (s *Server) Start() error {
 	if err != nil {
 		return fmt.Errorf("loading embedded static files: %w", err)
 	}
-	s.mux.Handle("GET /", http.FileServer(http.FS(staticContent)))
+	indexHTML, err := fs.ReadFile(staticContent, "index.html")
+	if err != nil {
+		return fmt.Errorf("reading embedded index.html: %w", err)
+	}
+	fileServer := http.FileServer(http.FS(staticContent))
+	s.mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(indexHTML)
+			return
+		}
+		f, err := staticContent.Open(strings.TrimPrefix(r.URL.Path, "/"))
+		if err != nil {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(indexHTML)
+			return
+		}
+		f.Close()
+		fileServer.ServeHTTP(w, r)
+	})
 
 	handler := s.securityHeaders(s.mux)
 

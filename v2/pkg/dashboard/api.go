@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -250,6 +251,14 @@ func (s *Server) refreshAsync() {
 func decodeBody(r *http.Request, v interface{}) error {
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(v)
+}
+
+// htmlTagPattern matches HTML/XML tags for sanitization.
+var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
+
+// sanitizeString strips HTML tags from user input to prevent stored XSS.
+func sanitizeString(s string) string {
+	return strings.TrimSpace(htmlTagPattern.ReplaceAllString(s, ""))
 }
 
 // --- Core status endpoints ---
@@ -1229,17 +1238,17 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 	}
 	if v, ok := body["displayName"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.DisplayName = s
+			agentCfg.DisplayName = sanitizeString(s)
 		}
 	}
 	if v, ok := body["description"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.Description = s
+			agentCfg.Description = sanitizeString(s)
 		}
 	}
 	if v, ok := body["launchCmd"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.LaunchCmd = s
+			agentCfg.LaunchCmd = sanitizeString(s)
 		}
 	}
 	if v, ok := body["staleTimeout"]; ok {
@@ -1249,7 +1258,7 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 	}
 	if v, ok := body["restartStrategy"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.RestartStrategy = s
+			agentCfg.RestartStrategy = sanitizeString(s)
 		}
 	}
 	if v, ok := body["cliPinned"]; ok {
@@ -1259,12 +1268,12 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 	}
 	if v, ok := body["emoji"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.Emoji = s
+			agentCfg.Emoji = sanitizeString(s)
 		}
 	}
 	if v, ok := body["color"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.Color = s
+			agentCfg.Color = sanitizeString(s)
 		}
 	}
 	if v, ok := body["sortOrder"]; ok {
@@ -1274,22 +1283,22 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 	}
 	if v, ok := body["beadRole"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.BeadRole = s
+			agentCfg.BeadRole = sanitizeString(s)
 		}
 	}
 	if v, ok := body["role"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.Role = s
+			agentCfg.Role = sanitizeString(s)
 		}
 	}
 	if v, ok := body["kickTemplate"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.KickTemplate = s
+			agentCfg.KickTemplate = sanitizeString(s)
 		}
 	}
 	if v, ok := body["mode"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.Mode = s
+			agentCfg.Mode = sanitizeString(s)
 		}
 	}
 	if v, ok := body["includeRepos"]; ok {
@@ -1302,7 +1311,7 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 			kw := make([]string, 0, len(arr))
 			for _, item := range arr {
 				if s, ok := item.(string); ok {
-					kw = append(kw, s)
+					kw = append(kw, sanitizeString(s))
 				}
 			}
 			agentCfg.LaneKeywords = kw
@@ -1313,7 +1322,7 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 			kw := make([]string, 0, len(arr))
 			for _, item := range arr {
 				if s, ok := item.(string); ok {
-					kw = append(kw, s)
+					kw = append(kw, sanitizeString(s))
 				}
 			}
 			agentCfg.DetectKeywords = kw
@@ -1863,6 +1872,15 @@ func (s *Server) handleGovernorAddAgent(w http.ResponseWriter, r *http.Request) 
 		Model   string `json:"model"`
 	}
 	if err := decodeBody(r, &body); err != nil || body.Name == "" {
+		jsonError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	body.Name = sanitizeString(body.Name)
+	body.Backend = sanitizeString(body.Backend)
+	body.Model = sanitizeString(body.Model)
+
+	if body.Name == "" {
 		jsonError(w, "name is required", http.StatusBadRequest)
 		return
 	}

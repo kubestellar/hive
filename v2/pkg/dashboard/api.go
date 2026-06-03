@@ -1225,6 +1225,11 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if err := validateAgentGeneralInput(body); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	agentCfg := s.deps.Config.Agents[name]
 	if v, ok := body["enabled"]; ok {
 		if b, ok := v.(bool); ok {
@@ -1731,6 +1736,11 @@ func (s *Server) handleGovernorThresholds(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if err := validateGovernorThresholds(body); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	for modeName, threshold := range body {
 		if mode, ok := s.deps.Config.Governor.Modes[modeName]; ok {
 			mode.Threshold = threshold
@@ -1750,6 +1760,11 @@ func (s *Server) handleGovernorLabels(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid body", http.StatusBadRequest)
 		return
 	}
+	if err := validateGovernorLabels(body.Labels); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	s.deps.Config.Governor.Labels.Exempt = body.Labels
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
@@ -1763,6 +1778,11 @@ func (s *Server) handleGovernorBudget(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+
+	if err := validateGovernorBudget(body.TotalTokens, body.PeriodDays, body.CriticalPct); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -1791,6 +1811,15 @@ func (s *Server) handleGovernorNotifications(w http.ResponseWriter, r *http.Requ
 		jsonError(w, "invalid body", http.StatusBadRequest)
 		return
 	}
+	if err := validateNotificationURL(body.NtfyServer, "ntfyServer"); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := validateNotificationURL(body.DiscordWebhook, "discordWebhook"); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	isMasked := func(v string) bool { return strings.HasPrefix(v, "•") }
 	if (body.NtfyServer != "" && !isMasked(body.NtfyServer)) || (body.NtfyTopic != "" && !isMasked(body.NtfyTopic)) {
 		if s.deps.Config.Notifications.Ntfy == nil {
@@ -1823,6 +1852,11 @@ func (s *Server) handleGovernorHealth(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid body", http.StatusBadRequest)
 		return
 	}
+	if err := validateGovernorHealth(body.HealthcheckInterval, body.RestartCooldown); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	if body.HealthcheckInterval > 0 {
 		s.deps.Config.Governor.Health.HealthcheckInterval = body.HealthcheckInterval
 	}
@@ -1846,6 +1880,11 @@ func (s *Server) handleGovernorLogging(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid body", http.StatusBadRequest)
 		return
 	}
+	if err := validateGovernorLogging(s.deps.Config.Governor.Logging.Dir, body.MaxSizeMB, body.MaxAgeDays); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	if body.MaxSizeMB > 0 {
 		s.deps.Config.Governor.Logging.MaxSizeMB = body.MaxSizeMB
 	}

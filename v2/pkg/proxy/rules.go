@@ -45,6 +45,9 @@ var rules = []ProxyRule{
 	{regexp.MustCompile(`^/repos/[^/]+/[^/]+/pulls/\d+$`), "PATCH", agent.ModeIssuesAndPRs},
 	{regexp.MustCompile(`^/repos/[^/]+/[^/]+/pulls/\d+/reviews`), "POST", agent.ModeIssuesAndPRs},
 
+	// ── Git fetch — all modes (read-only, despite using POST) ──
+	{regexp.MustCompile(`\.git/git-upload-pack$`), "POST", agent.ModeAdvisory},
+
 	// ── Git push operations — ISSUES_AND_PRS and above ──
 	{regexp.MustCompile(`\.git/git-receive-pack$`), "POST", agent.ModeIssuesAndPRs},
 	{regexp.MustCompile(`^/repos/[^/]+/[^/]+/git/refs$`), "POST", agent.ModeIssuesAndPRs},

@@ -1392,7 +1392,7 @@ import "%s/cmd"
 func main() {
 	cmd.Execute()
 }
-`, "github.com/example/"+name, desc)
+`, name, desc)
 }
 
 func buildGoCmdRoot(name string, vision *Fact) string {

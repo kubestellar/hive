@@ -962,6 +962,7 @@ type SystemResources struct {
 	MemTotalMB  float64 `json:"memTotalMB"`
 	MemPct      float64 `json:"memPct"`
 	CpuPct      float64 `json:"cpuPct"`
+	CpuCores    int     `json:"cpuCores"`
 }
 
 const (
@@ -1039,6 +1040,8 @@ func collectSystemResources() *SystemResources {
 			res.CpuPct = roundTo(cpuFraction*pctMultiplierSysRes, 1)
 		}
 	}
+
+	res.CpuCores = runtime.NumCPU()
 
 	return res
 }

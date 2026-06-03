@@ -109,6 +109,7 @@ echo "Starting relay connection to hub..."
 node "${SCRIPT_DIR}/contributor-relay.sh" &
 RELAY_PID=$!
 
+
 # Launch the CLI in the tmux session
 CMD=$(backend_binary "$AGENT_BACKEND")
 PERM_FLAG=$(backend_perm_flag "$AGENT_BACKEND")

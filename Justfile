@@ -181,19 +181,28 @@ contribute-hive mode="docker":
           ;;
       esac
     else
-      # ── Docker mode: read saved AGENT_BACKEND from contributor.env ──
+      # ── Docker mode: stop existing, pull latest, start fresh ──
+      if docker ps -q --filter name=hive-contributor 2>/dev/null | grep -q .; then
+        echo "Stopping existing contributor container..."
+        docker stop hive-contributor >/dev/null 2>&1 || true
+      fi
+      docker rm -f hive-contributor >/dev/null 2>&1 || true
+      echo "Pulling {{hive_image}}..."
+      docker pull {{hive_image}}
+      echo ""
       docker run -it --rm \
         --name hive-contributor \
         --network host \
         -v "{{config_dir}}:/home/dev/.config/hive:ro" \
-        -v "${HOME}/.claude:/home/dev/.claude:ro" \
-        -v "${HOME}/.claude.json:/home/dev/.claude.json:ro" \
-        -v "${HOME}/.config/claude-code:/home/dev/.config/claude-code:ro" \
+        -v "${HOME}/.claude:/home/dev/.claude" \
+        -v "${HOME}/.claude.json:/home/dev/.claude.json" \
+        -v "${HOME}/.config/claude-code:/home/dev/.config/claude-code" \
         -v "${HOME}/.config/gh:/home/dev/.config/gh:ro" \
         -e HIVE_HUB="{{hive_hub}}" \
         -e AGENT_BACKEND="${BACKEND}" \
         -e GH_TOKEN="${GH_TOKEN}" \
         -e HIVE_USE_CONTRIBUTOR_GH=true \
+        -e HIVE_CONTAINER_NAME=hive-contributor \
         {{hive_image}}
     fi
 

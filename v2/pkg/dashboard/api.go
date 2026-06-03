@@ -1783,6 +1783,9 @@ func (s *Server) handleGovernorThresholds(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	if err := s.saveConfig(); err != nil {
+		s.logger.Error("failed to persist config after threshold update", "error", err)
+	}
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }
@@ -1801,6 +1804,9 @@ func (s *Server) handleGovernorLabels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.deps.Config.Governor.Labels.Exempt = body.Labels
+	if err := s.saveConfig(); err != nil {
+		s.logger.Error("failed to persist config after label update", "error", err)
+	}
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }

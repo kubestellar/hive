@@ -121,10 +121,17 @@ if [[ -n "${AGENT_MODEL:-}" ]]; then
   esac
 fi
 
-# Run a throwaway non-interactive command to complete onboarding (theme etc.)
-if [[ "$AGENT_BACKEND" == "claude" ]]; then
-  echo "Initializing Claude Code (first-run setup)..."
-  $CMD -p "echo ready" --dangerously-skip-permissions >/dev/null 2>&1 || true
+# Ensure Claude Code skips onboarding by injecting required flags
+if [[ "$AGENT_BACKEND" == "claude" ]] && [[ -f "${HOME}/.claude.json" ]]; then
+  python3 -c "
+import json, sys
+p = '${HOME}/.claude.json'
+with open(p) as f: d = json.load(f)
+d['hasCompletedOnboarding'] = True
+d['lastOnboardingVersion'] = '2.1.0'
+d.setdefault('numStartups', 1)
+with open(p, 'w') as f: json.dump(d, f, indent=2)
+" 2>/dev/null || true
 fi
 
 tmux send-keys -t "$TMUX_SESSION" "$CMD $PERM_FLAG $MODEL_FLAG" Enter

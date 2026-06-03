@@ -281,6 +281,29 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 				packAgentNames = append(packAgentNames, a.Name)
 			}
 		}
+		if len(pack.Governor.Cadences) > 0 || len(pack.Governor.Thresholds) > 0 {
+			if s.deps.Config.Governor.Modes == nil {
+				s.deps.Config.Governor.Modes = make(map[string]config.ModeConfig)
+			}
+			for modeName, agentCadences := range pack.Governor.Cadences {
+				mode := s.deps.Config.Governor.Modes[modeName]
+				if mode.Cadences == nil {
+					mode.Cadences = make(map[string]string)
+				}
+				for agent, interval := range agentCadences {
+					mode.Cadences[agent] = interval
+				}
+				s.deps.Config.Governor.Modes[modeName] = mode
+			}
+			for modeName, threshold := range pack.Governor.Thresholds {
+				mode := s.deps.Config.Governor.Modes[modeName]
+				mode.Threshold = threshold
+				s.deps.Config.Governor.Modes[modeName] = mode
+			}
+			if pack.Governor.EvalIntervalS > 0 {
+				s.deps.Config.Governor.EvalIntervalS = pack.Governor.EvalIntervalS
+			}
+		}
 	}
 
 	s.logger.Info("ACMM level set", "level", body.Level, "paused", len(paused), "resumed", len(resumed))

@@ -9509,6 +9509,11 @@ function burnAreaChart() {
     checkGHAuth();
     setInterval(checkGHAuth, GH_AUTH_CHECK_INTERVAL_MS);
 
+    window.addEventListener('hashchange', function() {
+      var section = _ocSectionFromHash();
+      if (section) ocNavigate(section);
+    });
+
     connect();
     setTimeout(fetchAgentLogs, 2000);
   </script>

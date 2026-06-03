@@ -1753,7 +1753,6 @@
       <a class="oc-nav-item" data-section="inception-section" onclick="ocNavigate('inception-section')"><span class="oc-nav-emoji">💡</span><span class="oc-nav-text">Inception</span></a>
       <a class="oc-nav-item" data-section="knowledge-section" onclick="ocNavigate('knowledge-section')"><span class="oc-nav-emoji">📚</span><span class="oc-nav-text">Knowledge</span></a>
       <a class="oc-nav-item" data-section="contributors-section" onclick="ocNavigate('contributors-section')"><span class="oc-nav-emoji">👥</span><span class="oc-nav-text">Contributors</span><span id="contributors-sidebar-badge" style="display:none;margin-left:auto;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:700;background:#238636;color:#fff"></span></a>
-      <a class="oc-nav-item" data-section="leaderboard-section" onclick="ocNavigate('leaderboard-section')"><span class="oc-nav-emoji">🏆</span><span class="oc-nav-text">Leaderboard</span></a>
       <a class="oc-nav-item" data-section="nous-section" onclick="ocNavigate('nous-section')"><span class="oc-nav-emoji">🧪</span><span class="oc-nav-text">Strategy Lab</span></a>
     </div>
     <div class="system-gauges" id="system-gauges">
@@ -1856,14 +1855,13 @@
   </div>
 
   <div id="contributors-section" style="margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">👥 Contributors <span id="contributors-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span></h2>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <h2 style="font-size: 0.95rem; color: var(--muted); margin:0;">👥 Contributors <span id="contributors-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span></h2>
+      <a href="/contribute" target="_blank" style="font-size:0.75rem;padding:4px 12px;background:#238636;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Share /contribute link →</a>
+      <a href="/leaderboard" target="_blank" style="font-size:0.75rem;padding:4px 12px;background:transparent;color:#58a6ff;border:1px solid #58a6ff;border-radius:6px;text-decoration:none">🏆 Leaderboard</a>
+    </div>
     <div id="contributors-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
     <div id="contributors-panel"></div>
-  </div>
-
-  <div id="leaderboard-section" style="margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">🏆 Leaderboard</h2>
-    <div id="leaderboard-panel"></div>
   </div>
 
   </div>

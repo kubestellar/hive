@@ -288,7 +288,6 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 				"type", f.Type,
 				"error", err,
 			)
-			continue
 		}
 
 		slug := slugify(string(f.Type) + "-" + truncateSlug(f.Title))

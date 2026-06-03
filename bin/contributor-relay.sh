@@ -18,7 +18,8 @@ const { execSync, execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const HUB_URL = process.env.HIVE_HUB || 'wss://hive.kubestellar.io:3001/contribute';
+const rawHub = process.env.HIVE_HUB || 'wss://hive.kubestellar.io:3001/contribute';
+const HUB_URL = rawHub.replace(/\/contribute\/?$/, '/api/contribute/ws');
 const REG_TOKEN = process.env.HIVE_REGISTRATION_TOKEN;
 const BACKEND = process.env.AGENT_BACKEND || 'claude';
 const MODEL = process.env.AGENT_MODEL || '';

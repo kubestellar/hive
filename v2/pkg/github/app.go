@@ -138,9 +138,9 @@ func (a *AppAuth) ScopedToken(ctx context.Context, tier string) (string, error) 
 	var perms *gh.InstallationPermissions
 	switch tier {
 	case "newcomer":
+		// Newcomers can comment on issues but not access code
 		perms = &gh.InstallationPermissions{
-			Issues:   gh.Ptr("write"),
-			Metadata: gh.Ptr("read"),
+			Issues: gh.Ptr("write"),
 		}
 	case "contributor":
 		perms = &gh.InstallationPermissions{
@@ -158,13 +158,14 @@ func (a *AppAuth) ScopedToken(ctx context.Context, tier string) (string, error) 
 			Metadata:     gh.Ptr("read"),
 		}
 	case "advisor":
+		// Advisors review agent PRs — they only need to read, not write.
+		// Don't request issues permission at all to prevent creation.
 		perms = &gh.InstallationPermissions{
-			Issues:   gh.Ptr("read"),
-			Metadata: gh.Ptr("read"),
+			Metadata:     gh.Ptr("read"),
+			PullRequests: gh.Ptr("read"),
 		}
 	default:
 		perms = &gh.InstallationPermissions{
-			Issues:   gh.Ptr("read"),
 			Metadata: gh.Ptr("read"),
 		}
 	}

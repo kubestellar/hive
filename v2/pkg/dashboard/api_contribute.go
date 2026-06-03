@@ -192,9 +192,14 @@ func createContributorProfile(username string) (*ContributorProfile, string) {
 }
 
 func findContributor(id string) *ContributorProfile {
+	// Fast path: try direct file lookup by username (O(1) disk read)
+	if p, err := loadContributorProfile(id); err == nil {
+		return p
+	}
+	// Slow path: scan all profiles to match by contributor_id
 	profiles := listContributorProfiles()
 	for i := range profiles {
-		if profiles[i].ContributorID == id || profiles[i].GitHubUsername == id {
+		if profiles[i].ContributorID == id {
 			return &profiles[i]
 		}
 	}

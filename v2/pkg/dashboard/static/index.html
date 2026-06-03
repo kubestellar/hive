@@ -6281,24 +6281,10 @@ function burnAreaChart() {
       if (cpuSpark) cpuSpark.innerHTML = sysGaugeMiniSpark(_sysGaugeHistory.cpu, cpuColor);
     }
 
-    const SCROLL_READY_POLL_MS = 50;
-    const SCROLL_READY_MAX_MS = 3000;
-    function _scrollWhenReady(elementId, callback) {
-      var elapsed = 0;
-      function check() {
-        var el = document.getElementById(elementId);
-        if (el && el.offsetHeight > 0) {
-          callback(el);
-          return;
-        }
-        elapsed += SCROLL_READY_POLL_MS;
-        if (elapsed < SCROLL_READY_MAX_MS) {
-          setTimeout(check, SCROLL_READY_POLL_MS);
-        } else if (el) {
-          callback(el);
-        }
-      }
-      requestAnimationFrame(check);
+    function _afterPaint(callback) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(callback);
+      });
     }
 
     function render(data) {
@@ -6389,15 +6375,18 @@ function burnAreaChart() {
         if (_ocSelectedAgent) {
           const restoreName = _ocSelectedAgent;
           ocRenderAgentDetail(); ocUpdateFocusedState(); ocStartPanePoll();
-          _scrollWhenReady('oc-agent-detail', function(el) {
-            el.classList.add('active');
-            const y = el.getBoundingClientRect().top + window.scrollY - OC_TOPBAR_HEIGHT;
-            window.scrollTo({ top: y, behavior: 'instant' });
+          _afterPaint(function() {
+            const detail = document.getElementById('oc-agent-detail');
+            if (detail) {
+              detail.classList.add('active');
+              const y = detail.getBoundingClientRect().top + window.scrollY - OC_TOPBAR_HEIGHT;
+              window.scrollTo({ top: y, behavior: 'instant' });
+            }
           });
         } else {
           const savedSection = _ocSectionFromHash();
           if (savedSection) {
-            _scrollWhenReady(savedSection, function() { ocNavigate(savedSection); });
+            _afterPaint(function() { ocNavigate(savedSection); });
           }
         }
       } else if (_ocSelectedAgent) {

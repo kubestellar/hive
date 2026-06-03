@@ -302,17 +302,27 @@ func TestLeaderboardPageHTML(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, "Leaderboard") {
-		t.Error("page missing 'Leaderboard' heading")
+	checks := map[string]string{
+		"gradient-text":       "animated gradient header text",
+		"Leaderboard":         "page heading",
+		"alice":               "contributor username",
+		"github.com/alice.png": "avatar URL",
+		"github.com/alice":    "GitHub profile link",
+		"search":              "search input",
+		"sort-completed":      "sortable completed column",
+		"Trust Tiers":         "trust tiers reference section",
+		"bg-stars":            "starfield background",
+		"var ENTRIES":         "JavaScript entries data",
+		"toggleSort":          "sort toggle function",
+		"renderRows":          "row rendering function",
+		"hover-card":          "contributor hover card CSS",
+		"hc-header":           "hover card header",
+		"hc-bar":              "hover card success rate bar",
 	}
-	if !strings.Contains(body, "alice") {
-		t.Error("page missing contributor 'alice'")
-	}
-	if !strings.Contains(body, "https://github.com/alice.png") {
-		t.Error("page missing avatar URL for alice")
-	}
-	if !strings.Contains(body, "https://github.com/alice") {
-		t.Error("page missing GitHub profile link for alice")
+	for needle, desc := range checks {
+		if !strings.Contains(body, needle) {
+			t.Errorf("page missing %s (looked for %q)", desc, needle)
+		}
 	}
 }
 
@@ -330,8 +340,9 @@ func TestLeaderboardPageEmpty(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, "No contributors yet") {
-		t.Error("empty page should show 'No contributors yet' message")
+	// Empty entries array should be passed to JS
+	if !strings.Contains(body, "var ENTRIES = []") {
+		t.Error("empty page should pass empty ENTRIES array")
 	}
 	if !strings.Contains(body, "/contribute") {
 		t.Error("empty page should link to /contribute")
@@ -355,6 +366,54 @@ func TestTrustTierColor(t *testing.T) {
 		if got != tc.color {
 			t.Errorf("trustTierColor(%q) = %q, want %q", tc.tier, got, tc.color)
 		}
+	}
+}
+
+func TestTrustTierBadgeCSS(t *testing.T) {
+	cases := []struct {
+		tier   string
+		wantBg string
+	}{
+		{"newcomer", "rgba(107,114,128,0.2)"},
+		{"contributor", "rgba(59,130,246,0.2)"},
+		{"trusted", "rgba(34,197,94,0.2)"},
+		{"advisor", "rgba(168,85,247,0.2)"},
+		{"revoked", "rgba(239,68,68,0.2)"},
+		{"unknown", "rgba(107,114,128,0.2)"},
+	}
+	for _, tc := range cases {
+		bg, text, border := trustTierBadgeCSS(tc.tier)
+		if bg != tc.wantBg {
+			t.Errorf("trustTierBadgeCSS(%q) bg = %q, want %q", tc.tier, bg, tc.wantBg)
+		}
+		if text == "" {
+			t.Errorf("trustTierBadgeCSS(%q) text is empty", tc.tier)
+		}
+		if border == "" {
+			t.Errorf("trustTierBadgeCSS(%q) border is empty", tc.tier)
+		}
+	}
+}
+
+func TestRankDisplay(t *testing.T) {
+	gold := rankDisplay(1)
+	if !strings.Contains(gold, "medal") || !strings.Contains(gold, "1st place") {
+		t.Errorf("rank 1 should show gold medal, got %q", gold)
+	}
+
+	silver := rankDisplay(2)
+	if !strings.Contains(silver, "medal") || !strings.Contains(silver, "2nd place") {
+		t.Errorf("rank 2 should show silver medal, got %q", silver)
+	}
+
+	bronze := rankDisplay(3)
+	if !strings.Contains(bronze, "medal") || !strings.Contains(bronze, "3rd place") {
+		t.Errorf("rank 3 should show bronze medal, got %q", bronze)
+	}
+
+	fourth := rankDisplay(4)
+	if !strings.Contains(fourth, "#4") {
+		t.Errorf("rank 4 should show #4, got %q", fourth)
 	}
 }
 

@@ -480,6 +480,11 @@ func (c *Config) applyConfigEnv(path string) error {
 	if v, ok := env["DASHBOARD_AUTH_TOKEN"]; ok {
 		c.Dashboard.AuthToken = v
 	}
+	if c.Dashboard.AuthToken == "" {
+		if v, ok := env["HIVE_DASHBOARD_TOKEN"]; ok {
+			c.Dashboard.AuthToken = v
+		}
+	}
 
 	return nil
 }

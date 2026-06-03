@@ -416,9 +416,7 @@ func main() {
 		gov.SetBudgetLimit(cfg.Governor.Budget.TotalTokens)
 	}
 
-	// Go binary serves the internal API without auth — the Node.js proxy
-	// on port 3002 handles public-facing authentication.
-	dashSrv := dashboard.NewServer(cfg.Dashboard.Port, logger)
+	dashSrv := dashboard.NewServerWithAuth(cfg.Dashboard.Port, cfg.Dashboard.AuthToken, logger)
 
 	// Seed token sparkline history now that the dashboard server exists
 	if len(pendingTokenSeed) > 0 {

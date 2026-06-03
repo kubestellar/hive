@@ -30,6 +30,7 @@ services:
     cap_add:
       - NET_ADMIN
     expose:
+      - "3001"
       - "3002"
       - "7681"
     volumes:

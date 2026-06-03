@@ -227,9 +227,9 @@ type InceptionState struct {
 	IdeaText       string            `json:"idea_text"`
 	IdeaSlug       string            `json:"idea_slug"`
 	RepoURL        string            `json:"repo_url,omitempty"`
-	Questions      []Question        `json:"questions,omitempty"`
-	Answers        map[string]string `json:"answers,omitempty"`
-	FactSlugs      []string          `json:"fact_slugs,omitempty"`
+	Questions      []Question        `json:"questions"`
+	Answers        map[string]string `json:"answers"`
+	FactSlugs      []string          `json:"fact_slugs"`
 	StartedAt      time.Time         `json:"started_at"`
 	PhaseChangedAt time.Time         `json:"phase_changed_at,omitempty"`
 	WikiName       string            `json:"wiki_name,omitempty"`

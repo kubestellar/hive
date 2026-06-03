@@ -86,6 +86,7 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 		IdeaText:  rawIdea,
 		IdeaSlug:  slug,
 		FactSlugs: []string{slug},
+		Questions: []Question{},
 		Answers:   make(map[string]string),
 		StartedAt: time.Now(),
 	}
@@ -129,6 +130,7 @@ func (e *InceptionEngine) StartBrownfield(repoURL string) (*InceptionState, erro
 		IdeaSlug:  slug,
 		RepoURL:   repoURL,
 		FactSlugs: []string{},
+		Questions: []Question{},
 		Answers:   make(map[string]string),
 		StartedAt: time.Now(),
 	}

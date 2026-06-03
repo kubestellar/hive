@@ -286,7 +286,11 @@ sleep 1
 # Install the MITM proxy CA into the system trust store so that
 # agent sub-processes (git, curl) trust the forged certificates.
 if [ -f /data/proxy-ca.pem ]; then
-  if cp /data/proxy-ca.pem /usr/local/share/ca-certificates/hive-proxy-ca.crt 2>/dev/null; then
+  if command -v gosu >/dev/null 2>&1; then
+    gosu root sh -c 'cp /data/proxy-ca.pem /usr/local/share/ca-certificates/hive-proxy-ca.crt && update-ca-certificates' 2>/dev/null \
+      && echo "[entrypoint] proxy CA installed to system trust store" \
+      || echo "[entrypoint] WARN: proxy CA install via gosu failed"
+  elif cp /data/proxy-ca.pem /usr/local/share/ca-certificates/hive-proxy-ca.crt 2>/dev/null; then
     update-ca-certificates 2>/dev/null && echo "[entrypoint] proxy CA installed to system trust store"
   else
     echo "[entrypoint] WARN: could not install proxy CA to system store (non-root)"

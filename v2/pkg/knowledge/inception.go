@@ -513,7 +513,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 				Path: "tests/test_acceptance.py", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
 			})
 		}
-	case "typescript", "javascript":
+	case "typescript":
 		result.Files = append(result.Files,
 			ScaffoldFile{Path: "package.json", Content: buildPackageJSON(projectName, vision), Purpose: "package_json", IsNew: true},
 			ScaffoldFile{Path: "tsconfig.json", Content: buildTSConfig(), Purpose: "tsconfig", IsNew: true},
@@ -522,6 +522,16 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
 				Path: "src/__tests__/acceptance.test.ts", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+			})
+		}
+	case "javascript":
+		result.Files = append(result.Files,
+			ScaffoldFile{Path: "package.json", Content: buildPackageJSON(projectName, vision), Purpose: "package_json", IsNew: true},
+			ScaffoldFile{Path: "src/index.js", Content: buildTSIndex(projectName, vision), Purpose: "main", IsNew: true},
+		)
+		if len(acceptance) > 0 {
+			result.Files = append(result.Files, ScaffoldFile{
+				Path: "src/__tests__/acceptance.test.js", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
 			})
 		}
 	case "rust":

@@ -132,7 +132,7 @@ func (s *Store) Create(title string, beadType BeadType, priority Priority, actor
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	now := time.Now().UTC()
+	now := flexTime{time.Now().UTC()}
 	metadata := make(map[string]string)
 	if s.hiveID != "" {
 		metadata[hiveIDMetadataKey] = s.hiveID
@@ -220,7 +220,7 @@ func (s *Store) List(filter ListFilter) []*Bead {
 	}
 
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].CreatedAt.Before(result[j].CreatedAt)
+		return result[i].CreatedAt.Before(result[j].CreatedAt.Time)
 	})
 
 	return result
@@ -312,7 +312,7 @@ func (s *Store) persist(b *Bead) error {
 	}
 
 	sort.Slice(all, func(i, j int) bool {
-		return all[i].CreatedAt.Before(all[j].CreatedAt)
+		return all[i].CreatedAt.Before(all[j].CreatedAt.Time)
 	})
 
 	data, err := json.MarshalIndent(all, "", "  ")

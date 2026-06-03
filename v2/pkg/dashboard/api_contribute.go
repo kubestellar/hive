@@ -259,7 +259,11 @@ func (s *Server) handleContributeLanding(w http.ResponseWriter, r *http.Request)
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		wsProto = "wss"
 	}
-	hubURL := fmt.Sprintf("%s://%s/contribute", wsProto, r.Host)
+	host := r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+	hubURL := fmt.Sprintf("%s://%s/contribute", wsProto, host)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!DOCTYPE html>
@@ -312,19 +316,52 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 </div>
 <div class="steps">
 <h3>How it works</h3>
+<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">
+<label style="font-size:.9rem;color:#8b949e">Choose your CLI:</label>
+<select id="cli-select" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.9rem;cursor:pointer">
+<option value="claude" data-install="npm i -g @anthropic-ai/claude-code">Claude Code</option>
+<option value="copilot" data-install="gh extension install github/gh-copilot">GitHub Copilot</option>
+<option value="gemini" data-install="npm i -g @anthropic-ai/gemini-cli">Gemini CLI</option>
+<option value="bob" data-install="npm i -g @anthropic-ai/bob">Bob</option>
+<option value="goose" data-install="pip install goose-ai">Goose</option>
+</select>
+</div>
 <ol>
-<li><strong>Install</strong> — <code>brew install just gh</code> + <a href="https://docker.com/get-started" target="_blank" style="color:#58a6ff">Docker</a> + your CLI (<code>npm i -g @anthropic-ai/claude-code</code>)</li>
-<li><strong>Setup</strong> — <code>just contribute-setup claude</code> (registers with hive + authenticates GitHub + CLI)</li>
+<li><strong>Install</strong> — <code>brew install just gh</code> + <a href="https://docker.com/get-started" target="_blank" style="color:#58a6ff">Docker</a> + <code id="install-cmd">npm i -g @anthropic-ai/claude-code</code></li>
+<li><strong>Setup</strong> — <code>just contribute-setup <span id="step-cli">claude</span></code> (registers + authenticates GitHub + CLI)</li>
 <li><strong>Run</strong> — <code>just contribute-hive</code> — then walk away</li>
 </ol>
 <div style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;position:relative">
-<button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent.trim());this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)" style="position:absolute;top:8px;right:8px;background:#238636;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:.75rem">Copy</button>
-<pre style="color:#e6edf3;font-size:.85rem;margin:0;overflow-x:auto;white-space:pre">brew install just gh
+<button id="copy-btn" style="position:absolute;top:8px;right:8px;background:#238636;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:.75rem">Copy</button>
+<pre id="copy-cmds" style="color:#e6edf3;font-size:.85rem;margin:0;overflow-x:auto;white-space:pre">brew install just gh
 git clone -b v2 https://github.com/kubestellar/hive && cd hive
 export HIVE_HUB=%s
 just contribute-setup claude
 just contribute-hive</pre>
 </div>
+<script>
+(function(){
+var sel=document.getElementById('cli-select');
+var cmds=document.getElementById('copy-cmds');
+var installCmd=document.getElementById('install-cmd');
+var stepCli=document.getElementById('step-cli');
+var hubURL='%s';
+var tpl='brew install just gh\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
+function update(){
+var cli=sel.value;
+var opt=sel.options[sel.selectedIndex];
+installCmd.textContent=opt.getAttribute('data-install');
+stepCli.textContent=cli;
+cmds.textContent=tpl.replace('CLI',cli);
+}
+sel.addEventListener('change',update);
+document.getElementById('copy-btn').addEventListener('click',function(){
+navigator.clipboard.writeText(cmds.textContent.trim()).then(function(){
+var b=document.getElementById('copy-btn');b.textContent='Copied!';setTimeout(function(){b.textContent='Copy'},2000);
+});
+});
+})();
+</script>
 </div>
 <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">
 <a href="/leaderboard" style="display:inline-block;padding:8px 20px;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#58a6ff;text-decoration:none;font-size:.9rem">🏆 View Leaderboard</a>
@@ -382,7 +419,7 @@ if(isNew)f.scrollTop=0;
 }catch(e){}}
 poll();setInterval(poll,3000);
 </script>
-</body></html>`, projectName, projectName, len(profiles), tierBoxes.String(), hubURL)
+</body></html>`, projectName, projectName, len(profiles), tierBoxes.String(), hubURL, hubURL)
 }
 
 // ── Registration ───────────────────────────────────────────────────────────

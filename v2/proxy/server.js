@@ -122,6 +122,11 @@ function serveIndex(_req, res) {
 const contributeProxy = createProxyMiddleware({
   target: GO_API_URL,
   changeOrigin: true,
+  on: {
+    proxyReq(proxyReq, req) {
+      proxyReq.setHeader('X-Forwarded-Host', req.headers.host || '');
+    },
+  },
 });
 app.get('/contribute', contributeProxy);
 app.get('/contribute/', contributeProxy);

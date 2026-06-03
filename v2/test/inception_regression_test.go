@@ -109,3 +109,38 @@ func TestRegression_Pass0_StateWithNoInception(t *testing.T) {
 		t.Error("expected active=false when no inception in progress")
 	}
 }
+
+func TestRegression_Bug39_ConcurrentStartRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	_, code1, _ := client.post("/api/inception/start", map[string]string{"idea": "first idea"})
+	if code1 != 200 {
+		t.Skipf("first start failed: %d", code1)
+	}
+	_, code2, _ := client.post("/api/inception/start", map[string]string{"idea": "second idea"})
+	if code2 == 200 {
+		t.Error("concurrent start should be rejected when inception is already in progress")
+	}
+	client.post("/api/inception/reset", nil)
+}
+
+func TestRegression_Bug40_InvalidFactTypeRejected(t *testing.T) {
+	client := newAPIClient()
+	client.post("/api/inception/reset", nil)
+	_, code, _ := client.post("/api/inception/start", map[string]string{"idea": "test invalid facts"})
+	if code != 200 {
+		t.Skipf("start failed: %d", code)
+	}
+	data, code, _ := client.post("/api/inception/facts", map[string]interface{}{
+		"facts": []map[string]string{
+			{"type": "invalid_type", "title": "Bad", "body": "Should fail"},
+		},
+	})
+	if code == 200 {
+		ok, _ := data["ok"].(bool)
+		if ok {
+			t.Error("RecordFacts should reject invalid fact types")
+		}
+	}
+	client.post("/api/inception/reset", nil)
+}

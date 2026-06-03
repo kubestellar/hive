@@ -56,6 +56,10 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 		return nil, fmt.Errorf("idea text is required")
 	}
 
+	if e.state != nil && e.state.Phase != PhaseComplete {
+		return nil, fmt.Errorf("inception already in progress (phase: %s) — reset first", e.state.Phase)
+	}
+
 	slug := slugify("idea-" + truncateSlug(rawIdea))
 
 	if e.api != nil {
@@ -103,6 +107,10 @@ func (e *InceptionEngine) StartBrownfield(repoURL string) (*InceptionState, erro
 
 	if repoURL == "" {
 		return nil, fmt.Errorf("repo URL is required")
+	}
+
+	if e.state != nil && e.state.Phase != PhaseComplete {
+		return nil, fmt.Errorf("inception already in progress (phase: %s) — reset first", e.state.Phase)
 	}
 
 	slug := slugify("scan-" + repoBaseName(repoURL))
@@ -192,6 +200,9 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 	}
 
 	for _, f := range facts {
+		if !f.Type.IsIdeation() {
+			return fmt.Errorf("invalid ideation fact type: %q", f.Type)
+		}
 		conf := defaultConfidence(f.Type)
 		if e.state.Mode == InceptionBrownfield {
 			conf += brownfieldConfBoost

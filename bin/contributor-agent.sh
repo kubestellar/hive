@@ -121,17 +121,10 @@ if [[ -n "${AGENT_MODEL:-}" ]]; then
   esac
 fi
 
-# Ensure Claude Code skips onboarding by injecting required flags
-if [[ "$AGENT_BACKEND" == "claude" ]] && [[ -f "${HOME}/.claude.json" ]]; then
-  python3 -c "
-import json, sys
-p = '${HOME}/.claude.json'
-with open(p) as f: d = json.load(f)
-d['hasCompletedOnboarding'] = True
-d['lastOnboardingVersion'] = '2.1.0'
-d.setdefault('numStartups', 1)
-with open(p, 'w') as f: json.dump(d, f, indent=2)
-" 2>/dev/null || true
+# Copy host .claude.json (mounted at staging path to avoid Colima file-mount issues)
+if [[ "$AGENT_BACKEND" == "claude" ]] && [[ -f "${HOME}/.claude-host.json" ]]; then
+  cp "${HOME}/.claude-host.json" "${HOME}/.claude.json"
+  chmod 600 "${HOME}/.claude.json"
 fi
 
 tmux send-keys -t "$TMUX_SESSION" "$CMD $PERM_FLAG $MODEL_FLAG" Enter

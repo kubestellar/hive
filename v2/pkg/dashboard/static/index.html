@@ -125,28 +125,35 @@
 
     /* System resource gauges */
     .system-gauges {
-      padding: 8px 20px 4px;
-      border-top: 1px solid #f0f0f0;
+      padding: 8px 20px 6px;
+      border-top: 1px solid #e5e7eb;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
     }
     .sys-gauge-row {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       font-size: 0.65rem;
-      color: #9ca3af;
+      color: #6b7280;
       line-height: 1;
+      cursor: default;
     }
     .sys-gauge-label {
-      width: 16px;
+      width: 30px;
       flex-shrink: 0;
-      text-align: center;
+      text-align: left;
       font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: #6b7280;
+      text-transform: uppercase;
     }
     .sys-gauge-spark {
       flex-shrink: 0;
+      opacity: 0.3;
     }
     .sys-gauge-spark svg {
       display: block;
@@ -154,14 +161,17 @@
     .sys-gauge-val {
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
+      font-size: 0.65rem;
+      margin-left: auto;
+      color: #6b7280;
     }
     .sys-gauge-bar-wrap {
-      flex: 1;
+      width: 100%;
+      flex-basis: 100%;
       height: 3px;
-      background: #f3f4f6;
+      background: #e5e7eb;
       border-radius: 2px;
       overflow: hidden;
-      min-width: 30px;
     }
     .sys-gauge-bar-fill {
       height: 100%;
@@ -1757,20 +1767,20 @@
       <a class="oc-nav-item" data-section="nous-section" onclick="ocNavigate('nous-section')"><span class="oc-nav-emoji">🧪</span><span class="oc-nav-text">Strategy Lab</span></a>
     </div>
     <div class="system-gauges" id="system-gauges">
-      <div class="sys-gauge-row" id="sys-gauge-disk">
-        <span class="sys-gauge-label" title="Disk">💾</span>
+      <div class="sys-gauge-row" id="sys-gauge-disk" title="Disk usage">
+        <span class="sys-gauge-label">DISK</span>
         <span class="sys-gauge-spark" id="sys-spark-disk"></span>
         <span class="sys-gauge-val" id="sys-val-disk">--</span>
         <div class="sys-gauge-bar-wrap"><div class="sys-gauge-bar-fill" id="sys-bar-disk" style="width:0%"></div></div>
       </div>
-      <div class="sys-gauge-row" id="sys-gauge-mem">
-        <span class="sys-gauge-label" title="Memory">🧠</span>
+      <div class="sys-gauge-row" id="sys-gauge-mem" title="Memory usage">
+        <span class="sys-gauge-label">MEM</span>
         <span class="sys-gauge-spark" id="sys-spark-mem"></span>
         <span class="sys-gauge-val" id="sys-val-mem">--</span>
         <div class="sys-gauge-bar-wrap"><div class="sys-gauge-bar-fill" id="sys-bar-mem" style="width:0%"></div></div>
       </div>
-      <div class="sys-gauge-row" id="sys-gauge-cpu">
-        <span class="sys-gauge-label" title="CPU">⚡</span>
+      <div class="sys-gauge-row" id="sys-gauge-cpu" title="CPU usage">
+        <span class="sys-gauge-label">CPU</span>
         <span class="sys-gauge-spark" id="sys-spark-cpu"></span>
         <span class="sys-gauge-val" id="sys-val-cpu">--</span>
         <div class="sys-gauge-bar-wrap"><div class="sys-gauge-bar-fill" id="sys-bar-cpu" style="width:0%"></div></div>
@@ -6160,18 +6170,18 @@ function burnAreaChart() {
     const SYS_GAUGE_HISTORY_MAX = 60;
     const _sysGaugeHistory = { disk: [], mem: [], cpu: [] };
 
-    const SYS_GAUGE_GREEN_MAX = 70;
-    const SYS_GAUGE_YELLOW_MAX = 85;
-    const SYS_GAUGE_ORANGE_MAX = 95;
+    const SYS_GAUGE_NORMAL_MAX = 70;   // below this: muted gray
+    const SYS_GAUGE_AMBER_MAX = 85;    // 70-85%: amber warning
+    const SYS_GAUGE_ORANGE_MAX = 95;   // 85-95%: orange alert
 
-    const SYS_GAUGE_SPARK_W = 40;
-    const SYS_GAUGE_SPARK_H = 10;
+    const SYS_GAUGE_SPARK_W = 30;      // sparkline width in px
+    const SYS_GAUGE_SPARK_H = 8;       // sparkline height in px
 
     function sysGaugeColor(pct) {
-      if (pct < SYS_GAUGE_GREEN_MAX) return '#9ca3af';   // muted gray-green (subtle)
-      if (pct < SYS_GAUGE_YELLOW_MAX) return '#d97706';  // amber
-      if (pct < SYS_GAUGE_ORANGE_MAX) return '#ea580c';  // orange
-      return '#dc2626';                                    // red
+      if (pct < SYS_GAUGE_NORMAL_MAX) return '#4b5563';  // muted gray — healthy
+      if (pct < SYS_GAUGE_AMBER_MAX) return '#d97706';   // amber — elevated
+      if (pct < SYS_GAUGE_ORANGE_MAX) return '#ea580c';   // orange — high
+      return '#dc2626';                                     // red — critical
     }
 
     function sysGaugeMiniSpark(values, color) {
@@ -6183,7 +6193,7 @@ function burnAreaChart() {
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       });
       return `<svg width="${SYS_GAUGE_SPARK_W}" height="${SYS_GAUGE_SPARK_H}" viewBox="0 0 ${SYS_GAUGE_SPARK_W} ${SYS_GAUGE_SPARK_H}">` +
-        `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>` +
+        `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>` +
         `</svg>`;
     }
 
@@ -6211,7 +6221,13 @@ function burnAreaChart() {
         diskVal.textContent = sysRes.diskTotalGB > 0
           ? `${sysRes.diskUsedGB}/${sysRes.diskTotalGB}`
           : `${diskPct.toFixed(0)}%`;
-        diskVal.style.color = diskPct >= SYS_GAUGE_GREEN_MAX ? diskColor : '';
+        diskVal.style.color = diskPct >= SYS_GAUGE_NORMAL_MAX ? diskColor : '';
+      }
+      const diskRow = document.getElementById('sys-gauge-disk');
+      if (diskRow) {
+        diskRow.title = sysRes.diskTotalGB > 0
+          ? `Disk: ${sysRes.diskUsedGB} GB used of ${sysRes.diskTotalGB} GB (${diskPct.toFixed(0)}%) — /data volume`
+          : `Disk: ${diskPct.toFixed(0)}% used`;
       }
       const diskSpark = document.getElementById('sys-spark-disk');
       if (diskSpark) diskSpark.innerHTML = sysGaugeMiniSpark(_sysGaugeHistory.disk, diskColor);
@@ -6225,8 +6241,8 @@ function burnAreaChart() {
         memBar.style.background = memColor;
       }
       const memVal = document.getElementById('sys-val-mem');
+      const MEM_MB_PER_GB = 1024;
       if (memVal) {
-        const MEM_MB_PER_GB = 1024;
         if (sysRes.memTotalMB > MEM_MB_PER_GB) {
           memVal.textContent = `${(sysRes.memUsedMB / MEM_MB_PER_GB).toFixed(1)}/${(sysRes.memTotalMB / MEM_MB_PER_GB).toFixed(1)}`;
         } else if (sysRes.memTotalMB > 0) {
@@ -6234,7 +6250,13 @@ function burnAreaChart() {
         } else {
           memVal.textContent = `${memPct.toFixed(0)}%`;
         }
-        memVal.style.color = memPct >= SYS_GAUGE_GREEN_MAX ? memColor : '';
+        memVal.style.color = memPct >= SYS_GAUGE_NORMAL_MAX ? memColor : '';
+      }
+      const memRow = document.getElementById('sys-gauge-mem');
+      if (memRow) {
+        memRow.title = sysRes.memTotalMB > 0
+          ? `Memory: ${Math.round(sysRes.memUsedMB)} MB used of ${Math.round(sysRes.memTotalMB)} MB (${memPct.toFixed(0)}%)`
+          : `Memory: ${memPct.toFixed(0)}% used`;
       }
       const memSpark = document.getElementById('sys-spark-mem');
       if (memSpark) memSpark.innerHTML = sysGaugeMiniSpark(_sysGaugeHistory.mem, memColor);
@@ -6250,7 +6272,14 @@ function burnAreaChart() {
       const cpuVal = document.getElementById('sys-val-cpu');
       if (cpuVal) {
         cpuVal.textContent = `${cpuPct.toFixed(0)}%`;
-        cpuVal.style.color = cpuPct >= SYS_GAUGE_GREEN_MAX ? cpuColor : '';
+        cpuVal.style.color = cpuPct >= SYS_GAUGE_NORMAL_MAX ? cpuColor : '';
+      }
+      const cpuRow = document.getElementById('sys-gauge-cpu');
+      if (cpuRow) {
+        const cpuCores = sysRes.cpuCores || 0;
+        cpuRow.title = cpuCores > 0
+          ? `CPU: ${cpuPct.toFixed(0)}% average (${cpuCores} cores)`
+          : `CPU: ${cpuPct.toFixed(0)}% average`;
       }
       const cpuSpark = document.getElementById('sys-spark-cpu');
       if (cpuSpark) cpuSpark.innerHTML = sysGaugeMiniSpark(_sysGaugeHistory.cpu, cpuColor);

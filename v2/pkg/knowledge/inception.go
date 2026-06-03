@@ -887,7 +887,11 @@ func buildReadme(vision, constitution *Fact, reqs, constraints, stakeholders []F
 	if len(reqs) > 0 {
 		b.WriteString("## Features\n\n")
 		for _, r := range reqs {
-			fmt.Fprintf(&b, "- %s\n", r.Title)
+			if r.Body != "" && r.Body != r.Title {
+				fmt.Fprintf(&b, "- **%s** — %s\n", r.Title, r.Body)
+			} else {
+				fmt.Fprintf(&b, "- %s\n", r.Title)
+			}
 		}
 		b.WriteString("\n")
 	}
@@ -895,13 +899,37 @@ func buildReadme(vision, constitution *Fact, reqs, constraints, stakeholders []F
 	if len(constraints) > 0 {
 		b.WriteString("## Constraints\n\n")
 		for _, c := range constraints {
-			fmt.Fprintf(&b, "- %s\n", c.Title)
+			if c.Body != "" && c.Body != c.Title {
+				fmt.Fprintf(&b, "- **%s** — %s\n", c.Title, c.Body)
+			} else {
+				fmt.Fprintf(&b, "- %s\n", c.Title)
+			}
 		}
 		b.WriteString("\n")
 	}
 
 	b.WriteString("## Getting Started\n\n")
-	b.WriteString("TODO: Add setup instructions.\n\n")
+	if constitution != nil {
+		lang := inferLanguage(constitution)
+		switch lang {
+		case "go":
+			b.WriteString("```bash\ngo build -o bin/ .\n./bin/<project>\n```\n\n")
+		case "python":
+			b.WriteString("```bash\npip install -e .\npython -m <project>\n```\n\n")
+		case "typescript", "javascript":
+			b.WriteString("```bash\nnpm install\nnpm run dev\n```\n\n")
+		case "rust":
+			b.WriteString("```bash\ncargo build --release\n./target/release/<project>\n```\n\n")
+		case "java":
+			b.WriteString("```bash\nmvn package\njava -jar target/<project>.jar\n```\n\n")
+		case "shell":
+			b.WriteString("```bash\nchmod +x *.sh\n./<project>.sh\n```\n\n")
+		default:
+			b.WriteString("TODO: Add setup instructions.\n\n")
+		}
+	} else {
+		b.WriteString("TODO: Add setup instructions.\n\n")
+	}
 
 	b.WriteString("## License\n\n")
 	b.WriteString("TODO: Choose a license.\n")

@@ -266,7 +266,6 @@
           '<td>' + link + '</td>' +
           '<td style="white-space:nowrap">' +
             '<button onclick="openContributeInfo(\'' + esc(h.name || h.id) + '\',\'' + esc(h.id) + '\')" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;cursor:pointer;margin-right:4px">Contribute</button>' +
-            (h.hiveType === 'hosted' && _isLoggedIn ? '<button onclick="requestAccess(\'' + esc(h.id) + '\')" style="padding:2px 8px;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:4px;font-size:0.65rem;cursor:pointer">Request Access</button>' : '') +
           '</td>' +
           '</tr>';
       }).join('');
@@ -342,10 +341,32 @@
       } catch(e) { alert('Error: ' + e.message); }
     }
 
+    var _contribHiveId = '';
     function openContributeInfo(name, id) {
+      _contribHiveId = id;
       document.getElementById('contrib-modal').style.display = 'flex';
       document.getElementById('contrib-hive-name').textContent = name;
       document.getElementById('contrib-hive-id').textContent = id;
+      var area = document.getElementById('contrib-access-area');
+      if (_isLoggedIn) {
+        area.innerHTML = '<p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">Request read access to view the hive dashboard, agents, and config.</p>' +
+          '<button onclick="requestAccessFromModal()" id="contrib-req-btn" style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem">Request Access</button>';
+      } else {
+        area.innerHTML = '<p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">Login with GitHub to request access to this hive\'s dashboard.</p>' +
+          '<a href="/login" style="padding:8px 16px;background:var(--accent);color:#000;border-radius:6px;font-size:0.85rem;font-weight:600;text-decoration:none;display:inline-block">Login with GitHub</a>';
+      }
+    }
+
+    async function requestAccessFromModal() {
+      var btn = document.getElementById('contrib-req-btn');
+      btn.disabled = true; btn.textContent = 'Requesting...';
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(_contribHiveId) + '/request-access', {method: 'POST'});
+        var data = await resp.json();
+        if (!resp.ok) { btn.textContent = data.error || 'Failed'; return; }
+        btn.textContent = '✓ Request sent!';
+        btn.style.background = 'var(--green)';
+      } catch(e) { btn.textContent = 'Error'; }
     }
   </script>
 
@@ -362,8 +383,11 @@
         <p style="font-size:0.8rem;color:var(--text);margin-bottom:8px"><strong>3. Start contributing</strong></p>
         <p style="font-size:0.8rem;color:var(--muted)">Tasks are assigned automatically based on your trust tier (newcomer → contributor → trusted → advisor). See the <a href="/#leaderboard">leaderboard</a>.</p>
       </div>
-      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:16px">To get direct access to a hive's dashboard (manage agents, view config), <a href="/login">login</a> and request access from the hive owner.</p>
-      <div style="display:flex;justify-content:flex-end">
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px">
+        <p style="font-size:0.8rem;color:var(--text);margin-bottom:8px"><strong>Want dashboard access?</strong></p>
+        <div id="contrib-access-area"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
         <button onclick="document.getElementById('contrib-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Close</button>
       </div>
     </div>

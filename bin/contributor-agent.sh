@@ -179,6 +179,12 @@ case "$AGENT_BACKEND" in
   goose)
     ln -sf "$AGENT_MD" "${HOME}/.goose-instructions.md"
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+    mkdir -p "${HOME}/.config/goose"
+    cat > "${HOME}/.config/goose/config.yaml" <<GOOSECFG
+GOOSE_PROVIDER: ${GOOSE_PROVIDER:-ollama}
+GOOSE_MODEL: ${GOOSE_MODEL:-phi4}
+GOOSECFG
+    echo "Goose config: provider=${GOOSE_PROVIDER:-ollama} model=${GOOSE_MODEL:-phi4}"
     ;;
   *)
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"

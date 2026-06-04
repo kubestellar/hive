@@ -122,7 +122,10 @@
   </section>
 
   <section class="section" id="hives">
-    <h2>🐝 Active Hives</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h2>🐝 Active Hives</h2>
+      <input type="text" id="hive-search" placeholder="Search hives..." oninput="filterHiveTable()" style="padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;width:250px">
+    </div>
     <div id="hive-table-container"><div class="loading">Loading hives...</div></div>
   </section>
 
@@ -184,9 +187,10 @@
       try {
         var res = await fetch('/api/registry');
         var data = await res.json();
-        renderHives(data.hives || []);
-        renderStats(data.hives || []);
-        renderTicker(data.hives || []);
+        _allMainHives = data.hives || [];
+        renderHives(_allMainHives);
+        renderStats(_allMainHives);
+        renderTicker(_allMainHives);
       } catch (e) {
         document.getElementById('hive-table-container').innerHTML = '<div class="loading">Unable to load hive registry</div>';
       }
@@ -209,6 +213,16 @@
         '<span>' + online + '/' + hives.length + ' hives online</span>' +
         '<span class="dot"></span><span>' + agents + ' agents running</span>' +
         '<span class="dot"></span><span>' + contributors + ' contributors</span>';
+    }
+
+    var _allMainHives = [];
+    function filterHiveTable() {
+      var q = (document.getElementById('hive-search').value || '').toLowerCase();
+      if (!q) { renderHives(_allMainHives); return; }
+      var filtered = _allMainHives.filter(function(h) {
+        return JSON.stringify(h).toLowerCase().includes(q);
+      });
+      renderHives(filtered);
     }
 
     function renderHives(hives) {
@@ -248,12 +262,12 @@
       if (!entries.length) { document.getElementById('leaderboard-container').innerHTML = '<div class="loading">No contributors yet</div>'; return; }
       entries.sort(function(a, b) { return (b.tasks_completed || 0) - (a.tasks_completed || 0); });
       var rows = entries.map(function(e, i) {
-        var avatar = e.avatar_url ? '<img src="' + esc(e.avatar_url) + '" width="24" height="24" style="border-radius:50%;vertical-align:middle;margin-right:6px">' : '';
-        var activeDot = e.active ? '<span class="online-dot on" style="margin-right:4px"></span>' : '';
+        var halo = e.active ? 'box-shadow:0 0 0 3px var(--green);' : '';
+        var avatar = e.avatar_url ? '<img src="' + esc(e.avatar_url) + '" width="24" height="24" style="border-radius:50%;vertical-align:middle;margin-right:6px;' + halo + '">' : '';
         var taskText = e.current_task ? '<span style="color:var(--green);font-size:0.75rem">' + esc(e.current_task) + '</span>' : '<span style="color:var(--muted);font-size:0.75rem">—</span>';
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
-          '<td>' + activeDot + avatar + '<a href="https://github.com/' + esc(e.github_username) + '" target="_blank">' + esc(e.github_username) + '</a></td>' +
+          '<td style="white-space:nowrap">' + avatar + '<a href="https://github.com/' + esc(e.github_username) + '" target="_blank">' + esc(e.github_username) + '</a></td>' +
           '<td style="font-size:0.8rem;color:var(--muted)">' + esc(e.hive_name || '') + '</td>' +
           '<td>' + (e.tasks_completed || 0) + '</td>' +
           '<td>' + (e.tasks_failed || 0) + '</td>' +

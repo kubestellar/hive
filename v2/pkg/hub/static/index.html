@@ -217,6 +217,7 @@
     }
 
     var _allMainHives = [];
+    var _isLoggedIn = false;
     var _mainSortKey = '', _mainSortAsc = true;
 
     function sortMainHives(key) {
@@ -263,7 +264,10 @@
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
           '<td>' + link + '</td>' +
-          '<td><button onclick="openContributeInfo(\'' + esc(h.name || h.id) + '\',\'' + esc(h.id) + '\')" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;cursor:pointer;border:1px solid rgba(34,197,94,0.3)">Contribute</button></td>' +
+          '<td style="white-space:nowrap">' +
+            '<button onclick="openContributeInfo(\'' + esc(h.name || h.id) + '\',\'' + esc(h.id) + '\')" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;cursor:pointer;margin-right:4px">Contribute</button>' +
+            (h.hiveType === 'hosted' && _isLoggedIn ? '<button onclick="requestAccess(\'' + esc(h.id) + '\')" style="padding:2px 8px;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:4px;font-size:0.65rem;cursor:pointer">Request Access</button>' : '') +
+          '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('hive-table-container').innerHTML =
@@ -320,6 +324,7 @@
 
     fetch('/api/auth/user').then(function(r){return r.json()}).then(function(d){
       if(d.authenticated){
+        _isLoggedIn = true;
         document.getElementById('nav-login').style.display='none';
         document.getElementById('nav-logout').style.display='';
         document.getElementById('nav-dashboard').style.display='';
@@ -328,6 +333,15 @@
         u.innerHTML='<img src="'+esc(d.avatar_url)+'" style="width:24px;height:24px;border-radius:50%;vertical-align:middle">'+' <span style="font-size:0.85rem">'+esc(d.login)+'</span>';
       }
     }).catch(function(){});
+    async function requestAccess(hiveId) {
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(hiveId) + '/request-access', {method: 'POST'});
+        var data = await resp.json();
+        if (!resp.ok) { alert(data.error || 'Request failed'); return; }
+        alert('Access request sent! The hive owner will review your request.');
+      } catch(e) { alert('Error: ' + e.message); }
+    }
+
     function openContributeInfo(name, id) {
       document.getElementById('contrib-modal').style.display = 'flex';
       document.getElementById('contrib-hive-name').textContent = name;

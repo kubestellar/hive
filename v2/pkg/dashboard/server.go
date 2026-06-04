@@ -291,7 +291,7 @@ func (s *Server) Start() error {
 	}
 	s.mux.Handle("GET /", http.FileServer(http.FS(staticContent)))
 
-	handler := s.securityHeaders(s.mux)
+	handler := s.roleEnforcement(s.securityHeaders(s.mux))
 
 	addr := fmt.Sprintf(":%d", s.port)
 	s.logger.Info("dashboard starting", "addr", addr)
@@ -327,7 +327,26 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 }
 
 func (s *Server) Handler() http.Handler {
-	return s.securityHeaders(s.mux)
+	return s.roleEnforcement(s.securityHeaders(s.mux))
+}
+
+func (s *Server) roleEnforcement(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role := r.Header.Get("X-Hive-Role")
+		if role == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("X-Hive-Role", role)
+		w.Header().Set("X-Hive-User", r.Header.Get("X-Hive-User"))
+		if role == "read" && r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+			if !strings.HasPrefix(r.URL.Path, "/api/contribute") && r.URL.Path != "/api/gh-user-auth/status" {
+				http.Error(w, `{"error":"read-only access"}`, http.StatusForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) UpdateStatus(status *StatusPayload) {

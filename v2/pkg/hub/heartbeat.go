@@ -122,3 +122,51 @@ func sendHeartbeat(ctx context.Context, hubURL string, collect StatusCollector, 
 		logger.Warn("hub heartbeat rejected", "status", resp.StatusCode)
 	}
 }
+
+const taskPushInterval = 30 * time.Second
+
+type TaskStatusPayload struct {
+	HiveID       string             `json:"hive_id"`
+	Leaderboard  []LeaderboardEntry `json:"leaderboard"`
+	Contributors ContributorSummary `json:"contributors"`
+}
+
+type TaskStatusCollector func() *TaskStatusPayload
+
+func StartTaskStatusPush(ctx context.Context, hubURL string, collect TaskStatusCollector, logger *slog.Logger) {
+	if hubURL == "" {
+		return
+	}
+
+	logger.Info("hub task status push enabled", "url", hubURL, "interval", taskPushInterval)
+	ticker := time.NewTicker(taskPushInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			payload := collect()
+			if payload == nil {
+				continue
+			}
+			body, err := json.Marshal(payload)
+			if err != nil {
+				continue
+			}
+			reqCtx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
+			req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, hubURL+"/api/task-status", bytes.NewReader(body))
+			if err != nil {
+				cancel()
+				continue
+			}
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := http.DefaultClient.Do(req)
+			cancel()
+			if err == nil {
+				resp.Body.Close()
+			}
+		}
+	}
+}

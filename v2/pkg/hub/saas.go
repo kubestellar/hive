@@ -347,11 +347,14 @@ func (s *HubServer) handleSaaSAuthCheck(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if _, ok := user.Hives[hiveID]; !ok {
+	role, ok := user.Hives[hiveID]
+	if !ok {
 		http.Error(w, "no access to this hive", http.StatusForbidden)
 		return
 	}
 
+	w.Header().Set("X-Hive-User", username)
+	w.Header().Set("X-Hive-Role", role)
 	w.WriteHeader(http.StatusOK)
 }
 

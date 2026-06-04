@@ -33,6 +33,8 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("GET /api/widget", s.handleWidget)
 	s.mux.HandleFunc("GET /api/pane/{agent}", s.handlePane)
 
+	s.mux.HandleFunc("GET /api/role", s.handleRole)
+
 	s.mux.HandleFunc("POST /api/kick/{agent}", s.handleKick)
 	s.mux.HandleFunc("POST /api/switch/{agent}/{backend}", s.handleSwitch)
 	s.mux.HandleFunc("POST /api/model/{agent}/{model}", s.handleModelSet)
@@ -276,6 +278,15 @@ func sanitizeString(s string) string {
 }
 
 // --- Core status endpoints ---
+
+func (s *Server) handleRole(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("X-Hive-Role")
+	user := r.Header.Get("X-Hive-User")
+	if role == "" {
+		role = "owner"
+	}
+	jsonResponse(w, map[string]string{"role": role, "user": user})
+}
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{

@@ -2604,7 +2604,25 @@
 
     function formatFixTime(minutes) {
       if (!minutes || minutes <= 0) return '—';
-      return `${minutes}m`;
+      const MINS_PER_HOUR = 60;
+      const MINS_PER_DAY = 1440;
+      const MINS_PER_WEEK = 10080;
+      if (minutes >= MINS_PER_WEEK) {
+        const weeks = Math.floor(minutes / MINS_PER_WEEK);
+        const remainDays = Math.floor((minutes % MINS_PER_WEEK) / MINS_PER_DAY);
+        return remainDays > 0 ? `${weeks}.${remainDays}w` : `${weeks}w`;
+      }
+      if (minutes >= MINS_PER_DAY) {
+        const days = Math.floor(minutes / MINS_PER_DAY);
+        const remainHrs = Math.floor((minutes % MINS_PER_DAY) / MINS_PER_HOUR);
+        return remainHrs > 0 ? `${days}.${remainHrs}d` : `${days}d`;
+      }
+      if (minutes >= MINS_PER_HOUR) {
+        const hrs = Math.floor(minutes / MINS_PER_HOUR);
+        const remainMins = Math.round(minutes % MINS_PER_HOUR);
+        return remainMins > 0 ? `${hrs}.${remainMins}h` : `${hrs}h`;
+      }
+      return `${Math.round(minutes)}m`;
     }
 
     function renderGovernor(gov, cadenceMatrix, data) {

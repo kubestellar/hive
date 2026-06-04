@@ -550,7 +550,7 @@ func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		s.logger.Warn("upgrade failed", "hive", id, "output", string(out))
-		http.Error(w, `{"error":"upgrade failed: `+strings.ReplaceAll(string(out), `"`, `'`)+`"}`, http.StatusInternalServerError)
+		http.Error(w, `{"error":"upgrade failed — check hub logs for details"}`, http.StatusInternalServerError)
 		return
 	}
 	s.logger.Info("audit: hosted hive upgraded", "hive_id", id, "by", username)
@@ -558,15 +558,23 @@ func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"upgrading"}`))
 }
 
-var latestSHACache string
-var latestSHACacheTime time.Time
+var (
+	latestSHAMu        sync.RWMutex
+	latestSHACache     string
+	latestSHACacheTime time.Time
+)
 
 func (s *HubServer) handleLatestSHA(w http.ResponseWriter, r *http.Request) {
+	latestSHAMu.RLock()
 	if time.Since(latestSHACacheTime) < 5*time.Minute && latestSHACache != "" {
+		sha := latestSHACache
+		latestSHAMu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"sha": latestSHACache})
+		json.NewEncoder(w).Encode(map[string]string{"sha": sha})
 		return
 	}
+	latestSHAMu.RUnlock()
+
 	cmd := exec.Command("git", "ls-remote", "https://github.com/kubestellar/hive.git", "v2")
 	out, err := cmd.Output()
 	if err != nil {
@@ -574,12 +582,17 @@ func (s *HubServer) handleLatestSHA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parts := strings.Fields(string(out))
+
+	latestSHAMu.Lock()
 	if len(parts) > 0 && len(parts[0]) >= 7 {
 		latestSHACache = parts[0][:7]
 		latestSHACacheTime = time.Now()
 	}
+	sha := latestSHACache
+	latestSHAMu.Unlock()
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"sha": latestSHACache})
+	json.NewEncoder(w).Encode(map[string]string{"sha": sha})
 }
 
 func (s *HubServer) handleAccessList(w http.ResponseWriter, r *http.Request) {

@@ -669,6 +669,14 @@ func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "project_name, org, and hub_url are required", http.StatusBadRequest)
 		return
 	}
+	if !strings.HasPrefix(req.HubURL, "http://") && !strings.HasPrefix(req.HubURL, "https://") {
+		jsonError(w, "hub_url must start with http:// or https://", http.StatusBadRequest)
+		return
+	}
+	if req.DashboardURL != "" && !strings.HasPrefix(req.DashboardURL, "http://") && !strings.HasPrefix(req.DashboardURL, "https://") {
+		jsonError(w, "dashboard_url must start with http:// or https://", http.StatusBadRequest)
+		return
+	}
 
 	reg := loadFederationRegistry()
 	hiveID := fmt.Sprintf("hive-%s-%s", strings.ToLower(req.Org), strings.ToLower(req.ProjectName))

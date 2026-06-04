@@ -129,7 +129,13 @@ contribute-setup backend="claude":
         ;;
       goose)
         if command -v goose &>/dev/null; then
-          echo "Goose CLI detected — authentication handled on first run."
+          echo "Goose CLI detected ($(goose --version 2>&1 | head -1))"
+          if [[ -z "${GOOSE_PROVIDER:-}" ]]; then
+            echo "  TIP: Set GOOSE_PROVIDER and GOOSE_MODEL env vars, or run 'goose configure' first."
+            echo "  Example: export GOOSE_PROVIDER=anthropic GOOSE_MODEL=claude-sonnet-4-6"
+          else
+            echo "  Provider: ${GOOSE_PROVIDER} / Model: ${GOOSE_MODEL:-default}"
+          fi
         else
           echo "ERROR: Goose CLI not found. Install: https://github.com/block/goose/releases"
           exit 1
@@ -143,16 +149,8 @@ contribute-setup backend="claude":
           exit 1
         fi
         ;;
-      agy)
-        if command -v agy &>/dev/null; then
-          echo "Agy CLI detected — authentication handled on first run."
-        else
-          echo "ERROR: Agy CLI not found."
-          exit 1
-        fi
-        ;;
       *)
-        echo "ERROR: Unknown backend '{{backend}}'. Supported: claude, copilot, goose, codex, agy, bob"
+        echo "ERROR: Unknown backend '{{backend}}'. Supported: claude, copilot, goose, codex, bob"
         exit 1
         ;;
     esac
@@ -227,10 +225,9 @@ contribute-hive backend="" mode="docker":
       case "${BACKEND}" in
         claude)  claude --dangerously-skip-permissions ;;
         copilot) copilot --allow-all ;;
-        bob)     bob --accept-license ;;
+        bob)     bob --accept-license --approval-mode yolo --prompt-interactive "ready" ;;
         goose)   goose session ;;
         codex)   codex --dangerously-bypass-approvals-and-sandbox ;;
-        agy)     agy ;;
         *)
           echo "ERROR: Unknown backend '${BACKEND}'"
           exit 1
@@ -272,7 +269,6 @@ contribute-hive backend="" mode="docker":
         -e HIVE_USE_CONTRIBUTOR_GH=true \
         -e HIVE_CONTAINER_NAME="${CONTAINER_NAME}" \
         ${ANTHROPIC_API_KEY:+-e ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}"} \
-        ${ANTHROPIC_API_KEY:+-e ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}"} \
         ${GOOGLE_API_KEY:+-e GOOGLE_API_KEY="${GOOGLE_API_KEY}"} \
         ${GOOSE_API_KEY:+-e GOOSE_API_KEY="${GOOSE_API_KEY}"} \
         ${GOOSE_PROVIDER:+-e GOOSE_PROVIDER="${GOOSE_PROVIDER}"} \
@@ -302,7 +298,7 @@ contribute-browse:
     HUB_HTTP=$(echo "{{hive_hub}}" | sed 's|^wss://|https://|;s|^ws://|http://|;s|/contribute$||')
     echo "=== Available Hives ==="
     echo ""
-    curl -sf "${HUB_HTTP}/api/hives" 2>/dev/null | jq -r '.hives[] | "  \(.project_name) (\(.org))\n    Hub: \(.hub_url)\n    Dashboard: \(.dashboard_url // "N/A")\n    Contributors: \(.active_contributors // 0) active\n    Actionable: \(.actionable_items // "?") items\n"' || echo "Could not reach registry at ${HUB_HTTP}"
+    curl -sf "${HUB_HTTP}/api/registry" 2>/dev/null | jq -r '.hives[] | "  \(.name) (ACMM \(.acmmLevel))\n    Dashboard: \(.dashboardUrl // "N/A")\n    Contributors: \(.activeContributors // 0) active\n    Issues: \(.actionableIssues // 0) / PRs: \(.actionablePRs // 0)\n"' || echo "Could not reach registry at ${HUB_HTTP}"
 
 # Call the authenticated hive API
 # Usage: just hive-api /status

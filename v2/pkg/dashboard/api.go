@@ -1408,6 +1408,8 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 	if err := s.saveConfig(); err != nil {
 		s.logger.Error("failed to persist config after agent update", "agent", name, "error", err)
 	}
+
+	s.deps.AgentMgr.SyncModeFiles(s.deps.AgentMgr.GetACMMLevel())
 	if agentsDir := s.deps.Config.Data.AgentsDir; agentsDir != "" {
 		if err := config.SaveAgentFile(agentsDir, name, agentCfg); err != nil {
 			s.logger.Error("failed to persist agent overlay after update", "agent", name, "error", err)

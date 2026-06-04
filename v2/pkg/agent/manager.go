@@ -101,6 +101,12 @@ func (m *Manager) SetACMMLevel(level int) {
 	m.project.ACMMLevel = level
 }
 
+func (m *Manager) GetACMMLevel() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.project.ACMMLevel
+}
+
 func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, project ProjectContext) *Manager {
 	workDir := os.Getenv("HIVE_WORK_DIR")
 	if workDir == "" {

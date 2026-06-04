@@ -7,6 +7,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -83,6 +85,9 @@ func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
 	s.mux.HandleFunc("GET /api/hub/leaderboard", s.handleLeaderboard)
 	s.mux.HandleFunc("GET /api/hub/stats", s.handleStats)
 	s.mux.HandleFunc("GET /api/hub/version", s.handleHubVersion)
+	s.mux.HandleFunc("POST /api/contribute/register", s.handleContributeProxy)
+	s.mux.HandleFunc("GET /api/contribute/status", s.handleContributeStatus)
+	s.mux.HandleFunc("GET /api/contribute/ws", s.handleContributeWSProxy)
 	s.mux.HandleFunc("GET /learn", s.serveStatic("static/learn.html"))
 	s.mux.HandleFunc("GET /get-started", s.serveStatic("static/get-started.html"))
 	s.mux.HandleFunc("GET /api/docs", s.serveStatic("static/api-docs.html"))
@@ -419,4 +424,71 @@ func (s *HubServer) saveLoop() {
 			s.logger.Warn("hub registry save failed", "error", err)
 		}
 	}
+}
+
+func (s *HubServer) findContributeHive() *RegistryEntry {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for i, h := range s.registry.Hives {
+		if h.Online && h.IsPublic && h.DashboardURL != "" {
+			return &s.registry.Hives[i]
+		}
+	}
+	return nil
+}
+
+func (s *HubServer) handleContributeProxy(w http.ResponseWriter, r *http.Request) {
+	hive := s.findContributeHive()
+	if hive == nil {
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(w, `{"error":"no hives available for contribution"}`, http.StatusServiceUnavailable)
+		return
+	}
+	target, err := url.Parse(hive.DashboardURL)
+	if err != nil {
+		http.Error(w, `{"error":"invalid hive dashboard URL"}`, http.StatusInternalServerError)
+		return
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	r.URL.Path = "/api/contribute/register"
+	r.Host = target.Host
+	s.logger.Info("proxying contribute registration", "hive", hive.ID, "target", target.String())
+	proxy.ServeHTTP(w, r)
+}
+
+func (s *HubServer) handleContributeStatus(w http.ResponseWriter, r *http.Request) {
+	hive := s.findContributeHive()
+	if hive == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"available": false,
+			"message":   "no hives currently available for contribution",
+		})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"available": true,
+		"hive_id":   hive.ID,
+		"hive_name": hive.Name,
+		"org":       hive.Org,
+	})
+}
+
+func (s *HubServer) handleContributeWSProxy(w http.ResponseWriter, r *http.Request) {
+	hive := s.findContributeHive()
+	if hive == nil {
+		http.Error(w, "no hives available", http.StatusServiceUnavailable)
+		return
+	}
+	target, err := url.Parse(hive.DashboardURL)
+	if err != nil {
+		http.Error(w, "invalid hive URL", http.StatusInternalServerError)
+		return
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	r.URL.Path = "/api/contribute/ws"
+	r.Host = target.Host
+	s.logger.Info("proxying contribute WS", "hive", hive.ID, "target", target.String())
+	proxy.ServeHTTP(w, r)
 }

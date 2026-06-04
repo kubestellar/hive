@@ -64,14 +64,17 @@ detect_cli() {
     copilot)
       if copilot --version &>/dev/null; then echo "OK"; else echo "NOT_AUTHED"; fi
       ;;
-    gemini)
-      if gemini --version &>/dev/null; then echo "OK"; else echo "NOT_AUTHED"; fi
-      ;;
     bob)
       if bob --version &>/dev/null; then echo "OK"; else echo "NOT_AUTHED"; fi
       ;;
     goose)
       if goose --version &>/dev/null; then echo "OK"; else echo "NOT_AUTHED"; fi
+      ;;
+    codex)
+      if codex --version &>/dev/null; then echo "OK"; else echo "NOT_AUTHED"; fi
+      ;;
+    agy)
+      if agy --version &>/dev/null; then echo "OK"; else echo "NOT_AUTHED"; fi
       ;;
     *)
       echo "UNKNOWN"
@@ -172,10 +175,6 @@ case "$AGENT_BACKEND" in
     ln -sf "$AGENT_MD" "${HOME}/COPILOT.md"
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
     ;;
-  gemini)
-    ln -sf "$AGENT_MD" "${HOME}/GEMINI.md"
-    ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
-    ;;
   goose)
     ln -sf "$AGENT_MD" "${HOME}/.goose-instructions.md"
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
@@ -185,6 +184,13 @@ GOOSE_PROVIDER: ${GOOSE_PROVIDER:-ollama}
 GOOSE_MODEL: ${GOOSE_MODEL:-phi4}
 GOOSECFG
     echo "Goose config: provider=${GOOSE_PROVIDER:-ollama} model=${GOOSE_MODEL:-phi4}"
+    ;;
+  codex)
+    ln -sf "$AGENT_MD" "${HOME}/AGENTS.md"
+    ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+    ;;
+  agy)
+    ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
     ;;
   *)
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"

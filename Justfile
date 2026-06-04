@@ -229,7 +229,7 @@ contribute-hive backend="" mode="docker":
         copilot) copilot --allow-all ;;
         bob)     bob --accept-license ;;
         goose)   goose session ;;
-        codex)   codex --full-auto ;;
+        codex)   codex --dangerously-bypass-approvals-and-sandbox ;;
         agy)     agy ;;
         *)
           echo "ERROR: Unknown backend '${BACKEND}'"

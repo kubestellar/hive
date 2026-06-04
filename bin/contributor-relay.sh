@@ -87,6 +87,10 @@ function getCLIState() {
       if (/>\s*$|❯/.test(text)) return 'ready';
     } else if (BACKEND === 'goose') {
       if (/>\s*$|goose>|G\s*>/.test(text)) return 'ready';
+    } else if (BACKEND === 'bob') {
+      if (/bob>|>\s*$|Bob-Shell/.test(text)) return 'ready';
+    } else if (BACKEND === 'codex') {
+      if (/codex>|>\s*$|Codex CLI/.test(text)) return 'ready';
     } else {
       if (/>\s*$|❯|\$\s*$/.test(text)) return 'ready';
     }
@@ -266,6 +270,14 @@ function checkTmuxIdle() {
       hasIdlePrompt = />\s*$|goose>|G\s*>/.test(text);
       hasCompletionMarker = true;
       isWorking = /working|running|executing/i.test(text);
+    } else if (BACKEND === 'bob') {
+      hasIdlePrompt = /bob>|>\s*$/.test(text);
+      hasCompletionMarker = /completed|done|finished|✓/i.test(text);
+      isWorking = /running|executing|thinking/i.test(text);
+    } else if (BACKEND === 'codex') {
+      hasIdlePrompt = /codex>|>\s*$/.test(text);
+      hasCompletionMarker = /completed|done|finished/i.test(text);
+      isWorking = /running|executing|thinking/i.test(text);
     } else {
       hasIdlePrompt = />\s*$|\$\s*$/.test(text);
       hasCompletionMarker = /completed|done|finished/i.test(text);
@@ -294,7 +306,7 @@ function startProgressReporting() {
         `for p in /proc/[0-9]*/cmdline; do tr "\\0" " " < "$p" 2>/dev/null; done`,
         { encoding: 'utf8', timeout: 5000 }
       );
-      const cliAlive = procs.includes(BACKEND) || procs.includes('claude') || procs.includes('copilot') || procs.includes('gemini');
+      const cliAlive = procs.includes(BACKEND) || procs.includes('claude') || procs.includes('copilot') || procs.includes('bob') || procs.includes('codex') || procs.includes('goose');
       if (!cliAlive) {
         console.error(`CLI process (${BACKEND}) died — restarting and reporting task as failed`);
         try {

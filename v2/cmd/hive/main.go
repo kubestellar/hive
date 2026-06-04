@@ -775,6 +775,13 @@ func main() {
 		// Preserve runtime-only fields that are not in the YAML
 		newCfg.HiveID = cfg.HiveID
 
+		// Preserve ACMM level from the agent manager — it is the
+		// authoritative source. The file may have a stale value if
+		// a watcher reload races with a level-switch saveConfig().
+		if cfg.ACMMLevel != nil {
+			newCfg.ACMMLevel = cfg.ACMMLevel
+		}
+
 		// Swap the in-memory config pointer contents
 		*cfg = *newCfg
 

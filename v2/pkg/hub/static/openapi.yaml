@@ -1,0 +1,408 @@
+openapi: 3.0.3
+info:
+  title: Hive Hub API
+  description: REST API for the Hive Hub at hive.kubestellar.io — AI agent orchestration for GitHub repositories.
+  version: 2.0.0
+  contact:
+    url: https://github.com/kubestellar/hive
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://hive.kubestellar.io
+    description: Production hub
+
+tags:
+  - name: Public
+    description: Unauthenticated endpoints for viewing hive data
+  - name: Auth
+    description: GitHub OAuth authentication
+  - name: Dashboard
+    description: Authenticated user's hive management
+  - name: Hosted
+    description: Hosted hive provisioning and management
+  - name: Access
+    description: Role-based access control for hosted hives
+  - name: Admin
+    description: Hub administrator endpoints (clubanderson only)
+  - name: Spoke
+    description: Endpoints used by hive spoke instances
+
+paths:
+  /api/registry:
+    get:
+      tags: [Public]
+      summary: List all public hives
+      description: Returns all public hive instances with status, agents, ACMM level, governor mode, and contributor counts. Stale offline entries with hosted duplicates are filtered.
+      responses:
+        '200':
+          description: Registry data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hives:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RegistryEntry'
+                  updatedAt:
+                    type: string
+                    format: date-time
+
+  /api/hub/leaderboard:
+    get:
+      tags: [Public]
+      summary: Cross-hive contributor leaderboard
+      description: Merges contributors across all public hives, deduplicates by GitHub username. Includes active status, current task, and hive name.
+      responses:
+        '200':
+          description: Leaderboard entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  leaderboard:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LeaderboardEntry'
+
+  /api/hub/stats:
+    get:
+      tags: [Public]
+      summary: Aggregate hub stats
+      description: Total hives online, agents running, active contributors, issues, PRs.
+      responses:
+        '200':
+          description: Aggregate stats
+
+  /login:
+    get:
+      tags: [Auth]
+      summary: GitHub OAuth login
+      description: Redirects to GitHub OAuth authorization. Scope is read:user,repo.
+      parameters:
+        - name: redirect
+          in: query
+          description: URL to return to after login
+          schema:
+            type: string
+
+  /api/auth/user:
+    get:
+      tags: [Auth]
+      summary: Current user info
+      description: Returns authenticated user info from cookie.
+      responses:
+        '200':
+          description: User info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+                  login:
+                    type: string
+                  avatar_url:
+                    type: string
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      description: Clears the authentication cookie.
+
+  /api/saas/my-hives:
+    get:
+      tags: [Dashboard]
+      summary: List user's hives
+      description: Returns hives the authenticated user owns or has access to. Includes local (matched by heartbeat owner) and hosted (from metadata).
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: User's hives with quota info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hives:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MyHiveEntry'
+                  saas_quota:
+                    type: integer
+                    description: "-1 = unlimited, 0 = no access, >0 = limit"
+                  saas_used:
+                    type: integer
+                  is_admin:
+                    type: boolean
+
+  /api/saas/hives:
+    post:
+      tags: [Hosted]
+      summary: Create a hosted hive
+      description: Provisions a new hosted hive on the OKE cluster. Validates quota, creates K8s namespace, deployment, service, and ingress.
+      security:
+        - cookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [org, repos]
+              properties:
+                org:
+                  type: string
+                  description: GitHub organization
+                repos:
+                  type: string
+                  description: Comma-separated repository names
+                primary_repo:
+                  type: string
+                project_name:
+                  type: string
+                acmm_level:
+                  type: integer
+                  minimum: 1
+                  maximum: 6
+                auth_method:
+                  type: string
+                  enum: [pat, app]
+                github_token:
+                  type: string
+                  description: Personal Access Token (when auth_method=pat)
+                app_id:
+                  type: string
+                  description: GitHub App ID (when auth_method=app)
+                installation_id:
+                  type: string
+                installation_key:
+                  type: string
+                  description: PEM private key
+
+  /api/saas/hives/{id}:
+    delete:
+      tags: [Hosted]
+      summary: Delete a hosted hive
+      description: Removes K8s namespace, metadata, and user mappings. Owner or admin only.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+
+  /api/saas/hives/{id}/access:
+    get:
+      tags: [Access]
+      summary: List hive access
+      description: Lists all users with access to a hosted hive and their roles.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+    post:
+      tags: [Access]
+      summary: Grant access
+      description: Add a user with a role. Cannot have zero owners.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, role]
+              properties:
+                username:
+                  type: string
+                role:
+                  type: string
+                  enum: [read, read-write, owner]
+
+  /api/saas/hives/{id}/access/{username}:
+    delete:
+      tags: [Access]
+      summary: Revoke access
+      description: Remove a user's access. Cannot remove the last owner.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+
+  /api/saas/admin/users:
+    get:
+      tags: [Admin]
+      summary: List all hub users
+      description: Returns all users with profiles, quotas, hive mappings, and blocked status.
+      security:
+        - cookieAuth: []
+
+  /api/saas/admin/users/{username}:
+    put:
+      tags: [Admin]
+      summary: Update user quota or blocked status
+      description: "Set quota: -1 = unlimited, 0 = no access, >0 = limit."
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                saas_quota:
+                  type: integer
+                blocked:
+                  type: boolean
+
+  /api/heartbeat:
+    post:
+      tags: [Spoke]
+      summary: Spoke heartbeat
+      description: Hive spokes push status every eval cycle. Includes hive ID, org, repos, ACMM level, agents, governor, contributors, leaderboard.
+
+  /api/task-status:
+    post:
+      tags: [Spoke]
+      summary: Task status update
+      description: Lightweight update every 30s with contributor and leaderboard data.
+
+  /api/saas/user-token:
+    post:
+      tags: [Spoke]
+      summary: Request user's OAuth token
+      description: Spoke requests decrypted token for GitHub API calls. Validates user has access to the hive. Token is AES-256-GCM encrypted at rest.
+      security:
+        - cookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hive_id, username]
+              properties:
+                hive_id:
+                  type: string
+                username:
+                  type: string
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: hive_hub_user
+
+  schemas:
+    RegistryEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        org:
+          type: string
+        repos:
+          type: array
+          items:
+            type: string
+        primaryRepo:
+          type: string
+        dashboardUrl:
+          type: string
+        snapshotUrl:
+          type: string
+        acmmLevel:
+          type: integer
+        agentCount:
+          type: integer
+        governorMode:
+          type: string
+          enum: [IDLE, QUIET, BUSY, SURGE]
+        actionableIssues:
+          type: integer
+        actionablePRs:
+          type: integer
+        contributorCount:
+          type: integer
+        activeContributors:
+          type: integer
+        owner:
+          type: string
+        hiveType:
+          type: string
+          enum: [local, hosted]
+        isPublic:
+          type: boolean
+        online:
+          type: boolean
+        gitHash:
+          type: string
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        github_username:
+          type: string
+        avatar_url:
+          type: string
+        trust_tier:
+          type: string
+        tasks_completed:
+          type: integer
+        tasks_failed:
+          type: integer
+        active:
+          type: boolean
+        current_task:
+          type: string
+        hive_name:
+          type: string
+
+    MyHiveEntry:
+      allOf:
+        - $ref: '#/components/schemas/RegistryEntry'
+        - type: object
+          properties:
+            role:
+              type: string
+              enum: [owner, read-write, read]
+            provStatus:
+              type: string
+            provError:
+              type: string

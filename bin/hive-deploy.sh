@@ -222,9 +222,14 @@ fi
 # Migrate from monolithic hive.service to per-agent hive@<name>.service.
 # The old hive.service only watchdogged the supervisor; per-agent units
 # give each agent its own watchdog with Restart=always.
-# Don't stop the old service mid-run (its tmux sessions are independent),
-# just disable it so it won't start on next boot.
-if systemctl is-enabled --quiet hive.service 2>/dev/null; then
+# Migrate from monolithic hive.service to per-agent hive@<name>.service.
+# The old service holds an flock that blocks new per-agent supervisors, so
+# we must stop it (tmux sessions are independent and survive the stop).
+if systemctl is-active --quiet hive.service 2>/dev/null; then
+  sudo systemctl stop hive.service 2>/dev/null || true
+  sudo systemctl disable hive.service 2>/dev/null || true
+  SYNCED="$SYNCED hive.service(stopped+disabled)"
+elif systemctl is-enabled --quiet hive.service 2>/dev/null; then
   sudo systemctl disable hive.service 2>/dev/null || true
   SYNCED="$SYNCED hive.service(disabled)"
 fi

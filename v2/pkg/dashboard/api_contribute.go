@@ -53,6 +53,8 @@ type ContributorProfile struct {
 	RateLimits         ContributorRateLimits `json:"rate_limits"`
 	Active             bool                  `json:"active,omitempty"`
 	CurrentTask        *WSTaskAssign         `json:"current_task,omitempty"`
+	ActiveTasks        []WSTaskAssign        `json:"active_tasks,omitempty"`
+	Sessions           int                   `json:"sessions,omitempty"`
 }
 
 type ContributorRateLimits struct {
@@ -525,6 +527,8 @@ func (s *Server) handleContributorsList(w http.ResponseWriter, r *http.Request) 
 		if ls, ok := liveStates[profiles[i].ContributorID]; ok {
 			profiles[i].Active = ls.Active
 			profiles[i].CurrentTask = ls.CurrentTask
+			profiles[i].ActiveTasks = ls.Tasks
+			profiles[i].Sessions = ls.Sessions
 		}
 	}
 	jsonResponse(w, map[string]any{"contributors": profiles})

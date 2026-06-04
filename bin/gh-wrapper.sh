@@ -393,7 +393,12 @@ if [[ -n "$AGENT_NAME" ]]; then
     issue/create|pr/create)
       _ensure_labels
       _inject_identity
-      exec "$REAL_GH" "${args[@]}" --label "$LABELS_CSV"
+      "$REAL_GH" "${args[@]}" --label "$LABELS_CSV"
+      rc=$?
+      if [ $rc -ne 0 ]; then
+        exec "$REAL_GH" "${args[@]}"
+      fi
+      exit $rc
       ;;
     issue/edit|pr/edit)
       _ensure_labels

@@ -194,9 +194,9 @@
       if (!pub.length) { document.getElementById('hive-table-container').innerHTML = '<div class="loading">No public hives registered yet</div>'; return; }
       var rows = pub.map(function(h, i) {
         var dot = '<span class="online-dot ' + (h.online ? 'on' : 'off') + '"></span>';
-        var link = h.snapshotUrl ? '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="repo-link">snapshot</a>' : '';
-        var dash = h.dashboardUrl ? ' <a href="' + esc(h.dashboardUrl) + '" target="_blank" class="repo-link">live</a>' : '';
-        var repoLink = h.primaryRepo ? '<a href="https://github.com/' + esc(h.primaryRepo) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
+        var link = h.snapshotUrl ? '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="repo-link">live</a>' : '';
+        var repoPath = h.org && h.primaryRepo ? h.org + '/' + h.primaryRepo : h.primaryRepo || '';
+        var repoLink = repoPath ? '<a href="https://github.com/' + esc(repoPath) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
@@ -207,7 +207,7 @@
           '<td>' + (h.actionableIssues || 0) + '</td>' +
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.contributorCount || 0) + '</td>' +
-          '<td>' + link + dash + '</td>' +
+          '<td>' + link + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('hive-table-container').innerHTML =

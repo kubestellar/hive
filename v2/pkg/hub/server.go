@@ -117,6 +117,7 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		Repos:              payload.Repos,
 		PrimaryRepo:        payload.PrimaryRepo,
 		DashboardURL:       payload.DashboardURL,
+		SnapshotURL:        payload.SnapshotURL,
 		ACMMLevel:          payload.ACMMLevel,
 		AgentCount:         len(payload.Agents),
 		GovernorMode:       payload.Governor.Mode,

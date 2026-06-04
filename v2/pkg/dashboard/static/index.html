@@ -8141,6 +8141,7 @@ function burnAreaChart() {
       const enabled = h.enabled || false;
       const url = h.url || 'https://hive.kubestellar.io';
       const isPublic = h.isPublic !== false;
+      const snapshotUrl = h.snapshotUrl || '';
       return `
         <div class="config-field">
           <label>Register on Hive Hub <span class="config-info">i<span class="config-tooltip">Register this hive instance on the central hub at hive.kubestellar.io. When enabled, the hive pushes status heartbeats to the hub every eval cycle.</span></span></label>
@@ -8163,6 +8164,10 @@ function burnAreaChart() {
               Public (visible on hub)
             </label>
           </div>
+        </div>
+        <div class="config-field">
+          <label>Public Snapshot URL <span class="config-info">i<span class="config-tooltip">The public URL where this hive's dashboard snapshot is hosted (e.g. https://kubestellar.io/live/hive/bluefin). Shown as the "live" link on the hub. Leave empty if no snapshot is published.</span></span></label>
+          <input type="text" id="cfg-hub-snapshot" value="${esc(snapshotUrl)}" placeholder="https://kubestellar.io/live/hive/..." onchange="markDirty('hub','snapshotUrl',this.value)">
         </div>
         <div style="font-size:0.7rem;color:var(--muted);margin-top:8px;padding:8px;background:var(--surface);border-radius:6px;border:1px solid var(--border)">
           When enabled, this hive sends a heartbeat to the hub every eval cycle with: hive ID, ACMM level, agent states, governor mode, and contributor stats.

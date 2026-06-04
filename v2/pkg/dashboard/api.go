@@ -1732,9 +1732,10 @@ func (s *Server) handleGovernorConfigGet(w http.ResponseWriter, r *http.Request)
 			"level":      cfg.Governor.Logging.Level,
 		},
 		"hub": map[string]interface{}{
-			"enabled":  cfg.Hub.Enabled,
-			"url":      cfg.Hub.URL,
-			"isPublic": cfg.Hub.IsPublic,
+			"enabled":     cfg.Hub.Enabled,
+			"url":         cfg.Hub.URL,
+			"isPublic":    cfg.Hub.IsPublic,
+			"snapshotUrl": cfg.Hub.SnapshotURL,
 		},
 	})
 }
@@ -2047,9 +2048,10 @@ func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGovernorHub(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Enabled  bool   `json:"enabled"`
-		URL      string `json:"url"`
-		IsPublic bool   `json:"isPublic"`
+		Enabled     bool   `json:"enabled"`
+		URL         string `json:"url"`
+		IsPublic    bool   `json:"isPublic"`
+		SnapshotURL string `json:"snapshotUrl"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body", http.StatusBadRequest)
@@ -2058,6 +2060,7 @@ func (s *Server) handleGovernorHub(w http.ResponseWriter, r *http.Request) {
 	s.deps.Config.Hub.Enabled = body.Enabled
 	s.deps.Config.Hub.URL = body.URL
 	s.deps.Config.Hub.IsPublic = body.IsPublic
+	s.deps.Config.Hub.SnapshotURL = body.SnapshotURL
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }

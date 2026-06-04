@@ -63,6 +63,7 @@ contribute-setup backend="claude":
     HIVE_REGISTRATION_TOKEN=${TOKEN}
     HIVE_HUB={{hive_hub}}
     CONTRIBUTOR_ID=${CID}
+    CONTRIBUTOR_USERNAME=${GH_USER}
     AGENT_BACKEND={{backend}}
     EOF
     echo "${MSG} — ${GH_USER} (${CID})"
@@ -266,6 +267,32 @@ contribute-browse:
     echo "=== Available Hives ==="
     echo ""
     curl -sf "${HUB_HTTP}/api/hives" 2>/dev/null | jq -r '.hives[] | "  \(.project_name) (\(.org))\n    Hub: \(.hub_url)\n    Dashboard: \(.dashboard_url // "N/A")\n    Contributors: \(.active_contributors // 0) active\n    Actionable: \(.actionable_items // "?") items\n"' || echo "Could not reach registry at ${HUB_HTTP}"
+
+# Call the authenticated hive API
+# Usage: just hive-api /status
+#        just hive-api /me
+#        just hive-api /contributors
+#        just hive-api /activity
+#        just hive-api /knowledge
+hive-api endpoint="/status":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    HUB_HTTP=$(echo "{{hive_hub}}" | sed 's|^wss://|https://|;s|^ws://|http://|;s|/contribute$||')
+    TOKEN=$(gh auth token 2>/dev/null || echo "")
+    if [[ -z "$TOKEN" ]]; then
+      echo "ERROR: Not authenticated. Run: gh auth login"
+      exit 1
+    fi
+    ENDPOINT="{{endpoint}}"
+    [[ "$ENDPOINT" != /* ]] && ENDPOINT="/$ENDPOINT"
+    curl -sf -H "Authorization: Bearer ${TOKEN}" "${HUB_HTTP}/api/v1${ENDPOINT}" 2>&1 | python3 -m json.tool 2>/dev/null || curl -sf -H "Authorization: Bearer ${TOKEN}" "${HUB_HTTP}/api/v1${ENDPOINT}" 2>&1
+    echo ""
+
+# Open the API docs in your browser
+hive-api-docs:
+    #!/usr/bin/env bash
+    HUB_HTTP=$(echo "{{hive_hub}}" | sed 's|^wss://|https://|;s|^ws://|http://|;s|/contribute$||')
+    open "${HUB_HTTP}/api/docs" 2>/dev/null || echo "Visit: ${HUB_HTTP}/api/docs"
 
 # Stop contributing (if running in background)
 contribute-stop:

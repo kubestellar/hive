@@ -474,9 +474,8 @@ func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request
 			return
 		}
 		jsonResponse(w, map[string]string{
-			"contributor_id":     existing.ContributorID,
-			"registration_token": existing.TokenPlain,
-			"message":            "Already registered",
+			"contributor_id": existing.ContributorID,
+			"message":        "Already registered — use your existing token to connect",
 		})
 		return
 	}
@@ -484,10 +483,14 @@ func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request
 	profile, token := createContributorProfile(username)
 	s.logger.Info("contributor registered", "username", username, "id", profile.ContributorID)
 
+	// Clear plaintext token from disk — only the hash is needed for auth
+	profile.TokenPlain = ""
+	_ = saveContributorProfile(profile)
+
 	jsonResponse(w, map[string]string{
 		"contributor_id":     profile.ContributorID,
 		"registration_token": token,
-		"message":            "Registered successfully",
+		"message":            "Registered successfully — save this token, it cannot be recovered",
 	})
 }
 

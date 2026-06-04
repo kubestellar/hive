@@ -214,7 +214,7 @@ func (s *HubServer) handleStats(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		totalAgents += h.AgentCount
-		totalContributors += h.ContributorCount
+		totalContributors += h.ActiveContributors
 		totalIssues += h.ActionableIssues
 		totalPRs += h.ActionablePRs
 		if h.Online {

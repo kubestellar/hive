@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -388,14 +389,52 @@ func (s *Server) kickBrainstorm() {
 		}()
 
 		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
-		if err := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err != nil {
-			s.logger.Warn("failed to restart brainstorm for inception", "error", err)
+
+		// Try pst-send first (pub-sub-tmux) — reliable, structured delivery.
+		// Falls back to RestartWithBootstrap if pst-send is not installed.
+		if err := pstSendKick("brainstorm", msg); err != nil {
+			s.logger.Debug("pst-send not available, using RestartWithBootstrap", "error", err)
+			if err2 := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err2 != nil {
+				s.logger.Warn("failed to restart brainstorm for inception", "error", err2)
+			}
+		} else {
+			s.logger.Info("inception kick sent via pst-send")
 		}
 
 		if s.deps.Governor != nil {
 			s.deps.Governor.RecordKick("brainstorm")
 		}
 	}()
+}
+
+// pstSendKick sends the inception prompt via pub-sub-tmux's pst-send command.
+// This is more reliable than tmux send-keys + $(cat file) because pst-send
+// writes to a named FIFO and confirms delivery via a command_received event.
+// Returns error if pst-send is not installed or the send fails.
+func pstSendKick(session, message string) error {
+	// Check if pst-send exists
+	pstPath, err := exec.LookPath("pst-send")
+	if err != nil {
+		return fmt.Errorf("pst-send not found: %w", err)
+	}
+
+	// Write message to temp file to avoid shell escaping issues
+	tmpFile := fmt.Sprintf("/tmp/.pst-kick-%s.txt", session)
+	if err := os.WriteFile(tmpFile, []byte(message), 0o644); err != nil {
+		return fmt.Errorf("write kick file: %w", err)
+	}
+
+	// pst-send reads from file and sends to the session's FIFO
+	cmd := exec.Command(pstPath,
+		"--session", "hive-"+session,
+		"--file", tmpFile,
+		"--enter",
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("pst-send failed: %w (output: %s)", err, string(out))
+	}
+
+	return nil
 }
 
 func readJSON(r *http.Request, v interface{}) error {

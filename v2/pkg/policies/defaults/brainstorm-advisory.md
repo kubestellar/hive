@@ -55,6 +55,19 @@ bd update <bead-id> --set-metadata question_id="<category>" \
 
 Create all 5–7 beads before doing anything else. Do NOT run specify, spec-kit, mkdir, or any other commands.
 
+**After creating all beads, output a summary table in EXACTLY this format:**
+
+```
+│ # │ Category     │ Question                  │ Smart Default        │
+│ 1 │ users        │ <question text>           │ <default value>      │
+│ 2 │ features     │ <question text>           │ <default value>      │
+│ 3 │ constraints  │ <question text>           │ <default value>      │
+│ 4 │ testing      │ <question text>           │ <default value>      │
+│ 5 │ deployment   │ <question text>           │ <default value>      │
+```
+
+This table format is REQUIRED — the inception engine parses it to detect questions. Use │ (box-drawing character) as the column delimiter. Include Category, Question, and Smart Default columns.
+
 ### If phase is `clarify` — review answers
 
 User answers:

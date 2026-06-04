@@ -172,11 +172,12 @@ func (w *InceptionWatcher) findInceptionBeads() []*beads.Bead {
 		return nil
 	}
 
-	open := beads.StatusOpen
+	// List ALL brainstorm beads, not just open ones. The agent sometimes
+	// closes beads immediately after creating them (reaping behavior),
+	// and the 5-second poll window misses them if we only look at open.
 	actor := "brainstorm"
 	all := w.beadStore.List(beads.ListFilter{
-		Status: &open,
-		Actor:  &actor,
+		Actor: &actor,
 	})
 
 	var inception []*beads.Bead

@@ -284,8 +284,12 @@
 
     loadRegistry();
     loadLeaderboard();
-    setInterval(loadRegistry, 60000);
-    setInterval(loadLeaderboard, 60000);
+    setInterval(loadRegistry, 30000);
+    setInterval(loadLeaderboard, 30000);
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) { loadRegistry(); loadLeaderboard(); }
+    });
+    window.addEventListener('focus', function() { loadRegistry(); loadLeaderboard(); });
 
     fetch('/api/auth/user').then(function(r){return r.json()}).then(function(d){
       if(d.authenticated){

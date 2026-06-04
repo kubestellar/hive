@@ -40,8 +40,9 @@ import (
 )
 
 var (
-	gitHash  = "unknown"
-	gitShort = "unknown"
+	gitHash   = "unknown"
+	gitShort  = "unknown"
+	gitBranch = "unknown"
 )
 
 func main() {
@@ -922,6 +923,7 @@ func main() {
 				IsPublic:     cfg.Hub.IsPublic,
 				Version:      "2.0.0",
 				GitHash:      gitShort,
+				GitBranch:    gitBranch,
 			}
 		}, time.Duration(cfg.Governor.EvalIntervalS)*time.Second, logger)
 

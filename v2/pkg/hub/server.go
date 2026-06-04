@@ -52,6 +52,7 @@ type RegistryEntry struct {
 	Health             map[string]any `json:"health"`
 	Version            string         `json:"version"`
 	GitHash            string         `json:"gitHash,omitempty"`
+	GitBranch          string         `json:"gitBranch,omitempty"`
 	Agents             []AgentSummary `json:"agents,omitempty"`
 	Leaderboard        []LeaderboardEntry `json:"leaderboard,omitempty"`
 	Online             bool           `json:"online"`
@@ -160,6 +161,7 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		Health:             payload.Health,
 		Version:            payload.Version,
 		GitHash:            payload.GitHash,
+		GitBranch:          payload.GitBranch,
 		Agents:             payload.Agents,
 		Leaderboard: func() []LeaderboardEntry {
 			hiveName := payload.Org + "/" + payload.PrimaryRepo

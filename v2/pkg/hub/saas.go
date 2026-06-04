@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -113,6 +114,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
 
 	go StartProvisionWatcher(s.logger, &s.mu)
+	go StartLatestSHAPoller(s.logger)
 }
 
 func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
@@ -374,6 +376,7 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		"saas_quota":     user.SaaSQuota,
 		"saas_used":      saasCount,
 		"is_admin":       user.GitHubUsername == hubAdminUsername,
+		"latest_sha":     getLatestSHA(),
 	})
 }
 
@@ -560,44 +563,49 @@ func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	latestSHAMu        sync.RWMutex
-	latestSHACache     string
-	latestSHACacheTime time.Time
+	latestSHAMu    sync.RWMutex
+	latestSHACache string
 )
 
-func (s *HubServer) handleLatestSHA(w http.ResponseWriter, r *http.Request) {
-	latestSHAMu.RLock()
-	if time.Since(latestSHACacheTime) < 5*time.Minute && latestSHACache != "" {
-		sha := latestSHACache
-		latestSHAMu.RUnlock()
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"sha": sha})
-		return
-	}
-	latestSHAMu.RUnlock()
+const latestSHAPollInterval = 2 * time.Minute
 
+func getLatestSHA() string {
+	latestSHAMu.RLock()
+	defer latestSHAMu.RUnlock()
+	return latestSHACache
+}
+
+func StartLatestSHAPoller(logger *slog.Logger) {
+	fetchSHA(logger)
+	ticker := time.NewTicker(latestSHAPollInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		fetchSHA(logger)
+	}
+}
+
+func fetchSHA(logger *slog.Logger) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, _ := http.NewRequest("GET", "https://api.github.com/repos/kubestellar/hive/commits/v2", nil)
 	req.Header.Set("Accept", "application/vnd.github.sha")
 	resp, err := client.Do(req)
 	if err != nil {
-		http.Error(w, `{"error":"failed to fetch latest SHA"}`, http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	sha := strings.TrimSpace(string(body))
-
-	latestSHAMu.Lock()
 	if len(sha) >= 7 {
+		latestSHAMu.Lock()
 		latestSHACache = sha[:7]
-		latestSHACacheTime = time.Now()
+		latestSHAMu.Unlock()
+		logger.Debug("latest SHA updated", "sha", sha[:7])
 	}
-	cached := latestSHACache
-	latestSHAMu.Unlock()
+}
 
+func (s *HubServer) handleLatestSHA(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"sha": cached})
+	json.NewEncoder(w).Encode(map[string]string{"sha": getLatestSHA()})
 }
 
 func (s *HubServer) handleAccessList(w http.ResponseWriter, r *http.Request) {
@@ -905,7 +913,7 @@ const dashboardHTML = `<!DOCTYPE html>
       return '<span style="color:var(--muted);font-size:0.75rem">—</span>';
     }
     function snapshotLink(h) {
-      if (h.snapshotUrl) return '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="dash-link">snapshot</a>';
+      if (h.snapshotUrl) return '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="dash-link">preview</a>';
       return '';
     }
     function apiLink(h) {
@@ -945,6 +953,7 @@ const dashboardHTML = `<!DOCTYPE html>
         var data = await resp.json();
         _userQuota = data.saas_quota || 0;
         _userUsed = data.saas_used || 0;
+        _latestSHA = data.latest_sha || _latestSHA;
         var canCreate = _userQuota < 0 || _userQuota > _userUsed;
         var addBtn = document.getElementById('btn-add-hive');
         if (addBtn) {
@@ -985,22 +994,22 @@ const dashboardHTML = `<!DOCTYPE html>
         if (canConvert) {
           actions = '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
         } else if (isHosted && h.role === 'owner') {
-          var upgradeBtn = (_latestSHA && h.gitHash && h.gitHash !== _latestSHA) ?
-            '<button onclick="upgradeHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Upgrade</button>' : '';
-          actions = upgradeBtn +
-            '<button onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Access</button>' +
+          actions = '<button onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Access</button>' +
             '<button onclick="deleteHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Delete</button>';
         }
         return '<tr>' +
           
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
           '<td>' + instanceName + '</td>' +
-          '<td style="font-size:0.7rem;font-family:monospace">' + (function() {
+          '<td style="font-size:0.7rem;white-space:nowrap">' + (function() {
             var sha = h.gitHash || '';
             if (!sha) return '<span style="color:var(--muted)">—</span>';
+            var branchName = h.gitBranch || 'v2';
+            var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
             var isCurrent = _latestSHA && sha === _latestSHA;
-            var badge = isCurrent ? '<span style="color:var(--green)" title="latest">✓</span>' : '<span style="color:var(--red)" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
-            return '<span style="color:var(--muted)">' + esc(sha) + '</span> ' + badge;
+            var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
+            var upgradeIcon = (!isCurrent && isHosted && h.role === 'owner') ? ' <button onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:1px 5px;background:var(--green);color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:0.6rem;margin-left:3px">⟳</button>' : '';
+            return branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
           })() + '</td>' +
           '<td>' + repoLink + '</td>' +
           '<td>' + repoCount + '</td>' +
@@ -1019,16 +1028,8 @@ const dashboardHTML = `<!DOCTYPE html>
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>Hive</th><th>Instance</th><th>SHA</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th>API</th><th></th>' +
+        '<th>Hive</th><th>Instance</th><th>Version</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Preview</th><th>API</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
-    }
-
-    async function loadLatestSHA() {
-      try {
-        var resp = await fetch('/api/saas/latest-sha');
-        var data = await resp.json();
-        _latestSHA = data.sha || '';
-      } catch(e) {}
     }
 
     async function upgradeHive(id) {
@@ -1044,7 +1045,6 @@ const dashboardHTML = `<!DOCTYPE html>
 
     async function init() {
       await loadUser();
-      await loadLatestSHA();
       await loadHives();
       await loadAdminUsers();
       if (!_adminLoaded) setTimeout(loadAdminUsers, 2000);
@@ -1070,7 +1070,7 @@ const dashboardHTML = `<!DOCTYPE html>
         document.getElementById('admin-section').style.display = '';
         var data = await resp.json();
         _allUsers = data.users || [];
-        renderUsers(_allUsers);
+        try { renderUsers(_allUsers); } catch(re) { console.error('renderUsers error:', re); }
       } catch(e) {
         if (!_adminLoaded) document.getElementById('admin-section').style.display = 'none';
       }

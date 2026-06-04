@@ -1459,7 +1459,14 @@ func (s *Server) handleAPIv1(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAPIDocs(w http.ResponseWriter, r *http.Request) {
-	baseURL := "https://" + r.Host
+	host := r.Host
+	host = strings.Map(func(c rune) rune {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == ':' || c == '-' {
+			return c
+		}
+		return -1
+	}, host)
+	baseURL := "https://" + host
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Hive API</title>

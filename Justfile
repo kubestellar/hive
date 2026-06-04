@@ -159,8 +159,15 @@ contribute-hive backend="" mode="docker":
     fi
     source "{{config_dir}}/gh-auth.env"
     source "{{config_dir}}/contributor.env"
-    if [[ -n "{{backend}}" ]]; then
-      BACKEND="{{backend}}"
+    # Handle "just contribute-hive local" (backward compat)
+    _BACKEND="{{backend}}"
+    _MODE="{{mode}}"
+    if [[ "$_BACKEND" == "local" || "$_BACKEND" == "docker" ]]; then
+      _MODE="$_BACKEND"
+      _BACKEND=""
+    fi
+    if [[ -n "$_BACKEND" ]]; then
+      BACKEND="$_BACKEND"
     else
       BACKEND="${AGENT_BACKEND:-claude}"
     fi
@@ -170,7 +177,7 @@ contribute-hive backend="" mode="docker":
     echo "GitHub:   $(gh api user --jq '.login' 2>/dev/null || echo 'authenticated')"
     echo ""
 
-    if [[ "{{mode}}" == "local" ]]; then
+    if [[ "$_MODE" == "local" ]]; then
       # ── Local mode: start node relay in background + launch CLI directly ──
       HUB="${HIVE_HUB:-{{hive_hub}}}"
       WS_URL=$(echo "$HUB" | sed 's|/contribute/*$|/api/contribute/ws|')

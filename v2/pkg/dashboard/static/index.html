@@ -9420,12 +9420,18 @@ function burnAreaChart() {
 
     async function checkGHAuth() {
       try {
+        const roleResp = await fetch('/api/role');
+        const roleData = await roleResp.json();
+        if (roleData.user) {
+          showGHAuthState(true, roleData.user, 'https://github.com/' + roleData.user + '.png');
+          return;
+        }
+      } catch (e) {}
+      try {
         const resp = await fetch('/api/gh-user-auth/status');
         const data = await resp.json();
         showGHAuthState(data.logged_in, data.username, data.avatar_url);
-      } catch (e) {
-        // API not available yet
-      }
+      } catch (e) {}
     }
 
     function showSetupDetails(which) {

@@ -1,8 +1,13 @@
 package hub
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -22,6 +27,72 @@ type SaaSUser struct {
 	Hives          map[string]string `json:"hives"`
 	SaaSQuota      int              `json:"saas_quota"`
 	Blocked        bool             `json:"blocked"`
+	EncryptedToken string           `json:"encrypted_token,omitempty"`
+}
+
+const hmacKeyPath = "/data/saas/hmac.key"
+const hmacKeySize = 32
+
+func loadOrCreateHMACKey() ([]byte, error) {
+	os.MkdirAll(filepath.Dir(hmacKeyPath), 0o755)
+	if data, err := os.ReadFile(hmacKeyPath); err == nil && len(data) == hmacKeySize {
+		return data, nil
+	}
+	key := make([]byte, hmacKeySize)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		return nil, err
+	}
+	os.WriteFile(hmacKeyPath, key, 0o600)
+	return key, nil
+}
+
+func encryptToken(plaintext string) (string, error) {
+	key, err := loadOrCreateHMACKey()
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+func decryptToken(encoded string) (string, error) {
+	key, err := loadOrCreateHMACKey()
+	if err != nil {
+		return "", err
+	}
+	data, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonceSize := gcm.NonceSize()
+	if len(data) < nonceSize {
+		return "", fmt.Errorf("ciphertext too short")
+	}
+	plaintext, err := gcm.Open(nil, data[:nonceSize], data[nonceSize:], nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
 }
 
 func (s *HubServer) registerSaaSRoutes() {
@@ -31,6 +102,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
+	s.mux.HandleFunc("POST /api/saas/user-token", s.handleUserToken)
 	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
 
@@ -399,6 +471,44 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("audit: hosted hive deleted", "hive_id", id, "by", username)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status":"deleted"}`))
+}
+
+func (s *HubServer) handleUserToken(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		HiveID   string `json:"hive_id"`
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.HiveID == "" || body.Username == "" {
+		http.Error(w, `{"error":"hive_id and username required"}`, http.StatusBadRequest)
+		return
+	}
+
+	user := loadSaaSUser(body.Username)
+	if user == nil {
+		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if _, ok := user.Hives[body.HiveID]; !ok {
+		http.Error(w, `{"error":"user has no access to this hive"}`, http.StatusForbidden)
+		return
+	}
+
+	if user.EncryptedToken == "" {
+		http.Error(w, `{"error":"no token stored for this user"}`, http.StatusNotFound)
+		return
+	}
+
+	token, err := decryptToken(user.EncryptedToken)
+	if err != nil {
+		s.logger.Warn("failed to decrypt user token", "user", body.Username, "error", err)
+		http.Error(w, `{"error":"token decryption failed"}`, http.StatusInternalServerError)
+		return
+	}
+
+	s.logger.Info("audit: user token issued", "user", body.Username, "hive", body.HiveID)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"token": token})
 }
 
 func (s *HubServer) handleSaaSAuthCheck(w http.ResponseWriter, r *http.Request) {

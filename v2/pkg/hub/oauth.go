@@ -38,7 +38,7 @@ func (s *HubServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		redirect = r.URL.Query().Get("rd")
 	}
 	state := url.QueryEscape(redirect)
-	authURL := fmt.Sprintf("%s?client_id=%s&scope=read:user&redirect_uri=%s&state=%s",
+	authURL := fmt.Sprintf("%s?client_id=%s&scope=read:user,repo&redirect_uri=%s&state=%s",
 		ghAuthorizeURL, clientID, "https://hive.kubestellar.io/api/auth/callback", state)
 	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
 }
@@ -115,7 +115,11 @@ func (s *HubServer) handleOAuthCallback(w http.ResponseWriter, r *http.Request) 
 	}
 	http.SetCookie(w, cookie)
 
-	ensureSaaSUser(user.Login)
+	saasUser := ensureSaaSUser(user.Login)
+	if encrypted, err := encryptToken(tokenResp.AccessToken); err == nil {
+		saasUser.EncryptedToken = encrypted
+		saveSaaSUser(saasUser)
+	}
 
 	redirect := "/dashboard"
 	if state := r.URL.Query().Get("state"); state != "" {

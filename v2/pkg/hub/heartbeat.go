@@ -59,6 +59,7 @@ type HeartbeatPayload struct {
 	IsPublic     bool               `json:"is_public"`
 	Version      string             `json:"version"`
 	GitHash      string             `json:"git_hash"`
+	GitBranch    string             `json:"git_branch,omitempty"`
 	Timestamp    string             `json:"timestamp"`
 }
 

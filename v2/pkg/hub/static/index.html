@@ -342,19 +342,37 @@
     }
 
     var _contribHiveId = '';
-    function openContributeInfo(name, id) {
+    async function openContributeInfo(name, id) {
       _contribHiveId = id;
       document.getElementById('contrib-modal').style.display = 'flex';
       document.getElementById('contrib-hive-name').textContent = name;
       document.getElementById('contrib-hive-id').textContent = id;
       var area = document.getElementById('contrib-access-area');
-      if (_isLoggedIn) {
-        area.innerHTML = '<p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">Request read access to view the hive dashboard, agents, and config.</p>' +
-          '<button onclick="requestAccessFromModal()" id="contrib-req-btn" style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem">Request Access</button>';
-      } else {
-        area.innerHTML = '<p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">Login with GitHub to request access to this hive\'s dashboard.</p>' +
+
+      if (!_isLoggedIn) {
+        area.innerHTML = '<p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">Login with GitHub to request access or contribute.</p>' +
           '<a href="/login" style="padding:8px 16px;background:var(--accent);color:#000;border-radius:6px;font-size:0.85rem;font-weight:600;text-decoration:none;display:inline-block">Login with GitHub</a>';
+        return;
       }
+
+      area.innerHTML = '<span style="color:var(--muted);font-size:0.8rem">Checking access...</span>';
+      try {
+        var resp = await fetch('/api/saas/my-hives');
+        if (resp.ok) {
+          var data = await resp.json();
+          var hive = (data.hives || []).find(function(h) { return h.id === id; });
+          if (hive) {
+            var isHosted = id.startsWith('hosted-') || id.startsWith('saas-');
+            var cUrl = isHosted ? 'https://' + id + '.hive.kubestellar.io/contribute' : (hive.dashboardUrl && !hive.dashboardUrl.includes('localhost') ? hive.dashboardUrl + '/contribute' : '');
+            area.innerHTML = '<p style="font-size:0.75rem;color:var(--green);margin-bottom:8px">✓ You have <strong>' + esc(hive.role) + '</strong> access to this hive.</p>' +
+              (cUrl ? '<a href="' + esc(cUrl) + '" target="_blank" style="padding:8px 16px;background:var(--green);color:#fff;border-radius:6px;font-size:0.85rem;font-weight:600;text-decoration:none;display:inline-block">Open Contribute Page</a>' : '');
+            return;
+          }
+        }
+      } catch(e) {}
+
+      area.innerHTML = '<p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">Request access to view the hive dashboard, agents, and config.</p>' +
+        '<button onclick="requestAccessFromModal()" id="contrib-req-btn" style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem">Request Access</button>';
     }
 
     async function requestAccessFromModal() {

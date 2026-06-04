@@ -866,7 +866,7 @@ const dashboardHTML = `<!DOCTYPE html>
     .subtitle { color: var(--muted); margin-bottom: 32px; }
     .table-wrap { overflow-x: auto; margin: 0 auto; }
     .hive-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    .hive-table th { text-align: center; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .hive-table th { text-align: center; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.05em; }
     .hive-table td { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; text-align: center; }
     .hive-table td:first-child { text-align: left; }
     .hive-table td:first-child { text-align: left; }

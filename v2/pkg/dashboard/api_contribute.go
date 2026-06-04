@@ -332,8 +332,13 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 </div>
 <div class="steps">
 <h3>How it works</h3>
-<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">
-<label style="font-size:.9rem;color:#8b949e">Choose your CLI:</label>
+<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<label style="font-size:.9rem;color:#8b949e">Mode:</label>
+<select id="mode-select" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.9rem;cursor:pointer">
+<option value="docker">Containerized (recommended)</option>
+<option value="local">Non-containerized</option>
+</select>
+<label style="font-size:.9rem;color:#8b949e">CLI:</label>
 <select id="cli-select" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.9rem;cursor:pointer">
 <option value="claude" data-install="npm i -g @anthropic-ai/claude-code">Claude Code</option>
 <option value="copilot" data-install="npm i -g @github/copilot">GitHub Copilot</option>
@@ -344,14 +349,14 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 </select>
 </div>
 <ol>
-<li><strong>Install</strong> — <code>brew install just gh</code> + <a href="https://docker.com/get-started" target="_blank" style="color:#58a6ff">Docker</a> + <code id="install-cmd">npm i -g @anthropic-ai/claude-code</code></li>
+<li><strong>Install</strong> — <code>brew install just gh</code> + <span id="install-extra"><a href="https://docker.com/get-started" target="_blank" style="color:#58a6ff">Docker</a></span></li>
 <li><strong>Setup</strong> — <code>just contribute-setup <span id="step-cli">claude</span></code> (registers + authenticates GitHub + CLI)</li>
 <li><strong>Run</strong> — <code>just contribute-hive</code> — then walk away</li>
 </ol>
 <div style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;position:relative">
 <button id="copy-btn" style="position:absolute;top:8px;right:8px;background:#238636;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:.75rem">Copy</button>
 <pre id="copy-cmds" style="color:#e6edf3;font-size:.85rem;margin:0;overflow-x:auto;white-space:pre">brew install just gh
-git clone -b v2 https://github.com/kubestellar/hive && cd hive
+git clone -b v2 https://github.com/kubestellar/hive &amp;&amp; cd hive
 export HIVE_HUB=%s
 just contribute-setup claude
 just contribute-hive</pre>
@@ -359,20 +364,30 @@ just contribute-hive</pre>
 <script>
 (function(){
 var sel=document.getElementById('cli-select');
+var modeSel=document.getElementById('mode-select');
 var cmds=document.getElementById('copy-cmds');
-var installCmd=document.getElementById('install-cmd');
+var installExtra=document.getElementById('install-extra');
 var stepCli=document.getElementById('step-cli');
 var hubURL='%s';
-var base='brew install just gh\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
+var dockerBase='brew install just gh\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive CLI';
+var localBase='brew install just gh\nINSTALL_CMD\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive CLI local';
 var extras={goose:'\n# Optional: set provider/model (default: ollama/phi4)\n# export GOOSE_PROVIDER=anthropic  # or openai, ollama\n# export GOOSE_MODEL=claude-sonnet-4-6\n# export ANTHROPIC_API_KEY=sk-ant-...',codex:'\n# Requires OpenAI API key\nexport OPENAI_API_KEY=sk-...',claude:'\n# Uses your Claude subscription or API key\n# export ANTHROPIC_API_KEY=sk-ant-...  # optional if using /login'};
 function update(){
 var cli=sel.value;
+var mode=modeSel.value;
 var opt=sel.options[sel.selectedIndex];
-installCmd.textContent=opt.getAttribute('data-install');
+var installCmd=opt.getAttribute('data-install');
 stepCli.textContent=cli;
-cmds.textContent=base.replace('CLI',cli)+(extras[cli]||'');
+if(mode==='docker'){
+installExtra.innerHTML='<a href="https://docker.com/get-started" target="_blank" style="color:#58a6ff">Docker</a>';
+cmds.textContent=dockerBase.replace(/CLI/g,cli)+(extras[cli]||'');
+}else{
+installExtra.innerHTML='<code>'+installCmd+'</code>';
+cmds.textContent=localBase.replace(/CLI/g,cli).replace('INSTALL_CMD',installCmd)+(extras[cli]||'');
+}
 }
 sel.addEventListener('change',update);
+modeSel.addEventListener('change',update);
 document.getElementById('copy-btn').addEventListener('click',function(){
 var el=document.getElementById('copy-cmds');
 var btn=document.getElementById('copy-btn');

@@ -103,6 +103,9 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
 	s.mux.HandleFunc("POST /api/saas/user-token", s.requireAuth(s.handleUserToken))
+	s.mux.HandleFunc("GET /api/saas/hives/{id}/access", s.requireAuth(s.handleAccessList))
+	s.mux.HandleFunc("POST /api/saas/hives/{id}/access", s.requireAuth(s.handleAccessAdd))
+	s.mux.HandleFunc("DELETE /api/saas/hives/{id}/access/{username}", s.requireAuth(s.handleAccessRemove))
 	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
 
@@ -520,6 +523,86 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"deleted"}`))
 }
 
+func (s *HubServer) handleAccessList(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("id")
+	username := s.getAuthUser(r)
+	h := loadSaaSHive(hiveID)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+	if h.Owner != username && username != hubAdminUsername {
+		http.Error(w, `{"error":"only the owner can view access"}`, http.StatusForbidden)
+		return
+	}
+	users := listAllSaaSUsers()
+	var access []map[string]string
+	for _, u := range users {
+		if role, ok := u.Hives[hiveID]; ok {
+			access = append(access, map[string]string{"username": u.GitHubUsername, "role": role})
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"access": access})
+}
+
+func (s *HubServer) handleAccessAdd(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("id")
+	username := s.getAuthUser(r)
+	h := loadSaaSHive(hiveID)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+	if h.Owner != username && username != hubAdminUsername {
+		http.Error(w, `{"error":"only the owner can manage access"}`, http.StatusForbidden)
+		return
+	}
+	var body struct {
+		Username string `json:"username"`
+		Role     string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" || body.Role == "" {
+		http.Error(w, `{"error":"username and role required"}`, http.StatusBadRequest)
+		return
+	}
+	if body.Role != "read" && body.Role != "read-write" && body.Role != "owner" {
+		http.Error(w, `{"error":"role must be read, read-write, or owner"}`, http.StatusBadRequest)
+		return
+	}
+	target := ensureSaaSUser(body.Username)
+	target.Hives[hiveID] = body.Role
+	saveSaaSUser(target)
+	s.logger.Info("audit: access granted", "hive", hiveID, "target", body.Username, "role", body.Role, "by", username)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "granted"})
+}
+
+func (s *HubServer) handleAccessRemove(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("id")
+	targetUsername := r.PathValue("username")
+	username := s.getAuthUser(r)
+	h := loadSaaSHive(hiveID)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+	if h.Owner != username && username != hubAdminUsername {
+		http.Error(w, `{"error":"only the owner can manage access"}`, http.StatusForbidden)
+		return
+	}
+	target := loadSaaSUser(targetUsername)
+	if target == nil {
+		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
+		return
+	}
+	delete(target.Hives, hiveID)
+	saveSaaSUser(target)
+	s.logger.Info("audit: access revoked", "hive", hiveID, "target", targetUsername, "by", username)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "revoked"})
+}
+
 func (s *HubServer) handleUserToken(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		HiveID   string `json:"hive_id"`
@@ -794,7 +877,8 @@ const dashboardHTML = `<!DOCTYPE html>
         if (canConvert) {
           actions = '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
         } else if (isHosted && h.role === 'owner') {
-          actions = '<button onclick="deleteHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Delete</button>';
+          actions = '<button onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Access</button>' +
+            '<button onclick="deleteHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Delete</button>';
         }
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
@@ -1047,5 +1131,87 @@ const dashboardHTML = `<!DOCTYPE html>
       </div>
     </div>
   </div>
+
+  <div id="access-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto">
+      <h2 style="font-size:1.3rem;margin-bottom:16px;color:var(--accent)">Manage Access</h2>
+      <p style="font-size:0.8rem;color:var(--muted);margin-bottom:16px" id="access-hive-label"></p>
+      <div id="access-list"><div class="loading">Loading...</div></div>
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+        <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--text)">Add User</h3>
+        <div style="display:flex;gap:8px">
+          <input id="access-username" type="text" placeholder="GitHub username" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+          <select id="access-role" style="padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+            <option value="read">Read</option>
+            <option value="read-write">Read-Write</option>
+            <option value="owner">Owner</option>
+          </select>
+          <button onclick="addAccess()" class="btn-primary" style="padding:8px 16px;font-size:0.8rem">Add</button>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button onclick="document.getElementById('access-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var _accessHiveId = '';
+
+    async function openAccessModal(hiveId) {
+      _accessHiveId = hiveId;
+      document.getElementById('access-hive-label').textContent = 'Hive: ' + hiveId;
+      document.getElementById('access-modal').style.display = 'flex';
+      await loadAccessList();
+    }
+
+    async function loadAccessList() {
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/access');
+        var data = await resp.json();
+        var users = data.access || [];
+        if (!users.length) {
+          document.getElementById('access-list').innerHTML = '<div style="color:var(--muted);font-size:0.85rem">No users have access yet</div>';
+          return;
+        }
+        var rows = users.map(function(u) {
+          var avatar = '<img src="https://github.com/' + esc(u.username) + '.png" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px">';
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">' +
+            '<div>' + avatar + '<span style="font-size:0.85rem">' + esc(u.username) + '</span></div>' +
+            '<div style="display:flex;align-items:center;gap:8px">' +
+            '<span class="role-badge role-' + u.role.replace(' ','-') + '" style="font-size:0.7rem">' + esc(u.role) + '</span>' +
+            '<button onclick="removeAccess(\'' + esc(u.username) + '\')" style="padding:2px 8px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem">Remove</button>' +
+            '</div></div>';
+        }).join('');
+        document.getElementById('access-list').innerHTML = rows;
+      } catch(e) {
+        document.getElementById('access-list').innerHTML = '<div style="color:var(--red)">Failed to load</div>';
+      }
+    }
+
+    async function addAccess() {
+      var username = document.getElementById('access-username').value.trim();
+      var role = document.getElementById('access-role').value;
+      if (!username) { alert('Enter a GitHub username'); return; }
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/access', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({username: username, role: role})
+        });
+        if (!resp.ok) { var d = await resp.json(); alert(d.error || 'Failed'); return; }
+        document.getElementById('access-username').value = '';
+        loadAccessList();
+      } catch(e) { alert('Error: ' + e.message); }
+    }
+
+    async function removeAccess(username) {
+      if (!confirm('Remove access for ' + username + '?')) return;
+      try {
+        await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/access/' + encodeURIComponent(username), {method: 'DELETE'});
+        loadAccessList();
+      } catch(e) { alert('Error: ' + e.message); }
+    }
+  </script>
 </body>
 </html>`

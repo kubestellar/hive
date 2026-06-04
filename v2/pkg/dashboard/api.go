@@ -1759,8 +1759,13 @@ func (s *Server) handleGovernorSensing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const minEvalIntervalS = 10    // 10 seconds minimum
 	const maxEvalIntervalS = 86400 // 24 hours
-	if body.EvalIntervalS > 0 && body.EvalIntervalS <= maxEvalIntervalS {
+	if body.EvalIntervalS != 0 {
+		if body.EvalIntervalS < minEvalIntervalS || body.EvalIntervalS > maxEvalIntervalS {
+			jsonError(w, fmt.Sprintf("eval_interval_s must be between %d and %d", minEvalIntervalS, maxEvalIntervalS), http.StatusBadRequest)
+			return
+		}
 		s.deps.Config.Governor.EvalIntervalS = body.EvalIntervalS
 	}
 	if body.GHRatePatterns != nil {
@@ -1784,10 +1789,20 @@ func (s *Server) handleGovernorSensing(w http.ResponseWriter, r *http.Request) {
 		}
 		s.deps.Config.Governor.Sensing.LoginPatterns = filtered
 	}
-	if body.TTLSeconds > 0 {
+	const maxTTLSeconds = 86400 // 24 hours
+	if body.TTLSeconds != 0 {
+		if body.TTLSeconds < 1 || body.TTLSeconds > maxTTLSeconds {
+			jsonError(w, fmt.Sprintf("ttlSeconds must be between 1 and %d", maxTTLSeconds), http.StatusBadRequest)
+			return
+		}
 		s.deps.Config.Governor.Sensing.TTLSeconds = body.TTLSeconds
 	}
-	if body.PullbackSeconds > 0 {
+	const maxPullbackSeconds = 86400 // 24 hours
+	if body.PullbackSeconds != 0 {
+		if body.PullbackSeconds < 1 || body.PullbackSeconds > maxPullbackSeconds {
+			jsonError(w, fmt.Sprintf("pullbackSeconds must be between 1 and %d", maxPullbackSeconds), http.StatusBadRequest)
+			return
+		}
 		s.deps.Config.Governor.Sensing.PullbackSeconds = body.PullbackSeconds
 	}
 

@@ -249,10 +249,10 @@ func validateGovernorThresholds(body map[string]int) error {
 
 // validateGovernorHealth validates health configuration values.
 func validateGovernorHealth(healthcheckInterval, restartCooldown int) error {
-	if healthcheckInterval > 0 && (healthcheckInterval < minHealthcheckInterval || healthcheckInterval > maxHealthcheckInterval) {
+	if healthcheckInterval != 0 && (healthcheckInterval < minHealthcheckInterval || healthcheckInterval > maxHealthcheckInterval) {
 		return fmt.Errorf("healthcheckInterval must be between %d and %d seconds", minHealthcheckInterval, maxHealthcheckInterval)
 	}
-	if restartCooldown > 0 && (restartCooldown < minRestartCooldown || restartCooldown > maxRestartCooldown) {
+	if restartCooldown != 0 && (restartCooldown < minRestartCooldown || restartCooldown > maxRestartCooldown) {
 		return fmt.Errorf("restartCooldown must be between %d and %d seconds", minRestartCooldown, maxRestartCooldown)
 	}
 	return nil

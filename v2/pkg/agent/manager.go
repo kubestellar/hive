@@ -163,6 +163,8 @@ func NewManager(agents map[string]config.AgentConfig, logger *slog.Logger, proje
 // If the input matches neither, it returns the input unchanged (callers
 // will get a "not found" error from the specific method).
 func (m *Manager) ResolveAgent(nameOrID string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if _, ok := m.agents[nameOrID]; ok {
 		return nameOrID
 	}

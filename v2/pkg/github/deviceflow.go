@@ -7,7 +7,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
+
+const deviceFlowHTTPTimeout = 15 * time.Second
+
+var deviceFlowClient = &http.Client{Timeout: deviceFlowHTTPTimeout}
 
 const (
 	deviceCodeURL = "https://github.com/login/device/code"
@@ -36,7 +41,7 @@ func StartDeviceFlow(clientID string) (*DeviceFlowState, error) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := deviceFlowClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("device code request: %w", err)
 	}
@@ -81,7 +86,7 @@ func PollDeviceFlow(clientID, deviceCode string) (token string, status string, e
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := deviceFlowClient.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("token poll request: %w", err)
 	}
@@ -119,7 +124,7 @@ func ValidateToken(token string) (*GitHubUser, error) {
 	req.Header.Set("Authorization", "token "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := deviceFlowClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("user request: %w", err)
 	}

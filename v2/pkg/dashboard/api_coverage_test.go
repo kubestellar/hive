@@ -3773,7 +3773,7 @@ func TestHandlePin_PinError(t *testing.T) {
 func TestHandleAgentConfigGet_BackendOverride(t *testing.T) {
 	s, deps := apiServer(t)
 	// Set overrides on the agent to hit lines 663-668
-	_ = deps.AgentMgr.SetBackendOverride("scanner", "openai")
+	_ = deps.AgentMgr.SetBackendOverride("scanner", "gemini")
 	_ = deps.AgentMgr.SetModelOverride("scanner", "gpt-4")
 	rec := doGet(s, "/api/config/agent/scanner")
 	if rec.Code != http.StatusOK {
@@ -3784,8 +3784,8 @@ func TestHandleAgentConfigGet_BackendOverride(t *testing.T) {
 	if !ok {
 		t.Fatal("missing general key in response")
 	}
-	if cli, ok := general["cliPinValue"].(string); !ok || cli != "openai" {
-		t.Errorf("cliPinValue = %v, want openai", general["cliPinValue"])
+	if cli, ok := general["cliPinValue"].(string); !ok || cli != "gemini" {
+		t.Errorf("cliPinValue = %v, want gemini", general["cliPinValue"])
 	}
 	if model, ok := general["model"].(string); !ok || model != "gpt-4" {
 		t.Errorf("model = %v, want gpt-4", general["model"])

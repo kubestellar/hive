@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -31,9 +33,14 @@ func (s *HubServer) registerOAuth() {
 
 func (s *HubServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	clientID := os.Getenv("HIVE_HUB_OAUTH_CLIENT_ID")
-	url := fmt.Sprintf("%s?client_id=%s&scope=read:user&redirect_uri=%s",
-		ghAuthorizeURL, clientID, "https://hive.kubestellar.io/api/auth/callback")
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	redirect := r.URL.Query().Get("redirect")
+	if redirect == "" {
+		redirect = r.URL.Query().Get("rd")
+	}
+	state := url.QueryEscape(redirect)
+	authURL := fmt.Sprintf("%s?client_id=%s&scope=read:user&redirect_uri=%s&state=%s",
+		ghAuthorizeURL, clientID, "https://hive.kubestellar.io/api/auth/callback", state)
+	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
 }
 
 func (s *HubServer) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +116,15 @@ func (s *HubServer) handleOAuthCallback(w http.ResponseWriter, r *http.Request) 
 
 	ensureSaaSUser(user.Login)
 
-	http.Redirect(w, r, "/dashboard", http.StatusTemporaryRedirect)
+	redirect := "/dashboard"
+	if state := r.URL.Query().Get("state"); state != "" {
+		if decoded, err := url.QueryUnescape(state); err == nil && decoded != "" {
+			if strings.HasPrefix(decoded, "https://") || strings.HasPrefix(decoded, "/") {
+				redirect = decoded
+			}
+		}
+	}
+	http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)
 }
 
 func (s *HubServer) handleAuthUser(w http.ResponseWriter, r *http.Request) {

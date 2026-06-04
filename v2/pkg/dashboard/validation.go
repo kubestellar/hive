@@ -64,7 +64,7 @@ var (
 	// kickTemplatePattern matches valid kick template filenames.
 	kickTemplatePattern = regexp.MustCompile(`^[a-zA-Z0-9_.\-]+\.md$`)
 	// shellOperatorPattern matches dangerous shell operators in commands.
-	shellOperatorPattern = regexp.MustCompile(`[;|` + "`" + `]|\$\(|&&|\|\|`)
+	shellOperatorPattern = regexp.MustCompile(`[;|<>` + "`" + `]|\$\(|&&|\|\|`)
 )
 
 // knownRoles is the set of valid agent roles.

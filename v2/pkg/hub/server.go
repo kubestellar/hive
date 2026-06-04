@@ -196,11 +196,21 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 func (s *HubServer) handleRegistry(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	s.markStaleHives()
+	hostedNames := make(map[string]bool)
+	for _, h := range s.registry.Hives {
+		if h.IsPublic && h.HiveType == "hosted" {
+			hostedNames[h.Name] = true
+		}
+	}
 	filtered := Registry{UpdatedAt: s.registry.UpdatedAt}
 	for _, h := range s.registry.Hives {
-		if h.IsPublic {
-			filtered.Hives = append(filtered.Hives, h)
+		if !h.IsPublic {
+			continue
 		}
+		if h.HiveType != "hosted" && hostedNames[h.Name] {
+			continue
+		}
+		filtered.Hives = append(filtered.Hives, h)
 	}
 	data, _ := json.Marshal(filtered)
 	s.mu.RUnlock()

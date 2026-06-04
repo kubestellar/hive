@@ -881,7 +881,7 @@ const dashboardHTML = `<!DOCTYPE html>
             '<button onclick="deleteHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Delete</button>';
         }
         return '<tr>' +
-          '<td>' + (i + 1) + '</td>' +
+          
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
           '<td>' + instanceName + '</td>' +
           '<td style="font-size:0.7rem;font-family:monospace;color:var(--muted)">' + esc(h.gitHash || '') + '</td>' +
@@ -901,7 +901,7 @@ const dashboardHTML = `<!DOCTYPE html>
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Hive</th><th>Instance</th><th>SHA</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th></th>' +
+        '<th>Hive</th><th>Instance</th><th>SHA</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 

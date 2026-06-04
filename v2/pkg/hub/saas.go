@@ -118,6 +118,13 @@ func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			w.Write([]byte(`{"error":"not authenticated"}`))
 			return
 		}
+		user := loadSaaSUser(cookie.Value)
+		if user == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"error":"unknown user"}`))
+			return
+		}
 		next(w, r)
 	}
 }
@@ -125,6 +132,9 @@ func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 func (s *HubServer) getAuthUser(r *http.Request) string {
 	cookie, err := r.Cookie("hive_hub_user")
 	if err != nil || cookie.Value == "" {
+		return ""
+	}
+	if loadSaaSUser(cookie.Value) == nil {
 		return ""
 	}
 	return cookie.Value

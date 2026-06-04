@@ -50,8 +50,12 @@ func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if !displayNamePattern.MatchString(body.Name) || strings.Contains(body.Name, "..") || strings.Contains(body.Name, "/") {
-		jsonError(w, "name must contain only alphanumeric characters, hyphens, and underscores", http.StatusBadRequest)
+	if strings.ContainsAny(body.Name, " ./\\") || !kickTemplatePattern.MatchString(body.Name+".md") {
+		jsonError(w, "name must contain only alphanumeric characters, hyphens, and underscores (no spaces)", http.StatusBadRequest)
+		return
+	}
+	if len(body.Name) > 64 {
+		jsonError(w, "name must be at most 64 characters", http.StatusBadRequest)
 		return
 	}
 

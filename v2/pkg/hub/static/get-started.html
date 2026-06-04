@@ -10,9 +10,11 @@
     .nav { position: fixed; top: 0; width: 100%; z-index: 50; background: rgba(10,10,15,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid #1e1e2e; }
     .nav-inner { max-width: 900px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
     .nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: #e6edf3; text-decoration: none; }
-    .nav-links { display: flex; gap: 20px; font-size: 0.85rem; }
+    .nav-links { display: flex; align-items: center; gap: 20px; font-size: 0.85rem; }
     .nav-links a { color: #8b949e; text-decoration: none; }
     .nav-links a:hover { color: #e6edf3; }
+    .nav-login { padding: 6px 14px; background: #12121a; border: 1px solid #1e1e2e; border-radius: 8px; color: #8b949e; font-size: 0.8rem; }
+    .nav-login:hover { border-color: #f59e0b; color: #e6edf3; }
     .content { max-width: 900px; margin: 0 auto; padding: 80px 24px 48px; }
     h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 24px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     h2 { font-size: 1.4rem; font-weight: 700; margin: 32px 0 12px; color: #e6edf3; }
@@ -39,6 +41,10 @@
         <a href="/">Hives</a>
         <a href="/learn">Learn</a>
         <a href="/get-started">Get Started</a>
+        <a href="/dashboard" id="nav-dashboard" style="display:none">My Hives</a>
+        <span id="nav-user" style="display:none"></span>
+        <a href="/login" class="nav-login" id="nav-login">Login</a>
+        <a href="#" class="nav-login" id="nav-logout" style="display:none" onclick="fetch('/api/auth/logout',{method:'POST'}).then(function(){location.href='/'});return false;">Logout</a>
       </div>
     </div>
   </nav>
@@ -112,5 +118,17 @@ hive-contribute connect https://hive.kubestellar.io/hive/HIVE_ID
 # Your CLI runs agents locally, tasks are assigned by the hive</code></pre>
     <p>Contributors earn trust tiers (newcomer → contributor → trusted → advisor) based on completed tasks. See the <a href="/#leaderboard">leaderboard</a>.</p>
   </div>
+  <script>
+    function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+    fetch('/api/auth/user').then(function(r){return r.json()}).then(function(d){
+      if(d.authenticated){
+        document.getElementById('nav-login').style.display='none';
+        document.getElementById('nav-logout').style.display='';
+        document.getElementById('nav-dashboard').style.display='';
+        var u=document.getElementById('nav-user');u.style.display='';
+        u.innerHTML='<img src="'+esc(d.avatar_url)+'" style="width:24px;height:24px;border-radius:50%;vertical-align:middle"> <span style="font-size:0.85rem">'+esc(d.login)+'</span>';
+      }
+    }).catch(function(){});
+  </script>
 </body>
 </html>

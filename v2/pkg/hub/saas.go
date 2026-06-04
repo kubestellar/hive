@@ -189,11 +189,11 @@ const dashboardHTML = `<!DOCTYPE html>
       <a href="/" class="nav-brand"><span>🐝</span> Hive Hub</a>
       <div class="nav-links">
         <a href="/">Hives</a>
-        <a href="/dashboard" style="color:var(--accent)">My Hives</a>
         <a href="/learn">Learn</a>
         <a href="/get-started">Get Started</a>
-        <div class="nav-user" id="nav-user"></div>
-        <a href="#" style="color:var(--muted);font-size:0.8rem;padding:4px 12px;border:1px solid var(--border);border-radius:6px" onclick="fetch('/api/auth/logout',{method:'POST'}).then(function(){location.href='/'});return false;">Logout</a>
+        <a href="/dashboard" style="color:var(--accent)">My Hives</a>
+        <span id="nav-user"></span>
+        <a href="#" class="nav-login" onclick="fetch('/api/auth/logout',{method:'POST'}).then(function(){location.href='/'});return false;">Logout</a>
       </div>
     </div>
   </nav>

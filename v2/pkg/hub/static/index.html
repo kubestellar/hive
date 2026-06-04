@@ -50,7 +50,7 @@
     .hive-table tr:hover td { background: rgba(245,158,11,0.04); }
     .hive-name { font-weight: 600; color: var(--text); }
     .hive-org { color: var(--muted); font-size: 0.75rem; }
-    .acmm-badge { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
+    .acmm-badge { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; white-space: nowrap; cursor: help; }
     .acmm-1 { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
     .acmm-2 { background: rgba(6,182,212,0.15); color: #22d3ee; border: 1px solid rgba(6,182,212,0.3); }
     .acmm-3 { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
@@ -96,13 +96,13 @@
 <body>
   <nav class="nav">
     <div class="nav-inner">
-      <div class="nav-brand"><span>🐝</span> Hive Hub</div>
+      <a href="/" class="nav-brand"><span>🐝</span> Hive Hub</a>
       <div class="nav-links">
-        <a href="#hives">Hives</a>
-        <a href="#leaderboard">Leaderboard</a>
+        <a href="/">Hives</a>
         <a href="/learn">Learn</a>
         <a href="/get-started">Get Started</a>
         <a href="/dashboard" id="nav-dashboard" style="display:none">My Hives</a>
+        <span id="nav-user" style="display:none"></span>
         <a href="/login" class="nav-login" id="nav-login">Login</a>
         <a href="#" class="nav-login" id="nav-logout" style="display:none" onclick="fetch('/api/auth/logout',{method:'POST'}).then(function(){location.reload()});return false;">Logout</a>
       </div>
@@ -145,8 +145,16 @@
     function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
     function acmmBadge(level) {
-      var names = {1:'Idea',2:'Measured',3:'CI/CD',4:'Autonomous PR',5:'Self-Governing',6:'Fully Autonomous'};
-      return '<span class="acmm-badge acmm-' + level + '">L' + level + ' ' + esc(names[level] || '') + '</span>';
+      var names = {1:'Idea',2:'Measured',3:'CI/CD',4:'Auto PR',5:'Self-Governing',6:'Fully Autonomous'};
+      var tips = {
+        1:'L1 Idea — Advisory only. Agents suggest but take no action.',
+        2:'L2 Measured — Agents can open issues to track findings.',
+        3:'L3 CI/CD — Agents open hold-gated PRs. CI must pass before merge.',
+        4:'L4 Auto PR — Agents open and merge PRs on green CI.',
+        5:'L5 Self-Governing — Full autonomy with budget controls.',
+        6:'L6 Fully Autonomous — Multi-loop orchestration, self-healing.'
+      };
+      return '<span class="acmm-badge acmm-' + level + '" title="' + esc(tips[level] || '') + '">L' + level + ' ' + esc(names[level] || '') + '</span>';
     }
 
     function modeBadge(mode) {
@@ -264,9 +272,10 @@
       if(d.authenticated){
         document.getElementById('nav-login').style.display='none';
         document.getElementById('nav-logout').style.display='';
-        var el=document.getElementById('nav-dashboard');
-        el.style.display='';
-        el.innerHTML='<img src="'+esc(d.avatar_url)+'" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;margin-right:4px">My Hives';
+        document.getElementById('nav-dashboard').style.display='';
+        var u=document.getElementById('nav-user');
+        u.style.display='';
+        u.innerHTML='<img src="'+esc(d.avatar_url)+'" style="width:24px;height:24px;border-radius:50%;vertical-align:middle">'+' <span style="font-size:0.85rem">'+esc(d.login)+'</span>';
       }
     }).catch(function(){});
   </script>

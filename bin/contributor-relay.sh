@@ -81,7 +81,6 @@ function getCLIState() {
     } else if (BACKEND === 'copilot') {
       if (/copilot login|gh auth login/.test(text)) return 'needs-login';
       if (/Confirm folder trust|trust the files|Do you trust/.test(text)) return 'onboarding';
-      if (/AI Credits: 0/.test(text)) return 'needs-login';
       if (/\/ commands.*help/.test(text)) return 'ready';
     } else if (BACKEND === 'gemini') {
       if (/not authenticated|login required/i.test(text)) return 'needs-login';

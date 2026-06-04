@@ -1989,7 +1989,13 @@ func (s *Server) handleGovernorLogging(w http.ResponseWriter, r *http.Request) {
 		s.deps.Config.Governor.Logging.Compress = *body.Compress
 	}
 	if body.Level != "" {
-		s.deps.Config.Governor.Logging.Level = body.Level
+		switch body.Level {
+		case "debug", "info", "warn", "error":
+			s.deps.Config.Governor.Logging.Level = body.Level
+		default:
+			jsonError(w, "level must be one of: debug, info, warn, error", http.StatusBadRequest)
+			return
+		}
 	}
 	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config after logging update", "error", err) }
 	s.refreshAndPersist()
@@ -2013,6 +2019,15 @@ func (s *Server) handleGovernorAddAgent(w http.ResponseWriter, r *http.Request) 
 
 	if body.Name == "" {
 		jsonError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if strings.ContainsAny(body.Name, " ./\\") || !kickTemplatePattern.MatchString(body.Name+".md") {
+		jsonError(w, "name must contain only alphanumeric characters, hyphens, and underscores", http.StatusBadRequest)
+		return
+	}
+	const maxAgentNameLen = 64
+	if len(body.Name) > maxAgentNameLen {
+		jsonError(w, fmt.Sprintf("name must be at most %d characters", maxAgentNameLen), http.StatusBadRequest)
 		return
 	}
 

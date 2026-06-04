@@ -2197,6 +2197,9 @@ func (s *Server) handleKnowledgeToggle(w http.ResponseWriter, r *http.Request) {
 		s.deps.Knowledge = nil
 	}
 
+	if err := s.saveConfig(); err != nil {
+		s.logger.Error("failed to persist config after knowledge toggle", "error", err)
+	}
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated", "enabled": fmt.Sprintf("%v", body.Enabled)})
 }

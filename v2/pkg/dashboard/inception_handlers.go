@@ -315,6 +315,9 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const maxZipUploadBytes = 10 << 20 // 10 MiB
+	r.Body = http.MaxBytesReader(w, r.Body, maxZipUploadBytes)
+
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		jsonError(w, "file upload required", http.StatusBadRequest)
@@ -322,7 +325,7 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	data, err := io.ReadAll(file)
+	data, err := io.ReadAll(io.LimitReader(file, maxZipUploadBytes))
 	if err != nil {
 		jsonError(w, "failed to read upload", http.StatusBadRequest)
 		return
@@ -346,11 +349,12 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(baseName, ".md") {
 			continue
 		}
+		const maxFileBytes = 1 << 20 // 1 MiB per file
 		rc, err := f.Open()
 		if err != nil {
 			continue
 		}
-		content, _ := io.ReadAll(rc)
+		content, _ := io.ReadAll(io.LimitReader(rc, maxFileBytes))
 		rc.Close()
 
 		outPath := filepath.Join(wikiDir, baseName)

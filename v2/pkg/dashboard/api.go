@@ -371,6 +371,7 @@ func (s *Server) handleTrends(w http.ResponseWriter, r *http.Request) {
 	rangeParam := r.URL.Query().Get("range")
 	hours, _ := strconv.Atoi(r.URL.Query().Get("hours"))
 
+	const maxTrendHours = 720 // 30 days
 	switch rangeParam {
 	case "week":
 		hours = hoursPerWeek
@@ -379,6 +380,8 @@ func (s *Server) handleTrends(w http.ResponseWriter, r *http.Request) {
 	default:
 		if hours <= 0 {
 			hours = hoursPerDay
+		} else if hours > maxTrendHours {
+			hours = maxTrendHours
 		}
 	}
 
@@ -492,8 +495,11 @@ func (s *Server) handleWidget(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePane(w http.ResponseWriter, r *http.Request) {
 	name := s.resolveAgentParam(r.PathValue("agent"))
 	lines, _ := strconv.Atoi(r.URL.Query().Get("lines"))
+	const maxPaneLines = 1000
 	if lines <= 0 {
 		lines = 100
+	} else if lines > maxPaneLines {
+		lines = maxPaneLines
 	}
 	source := r.URL.Query().Get("source")
 

@@ -359,7 +359,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/auth-url: "https://hive.kubestellar.io/api/saas/auth-check?hive={{.ID}}"
-    nginx.ingress.kubernetes.io/auth-signin: "https://hive.kubestellar.io/login"
+    nginx.ingress.kubernetes.io/auth-signin: "https://hive.kubestellar.io/login?redirect=$scheme://$http_host$request_uri"
 spec:
   ingressClassName: nginx
   rules:

@@ -299,17 +299,31 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		"short":   versionShort,
 	}
 
-	// Check latest commit on remote v2 branch
-	latest, err := s.fetchLatestRemoteHash()
-	if err == nil && latest != "" {
-		latestShort := latest
+	s.versionMu.RLock()
+	cached := s.cachedLatestHash
+	cacheAge := time.Since(s.cachedLatestAt)
+	s.versionMu.RUnlock()
+
+	const versionCacheTTL = 5 * time.Minute
+	if cacheAge > versionCacheTTL || cached == "" {
+		if latest, err := s.fetchLatestRemoteHash(); err == nil && latest != "" {
+			s.versionMu.Lock()
+			s.cachedLatestHash = latest
+			s.cachedLatestAt = time.Now()
+			s.versionMu.Unlock()
+			cached = latest
+		}
+	}
+
+	if cached != "" {
+		latestShort := cached
 		const shortHashLen = 7
 		if len(latestShort) > shortHashLen {
 			latestShort = latestShort[:shortHashLen]
 		}
-		resp["latestHash"] = latest
+		resp["latestHash"] = cached
 		resp["latestShort"] = latestShort
-		resp["behind"] = latest != versionHash
+		resp["behind"] = cached != versionHash
 	}
 
 	jsonResponse(w, resp)

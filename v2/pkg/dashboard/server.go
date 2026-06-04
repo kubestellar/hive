@@ -51,6 +51,10 @@ type Server struct {
 	deviceFlowMu    sync.Mutex
 	deviceFlowState *github.DeviceFlowState
 
+	versionMu       sync.RWMutex
+	cachedLatestHash string
+	cachedLatestAt   time.Time
+
 	contributeHub *ContributeWSHub
 
 	ready bool

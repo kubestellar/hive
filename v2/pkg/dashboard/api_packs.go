@@ -287,9 +287,7 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 			}
 			for modeName, agentCadences := range pack.Governor.Cadences {
 				mode := s.deps.Config.Governor.Modes[modeName]
-				if mode.Cadences == nil {
-					mode.Cadences = make(map[string]string)
-				}
+				mode.Cadences = make(map[string]string)
 				for agent, interval := range agentCadences {
 					mode.Cadences[agent] = interval
 				}

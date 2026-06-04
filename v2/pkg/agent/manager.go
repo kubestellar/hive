@@ -272,6 +272,19 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 	}
 
 	m.logger.Info("tmux session created", "name", agent.Name, "session", agent.tmuxSession, "uid", agent.UID, "socket", agent.tmuxSocket)
+
+	// Attach pub-sub-tmux publisher if available — streams structured events
+	// from the agent's tmux output to a JSONL log for subscribers.
+	if pstPath, err := exec.LookPath("pst-publish"); err == nil {
+		backend := agent.Config.Backend
+		if backend == "" {
+			backend = "claude"
+		}
+		pipePaneCmd := fmt.Sprintf("%s --session %s --cli %s 2>/dev/null", pstPath, agent.tmuxSession, backend)
+		_ = m.tmuxCmd(agent, "pipe-pane", "-t", agent.tmuxSession, "-o", pipePaneCmd).Run()
+		m.logger.Info("pub-sub-tmux publisher attached", "agent", agent.Name, "cli", backend)
+	}
+
 	return nil
 }
 

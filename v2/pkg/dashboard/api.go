@@ -2081,9 +2081,11 @@ func (s *Server) handleGovernorRemoveAgent(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config", "error", err) }
 	delete(s.deps.Config.Agents, name)
 	s.deps.AgentMgr.RemoveAgent(name)
+	if err := s.saveConfig(); err != nil {
+		s.logger.Error("failed to persist config after agent removal", "error", err)
+	}
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "removed", "agent": name})
 }

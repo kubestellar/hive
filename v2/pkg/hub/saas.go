@@ -228,10 +228,14 @@ const dashboardHTML = `<!DOCTYPE html>
       var c = colors[m] || '#6b7280';
       return '<span style="color:' + c + ';font-weight:600">' + m + '</span>';
     }
-    function dashLink(h) {
+    function dashboardLink(h) {
+      if (h.dashboardUrl && !h.dashboardUrl.includes('localhost'))
+        return '<a href="' + esc(h.dashboardUrl) + '" target="_blank" class="dash-link">' + esc(h.dashboardUrl.replace('http://','')) + '</a>';
+      return '<span style="color:var(--muted);font-size:0.75rem">—</span>';
+    }
+    function snapshotLink(h) {
       if (h.snapshotUrl) return '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="dash-link">snapshot</a>';
-      if (h.dashboardUrl && !h.dashboardUrl.includes('localhost')) return '<a href="' + esc(h.dashboardUrl) + '" target="_blank" class="dash-link">dashboard</a>';
-      return '<span style="color:var(--muted);font-size:0.75rem">local only</span>';
+      return '';
     }
 
     async function loadUser() {
@@ -274,22 +278,25 @@ const dashboardHTML = `<!DOCTYPE html>
         var dot = '<span class="online-dot ' + (h.online ? 'on' : 'off') + '"></span>';
         var rp = repoPath(h);
         var repoLink = rp ? '<a href="https://github.com/' + esc(rp) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
+        var repoCount = (h.repos || []).length;
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
           '<td>' + repoLink + '</td>' +
+          '<td>' + repoCount + '</td>' +
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
           '<td>' + (h.agentCount || 0) + '</td>' +
           '<td>' + modeBadge(h.governorMode) + '</td>' +
           '<td>' + (h.actionableIssues || 0) + '</td>' +
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + roleBadge(h.role) + '</td>' +
-          '<td>' + dashLink(h) + '</td>' +
+          '<td>' + dashboardLink(h) + '</td>' +
+          '<td>' + snapshotLink(h) + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Hive</th><th>Repo</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Role</th><th>Links</th>' +
+        '<th>#</th><th>Hive</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Role</th><th>Dashboard</th><th>Snapshot</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 

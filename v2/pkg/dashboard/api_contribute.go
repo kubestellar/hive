@@ -1348,10 +1348,30 @@ func isValidUsername(s string) bool {
 
 // validateGitHubToken checks a GitHub personal access token against the GitHub API
 // and returns the authenticated username, or empty string on failure.
+var (
+	ghTokenCacheMu sync.RWMutex
+	ghTokenCache   = map[string]ghTokenCacheEntry{}
+)
+
+const ghTokenCacheTTL = 5 * time.Minute
+
+type ghTokenCacheEntry struct {
+	username  string
+	expiresAt time.Time
+}
+
 func validateGitHubToken(token string) string {
 	if token == "" {
 		return ""
 	}
+
+	ghTokenCacheMu.RLock()
+	if entry, ok := ghTokenCache[token]; ok && time.Now().Before(entry.expiresAt) {
+		ghTokenCacheMu.RUnlock()
+		return entry.username
+	}
+	ghTokenCacheMu.RUnlock()
+
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
 	if err != nil {
@@ -1370,6 +1390,11 @@ func validateGitHubToken(token string) string {
 	if json.NewDecoder(resp.Body).Decode(&user) != nil {
 		return ""
 	}
+
+	ghTokenCacheMu.Lock()
+	ghTokenCache[token] = ghTokenCacheEntry{username: user.Login, expiresAt: time.Now().Add(ghTokenCacheTTL)}
+	ghTokenCacheMu.Unlock()
+
 	return user.Login
 }
 

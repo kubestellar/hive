@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/my-hives", s.requireAuth(s.handleMyHives))
 	s.mux.HandleFunc("POST /api/saas/hives", s.requireAuth(s.handleCreateHive))
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
+	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
 	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
@@ -365,6 +367,40 @@ func (s *HubServer) handleHiveStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(h)
 }
 
+func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
+	username := s.getAuthUser(r)
+	id := r.PathValue("id")
+
+	h := loadSaaSHive(id)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+	if h.Owner != username && username != hubAdminUsername {
+		http.Error(w, `{"error":"only the owner can delete this hive"}`, http.StatusForbidden)
+		return
+	}
+
+	ns := "hive-hosted-" + id
+	cmd := exec.Command("kubectl", "delete", "namespace", ns, "--ignore-not-found")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		s.logger.Warn("kubectl delete ns failed", "hive", id, "output", string(out))
+	}
+
+	os.RemoveAll(filepath.Join(saasHivesDir, id))
+
+	user := loadSaaSUser(username)
+	if user != nil {
+		delete(user.Hives, id)
+		saveSaaSUser(user)
+	}
+
+	s.logger.Info("audit: hosted hive deleted", "hive_id", id, "by", username)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"deleted"}`))
+}
+
 func (s *HubServer) handleSaaSAuthCheck(w http.ResponseWriter, r *http.Request) {
 	hiveID := r.URL.Query().Get("hive")
 	if hiveID == "" {
@@ -583,30 +619,42 @@ const dashboardHTML = `<!DOCTYPE html>
         var rp = repoPath(h);
         var repoLink = rp ? '<a href="https://github.com/' + esc(rp) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
         var repoCount = (h.repos || []).length;
-        var isLocal = !h.id || !h.id.startsWith('hosted-') || h.id.startsWith('saas-');
+        var isHosted = h.id && (h.id.startsWith('hosted-') || h.id.startsWith('saas-'));
+        var isLocal = !isHosted;
         var canConvert = isLocal && h.role === 'owner' && (_userQuota < 0 || _userQuota > _userUsed);
-        var convertBtn = canConvert ?
-          '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>' : '';
+        var instanceName = isHosted ? '<span style="font-size:0.7rem;color:var(--muted);font-family:monospace">' + esc(h.id) + '</span>' : '';
+        var modeCell = h.provStatus === 'error'
+          ? '<span style="color:var(--red);cursor:help;white-space:nowrap" title="' + esc(h.provError || '') + '">⚠ ERROR</span>'
+          : h.provStatus === 'provisioning'
+          ? '<span style="color:var(--accent);white-space:nowrap">⏳ Provisioning</span>'
+          : modeBadge(h.governorMode);
+        var actions = '';
+        if (canConvert) {
+          actions = '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
+        } else if (isHosted && h.role === 'owner') {
+          actions = '<button onclick="deleteHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Delete</button>';
+        }
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
+          '<td>' + instanceName + '</td>' +
           '<td>' + repoLink + '</td>' +
           '<td>' + repoCount + '</td>' +
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
           '<td>' + (h.agentCount || 0) + '</td>' +
-          '<td>' + (h.provStatus === 'error' ? '<span style="color:var(--red);cursor:help" title="' + esc(h.provError || '') + '">ERROR ⚠</span>' : h.provStatus === 'provisioning' ? '<span style="color:var(--accent)">⏳ Provisioning</span>' : modeBadge(h.governorMode)) + '</td>' +
+          '<td>' + modeCell + '</td>' +
           '<td>' + (h.actionableIssues || 0) + '</td>' +
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
           '<td>' + roleBadge(h.role) + '</td>' +
           '<td>' + dashboardLink(h) + '</td>' +
           '<td>' + snapshotLink(h) + '</td>' +
-          '<td>' + convertBtn + '</td>' +
+          '<td>' + actions + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Hive</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th></th>' +
+        '<th>#</th><th>Hive</th><th>Instance</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 
@@ -697,6 +745,15 @@ const dashboardHTML = `<!DOCTYPE html>
           body: JSON.stringify(updates)
         });
         loadAdminUsers();
+      } catch(e) { alert('Error: ' + e.message); }
+    }
+
+    async function deleteHive(id) {
+      if (!confirm('Delete hosted hive ' + id + '? This will remove all data.')) return;
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id), {method: 'DELETE'});
+        if (!resp.ok) { var d = await resp.json(); alert(d.error || 'Delete failed'); return; }
+        loadHives();
       } catch(e) { alert('Error: ' + e.message); }
     }
 

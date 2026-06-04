@@ -129,10 +129,13 @@ func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		user := loadSaaSUser(cookie.Value)
 		if user == nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":"unknown user"}`))
-			return
+			user = ensureSaaSUser(cookie.Value)
+			if user == nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`{"error":"unknown user"}`))
+				return
+			}
 		}
 		next(w, r)
 	}

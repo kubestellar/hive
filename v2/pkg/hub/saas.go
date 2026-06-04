@@ -385,7 +385,7 @@ const dashboardHTML = `<!DOCTYPE html>
     .role-owner { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
     .role-read { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
     .role-read-write { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
-    .acmm-badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
+    .acmm-badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; white-space: nowrap; cursor: help; }
     .acmm-1 { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
     .acmm-2 { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
     .acmm-3 { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
@@ -443,17 +443,26 @@ const dashboardHTML = `<!DOCTYPE html>
     var ACMM_LABELS = {1:'L1 Idea',2:'L2 Measured',3:'L3 CI/CD',4:'L4 Auto PR',5:'L5 Self-Governing',6:'L6 Fully Autonomous'};
     function acmmBadge(level) {
       var l = level || 0;
-      return '<span class="acmm-badge acmm-' + l + '">' + (ACMM_LABELS[l] || 'L' + l) + '</span>';
+      var tips = {1:'L1 Idea — Advisory only.',2:'L2 Measured — Can open issues.',3:'L3 CI/CD — Hold-gated PRs.',4:'L4 Auto PR — Merge on green CI.',5:'L5 Self-Governing — Full autonomy.',6:'L6 Fully Autonomous — Multi-loop.'};
+      return '<span class="acmm-badge acmm-' + l + '" title="' + esc(tips[l] || '') + '">' + (ACMM_LABELS[l] || 'L' + l) + '</span>';
     }
     function roleBadge(role) {
       var cls = role === 'owner' ? 'role-owner' : role === 'read-write' ? 'role-read-write' : 'role-read';
       return '<span class="role-badge ' + cls + '">' + esc(role) + '</span>';
     }
     function modeBadge(mode) {
-      var m = (mode || '').toUpperCase();
-      var colors = {IDLE:'#6b7280',QUIET:'#3b82f6',BUSY:'#f59e0b',SURGE:'#ef4444'};
+      var m = (mode || 'idle').toUpperCase();
+      var levels = {IDLE:0, QUIET:1, BUSY:2, SURGE:3};
+      var colors = {IDLE:'#6b7280', QUIET:'#3b82f6', BUSY:'#f59e0b', SURGE:'#ef4444'};
+      var fill = levels[m] !== undefined ? levels[m] : 0;
       var c = colors[m] || '#6b7280';
-      return '<span style="color:' + c + ';font-weight:600">' + m + '</span>';
+      var bars = '';
+      for (var i = 0; i < 4; i++) {
+        var h = 6 + i * 4;
+        var bc = i <= fill ? c : '#1e1e2e';
+        bars += '<rect x="' + (i * 6) + '" y="' + (20 - h) + '" width="4" height="' + h + '" rx="1" fill="' + bc + '"/>';
+      }
+      return '<span title="' + m + '" style="display:inline-flex;align-items:center;gap:4px"><svg width="24" height="20" viewBox="0 0 24 20">' + bars + '</svg><span style="font-size:0.7rem;color:' + c + ';font-weight:600">' + m + '</span></span>';
     }
     function dashboardLink(h) {
       if (h.dashboardUrl && !h.dashboardUrl.includes('localhost'))

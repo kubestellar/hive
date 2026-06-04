@@ -1051,7 +1051,7 @@ const dashboardHTML = `<!DOCTYPE html>
     .content { max-width: 1600px; margin: 0 auto; padding: 80px 24px 48px; }
     h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .subtitle { color: var(--muted); margin-bottom: 32px; }
-    .table-wrap { overflow-x: auto; margin: 0 auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .table-wrap { overflow-x: scroll; margin: 0 auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
     .table-wrap::-webkit-scrollbar { height: 8px; }
     .table-wrap::-webkit-scrollbar-track { background: var(--surface); border-radius: 4px; }
     .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -1211,9 +1211,11 @@ const dashboardHTML = `<!DOCTYPE html>
         var resp = await fetch('/api/auth/user');
         var data = await resp.json();
         if (data.authenticated) {
+          var roleText = data.hub_admin ? 'Hub Admin' : 'User';
           document.getElementById('nav-user').innerHTML =
-            '<img src="' + esc(data.avatar_url) + '" class="nav-avatar">' +
-            '<span style="font-size:0.85rem">' + esc(data.login) + '</span>';
+            '<img src="' + esc(data.avatar_url) + '" class="nav-avatar" title="' + esc(data.login) + ' — ' + roleText + '">' +
+            '<span style="font-size:0.85rem">' + esc(data.login) + '</span>' +
+            '<span style="font-size:0.65rem;color:var(--muted);margin-left:6px">' + roleText + '</span>';
         }
       } catch(e) {}
     }
@@ -1222,6 +1224,7 @@ const dashboardHTML = `<!DOCTYPE html>
     var _latestSHA = '';
     var _allDashHives = [];
     var _dashSortKey = '', _dashSortAsc = true;
+    var _hivesLoading = false;
 
     function sortDashHives(key) {
       if (_dashSortKey === key) { _dashSortAsc = !_dashSortAsc; } else { _dashSortKey = key; _dashSortAsc = true; }
@@ -1234,6 +1237,8 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     async function loadHives() {
+      if (_hivesLoading) return;
+      _hivesLoading = true;
       try {
         var resp = await fetch('/api/saas/my-hives');
         if (resp.status === 401) {
@@ -1253,7 +1258,11 @@ const dashboardHTML = `<!DOCTYPE html>
         }
         renderHives(data.hives || []);
       } catch(e) {
-        document.getElementById('hives-container').innerHTML = '<div class="loading">Failed to load hives</div>';
+        if (!_allDashHives.length) {
+          document.getElementById('hives-container').innerHTML = '<div class="loading">Failed to load hives</div>';
+        }
+      } finally {
+        _hivesLoading = false;
       }
     }
 
@@ -1296,7 +1305,7 @@ const dashboardHTML = `<!DOCTYPE html>
         }
         return '<tr>' +
           
-          '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
+          '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span> ' + roleBadge(h.role) + '</td>' +
           '<td>' + typeBadge + '</td>' +
           '<td style="font-size:0.7rem;white-space:nowrap">' + (function() {
             var sha = h.gitHash || '';
@@ -1316,7 +1325,6 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + (h.actionableIssues || 0) + '</td>' +
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
-          '<td>' + roleBadge(h.role) + '</td>' +
           '<td>' + contributeCell + '</td>' +
           '<td>' + dashboardLink(h) + '</td>' +
           '<td>' + snapshotLink(h) + '</td>' +
@@ -1326,7 +1334,7 @@ const dashboardHTML = `<!DOCTYPE html>
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<div class="table-wrap"><table class="hive-table"><thead><tr>' +
-        '<th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repo</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th><th>Role</th><th></th><th>Dashboard</th><th>Preview</th><th>API</th><th></th>' +
+        '<th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repo</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th><th></th><th>Dashboard</th><th>Preview</th><th>API</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 
@@ -1348,16 +1356,24 @@ const dashboardHTML = `<!DOCTYPE html>
       if (!_adminLoaded) setTimeout(loadAdminUsers, 2000);
     }
     init();
-    setInterval(loadHives, 30000);
-    setInterval(loadAdminUsers, 30000);
-    document.addEventListener('visibilitychange', function() {
-      if (!document.hidden) { loadHives(); loadAdminUsers(); }
-    });
-    window.addEventListener('focus', function() { loadHives(); loadAdminUsers(); });
+    var POLL_INTERVAL_MS = 30000;
+    setInterval(loadHives, POLL_INTERVAL_MS);
+    setInterval(loadAdminUsers, POLL_INTERVAL_MS);
+    var _refreshTimer = null;
+    var REFRESH_DEBOUNCE_MS = 500;
+    function debouncedRefresh() {
+      if (_refreshTimer) return;
+      _refreshTimer = setTimeout(function() { _refreshTimer = null; loadHives(); loadAdminUsers(); }, REFRESH_DEBOUNCE_MS);
+    }
+    document.addEventListener('visibilitychange', function() { if (!document.hidden) debouncedRefresh(); });
+    window.addEventListener('focus', debouncedRefresh);
 
     var _allUsers = [];
     var _adminLoaded = false;
+    var _adminLoading = false;
     async function loadAdminUsers() {
+      if (_adminLoading) return;
+      _adminLoading = true;
       try {
         var resp = await fetch('/api/saas/admin/users');
         if (resp.status === 403) {
@@ -1371,6 +1387,8 @@ const dashboardHTML = `<!DOCTYPE html>
         try { renderUsers(_allUsers); } catch(re) { console.error('renderUsers error:', re); }
       } catch(e) {
         if (!_adminLoaded) document.getElementById('admin-section').style.display = 'none';
+      } finally {
+        _adminLoading = false;
       }
     }
 

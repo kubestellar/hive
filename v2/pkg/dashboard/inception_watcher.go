@@ -1,8 +1,12 @@
 package dashboard
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -58,11 +62,14 @@ func NewInceptionWatcher(
 	}
 }
 
-// Run starts the polling loop. Blocks until ctx is cancelled.
+// Run starts the polling loop and event subscriber. Blocks until ctx is cancelled.
 func (w *InceptionWatcher) Run(ctx context.Context) {
 	w.logger.Info("inception watcher started")
 	ticker := time.NewTicker(inceptionWatchIntervalS)
 	defer ticker.Stop()
+
+	// Start pub-sub-tmux event subscriber for brainstorm session
+	go w.runPSTSubscriber(ctx)
 
 	for {
 		select {
@@ -259,6 +266,139 @@ const (
 // initial RestartWithBootstrap didn't deliver. Detects stale state by
 // checking if the agent is reaping (default mode) instead of processing
 // the inception idea.
+// pstEvent represents a parsed pub-sub-tmux event from the JSONL stream.
+type pstEvent struct {
+	Type    string            `json:"type"`
+	Session string            `json:"session"`
+	Data    map[string]string `json:"data"`
+}
+
+const pstLogDir = "/var/run/pst"
+
+// runPSTSubscriber tails the brainstorm session's pub-sub-tmux JSONL event
+// stream and takes immediate action on relevant events. This replaces 5s
+// polling with real-time event-driven reactions.
+func (w *InceptionWatcher) runPSTSubscriber(ctx context.Context) {
+	logFile := fmt.Sprintf("%s/hive-brainstorm.jsonl", pstLogDir)
+
+	// Wait for the log file to exist
+	for {
+		if _, err := os.Stat(logFile); err == nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(inceptionWatchIntervalS):
+			continue
+		}
+	}
+
+	w.logger.Info("pub-sub-tmux subscriber started", "logFile", logFile)
+
+	// Open file and seek to end (only new events)
+	f, err := os.Open(logFile)
+	if err != nil {
+		w.logger.Warn("pub-sub-tmux subscriber: cannot open log", "error", err)
+		return
+	}
+	defer f.Close()
+
+	// Seek to end — we only care about new events
+	if _, err := f.Seek(0, 2); err != nil {
+		w.logger.Warn("pub-sub-tmux subscriber: cannot seek to end", "error", err)
+	}
+
+	scanner := bufio.NewScanner(f)
+	const pollInterval = 500 * time.Millisecond
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		if scanner.Scan() {
+			line := scanner.Text()
+			if line == "" {
+				continue
+			}
+
+			var event pstEvent
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				continue
+			}
+
+			w.handlePSTEvent(event)
+		} else {
+			// No new data — wait briefly then retry (tail -f behavior)
+			time.Sleep(pollInterval)
+			// Check if file was rotated
+			if _, err := f.Stat(); err != nil {
+				w.logger.Warn("pub-sub-tmux log disappeared, stopping subscriber")
+				return
+			}
+		}
+	}
+}
+
+// handlePSTEvent reacts to pub-sub-tmux events from the brainstorm session.
+func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
+	state := w.inception.GetState()
+	if state == nil || state.Phase != knowledge.PhaseCapture {
+		return
+	}
+
+	switch event.Type {
+	case "state_change":
+		// Agent went idle — if we're in capture and no questions yet, re-kick
+		if event.Data["state"] == "idle" {
+			elapsed := time.Since(state.StartedAt)
+			if elapsed > kickRetryGracePeriodS && w.kickRetryCount < maxKickRetries {
+				w.logger.Info("pub-sub-tmux: agent idle during capture — re-kicking",
+					"elapsed", elapsed.Round(time.Second),
+				)
+				w.kickRetryCount++
+				w.lastKickRetry = time.Now()
+				msg := w.scheduler.BuildAgentMessage("brainstorm", nil, w.scheduler.GetLastActionable())
+				go func() {
+					if err := w.agentMgr.SendKick("brainstorm", msg); err != nil {
+						w.logger.Warn("pub-sub-tmux: re-kick failed", "error", err)
+					}
+				}()
+			}
+		}
+
+	case "rate_limit":
+		w.logger.Warn("pub-sub-tmux: brainstorm hit rate limit during inception",
+			"message", event.Data["message"],
+		)
+
+	case "error":
+		w.logger.Warn("pub-sub-tmux: brainstorm error during inception",
+			"message", event.Data["message"],
+		)
+
+	case "raw_output":
+		// Parse questions from raw output in real-time (no 5s poll delay)
+		line := event.Data["message"]
+		if line == "" {
+			return
+		}
+		// Check for category keywords in table rows
+		if strings.Contains(line, "│") {
+			for kw := range categoryKeywords {
+				if strings.Contains(strings.ToLower(line), kw) {
+					// Table row with category — trigger a poll to parse the full table
+					go w.poll(context.Background())
+					return
+				}
+			}
+		}
+	}
+}
+
 func (w *InceptionWatcher) retryKickIfStale(state *knowledge.InceptionState) {
 	if w.kickRetryCount >= maxKickRetries {
 		return

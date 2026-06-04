@@ -339,6 +339,8 @@ spec:
               name: hive-secrets
               key: github-token
 {{- end}}
+        - name: HIVE_ID
+          value: "{{.ID}}"
         - name: HIVE_LEVEL
           value: "{{.ACMMLevel}}"
         - name: HIVE_HUB_URL

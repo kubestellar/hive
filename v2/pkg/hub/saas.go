@@ -559,6 +559,11 @@ const dashboardHTML = `<!DOCTYPE html>
       return '<span title="' + m + '" style="display:inline-flex;align-items:center;gap:4px"><svg width="24" height="20" viewBox="0 0 24 20">' + bars + '</svg><span style="font-size:0.7rem;color:' + c + ';font-weight:600">' + m + '</span></span>';
     }
     function dashboardLink(h) {
+      var isHosted = h.id && (h.id.startsWith('hosted-') || h.id.startsWith('saas-'));
+      if (isHosted) {
+        var url = 'https://' + esc(h.id) + '.hive.kubestellar.io';
+        return '<a href="' + url + '" target="_blank" class="dash-link">' + esc(h.id) + '.hive...</a>';
+      }
       if (h.dashboardUrl && !h.dashboardUrl.includes('localhost'))
         return '<a href="' + esc(h.dashboardUrl) + '" target="_blank" class="dash-link">' + esc(h.dashboardUrl.replace('http://','')) + '</a>';
       return '<span style="color:var(--muted);font-size:0.75rem">—</span>';
@@ -638,6 +643,7 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + (i + 1) + '</td>' +
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
           '<td>' + instanceName + '</td>' +
+          '<td style="font-size:0.7rem;font-family:monospace;color:var(--muted)">' + esc(h.gitHash || '') + '</td>' +
           '<td>' + repoLink + '</td>' +
           '<td>' + repoCount + '</td>' +
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
@@ -654,14 +660,15 @@ const dashboardHTML = `<!DOCTYPE html>
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Hive</th><th>Instance</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th></th>' +
+        '<th>#</th><th>Hive</th><th>Instance</th><th>SHA</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 
     async function init() {
       await loadUser();
       await loadHives();
-      loadAdminUsers();
+      await loadAdminUsers();
+      if (!_adminLoaded) setTimeout(loadAdminUsers, 2000);
     }
     init();
     setInterval(loadHives, 30000);

@@ -572,12 +572,16 @@ const dashboardHTML = `<!DOCTYPE html>
 
     async function init() {
       await loadUser();
-      loadHives();
+      await loadHives();
       loadAdminUsers();
     }
     init();
-    setInterval(loadHives, 60000);
-    setInterval(loadAdminUsers, 60000);
+    setInterval(loadHives, 30000);
+    setInterval(loadAdminUsers, 30000);
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) { loadHives(); loadAdminUsers(); }
+    });
+    window.addEventListener('focus', function() { loadHives(); loadAdminUsers(); });
 
     var _allUsers = [];
     async function loadAdminUsers() {

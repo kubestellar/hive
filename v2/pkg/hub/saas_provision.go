@@ -156,7 +156,13 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 		"UseApp":         useApp,
 		"AppID":          req.AppID,
 		"InstallationID": req.InstallationID,
-		"AppPrivateKey":  req.AppPrivateKey,
+		"AppPrivateKey": func() string {
+			lines := strings.Split(strings.TrimSpace(req.AppPrivateKey), "\n")
+			for i := range lines {
+				lines[i] = "    " + strings.TrimSpace(lines[i])
+			}
+			return strings.Join(lines, "\n")
+		}(),
 		"CPURequest":     cpuRequest,
 		"CPULimit":       cpuLimit,
 		"MemRequest":     memRequest,
@@ -286,7 +292,7 @@ type: Opaque
 stringData:
 {{- if .UseApp}}
   gh-app-key.pem: |
-    {{.AppPrivateKey}}
+{{.AppPrivateKey}}
 {{- else}}
   github-token: {{.Token}}
 {{- end}}

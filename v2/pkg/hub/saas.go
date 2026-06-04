@@ -197,6 +197,39 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	seen := make(map[string]bool)
+	for _, h := range result {
+		seen[h.ID] = true
+	}
+	for hiveID, role := range user.Hives {
+		if seen[hiveID] {
+			continue
+		}
+		if strings.HasPrefix(hiveID, "hosted-") || strings.HasPrefix(hiveID, "saas-") {
+			sh := loadSaaSHive(hiveID)
+			if sh != nil {
+				entry := MyHiveEntry{
+					RegistryEntry: RegistryEntry{
+						ID:          sh.ID,
+						Name:        sh.Org + "/" + sh.PrimaryRepo,
+						Org:         sh.Org,
+						Repos:       sh.Repos,
+						PrimaryRepo: sh.PrimaryRepo,
+						ACMMLevel:   sh.ACMMLevel,
+						HiveType:    "hosted",
+					},
+					Role: role,
+				}
+				if sh.Status == "provisioning" {
+					entry.GovernorMode = "PROVISIONING"
+				} else if sh.Status == "error" {
+					entry.GovernorMode = "ERROR"
+				}
+				result = append(result, entry)
+			}
+		}
+	}
+
 	if len(user.Hives) > 0 {
 		saveSaaSUser(user)
 	}
@@ -587,15 +620,22 @@ const dashboardHTML = `<!DOCTYPE html>
     window.addEventListener('focus', function() { loadHives(); loadAdminUsers(); });
 
     var _allUsers = [];
+    var _adminLoaded = false;
     async function loadAdminUsers() {
       try {
         var resp = await fetch('/api/saas/admin/users');
-        if (resp.status === 403) return;
+        if (resp.status === 403) {
+          if (!_adminLoaded) document.getElementById('admin-section').style.display = 'none';
+          return;
+        }
+        _adminLoaded = true;
         document.getElementById('admin-section').style.display = '';
         var data = await resp.json();
         _allUsers = data.users || [];
         renderUsers(_allUsers);
-      } catch(e) {}
+      } catch(e) {
+        if (!_adminLoaded) document.getElementById('admin-section').style.display = 'none';
+      }
     }
 
     function filterUsers() {
@@ -713,7 +753,7 @@ const dashboardHTML = `<!DOCTYPE html>
   </script>
 
   <div id="create-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:500px;width:90%">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:640px;width:90%;max-height:90vh;overflow-y:auto">
       <h2 style="font-size:1.3rem;margin-bottom:16px;color:var(--accent)">Create Hosted Hive</h2>
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Organization *</label>
@@ -772,7 +812,7 @@ const dashboardHTML = `<!DOCTYPE html>
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">Private Key (PEM) *</label>
-          <textarea id="f-app-key" rows="4" placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;font-family:monospace;resize:vertical"></textarea>
+          <textarea id="f-app-key" rows="6" placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;Paste or drag a .pem file here...&#10;-----END RSA PRIVATE KEY-----" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;font-family:monospace;resize:vertical" ondragover="event.preventDefault();this.style.borderColor='var(--accent)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';var f=event.dataTransfer.files[0];if(f){var r=new FileReader();r.onload=function(){document.getElementById('f-app-key').value=r.result};r.readAsText(f)}"></textarea>
           <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Download from your <a href="https://github.com/settings/apps" target="_blank">GitHub App settings</a> → Private keys.</div>
         </div>
       </div>

@@ -83,11 +83,14 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 
 	e.clearWikiVault()
 
+	wikiName := slugify(truncateSlug(rawIdea)) + "-wiki"
+
 	e.state = &InceptionState{
 		Phase:     PhaseCapture,
 		Mode:      InceptionGreenfield,
 		IdeaText:  rawIdea,
 		IdeaSlug:  slug,
+		WikiName:  wikiName,
 		FactSlugs: []string{slug},
 		Questions: []Question{},
 		Answers:   make(map[string]string),
@@ -127,11 +130,14 @@ func (e *InceptionEngine) StartBrownfield(repoURL string) (*InceptionState, erro
 
 	e.clearWikiVault()
 
+	wikiName := slugify(repoBaseName(repoURL)) + "-wiki"
+
 	e.state = &InceptionState{
 		Phase:     PhaseCapture,
 		Mode:      InceptionBrownfield,
 		IdeaSlug:  slug,
 		RepoURL:   repoURL,
+		WikiName:  wikiName,
 		FactSlugs: []string{},
 		Questions: []Question{},
 		Answers:   make(map[string]string),

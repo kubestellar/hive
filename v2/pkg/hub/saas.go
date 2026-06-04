@@ -144,13 +144,71 @@ func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 
 func (s *HubServer) getAuthUser(r *http.Request) string {
 	cookie, err := r.Cookie("hive_hub_user")
-	if err != nil || cookie.Value == "" {
+	if err == nil && cookie.Value != "" {
+		if loadSaaSUser(cookie.Value) != nil {
+			return cookie.Value
+		}
+	}
+
+	auth := r.Header.Get("Authorization")
+	if strings.HasPrefix(auth, "Bearer ") {
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if username := s.validateGitHubToken(token); username != "" {
+			return username
+		}
+	}
+
+	return ""
+}
+
+var (
+	ghTokenCacheMu sync.RWMutex
+	ghTokenCache   = map[string]ghTokenCacheEntry{}
+)
+
+const ghTokenCacheTTL = 5 * time.Minute
+
+type ghTokenCacheEntry struct {
+	username  string
+	expiresAt time.Time
+}
+
+func (s *HubServer) validateGitHubToken(token string) string {
+	if token == "" {
 		return ""
 	}
-	if loadSaaSUser(cookie.Value) == nil {
+
+	ghTokenCacheMu.RLock()
+	if entry, ok := ghTokenCache[token]; ok && time.Now().Before(entry.expiresAt) {
+		ghTokenCacheMu.RUnlock()
+		return entry.username
+	}
+	ghTokenCacheMu.RUnlock()
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
+	if err != nil {
 		return ""
 	}
-	return cookie.Value
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		return ""
+	}
+	defer resp.Body.Close()
+	var user struct {
+		Login string `json:"login"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&user) != nil {
+		return ""
+	}
+
+	ghTokenCacheMu.Lock()
+	ghTokenCache[token] = ghTokenCacheEntry{username: user.Login, expiresAt: time.Now().Add(ghTokenCacheTTL)}
+	ghTokenCacheMu.Unlock()
+
+	return user.Login
 }
 
 func loadSaaSUser(username string) *SaaSUser {

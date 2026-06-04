@@ -102,8 +102,9 @@
         <a href="#leaderboard">Leaderboard</a>
         <a href="/learn">Learn</a>
         <a href="/get-started">Get Started</a>
-        <a href="/dashboard" class="nav-login" id="nav-dashboard" style="display:none">My Hives</a>
+        <a href="/dashboard" id="nav-dashboard" style="display:none">My Hives</a>
         <a href="/login" class="nav-login" id="nav-login">Login</a>
+        <a href="#" class="nav-login" id="nav-logout" style="display:none" onclick="fetch('/api/auth/logout',{method:'POST'}).then(function(){location.reload()});return false;">Logout</a>
       </div>
     </div>
   </nav>
@@ -260,6 +261,7 @@
     fetch('/api/auth/user').then(function(r){return r.json()}).then(function(d){
       if(d.authenticated){
         document.getElementById('nav-login').style.display='none';
+        document.getElementById('nav-logout').style.display='';
         var el=document.getElementById('nav-dashboard');
         el.style.display='';
         el.innerHTML='<img src="'+esc(d.avatar_url)+'" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;margin-right:4px">My Hives';

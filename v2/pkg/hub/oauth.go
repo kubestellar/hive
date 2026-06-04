@@ -25,6 +25,7 @@ func (s *HubServer) registerOAuth() {
 	s.mux.HandleFunc("GET /login", s.handleLogin)
 	s.mux.HandleFunc("GET /api/auth/callback", s.handleOAuthCallback)
 	s.mux.HandleFunc("GET /api/auth/user", s.handleAuthUser)
+	s.mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	s.logger.Info("hub OAuth enabled", "client_id", clientID)
 }
 
@@ -125,4 +126,17 @@ func (s *HubServer) handleAuthUser(w http.ResponseWriter, r *http.Request) {
 	})
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
+}
+
+func (s *HubServer) handleLogout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "hive_hub_user",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }

@@ -273,6 +273,12 @@ func (s *Server) handleContributeLanding(w http.ResponseWriter, r *http.Request)
 	if host == "" {
 		host = r.Host
 	}
+	host = strings.Map(func(c rune) rune {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == ':' || c == '-' {
+			return c
+		}
+		return -1
+	}, host)
 	hubURL := fmt.Sprintf("%s://%s/contribute", wsProto, host)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

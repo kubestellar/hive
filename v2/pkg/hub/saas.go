@@ -792,7 +792,10 @@ func (s *HubServer) handleAccessDenied(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	for _, h := range s.registry.Hives {
 		if h.ID == hiveID && h.Owner != "" {
-			ownerLink = fmt.Sprintf(`<a href="https://github.com/%s" target="_blank" style="color:#58a6ff;text-decoration:underline">the hive owner</a>`, h.Owner)
+			safeOwner := sanitize(h.Owner)
+			if safeOwner != "" {
+				ownerLink = fmt.Sprintf(`<a href="https://github.com/%s" target="_blank" style="color:#58a6ff;text-decoration:underline">the hive owner</a>`, safeOwner)
+			}
 			break
 		}
 	}

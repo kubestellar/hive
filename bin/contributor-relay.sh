@@ -173,14 +173,18 @@ function tmuxSendKeys(text) {
       execSync(`find /tmp -maxdepth 1 -user dev -not -name contributor-task.json -not -name '.hive-*' -not -name 'claude-*' -mmin +30 -exec rm -rf {} + 2>/dev/null`, { timeout: 5000 });
     } catch (_) {}
     const ctxPct = checkContextUsage();
-    if (ctxPct >= CLEAR_CONTEXT_THRESHOLD_PCT) {
-      console.log(`Context at ${ctxPct}% — sending /clear before next task`);
+    const RESET_EVERY_N = 3;
+    const needsClear = (BACKEND === 'claude' && ctxPct >= CLEAR_CONTEXT_THRESHOLD_PCT)
+      || (BACKEND !== 'claude' && tasksCompletedCount > 0 && tasksCompletedCount % RESET_EVERY_N === 0);
+    if (needsClear) {
+      const clearCmd = BACKEND === 'claude' ? '/clear' : '/reset';
+      console.log(`Context reset — sending ${clearCmd} before next task (ctx=${ctxPct}% tasks=${tasksCompletedCount})`);
       execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 5000 });
       sleepMs(200);
       execSync(`tmux send-keys -t ${TMUX_SESSION} C-a`, { timeout: 5000 });
       execSync(`tmux send-keys -t ${TMUX_SESSION} C-k`, { timeout: 5000 });
       sleepMs(200);
-      execSync(`tmux send-keys -t ${TMUX_SESSION} -l '/clear'`, { timeout: 5000 });
+      execSync(`tmux send-keys -t ${TMUX_SESSION} -l '${clearCmd}'`, { timeout: 5000 });
       sleepMs(200);
       tmuxSendEnters();
       sleepMs(3000);

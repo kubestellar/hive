@@ -35,6 +35,8 @@ type InceptionWatcher struct {
 	lastQuestionCount int
 	lastFactCount     int
 	lastSlug          string
+	lastKickRetry     time.Time
+	kickRetryCount    int
 }
 
 // NewInceptionWatcher creates a watcher that polls the brainstorm bead store.
@@ -93,6 +95,8 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 	if state.IdeaSlug != w.lastSlug {
 		w.lastQuestionCount = 0
 		w.lastFactCount = 0
+		w.kickRetryCount = 0
+		w.lastKickRetry = time.Time{}
 		if w.lastSlug != "" {
 			w.reapOldInceptionBeads(state.StartedAt)
 		}
@@ -106,11 +110,14 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		if len(inceptionBeads) > 0 {
 			w.checkForQuestions(inceptionBeads)
 		}
-		// Fallback: if beads aren't appearing, parse questions from the
-		// agent's tmux output. The model always produces a question table
-		// even when it doesn't execute bd create commands.
+		// Fallback: parse questions from the agent's tmux output (table or list).
 		if state.Phase == knowledge.PhaseCapture && w.agentMgr != nil {
 			w.checkForQuestionsInOutput()
+		}
+		// Retry kick: if agent didn't get the inception prompt (reaping instead),
+		// re-send via SendKick. RestartWithBootstrap's $(cat file) fails ~70%.
+		if state.Phase == knowledge.PhaseCapture && w.agentMgr != nil {
+			w.retryKickIfStale(state)
 		}
 	case knowledge.PhaseStructure:
 		// Check for fact beads — already filtered by StartedAt in
@@ -241,7 +248,71 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 	)
 }
 
-const outputParseLineCount = 100
+const (
+	outputParseLineCount   = 100
+	kickRetryDelayS        = 30 * time.Second
+	kickRetryGracePeriodS  = 30 * time.Second
+	maxKickRetries         = 3
+)
+
+// retryKickIfStale re-sends the inception prompt via SendKick when the
+// initial RestartWithBootstrap didn't deliver. Detects stale state by
+// checking if the agent is reaping (default mode) instead of processing
+// the inception idea.
+func (w *InceptionWatcher) retryKickIfStale(state *knowledge.InceptionState) {
+	if w.kickRetryCount >= maxKickRetries {
+		return
+	}
+	if time.Since(state.StartedAt) < kickRetryGracePeriodS {
+		return
+	}
+	if time.Since(w.lastKickRetry) < kickRetryDelayS {
+		return
+	}
+
+	// Check if agent is doing inception work or stuck in reaping
+	lines, err := w.agentMgr.GetBufferOutput("brainstorm", outputParseLineCount)
+	if err != nil || len(lines) == 0 {
+		return
+	}
+
+	isReaping := false
+	hasInceptionWork := false
+	for _, l := range lines {
+		lower := strings.ToLower(l)
+		if strings.Contains(lower, "reap:") || strings.Contains(lower, "close stale beads") {
+			isReaping = true
+		}
+		if strings.Contains(lower, "inception") || strings.Contains(lower, "clarif") ||
+			strings.Contains(lower, "bd create") || strings.Contains(l, "Clarification:") {
+			hasInceptionWork = true
+		}
+	}
+
+	if hasInceptionWork {
+		return
+	}
+	if !isReaping && time.Since(state.StartedAt) < 2*kickRetryGracePeriodS {
+		return
+	}
+
+	// Agent is reaping or idle — re-kick with inception prompt
+	w.kickRetryCount++
+	w.lastKickRetry = time.Now()
+
+	msg := w.scheduler.BuildAgentMessage("brainstorm", nil, w.scheduler.GetLastActionable())
+	if err := w.agentMgr.SendKick("brainstorm", msg); err != nil {
+		w.logger.Warn("inception retry kick failed",
+			"attempt", w.kickRetryCount,
+			"error", err,
+		)
+	} else {
+		w.logger.Info("inception retry kick sent — agent was not processing inception",
+			"attempt", w.kickRetryCount,
+			"isReaping", isReaping,
+		)
+	}
+}
 
 // checkForQuestionsInOutput reads the brainstorm agent's tmux output buffer
 // and parses question tables. The model always produces a formatted table of

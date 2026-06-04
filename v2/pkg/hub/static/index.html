@@ -263,11 +263,7 @@
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
           '<td>' + link + '</td>' +
-          '<td>' + (function() {
-            var isHosted = h.hiveType === 'hosted';
-            var cUrl = isHosted ? 'https://' + h.id + '.hive.kubestellar.io/contribute' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? h.dashboardUrl + '/contribute' : '');
-            return cUrl ? '<a href="' + esc(cUrl) + '" target="_blank" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;text-decoration:none">Contribute</a>' : '';
-          })() + '</td>' +
+          '<td><button onclick="openContributeInfo(\'' + esc(h.name || h.id) + '\',\'' + esc(h.id) + '\')" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;cursor:pointer;border:1px solid rgba(34,197,94,0.3)">Contribute</button></td>' +
           '</tr>';
       }).join('');
       document.getElementById('hive-table-container').innerHTML =
@@ -332,6 +328,31 @@
         u.innerHTML='<img src="'+esc(d.avatar_url)+'" style="width:24px;height:24px;border-radius:50%;vertical-align:middle">'+' <span style="font-size:0.85rem">'+esc(d.login)+'</span>';
       }
     }).catch(function(){});
+    function openContributeInfo(name, id) {
+      document.getElementById('contrib-modal').style.display = 'flex';
+      document.getElementById('contrib-hive-name').textContent = name;
+      document.getElementById('contrib-hive-id').textContent = id;
+    }
   </script>
+
+  <div id="contrib-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:540px;width:90%;max-height:80vh;overflow-y:auto">
+      <h2 style="font-size:1.3rem;margin-bottom:4px;color:var(--accent)">Contribute to <span id="contrib-hive-name"></span></h2>
+      <p style="font-size:0.8rem;color:var(--muted);margin-bottom:16px">Hive ID: <code id="contrib-hive-id" style="font-size:0.75rem"></code></p>
+      <p style="color:var(--muted);font-size:0.85rem;line-height:1.6;margin-bottom:16px">Run a contributor agent on your machine to help this hive tackle issues, review PRs, and improve the codebase. Your compute, their tasks.</p>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
+        <p style="font-size:0.8rem;color:var(--text);margin-bottom:8px"><strong>1. Install the CLI</strong></p>
+        <pre style="background:var(--surface);padding:8px;border-radius:4px;font-size:0.8rem;color:var(--accent);margin-bottom:12px;overflow-x:auto"><code>npx @kubestellar/hive-contribute</code></pre>
+        <p style="font-size:0.8rem;color:var(--text);margin-bottom:8px"><strong>2. Connect to the hive</strong></p>
+        <pre style="background:var(--surface);padding:8px;border-radius:4px;font-size:0.8rem;color:var(--accent);margin-bottom:12px;overflow-x:auto"><code>hive-contribute connect https://hive.kubestellar.io/hive/<span style="color:var(--blue)">HIVE_ID</span></code></pre>
+        <p style="font-size:0.8rem;color:var(--text);margin-bottom:8px"><strong>3. Start contributing</strong></p>
+        <p style="font-size:0.8rem;color:var(--muted)">Tasks are assigned automatically based on your trust tier (newcomer → contributor → trusted → advisor). See the <a href="/#leaderboard">leaderboard</a>.</p>
+      </div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:16px">To get direct access to a hive's dashboard (manage agents, view config), <a href="/login">login</a> and request access from the hive owner.</p>
+      <div style="display:flex;justify-content:flex-end">
+        <button onclick="document.getElementById('contrib-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Close</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

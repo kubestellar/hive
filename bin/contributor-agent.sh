@@ -218,7 +218,7 @@ AUTO_DISMISS_INTERVAL=3
     sleep "$AUTO_DISMISS_INTERVAL"
     PANE=$(tmux capture-pane -t "$TMUX_SESSION" -p -S -10 2>/dev/null || true)
     if echo "$PANE" | grep -q "trust this folder\|trust the files\|Confirm folder trust\|Enter to confirm"; then
-      tmux send-keys -t "$TMUX_SESSION" "2" Enter 2>/dev/null || true
+      tmux send-keys -t "$TMUX_SESSION" Enter 2>/dev/null || true
     elif echo "$PANE" | grep -q "Choose the text style"; then
       tmux send-keys -t "$TMUX_SESSION" "1" Enter 2>/dev/null || true
     elif echo "$PANE" | grep -q "bypass permissions\|autopilot\|❯\|> *$"; then

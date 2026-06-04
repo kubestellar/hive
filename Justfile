@@ -48,6 +48,7 @@ contribute-setup backend="claude":
     HUB_HTTP=$(echo "{{hive_hub}}" | sed 's|^wss://|https://|;s|^ws://|http://|;s|/contribute$||')
     RESPONSE=$(curl -sf --max-time 15 -X POST "${HUB_HTTP}/api/contribute/register" \
       -H "Content-Type: application/json" \
+      -H "Authorization: Bearer ${GH_TOKEN}" \
       -d "{\"github_username\": \"${GH_USER}\"}" 2>/dev/null) || {
         echo "ERROR: Registration failed. Is the hub running at ${HUB_HTTP}?"
         echo "  Check: curl -sf ${HUB_HTTP}/api/contribute/status"

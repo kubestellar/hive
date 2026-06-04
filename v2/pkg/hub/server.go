@@ -387,10 +387,12 @@ func (s *HubServer) handleStats(w http.ResponseWriter, r *http.Request) {
 	totalIssues := 0
 	totalPRs := 0
 	onlineCount := 0
+	publicCount := 0
 	for _, h := range s.registry.Hives {
 		if !h.IsPublic {
 			continue
 		}
+		publicCount++
 		totalAgents += h.AgentCount
 		totalContributors += h.ActiveContributors
 		totalIssues += h.ActionableIssues
@@ -402,7 +404,7 @@ func (s *HubServer) handleStats(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	data, _ := json.Marshal(map[string]any{
-		"hives":        len(s.registry.Hives),
+		"hives":        publicCount,
 		"online":       onlineCount,
 		"agents":       totalAgents,
 		"contributors": totalContributors,
@@ -554,8 +556,13 @@ func (s *HubServer) saveLoop() {
 			s.logger.Warn("hub registry marshal failed", "error", err)
 			continue
 		}
-		if err := os.WriteFile(registryPath, data, 0o644); err != nil {
-			s.logger.Warn("hub registry save failed", "error", err)
+		tmpPath := registryPath + ".tmp"
+		if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+			s.logger.Warn("hub registry save failed", "path", tmpPath, "error", err)
+			continue
+		}
+		if err := os.Rename(tmpPath, registryPath); err != nil {
+			s.logger.Warn("hub registry rename failed", "error", err)
 		}
 	}
 }

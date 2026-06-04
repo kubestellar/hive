@@ -226,9 +226,9 @@ function checkTmuxIdle() {
       hasCompletionMarker = /[✻✶✽] \S+ed for \d+[ms]|Honking|tokens\)/.test(text);
       isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching|ing…/.test(text);
     } else if (BACKEND === 'copilot') {
-      hasIdlePrompt = />\s*$|❯\s*$|autopilot/.test(text);
-      hasCompletionMarker = /completed|Done!|finished|Total tokens/i.test(text);
-      isWorking = /Running|Executing|Thinking|searching/i.test(text);
+      hasIdlePrompt = /\/ commands.*help/.test(text);
+      hasCompletionMarker = /All tests pass|PR created|PR #|pull\/|pushed|committed|Done|finished/i.test(text);
+      isWorking = /◉|◎|esc cancel|Running|Executing|Thinking|searching/i.test(text);
     } else if (BACKEND === 'gemini') {
       hasIdlePrompt = />\s*$|❯\s*$/.test(text);
       hasCompletionMarker = /completed|Done|finished/i.test(text);

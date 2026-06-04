@@ -195,6 +195,9 @@ func createContributorProfile(username string) (*ContributorProfile, string) {
 }
 
 func findContributor(id string) *ContributorProfile {
+	if strings.Contains(id, "/") || strings.Contains(id, "\\") || strings.Contains(id, "..") {
+		return nil
+	}
 	// Fast path: try direct file lookup by username (O(1) disk read)
 	if p, err := loadContributorProfile(id); err == nil {
 		return p

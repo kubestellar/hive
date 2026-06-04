@@ -170,7 +170,7 @@ function checkContextUsage() {
 function tmuxSendKeys(text) {
   try {
     try {
-      execSync(`find /tmp -maxdepth 1 -user dev -not -name contributor-task.json -not -name '.hive-*' -not -name 'claude-*' -not -name 'tmux-*' -mmin +30 -exec rm -rf {} + 2>/dev/null`, { timeout: 5000 });
+      execSync(`find /tmp -maxdepth 1 -type d -user dev -not -name 'tmux-*' -not -name 'claude-*' -not -name 'node-*' -not -name '.' -mmin +60 -exec rm -rf {} + 2>/dev/null; find /tmp -maxdepth 1 -type f -user dev -name '*.out' -o -name '*.html' -mmin +60 -exec rm -f {} + 2>/dev/null`, { timeout: 5000 });
     } catch (_) {}
     const ctxPct = checkContextUsage();
     const RESET_EVERY_N = 3;

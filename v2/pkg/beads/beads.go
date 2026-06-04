@@ -316,7 +316,7 @@ func (s *Store) load() error {
 	return nil
 }
 
-func (s *Store) persist(b *Bead) error {
+func (s *Store) persist(_ *Bead) error {
 	var all []*Bead
 	for _, b := range s.beads {
 		all = append(all, b)
@@ -332,7 +332,11 @@ func (s *Store) persist(b *Bead) error {
 	}
 
 	path := filepath.Join(s.dir, beadsFileName)
-	return os.WriteFile(path, data, 0644)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+		return fmt.Errorf("writing tmp beads: %w", err)
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func (s *Store) CloseAll(reason string) (int, error) {

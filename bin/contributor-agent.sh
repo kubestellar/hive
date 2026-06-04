@@ -176,6 +176,16 @@ case "$AGENT_BACKEND" in
     ln -sf "$AGENT_MD" "${HOME}/GEMINI.md"
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
     ;;
+  goose)
+    ln -sf "$AGENT_MD" "${HOME}/.goose-instructions.md"
+    ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+    mkdir -p "${HOME}/.config/goose"
+    cat > "${HOME}/.config/goose/config.yaml" <<GOOSECFG
+GOOSE_PROVIDER: ${GOOSE_PROVIDER:-ollama}
+GOOSE_MODEL: ${GOOSE_MODEL:-phi4}
+GOOSECFG
+    echo "Goose config: provider=${GOOSE_PROVIDER:-ollama} model=${GOOSE_MODEL:-phi4}"
+    ;;
   *)
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
     ;;
@@ -221,7 +231,11 @@ AUTO_DISMISS_INTERVAL=3
       tmux send-keys -t "$TMUX_SESSION" Enter 2>/dev/null || true
     elif echo "$PANE" | grep -q "Choose the text style"; then
       tmux send-keys -t "$TMUX_SESSION" "1" Enter 2>/dev/null || true
-    elif echo "$PANE" | grep -q "bypass permissions\|autopilot\|❯\|> *$"; then
+    elif echo "$PANE" | grep -q "Share anonymous usage data\|help improve goose\|Would you like"; then
+      tmux send-keys -t "$TMUX_SESSION" Enter 2>/dev/null || true
+    elif echo "$PANE" | grep -q "Choose a provider\|Select.*provider\|Which provider"; then
+      tmux send-keys -t "$TMUX_SESSION" Enter 2>/dev/null || true
+    elif echo "$PANE" | grep -q "bypass permissions\|autopilot\|goose>\|G >\|❯\|/ commands\|> *$"; then
       break
     fi
   done

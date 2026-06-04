@@ -108,7 +108,7 @@ type ContributeWSHub struct {
 	completedMu    sync.Mutex
 }
 
-const completedTaskCooldownHours = 4
+const completedTaskCooldownHours = 168
 
 func NewContributeWSHub(logger *slog.Logger, server *Server) *ContributeWSHub {
 	return &ContributeWSHub{

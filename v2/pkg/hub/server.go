@@ -114,29 +114,13 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dashURL := payload.DashboardURL
-	if strings.Contains(dashURL, "localhost") || strings.Contains(dashURL, "127.0.0.1") {
-		remoteIP := r.RemoteAddr
-		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-			remoteIP = strings.TrimSpace(strings.Split(fwd, ",")[0])
-		}
-		if idx := strings.LastIndex(remoteIP, ":"); idx > 0 && !strings.Contains(remoteIP[idx:], "]") {
-			remoteIP = remoteIP[:idx]
-		}
-		port := "3001"
-		if idx := strings.LastIndex(dashURL, ":"); idx > 0 {
-			port = strings.TrimRight(dashURL[idx+1:], "/")
-		}
-		dashURL = "http://" + remoteIP + ":" + port
-	}
-
 	entry := RegistryEntry{
 		ID:                 payload.HiveID,
 		Name:               payload.Org + "/" + payload.PrimaryRepo,
 		Org:                payload.Org,
 		Repos:              payload.Repos,
 		PrimaryRepo:        payload.PrimaryRepo,
-		DashboardURL:       dashURL,
+		DashboardURL:       payload.DashboardURL,
 		SnapshotURL:        payload.SnapshotURL,
 		ACMMLevel:          payload.ACMMLevel,
 		AgentCount:         len(payload.Agents),

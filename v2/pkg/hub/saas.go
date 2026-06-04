@@ -596,6 +596,18 @@ func (s *HubServer) handleAccessRemove(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
 		return
 	}
+	if target.Hives[hiveID] == "owner" {
+		ownerCount := 0
+		for _, u := range listAllSaaSUsers() {
+			if u.Hives[hiveID] == "owner" {
+				ownerCount++
+			}
+		}
+		if ownerCount <= 1 {
+			http.Error(w, `{"error":"cannot remove the last owner"}`, http.StatusBadRequest)
+			return
+		}
+	}
 	delete(target.Hives, hiveID)
 	saveSaaSUser(target)
 	s.logger.Info("audit: access revoked", "hive", hiveID, "target", targetUsername, "by", username)
@@ -708,7 +720,8 @@ const dashboardHTML = `<!DOCTYPE html>
     .subtitle { color: var(--muted); margin-bottom: 32px; }
     .hive-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .hive-table th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .hive-table td { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .hive-table td { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; text-align: center; }
+    .hive-table td:first-child { text-align: left; }
     .hive-table tr:hover { background: rgba(255,255,255,0.02); }
     .online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
     .online-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
@@ -738,14 +751,13 @@ const dashboardHTML = `<!DOCTYPE html>
 <body>
   <nav class="nav">
     <div class="nav-inner">
-      <a href="/" class="nav-brand"><span>🐝</span> Hive Hub</a>
+      <a href="/" class="nav-brand"><span>🐝</span> Hive Hub <a href="https://github.com/kubestellar/hive" target="_blank" title="Source Code" style="opacity:0.6;margin-left:4px"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></a>
       <div class="nav-links">
         <a href="/">Hives</a>
         <a href="/learn">Learn</a>
         <a href="/get-started">Get Started</a>
         <a href="/dashboard" style="color:var(--accent)">My Hives</a>
         <a href="/api/docs" target="_blank" style="font-size:0.85rem">API</a>
-        <a href="https://github.com/kubestellar/hive" target="_blank" title="Source Code" style="font-size:1.1rem">🐙</a>
         <span id="nav-user" class="nav-user"></span>
         <a href="#" class="nav-login" onclick="fetch('/api/auth/logout',{method:'POST'}).then(function(){location.href='/'});return false;">Logout</a>
       </div>
@@ -1153,7 +1165,7 @@ const dashboardHTML = `<!DOCTYPE html>
       <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
         <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--text)">Add User</h3>
         <div style="display:flex;gap:8px">
-          <input id="access-username" type="text" placeholder="GitHub username" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+          <select id="access-username" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem"><option value="">Select user...</option></select>
           <select id="access-role" style="padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
             <option value="read">Read</option>
             <option value="read-write">Read-Write</option>
@@ -1176,6 +1188,20 @@ const dashboardHTML = `<!DOCTYPE html>
       document.getElementById('access-hive-label').textContent = 'Hive: ' + hiveId;
       document.getElementById('access-modal').style.display = 'flex';
       await loadAccessList();
+      await loadAccessUserDropdown();
+    }
+
+    async function loadAccessUserDropdown() {
+      try {
+        var resp = await fetch('/api/saas/admin/users');
+        if (resp.status === 403) return;
+        var data = await resp.json();
+        var users = (data.users || []).map(function(u) { return u.github_username; });
+        var sel = document.getElementById('access-username');
+        sel.innerHTML = '<option value="">Select user...</option>' + users.map(function(u) {
+          return '<option value="' + esc(u) + '">' + esc(u) + '</option>';
+        }).join('');
+      } catch(e) {}
     }
 
     async function loadAccessList() {
@@ -1187,13 +1213,18 @@ const dashboardHTML = `<!DOCTYPE html>
           document.getElementById('access-list').innerHTML = '<div style="color:var(--muted);font-size:0.85rem">No users have access yet</div>';
           return;
         }
+        var ownerCount = users.filter(function(u) { return u.role === 'owner'; }).length;
         var rows = users.map(function(u) {
           var avatar = '<img src="https://github.com/' + esc(u.username) + '.png" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px">';
+          var canRemove = !(u.role === 'owner' && ownerCount <= 1);
+          var removeBtn = canRemove ?
+            '<button onclick="removeAccess(\'' + esc(u.username) + '\')" style="padding:2px 8px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem">Remove</button>' :
+            '<span style="font-size:0.6rem;color:var(--muted)">last owner</span>';
           return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">' +
             '<div>' + avatar + '<span style="font-size:0.85rem">' + esc(u.username) + '</span></div>' +
             '<div style="display:flex;align-items:center;gap:8px">' +
             '<span class="role-badge role-' + u.role.replace(' ','-') + '" style="font-size:0.7rem">' + esc(u.role) + '</span>' +
-            '<button onclick="removeAccess(\'' + esc(u.username) + '\')" style="padding:2px 8px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem">Remove</button>' +
+            removeBtn +
             '</div></div>';
         }).join('');
         document.getElementById('access-list').innerHTML = rows;
@@ -1203,9 +1234,9 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     async function addAccess() {
-      var username = document.getElementById('access-username').value.trim();
+      var username = document.getElementById('access-username').value;
       var role = document.getElementById('access-role').value;
-      if (!username) { alert('Enter a GitHub username'); return; }
+      if (!username) { alert('Select a user'); return; }
       try {
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/access', {
           method: 'POST',

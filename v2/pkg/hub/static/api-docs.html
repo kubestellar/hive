@@ -8,41 +8,35 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #e6edf3; }
     .nav { position: fixed; top: 0; width: 100%; z-index: 50; background: rgba(10,10,15,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid #1e1e2e; }
-    .nav-inner { max-width: 1000px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .nav-inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
     .nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: #e6edf3; text-decoration: none; }
     .nav-links { display: flex; align-items: center; gap: 20px; font-size: 0.85rem; }
     .nav-links a { color: #8b949e; text-decoration: none; }
     .nav-links a:hover { color: #e6edf3; }
     .nav-login { padding: 6px 14px; background: #12121a; border: 1px solid #1e1e2e; border-radius: 8px; color: #8b949e; font-size: 0.8rem; }
     .nav-login:hover { border-color: #f59e0b; color: #e6edf3; }
-    .content { max-width: 1000px; margin: 0 auto; padding: 80px 24px 48px; }
-    h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .subtitle { color: #8b949e; margin-bottom: 32px; }
-    h2 { font-size: 1.2rem; font-weight: 700; margin: 32px 0 12px; color: #fbbf24; }
-    .endpoint { background: #12121a; border: 1px solid #1e1e2e; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
-    .method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; margin-right: 8px; font-family: monospace; }
-    .method-get { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
-    .method-post { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
-    .method-put { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
-    .method-delete { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
-    .path { font-family: monospace; font-size: 0.9rem; color: #e6edf3; }
-    .desc { color: #8b949e; font-size: 0.85rem; margin-top: 6px; line-height: 1.5; }
-    .auth { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; margin-left: 8px; }
-    .auth-none { background: rgba(107,114,128,0.15); color: #9ca3af; border: 1px solid rgba(107,114,128,0.3); }
-    .auth-user { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
-    .auth-admin { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
-    .auth-owner { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+    .content { max-width: 1200px; margin: 0 auto; padding: 80px 24px 24px; }
+    h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { color: #8b949e; margin-bottom: 24px; }
+    h2 { font-size: 1.2rem; font-weight: 700; margin: 24px 0 12px; color: #fbbf24; }
     a { color: #f59e0b; }
     code { background: #1e1e2e; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; color: #fbbf24; }
-    .toc { margin-bottom: 24px; }
-    .toc a { color: #8b949e; font-size: 0.85rem; margin-right: 16px; }
-    .toc a:hover { color: #e6edf3; }
+    pre { background: #12121a; border: 1px solid #1e1e2e; border-radius: 8px; padding: 16px; margin: 12px 0; overflow-x: auto; font-size: 0.8rem; color: #e6edf3; line-height: 1.6; }
+    pre code { background: none; padding: 0; }
+    .card { background: #12121a; border: 1px solid #1e1e2e; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 1px solid #1e1e2e; }
+    .tab { padding: 10px 20px; cursor: pointer; color: #8b949e; font-size: 0.85rem; border-bottom: 2px solid transparent; }
+    .tab:hover { color: #e6edf3; }
+    .tab.active { color: #f59e0b; border-bottom-color: #f59e0b; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .redoc-wrap { border: 1px solid #1e1e2e; border-radius: 8px; overflow: hidden; margin-top: 16px; }
   </style>
 </head>
 <body>
   <nav class="nav">
     <div class="nav-inner">
-      <a href="/" class="nav-brand"><span>🐝</span> Hive Hub <a href="https://github.com/kubestellar/hive" target="_blank" title="Source Code" style="opacity:0.6;margin-left:4px"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></a>
+      <a href="/" class="nav-brand"><span>🐝</span> Hive Hub <a href="https://github.com/kubestellar/hive" target="_blank" title="Source Code" style="opacity:0.6;margin-left:2px"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></a>
       <div class="nav-links">
         <a href="/">Hives</a>
         <a href="/learn">Learn</a>
@@ -58,174 +52,123 @@
 
   <div class="content">
     <h1>API Reference</h1>
-    <p class="subtitle">Hive Hub REST API — all endpoints for the hub at <code>hive.kubestellar.io</code></p>
-
-    <div class="toc">
-      <a href="#public">Public</a>
-      <a href="#auth">Authentication</a>
-      <a href="#dashboard">Dashboard</a>
-      <a href="#hosted">Hosted Hives</a>
-      <a href="#access">Access Control</a>
-      <a href="#admin">Admin</a>
-      <a href="#spoke">Spoke Integration</a>
+    <p class="subtitle">There are two API surfaces in the Hive ecosystem:</p>
+    <div class="card" style="margin-bottom:24px">
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div style="flex:1;min-width:250px">
+          <strong style="color:#f59e0b">Hub API</strong> — <code>hive.kubestellar.io</code>
+          <p style="color:#8b949e;font-size:0.85rem;margin-top:4px">Manages hive registry, users, access control, hosted hive provisioning, leaderboard. Documented below.</p>
+        </div>
+        <div style="flex:1;min-width:250px">
+          <strong style="color:#3b82f6">Spoke API</strong> — each hive instance
+          <p style="color:#8b949e;font-size:0.85rem;margin-top:4px">The actual hive dashboard — agents, governor, config, contributors, beads, tokens. Available at each hive's URL (e.g. <code>192.168.4.85:3001</code> or <code>hosted-*.hive.kubestellar.io</code>).</p>
+        </div>
+      </div>
     </div>
 
-    <h2 id="public">Public Endpoints</h2>
-
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/registry</span>
-      <span class="auth auth-none">public</span>
-      <div class="desc">Returns all public hive instances with their status, agents, ACMM level, governor mode, and contributor counts. Stale offline entries with hosted duplicates are filtered.</div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('connect')">Connect</div>
+      <div class="tab" onclick="switchTab('reference')">Full Reference</div>
     </div>
 
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/hub/leaderboard</span>
-      <span class="auth auth-none">public</span>
-      <div class="desc">Cross-hive contributor leaderboard. Merges contributors across all public hives, deduplicates by GitHub username. Includes active status, current task, hive name.</div>
+    <div id="tab-connect" class="tab-content active">
+      <h2>Base URL</h2>
+      <pre><code>https://hive.kubestellar.io</code></pre>
+
+      <h2>Authentication</h2>
+      <p style="color:#8b949e;margin-bottom:12px;line-height:1.6">The Hub uses GitHub OAuth with a session cookie. Public endpoints (registry, leaderboard, stats) require no auth. Dashboard and management endpoints require login.</p>
+
+      <div class="card">
+        <strong>Step 1: Login via browser</strong>
+        <p style="color:#8b949e;margin-top:4px">Visit <a href="/login">/login</a> — you'll be redirected to GitHub to authorize. After approval, a <code>hive_hub_user</code> cookie is set on <code>.hive.kubestellar.io</code>.</p>
+      </div>
+
+      <div class="card">
+        <strong>Step 2: Use the cookie in API calls</strong>
+        <pre><code># Public — no auth needed
+curl https://hive.kubestellar.io/api/registry
+curl https://hive.kubestellar.io/api/hub/leaderboard
+curl https://hive.kubestellar.io/api/hub/stats
+
+# Authenticated — pass the cookie
+curl -b "hive_hub_user=YOUR_USERNAME" \
+  https://hive.kubestellar.io/api/saas/my-hives</code></pre>
+      </div>
+
+      <h2>Quick Examples</h2>
+
+      <div class="card">
+        <strong>List all public hives</strong>
+        <pre><code>curl -s https://hive.kubestellar.io/api/registry | jq '.hives[] | {id, name, acmmLevel, governorMode, online}'</code></pre>
+      </div>
+
+      <div class="card">
+        <strong>Get leaderboard</strong>
+        <pre><code>curl -s https://hive.kubestellar.io/api/hub/leaderboard | jq '.leaderboard[] | {github_username, tasks_completed, current_task}'</code></pre>
+      </div>
+
+      <div class="card">
+        <strong>Create a hosted hive (requires login + quota)</strong>
+        <pre><code>curl -X POST -b "hive_hub_user=YOUR_USERNAME" \
+  -H "Content-Type: application/json" \
+  -d '{"org":"my-org","repos":"my-repo","acmm_level":3,"auth_method":"pat","github_token":"ghp_..."}' \
+  https://hive.kubestellar.io/api/saas/hives</code></pre>
+      </div>
+
+      <div class="card">
+        <strong>Grant access to a hosted hive</strong>
+        <pre><code>curl -X POST -b "hive_hub_user=YOUR_USERNAME" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"collaborator","role":"read-write"}' \
+  https://hive.kubestellar.io/api/saas/hives/HIVE_ID/access</code></pre>
+      </div>
+
+      <h2>Spoke Integration</h2>
+      <p style="color:#8b949e;margin-bottom:12px;line-height:1.6">Hive spoke instances push status to the hub via heartbeats. Configure your hive to register:</p>
+      <div class="card">
+        <strong>hive.yaml</strong>
+        <pre><code>hub:
+  enabled: true
+  url: https://hive.kubestellar.io
+  is_public: true
+  dashboard_url: http://YOUR_IP:3001
+  snapshot_url: https://your-snapshot-url</code></pre>
+        <p style="color:#8b949e;margin-top:8px">Or set the environment variable: <code>HIVE_HUB_URL=https://hive.kubestellar.io</code></p>
+      </div>
+
+      <h2>Rate Limits</h2>
+      <p style="color:#8b949e;line-height:1.6">The hub does not enforce API rate limits. GitHub API rate limits apply to spoke heartbeats (GitHub App: 5000/hr per installation, PAT: 5000/hr per user). Spokes push heartbeats every 5 minutes and task updates every 30 seconds.</p>
     </div>
 
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/hub/stats</span>
-      <span class="auth auth-none">public</span>
-      <div class="desc">Aggregate stats: total hives online, agents running, active contributors, issues, PRs.</div>
-    </div>
-
-    <h2 id="auth">Authentication</h2>
-
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/login</span>
-      <span class="auth auth-none">public</span>
-      <div class="desc">Redirects to GitHub OAuth authorization. Accepts <code>?redirect=URL</code> to return to a specific page after login. Scope: <code>read:user,repo</code>.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/auth/callback</span>
-      <span class="auth auth-none">public</span>
-      <div class="desc">GitHub OAuth callback. Exchanges code for token, encrypts and stores it, creates user profile, sets <code>hive_hub_user</code> cookie on <code>.hive.kubestellar.io</code> domain.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/auth/user</span>
-      <span class="auth auth-none">public</span>
-      <div class="desc">Returns <code>{"authenticated": true, "login": "...", "avatar_url": "..."}</code> if the user has a valid cookie, or <code>{"authenticated": false}</code>.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-post">POST</span>
-      <span class="path">/api/auth/logout</span>
-      <span class="auth auth-user">login</span>
-      <div class="desc">Clears the authentication cookie and redirects to home.</div>
-    </div>
-
-    <h2 id="dashboard">Dashboard</h2>
-
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/saas/my-hives</span>
-      <span class="auth auth-user">login</span>
-      <div class="desc">Returns hives the authenticated user owns or has access to. Includes local hives (matched by heartbeat owner field) and hosted hives (from metadata). Also returns <code>saas_quota</code>, <code>saas_used</code>, <code>is_admin</code>.</div>
-    </div>
-
-    <h2 id="hosted">Hosted Hive Management</h2>
-
-    <div class="endpoint">
-      <span class="method method-post">POST</span>
-      <span class="path">/api/saas/hives</span>
-      <span class="auth auth-user">login + quota</span>
-      <div class="desc">Create a new hosted hive instance on the OKE cluster. Body: <code>{"org", "repos", "primary_repo", "project_name", "acmm_level", "auth_method": "pat"|"app", "github_token"|"app_id"+"installation_id"+"app_private_key"}</code>. Validates quota, creates K8s namespace/deployment/service/ingress.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/saas/hives/{id}/status</span>
-      <span class="auth auth-user">login</span>
-      <div class="desc">Returns provisioning status for a hosted hive: <code>provisioning</code>, <code>running</code>, or <code>error</code> with details.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-delete">DELETE</span>
-      <span class="path">/api/saas/hives/{id}</span>
-      <span class="auth auth-owner">owner</span>
-      <div class="desc">Delete a hosted hive. Removes K8s namespace, metadata, and user mappings. Owner or hub admin only.</div>
-    </div>
-
-    <h2 id="access">Access Control</h2>
-
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/saas/hives/{id}/access</span>
-      <span class="auth auth-owner">owner</span>
-      <div class="desc">List all users with access to a hosted hive and their roles.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-post">POST</span>
-      <span class="path">/api/saas/hives/{id}/access</span>
-      <span class="auth auth-owner">owner</span>
-      <div class="desc">Grant access to a user. Body: <code>{"username": "...", "role": "read"|"read-write"|"owner"}</code>. Cannot have zero owners.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-delete">DELETE</span>
-      <span class="path">/api/saas/hives/{id}/access/{username}</span>
-      <span class="auth auth-owner">owner</span>
-      <div class="desc">Revoke access for a user. Cannot remove the last owner.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/saas/auth-check</span>
-      <span class="auth auth-none">internal</span>
-      <div class="desc">Used by nginx <code>auth-url</code> annotation. Validates the user's cookie and checks access to the hive specified by <code>?hive={id}</code>. Returns <code>X-Hive-User</code> and <code>X-Hive-Role</code> headers.</div>
-    </div>
-
-    <h2 id="admin">Hub Admin</h2>
-
-    <div class="endpoint">
-      <span class="method method-get">GET</span>
-      <span class="path">/api/saas/admin/users</span>
-      <span class="auth auth-admin">admin</span>
-      <div class="desc">List all hub users with their profiles, quotas, hive mappings, and blocked status. Encrypted tokens are stripped.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-put">PUT</span>
-      <span class="path">/api/saas/admin/users/{username}</span>
-      <span class="auth auth-admin">admin</span>
-      <div class="desc">Update a user's quota or blocked status. Body: <code>{"saas_quota": N, "blocked": bool}</code>. Quota -1 = unlimited, 0 = no access.</div>
-    </div>
-
-    <h2 id="spoke">Spoke Integration</h2>
-
-    <div class="endpoint">
-      <span class="method method-post">POST</span>
-      <span class="path">/api/heartbeat</span>
-      <span class="auth auth-none">public</span>
-      <div class="desc">Hive spokes push their status here every eval cycle. Payload includes hive ID, org, repos, ACMM level, agents, governor state, contributors, leaderboard, health, owner, dashboard URL, snapshot URL.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-post">POST</span>
-      <span class="path">/api/task-status</span>
-      <span class="auth auth-none">public</span>
-      <div class="desc">Lightweight update from spokes every 30s with contributor/leaderboard data. Keeps current task info fresh between full heartbeats.</div>
-    </div>
-
-    <div class="endpoint">
-      <span class="method method-post">POST</span>
-      <span class="path">/api/saas/user-token</span>
-      <span class="auth auth-user">login</span>
-      <div class="desc">Spoke requests a user's decrypted OAuth token for GitHub API calls. Body: <code>{"hive_id", "username"}</code>. Validates the user has access to the hive. Token is AES-256-GCM encrypted at rest.</div>
+    <div id="tab-reference" class="tab-content">
+      <div class="redoc-wrap">
+        <div id="redoc-container"></div>
+      </div>
     </div>
   </div>
 
+  <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
   <script>
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+      event.target.classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+      if (name === 'reference' && !window._redocLoaded) {
+        window._redocLoaded = true;
+        Redoc.init('/static/openapi.yaml', {
+          theme: {
+            colors: { primary: { main: '#f59e0b' } },
+            typography: { fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif' },
+            sidebar: { backgroundColor: '#0a0a0f', textColor: '#e6edf3' },
+            rightPanel: { backgroundColor: '#12121a' }
+          },
+          hideDownloadButton: true,
+          expandResponses: '200'
+        }, document.getElementById('redoc-container'));
+      }
+    }
+
     function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
     fetch('/api/auth/user').then(function(r){return r.json()}).then(function(d){
       if(d.authenticated){

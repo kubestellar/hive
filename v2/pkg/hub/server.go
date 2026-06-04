@@ -59,18 +59,20 @@ type RegistryEntry struct {
 }
 
 type HubServer struct {
-	mux      *http.ServeMux
-	registry Registry
-	mu       sync.RWMutex
-	logger   *slog.Logger
-	saveCh   chan struct{}
+	mux        *http.ServeMux
+	registry   Registry
+	mu         sync.RWMutex
+	logger     *slog.Logger
+	saveCh     chan struct{}
+	hubGitHash string
 }
 
-func NewHubServer(port int, logger *slog.Logger) *HubServer {
+func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
 	s := &HubServer{
-		mux:    http.NewServeMux(),
-		logger: logger,
-		saveCh: make(chan struct{}, 1),
+		mux:        http.NewServeMux(),
+		logger:     logger,
+		saveCh:     make(chan struct{}, 1),
+		hubGitHash: gitHash,
 	}
 
 	s.loadRegistry()

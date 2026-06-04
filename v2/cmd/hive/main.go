@@ -1851,7 +1851,7 @@ func runHub(logger *slog.Logger) {
 	}
 	logger.Info("starting in HUB mode", "port", port)
 
-	hubSrv := hub.NewHubServer(port, logger)
+	hubSrv := hub.NewHubServer(port, logger, gitShort)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

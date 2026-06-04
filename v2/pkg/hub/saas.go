@@ -273,11 +273,11 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 
 	user := ensureSaaSUser(username)
 
-	s.mu.RLock()
+	s.mu.Lock()
 	s.markStaleHives()
 	allHives := make([]RegistryEntry, len(s.registry.Hives))
 	copy(allHives, s.registry.Hives)
-	s.mu.RUnlock()
+	s.mu.Unlock()
 
 	var result []MyHiveEntry
 

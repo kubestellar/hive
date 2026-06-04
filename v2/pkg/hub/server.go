@@ -194,8 +194,10 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HubServer) handleRegistry(w http.ResponseWriter, r *http.Request) {
-	s.mu.RLock()
+	s.mu.Lock()
 	s.markStaleHives()
+	s.mu.Unlock()
+	s.mu.RLock()
 	hostedNames := make(map[string]bool)
 	for _, h := range s.registry.Hives {
 		if h.IsPublic && h.HiveType == "hosted" {

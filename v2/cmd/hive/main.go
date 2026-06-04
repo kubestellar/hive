@@ -1391,6 +1391,13 @@ const hiveIDFilePath = "/data/hive-id"
 
 // loadOrGenerateHiveID reads the Hive ID from disk, or generates and persists a new one.
 func loadOrGenerateHiveID(logger *slog.Logger) string {
+	if envID := os.Getenv("HIVE_ID"); envID != "" {
+		if err := os.WriteFile(hiveIDFilePath, []byte(envID+"\n"), 0o644); err == nil {
+			logger.Info("hive ID set from HIVE_ID env var", "id", envID)
+		}
+		return envID
+	}
+
 	if data, err := os.ReadFile(hiveIDFilePath); err == nil {
 		id := strings.TrimSpace(string(data))
 		if id != "" {

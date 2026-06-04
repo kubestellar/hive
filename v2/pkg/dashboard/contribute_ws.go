@@ -111,12 +111,14 @@ type ContributeWSHub struct {
 const completedTaskCooldownHours = 168
 
 func NewContributeWSHub(logger *slog.Logger, server *Server) *ContributeWSHub {
-	return &ContributeWSHub{
+	hub := &ContributeWSHub{
 		connections:    make(map[string]*ContributorConnection),
 		completedTasks: make(map[string]time.Time),
-		logger:      logger,
-		server:      server,
+		logger:         logger,
+		server:         server,
 	}
+	hub.loadCompletedTasks()
+	return hub
 }
 
 const activityDebounceSecs = 60
@@ -154,11 +156,41 @@ func (h *ContributeWSHub) RecentActivity() []ActivityEntry {
 	return out
 }
 
+const completedTasksFile = "/data/contributors/completed-tasks.json"
+
+func (h *ContributeWSHub) loadCompletedTasks() {
+	h.completedMu.Lock()
+	defer h.completedMu.Unlock()
+	data, err := os.ReadFile(completedTasksFile)
+	if err != nil { return }
+	var saved map[string]string
+	if json.Unmarshal(data, &saved) != nil { return }
+	for k, v := range saved {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			if time.Since(t) < completedTaskCooldownHours*time.Hour {
+				h.completedTasks[k] = t
+			}
+		}
+	}
+	h.logger.Info("[contribute-ws] loaded completed tasks", "count", len(h.completedTasks))
+}
+
+func (h *ContributeWSHub) saveCompletedTasks() {
+	h.completedMu.Lock()
+	saved := make(map[string]string, len(h.completedTasks))
+	for k, t := range h.completedTasks { saved[k] = t.Format(time.RFC3339) }
+	h.completedMu.Unlock()
+	data, _ := json.Marshal(saved)
+	os.MkdirAll("/data/contributors", 0o755)
+	os.WriteFile(completedTasksFile, data, 0o644)
+}
+
 func (h *ContributeWSHub) markTaskCompleted(repo string, number int) {
 	key := fmt.Sprintf("%s#%d", repo, number)
 	h.completedMu.Lock()
 	h.completedTasks[key] = time.Now()
 	h.completedMu.Unlock()
+	h.saveCompletedTasks()
 }
 
 func (h *ContributeWSHub) isTaskInCooldown(repo string, number int) bool {

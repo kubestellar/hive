@@ -70,7 +70,7 @@ const CONTAINER_NAME = process.env.HIVE_CONTAINER_NAME || 'hive-contributor';
 function getCLIState() {
   try {
     const output = execSync(
-      `tmux capture-pane -t ${TMUX_SESSION} -p -S -15 2>/dev/null`,
+      `tmux capture-pane -t ${TMUX_SESSION} -p 2>/dev/null`,
       { encoding: 'utf8', timeout: 5000 }
     );
     const text = output.toString();
@@ -215,7 +215,7 @@ function captureTmuxLines(n) {
 function checkTmuxIdle() {
   try {
     const output = execSync(
-      `tmux capture-pane -t ${TMUX_SESSION} -p -S -15 2>/dev/null`,
+      `tmux capture-pane -t ${TMUX_SESSION} -p 2>/dev/null`,
       { encoding: 'utf8', timeout: 5000 }
     );
     const text = output.toString();

@@ -238,7 +238,7 @@
           ? '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:600;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)" title="Hosted on hive.kubestellar.io">hosted</span>'
           : '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:600;background:rgba(107,114,128,0.15);color:#9ca3af;border:1px solid rgba(107,114,128,0.3)" title="Self-hosted by the owner">local</span>';
         return '<tr>' +
-          '<td>' + (i + 1) + '</td>' +
+          
           '<td style="display:flex;align-items:center;gap:10px"><img src="https://github.com/' + esc(h.org) + '.png" style="width:36px;height:36px;border-radius:6px;flex-shrink:0" onerror="this.style.display=\'none\'">' + dot + '<div><span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></div></td>' +
           '<td>' + htype + '</td>' +
           '<td>' + repoLink + '</td>' +
@@ -254,7 +254,7 @@
       }).join('');
       document.getElementById('hive-table-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Hive</th><th>Type</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Links</th>' +
+        '<th>Hive</th><th>Type</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Links</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 
@@ -266,7 +266,7 @@
         var avatar = e.avatar_url ? '<img src="' + esc(e.avatar_url) + '" width="24" height="24" style="border-radius:50%;vertical-align:middle;margin-right:6px;' + halo + '">' : '';
         var taskText = e.current_task ? '<span style="color:var(--green);font-size:0.75rem">' + esc(e.current_task) + '</span>' : '<span style="color:var(--muted);font-size:0.75rem">—</span>';
         return '<tr>' +
-          '<td>' + (i + 1) + '</td>' +
+          
           '<td style="white-space:nowrap">' + avatar + '<a href="https://github.com/' + esc(e.github_username) + '" target="_blank">' + esc(e.github_username) + '</a></td>' +
           '<td style="font-size:0.8rem;color:var(--muted)">' + esc(e.hive_name || '') + '</td>' +
           '<td>' + (e.tasks_completed || 0) + '</td>' +
@@ -277,7 +277,7 @@
       }).join('');
       document.getElementById('leaderboard-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Contributor</th><th>Hive</th><th>Completed</th><th>Failed</th><th>Tier</th><th>Current Task</th>' +
+        '<th>Contributor</th><th>Hive</th><th>Completed</th><th>Failed</th><th>Tier</th><th>Current Task</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 

@@ -1472,7 +1472,11 @@ func (s *Server) handleAPIDocs(w http.ResponseWriter, r *http.Request) {
 		}
 		return -1
 	}, host)
-	baseURL := "https://" + host
+	scheme := "https"
+	if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") != "https" {
+		scheme = "http"
+	}
+	baseURL := scheme + "://" + host
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Hive API</title>

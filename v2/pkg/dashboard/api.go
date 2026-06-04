@@ -264,11 +264,11 @@ func (s *Server) refreshAsync() {
 	}
 }
 
-const maxRequestBodyBytes = 1 << 20 // 1 MiB
+const maxDecodeBodyBytes = 1 << 20 // 1 MiB
 
 func decodeBody(r *http.Request, v interface{}) error {
 	defer r.Body.Close()
-	r.Body = http.MaxBytesReader(nil, r.Body, maxRequestBodyBytes)
+	r.Body = http.MaxBytesReader(nil, r.Body, maxDecodeBodyBytes)
 	return json.NewDecoder(r.Body).Decode(v)
 }
 

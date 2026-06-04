@@ -101,6 +101,8 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("POST /api/saas/hives", s.requireAuth(s.handleCreateHive))
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
+	s.mux.HandleFunc("POST /api/saas/hives/{id}/upgrade", s.requireAuth(s.handleUpgradeHive))
+	s.mux.HandleFunc("GET /api/saas/latest-sha", s.handleLatestSHA)
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
 	s.mux.HandleFunc("POST /api/saas/user-token", s.requireAuth(s.handleUserToken))
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/access", s.requireAuth(s.handleAccessList))
@@ -531,6 +533,55 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"deleted"}`))
 }
 
+func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	username := s.getAuthUser(r)
+	h := loadSaaSHive(id)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+	if h.Owner != username && username != hubAdminUsername {
+		http.Error(w, `{"error":"only the owner can upgrade"}`, http.StatusForbidden)
+		return
+	}
+	ns := "hive-hosted-" + id
+	cmd := exec.Command("kubectl", "rollout", "restart", "deployment/hive", "-n", ns)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		s.logger.Warn("upgrade failed", "hive", id, "output", string(out))
+		http.Error(w, `{"error":"upgrade failed: `+strings.ReplaceAll(string(out), `"`, `'`)+`"}`, http.StatusInternalServerError)
+		return
+	}
+	s.logger.Info("audit: hosted hive upgraded", "hive_id", id, "by", username)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"upgrading"}`))
+}
+
+var latestSHACache string
+var latestSHACacheTime time.Time
+
+func (s *HubServer) handleLatestSHA(w http.ResponseWriter, r *http.Request) {
+	if time.Since(latestSHACacheTime) < 5*time.Minute && latestSHACache != "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"sha": latestSHACache})
+		return
+	}
+	cmd := exec.Command("git", "ls-remote", "https://github.com/kubestellar/hive.git", "v2")
+	out, err := cmd.Output()
+	if err != nil {
+		http.Error(w, `{"error":"failed to fetch latest SHA"}`, http.StatusInternalServerError)
+		return
+	}
+	parts := strings.Fields(string(out))
+	if len(parts) > 0 && len(parts[0]) >= 7 {
+		latestSHACache = parts[0][:7]
+		latestSHACacheTime = time.Now()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"sha": latestSHACache})
+}
+
 func (s *HubServer) handleAccessList(w http.ResponseWriter, r *http.Request) {
 	hiveID := r.PathValue("id")
 	username := s.getAuthUser(r)
@@ -864,6 +915,7 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     var _userQuota = 0, _userUsed = 0;
+    var _latestSHA = '';
 
     async function loadHives() {
       try {
@@ -915,14 +967,23 @@ const dashboardHTML = `<!DOCTYPE html>
         if (canConvert) {
           actions = '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
         } else if (isHosted && h.role === 'owner') {
-          actions = '<button onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Access</button>' +
+          var upgradeBtn = (_latestSHA && h.gitHash && h.gitHash !== _latestSHA) ?
+            '<button onclick="upgradeHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Upgrade</button>' : '';
+          actions = upgradeBtn +
+            '<button onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Access</button>' +
             '<button onclick="deleteHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Delete</button>';
         }
         return '<tr>' +
           
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
           '<td>' + instanceName + '</td>' +
-          '<td style="font-size:0.7rem;font-family:monospace;color:var(--muted)">' + esc(h.gitHash || '') + '</td>' +
+          '<td style="font-size:0.7rem;font-family:monospace">' + (function() {
+            var sha = h.gitHash || '';
+            if (!sha) return '<span style="color:var(--muted)">—</span>';
+            var isCurrent = _latestSHA && sha === _latestSHA;
+            var badge = isCurrent ? '<span style="color:var(--green)" title="latest">✓</span>' : '<span style="color:var(--red)" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
+            return '<span style="color:var(--muted)">' + esc(sha) + '</span> ' + badge;
+          })() + '</td>' +
           '<td>' + repoLink + '</td>' +
           '<td>' + repoCount + '</td>' +
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
@@ -944,8 +1005,28 @@ const dashboardHTML = `<!DOCTYPE html>
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 
+    async function loadLatestSHA() {
+      try {
+        var resp = await fetch('/api/saas/latest-sha');
+        var data = await resp.json();
+        _latestSHA = data.sha || '';
+      } catch(e) {}
+    }
+
+    async function upgradeHive(id) {
+      if (!confirm('Upgrade hosted hive ' + id + ' to latest?')) return;
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id) + '/upgrade', {method: 'POST'});
+        var data = await resp.json();
+        if (!resp.ok) { alert(data.error || 'Upgrade failed'); return; }
+        alert('Upgrade started for ' + id + '. Pod will restart with the latest image.');
+        loadHives();
+      } catch(e) { alert('Error: ' + e.message); }
+    }
+
     async function init() {
       await loadUser();
+      await loadLatestSHA();
       await loadHives();
       await loadAdminUsers();
       if (!_adminLoaded) setTimeout(loadAdminUsers, 2000);

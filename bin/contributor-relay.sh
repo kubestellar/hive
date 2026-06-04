@@ -227,8 +227,8 @@ function checkTmuxIdle() {
       isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching|ing…/.test(text);
     } else if (BACKEND === 'copilot') {
       hasIdlePrompt = /\/ commands.*help/.test(text);
-      hasCompletionMarker = /All tests pass|PR created|PR #|pull\/|pushed|committed|Done|finished/i.test(text);
-      isWorking = /◉|◎|esc cancel|Running|Executing|Thinking|searching/i.test(text);
+      hasCompletionMarker = true;
+      isWorking = /esc cancel/.test(text);
     } else if (BACKEND === 'gemini') {
       hasIdlePrompt = />\s*$|❯\s*$/.test(text);
       hasCompletionMarker = /completed|Done|finished/i.test(text);

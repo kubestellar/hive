@@ -248,7 +248,13 @@ func (s *Server) saveConfig() error {
 	if s.deps.SkipReloadFunc != nil {
 		s.deps.SkipReloadFunc()
 	}
-	return s.deps.Config.Save()
+	if err := s.deps.Config.Save(); err != nil {
+		return err
+	}
+	if s.deps.Governor != nil {
+		s.deps.Governor.UpdateConfig(s.deps.Config.Governor)
+	}
+	return nil
 }
 
 func (s *Server) persistOnly() {
@@ -1874,13 +1880,6 @@ func (s *Server) handleGovernorThresholds(w http.ResponseWriter, r *http.Request
 
 	if err := s.saveConfig(); err != nil {
 		s.logger.Error("failed to persist config after threshold update", "error", err)
-	}
-
-	// Sync the governor's cached config so it sees the new thresholds
-	// immediately. The watcher callback also calls UpdateConfig, but
-	// SkipNext prevents it from firing after our own saveConfig.
-	if s.deps.Governor != nil {
-		s.deps.Governor.UpdateConfig(s.deps.Config.Governor)
 	}
 
 	// Trigger immediate governor re-evaluation so mode change is visible

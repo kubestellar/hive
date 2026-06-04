@@ -133,7 +133,15 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		DashboardURL:       payload.DashboardURL,
 		SnapshotURL:        payload.SnapshotURL,
 		ACMMLevel:          payload.ACMMLevel,
-		AgentCount:         len(payload.Agents),
+		AgentCount: func() int {
+			count := 0
+			for _, a := range payload.Agents {
+				if a.State == "running" {
+					count++
+				}
+			}
+			return count
+		}(),
 		GovernorMode:       payload.Governor.Mode,
 		TotalTokens24h:     payload.Tokens24h,
 		ActionableIssues:   payload.Governor.Issues,

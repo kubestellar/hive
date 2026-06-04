@@ -1463,7 +1463,13 @@ func (s *Server) handleAgentConfigModels(w http.ResponseWriter, r *http.Request)
 	}
 
 	if body.Backend != "" {
-		agentCfg.Backend = body.Backend
+		switch body.Backend {
+		case "copilot", "claude", "gemini":
+			agentCfg.Backend = body.Backend
+		default:
+			jsonError(w, fmt.Sprintf("backend must be one of: copilot, claude, gemini; got %q", body.Backend), http.StatusBadRequest)
+			return
+		}
 	}
 	if body.Model != "" {
 		agentCfg.Model = body.Model
@@ -2051,6 +2057,13 @@ func (s *Server) handleGovernorAddAgent(w http.ResponseWriter, r *http.Request) 
 
 	if body.Backend == "" {
 		body.Backend = "claude"
+	} else {
+		switch body.Backend {
+		case "copilot", "claude", "gemini":
+		default:
+			jsonError(w, fmt.Sprintf("backend must be one of: copilot, claude, gemini; got %q", body.Backend), http.StatusBadRequest)
+			return
+		}
 	}
 
 	agentCfg := config.AgentConfig{

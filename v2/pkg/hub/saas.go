@@ -476,10 +476,18 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 
 func (s *HubServer) handleHiveStatus(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	username := s.getAuthUser(r)
 	h := loadSaaSHive(id)
 	if h == nil {
 		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
 		return
+	}
+	user := loadSaaSUser(username)
+	if user == nil || (h.Owner != username && username != hubAdminUsername) {
+		if _, hasAccess := user.Hives[id]; !hasAccess {
+			http.Error(w, `{"error":"access denied"}`, http.StatusForbidden)
+			return
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(h)

@@ -300,8 +300,9 @@ contribute-browse:
     echo ""
     curl -sf "${HUB_HTTP}/api/registry" 2>/dev/null | jq -r '.hives[] | "  \(.name) (ACMM \(.acmmLevel))\n    Dashboard: \(.dashboardUrl // "N/A")\n    Contributors: \(.activeContributors // 0) active\n    Issues: \(.actionableIssues // 0) / PRs: \(.actionablePRs // 0)\n"' || echo "Could not reach registry at ${HUB_HTTP}"
 
-# Call the authenticated hive API
-# Usage: just hive-api /status
+# Call a specific hive's authenticated API
+# Set HIVE_HUB to target a specific hive (see 'just contribute-browse')
+# Usage: HIVE_HUB=ws://host:port/contribute just hive-api /status
 #        just hive-api /me
 #        just hive-api /contributors
 #        just hive-api /activity

@@ -68,13 +68,15 @@ contribute-setup backend="claude":
         echo "ERROR: ${MSG:-No token received}"
         exit 1
       fi
-    cat > "{{config_dir}}/contributor.env" <<EOF
+    else
+      cat > "{{config_dir}}/contributor.env" <<EOF
     HIVE_REGISTRATION_TOKEN=${TOKEN}
     HIVE_HUB={{hive_hub}}
     CONTRIBUTOR_ID=${CID}
     CONTRIBUTOR_USERNAME=${GH_USER}
     AGENT_BACKEND={{backend}}
     EOF
+    fi
     echo "${MSG} — ${GH_USER} (${CID})"
     echo ""
 
@@ -309,4 +311,5 @@ hive-api-docs:
 
 # Stop contributing (if running in background)
 contribute-stop:
-    @docker ps --filter "name=hive-contributor-" --format '{{ '{{' }}.Names{{ '}}' }}' | xargs -r docker stop 2>/dev/null && echo "Stopped." || echo "Not running."
+    #!/usr/bin/env bash
+    docker ps --filter "name=hive-contributor-" --format '{{ "{{" }}.Names{{ "}}" }}' | xargs -r docker stop 2>/dev/null && echo "Stopped." || echo "Not running."

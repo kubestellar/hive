@@ -257,10 +257,10 @@ func main() {
 	os.MkdirAll(brainstormPolicyDir, 0o755)
 	if policyData, err := policies.DefaultPolicies.ReadFile("defaults/brainstorm-advisory.md"); err == nil {
 		policyPath := filepath.Join(brainstormPolicyDir, "brainstorm-advisory.md")
-		if _, statErr := os.Stat(policyPath); os.IsNotExist(statErr) {
-			os.WriteFile(policyPath, policyData, 0o644)
-			logger.Info("wrote brainstorm policy to disk", "path", policyPath)
-		}
+		// Always overwrite — the embedded policy may have been updated
+		// (e.g., inception reaping guard added in bug #113 fix).
+		os.WriteFile(policyPath, policyData, 0o644)
+		logger.Info("wrote brainstorm policy to disk", "path", policyPath)
 	}
 
 	projectCtx := agent.ProjectContext{

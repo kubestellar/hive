@@ -864,7 +864,11 @@ const dashboardHTML = `<!DOCTYPE html>
     .content { max-width: 1600px; margin: 0 auto; padding: 80px 24px 48px; }
     h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .subtitle { color: var(--muted); margin-bottom: 32px; }
-    .table-wrap { overflow-x: auto; margin: 0 auto; }
+    .table-wrap { overflow-x: auto; margin: 0 auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border) transparent; -webkit-mask-image: linear-gradient(to right, #000 95%, transparent 100%); mask-image: linear-gradient(to right, #000 95%, transparent 100%); }
+    .table-wrap::-webkit-scrollbar { height: 6px; }
+    .table-wrap::-webkit-scrollbar-track { background: transparent; }
+    .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .table-wrap:hover { -webkit-mask-image: none; mask-image: none; }
     .hive-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .hive-table th { text-align: center; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.05em; }
     .hive-table td { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; text-align: center; }

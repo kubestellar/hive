@@ -643,17 +643,10 @@ func main() {
 	// resume and send inception kick via SendKick. Otherwise start paused.
 	if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
 		msg := sched.BuildAgentMessage("brainstorm", nil, nil)
-		// Resume first (launches CLI), then SendKick (waits for prompt, sends message)
-		if err := agentMgr.Resume(ctx, "brainstorm", "inception-startup", "active inception on disk"); err != nil {
-			logger.Debug("brainstorm resume on startup", "error", err)
-		}
-		if err := agentMgr.SendKick("brainstorm", msg); err != nil {
-			logger.Warn("inception SendKick on startup failed, trying RestartWithBootstrap", "error", err)
-			if err2 := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err2 != nil {
-				logger.Error("brainstorm inception resume failed (all attempts)", "error", err2)
-			}
+		if err := agentMgr.RestartThenSendKick(ctx, "brainstorm", msg); err != nil {
+			logger.Warn("inception RestartThenSendKick on startup failed", "error", err)
 		} else {
-			logger.Info("brainstorm resumed for active inception via SendKick", "phase", state.Phase)
+			logger.Info("brainstorm resumed for active inception", "phase", state.Phase)
 		}
 	} else {
 		if err := agentMgr.Pause("brainstorm", "startup", "on-demand agent — triggered by inception only"); err != nil {
@@ -955,15 +948,11 @@ func main() {
 				if name == "brainstorm" && inceptionEngine != nil {
 					if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
 						msg := sched.BuildAgentMessage("brainstorm", nil, sched.GetLastActionable())
+						// Agent just crashed and was restarted — SendKick to the fresh CLI.
 						if err := agentMgr.SendKick("brainstorm", msg); err != nil {
-							logger.Warn("inception SendKick after crash failed, trying RestartWithBootstrap", "error", err)
-							if err2 := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err2 != nil {
-								logger.Error("inception re-kick failed (all attempts)", "error", err2)
-							}
+							logger.Warn("inception re-kick after crash failed", "error", err)
 						} else {
-							logger.Info("brainstorm re-kicked with SendKick after crash",
-								"phase", state.Phase,
-							)
+							logger.Info("brainstorm re-kicked after crash", "phase", state.Phase)
 						}
 						gov.RecordKick("brainstorm")
 					}

@@ -2414,7 +2414,7 @@ func (s *Server) handleKnowledgeCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req knowledge.CreateFactRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2451,7 +2451,7 @@ func (s *Server) handleKnowledgeUpdate(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
 	var req knowledge.UpdateFactRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2486,7 +2486,7 @@ func (s *Server) handleKnowledgePromote(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req knowledge.PromoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2544,7 +2544,7 @@ func (s *Server) handleKnowledgeImport(w http.ResponseWriter, r *http.Request) {
 		Format  string `json:"format"`
 		Layer   string `json:"layer"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2583,7 +2583,7 @@ func (s *Server) handleKnowledgeSubsAdd(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var sub knowledge.Subscription
-	if err := json.NewDecoder(r.Body).Decode(&sub); err != nil {
+	if err := decodeBody(r, &sub); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2612,7 +2612,7 @@ func (s *Server) handleKnowledgeSubsRemove(w http.ResponseWriter, r *http.Reques
 	var req struct {
 		URL string `json:"url"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2649,7 +2649,7 @@ func (s *Server) handleVaultsConnect(w http.ResponseWriter, r *http.Request) {
 		Path string `json:"path"`
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2678,7 +2678,7 @@ func (s *Server) handleVaultsDisconnect(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Path string `json:"path"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2703,7 +2703,7 @@ func (s *Server) handleVaultsReindex(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Path string `json:"path"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2756,7 +2756,7 @@ func (s *Server) handleGitSourcesConnect(w http.ResponseWriter, r *http.Request)
 		Subpath string `json:"subpath"`
 		Layer   string `json:"layer"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -2792,7 +2792,7 @@ func (s *Server) handleGitSourcesDisconnect(w http.ResponseWriter, r *http.Reque
 		URL     string `json:"url"`
 		Subpath string `json:"subpath"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}

@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -237,7 +236,7 @@ func (s *Server) handlePackSetLevel(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Level int `json:"level"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "level must be an integer between 1 and 6", http.StatusBadRequest)
 		return
 	}

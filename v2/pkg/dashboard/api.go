@@ -1876,6 +1876,13 @@ func (s *Server) handleGovernorThresholds(w http.ResponseWriter, r *http.Request
 		s.logger.Error("failed to persist config after threshold update", "error", err)
 	}
 
+	// Sync the governor's cached config so it sees the new thresholds
+	// immediately. The watcher callback also calls UpdateConfig, but
+	// SkipNext prevents it from firing after our own saveConfig.
+	if s.deps.Governor != nil {
+		s.deps.Governor.UpdateConfig(s.deps.Config.Governor)
+	}
+
 	// Trigger immediate governor re-evaluation so mode change is visible
 	// without waiting for the next eval ticker (up to 5 minutes).
 	if s.deps.EnumerateFunc != nil {

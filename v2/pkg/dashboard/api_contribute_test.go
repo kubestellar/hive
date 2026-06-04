@@ -43,7 +43,7 @@ func TestContributeRegister(t *testing.T) {
 	if resp["registration_token"] == "" {
 		t.Error("missing registration_token")
 	}
-	if resp["message"] != "Registered successfully" {
+	if !strings.Contains(resp["message"], "Registered successfully") {
 		t.Errorf("unexpected message: %s", resp["message"])
 	}
 

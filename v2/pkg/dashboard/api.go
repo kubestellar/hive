@@ -2725,6 +2725,10 @@ func (s *Server) handleVaultsReindex(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "path is required", http.StatusBadRequest)
 		return
 	}
+	if strings.Contains(req.Path, "..") {
+		jsonError(w, "path must not contain '..'", http.StatusBadRequest)
+		return
+	}
 
 	if err := s.deps.Knowledge.ReindexVault(req.Path); err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)

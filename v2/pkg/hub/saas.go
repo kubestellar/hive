@@ -862,9 +862,11 @@ const dashboardHTML = `<!DOCTYPE html>
     .content { max-width: 1200px; margin: 0 auto; padding: 80px 24px 48px; }
     h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .subtitle { color: var(--muted); margin-bottom: 32px; }
+    .table-wrap { overflow-x: auto; margin: 0 auto; }
     .hive-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    .hive-table th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .hive-table th { text-align: center; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
     .hive-table td { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; text-align: center; }
+    .hive-table td:first-child { text-align: left; }
     .hive-table td:first-child { text-align: left; }
     .hive-table tr:hover { background: rgba(255,255,255,0.02); }
     .online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
@@ -966,7 +968,7 @@ const dashboardHTML = `<!DOCTYPE html>
       return '<span style="color:var(--muted);font-size:0.75rem">—</span>';
     }
     function snapshotLink(h) {
-      if (h.snapshotUrl) return '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="dash-link">preview</a>';
+      if (h.snapshotUrl) return '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="dash-link">↗</a>';
       return '';
     }
     function apiLink(h) {
@@ -995,6 +997,18 @@ const dashboardHTML = `<!DOCTYPE html>
 
     var _userQuota = 0, _userUsed = 0;
     var _latestSHA = '';
+    var _allDashHives = [];
+    var _dashSortKey = '', _dashSortAsc = true;
+
+    function sortDashHives(key) {
+      if (_dashSortKey === key) { _dashSortAsc = !_dashSortAsc; } else { _dashSortKey = key; _dashSortAsc = true; }
+      var sorted = _allDashHives.slice().sort(function(a, b) {
+        var va = a[key] || '', vb = b[key] || '';
+        if (typeof va === 'number' && typeof vb === 'number') return _dashSortAsc ? va - vb : vb - va;
+        return _dashSortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+      });
+      renderHives(sorted);
+    }
 
     async function loadHives() {
       try {
@@ -1006,6 +1020,7 @@ const dashboardHTML = `<!DOCTYPE html>
         var data = await resp.json();
         _userQuota = data.saas_quota || 0;
         _userUsed = data.saas_used || 0;
+        _allDashHives = data.hives || [];
         _latestSHA = data.latest_sha || _latestSHA;
         var canCreate = _userQuota < 0 || _userQuota > _userUsed;
         var addBtn = document.getElementById('btn-add-hive');
@@ -1037,13 +1052,17 @@ const dashboardHTML = `<!DOCTYPE html>
         var isHosted = h.id && (h.id.startsWith('hosted-') || h.id.startsWith('saas-'));
         var isLocal = !isHosted;
         var canConvert = isLocal && h.role === 'owner' && (_userQuota < 0 || _userQuota > _userUsed);
-        var instanceName = isHosted ? '<span style="font-size:0.7rem;color:var(--muted);font-family:monospace">' + esc(h.id) + '</span>' : '';
+        var typeBadge = isHosted
+          ? '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:600;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)">hosted</span>'
+          : '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:600;background:rgba(107,114,128,0.15);color:#9ca3af;border:1px solid rgba(107,114,128,0.3)">local</span>';
         var modeCell = h.provStatus === 'error'
           ? '<span style="color:var(--red);cursor:help;white-space:nowrap" title="' + esc(h.provError || '') + '">⚠ ERROR</span>'
           : h.provStatus === 'provisioning'
           ? '<span style="color:var(--accent);white-space:nowrap">⏳ Provisioning</span>'
           : modeBadge(h.governorMode);
-        var actions = '';
+        var contributeUrl = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io/contribute' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? h.dashboardUrl + '/contribute' : '');
+        var contributeBtn = contributeUrl ? '<a href="' + contributeUrl + '" target="_blank" style="padding:3px 10px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.7rem;white-space:nowrap;text-decoration:none;margin-right:4px">Contribute</a>' : '';
+        var actions = contributeBtn;
         if (canConvert) {
           actions = '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
         } else if (isHosted && h.role === 'owner') {
@@ -1053,7 +1072,7 @@ const dashboardHTML = `<!DOCTYPE html>
         return '<tr>' +
           
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
-          '<td>' + instanceName + '</td>' +
+          '<td>' + typeBadge + '</td>' +
           '<td style="font-size:0.7rem;white-space:nowrap">' + (function() {
             var sha = h.gitHash || '';
             if (!sha) return '<span style="color:var(--muted)">—</span>';
@@ -1080,9 +1099,9 @@ const dashboardHTML = `<!DOCTYPE html>
           '</tr>';
       }).join('');
       document.getElementById('hives-container').innerHTML =
-        '<table class="hive-table"><thead><tr>' +
-        '<th>Hive</th><th>Instance</th><th>Version</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Preview</th><th>API</th><th></th>' +
-        '</tr></thead><tbody>' + rows + '</tbody></table>';
+        '<div class="table-wrap"><table class="hive-table"><thead><tr>' +
+        '<th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repo</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th><th>Role</th><th>Dashboard</th><th>Preview</th><th>API</th><th></th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 
     async function upgradeHive(id) {

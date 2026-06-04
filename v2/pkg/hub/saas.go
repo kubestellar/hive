@@ -596,6 +596,18 @@ func (s *HubServer) handleAccessRemove(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
 		return
 	}
+	if target.Hives[hiveID] == "owner" {
+		ownerCount := 0
+		for _, u := range listAllSaaSUsers() {
+			if u.Hives[hiveID] == "owner" {
+				ownerCount++
+			}
+		}
+		if ownerCount <= 1 {
+			http.Error(w, `{"error":"cannot remove the last owner"}`, http.StatusBadRequest)
+			return
+		}
+	}
 	delete(target.Hives, hiveID)
 	saveSaaSUser(target)
 	s.logger.Info("audit: access revoked", "hive", hiveID, "target", targetUsername, "by", username)
@@ -1140,7 +1152,7 @@ const dashboardHTML = `<!DOCTYPE html>
       <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
         <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--text)">Add User</h3>
         <div style="display:flex;gap:8px">
-          <input id="access-username" type="text" placeholder="GitHub username" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+          <select id="access-username" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem"><option value="">Select user...</option></select>
           <select id="access-role" style="padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
             <option value="read">Read</option>
             <option value="read-write">Read-Write</option>
@@ -1158,11 +1170,30 @@ const dashboardHTML = `<!DOCTYPE html>
   <script>
     var _accessHiveId = '';
 
+    var _accessUsers = [];
+
     async function openAccessModal(hiveId) {
       _accessHiveId = hiveId;
       document.getElementById('access-hive-label').textContent = 'Hive: ' + hiveId;
       document.getElementById('access-modal').style.display = 'flex';
       await loadAccessList();
+      await loadAccessUserDropdown();
+    }
+
+    async function loadAccessUserDropdown() {
+      try {
+        var resp = await fetch('/api/saas/admin/users');
+        if (resp.status === 403) {
+          resp = await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/access');
+          return;
+        }
+        var data = await resp.json();
+        _accessUsers = (data.users || []).map(function(u) { return u.github_username; });
+        var sel = document.getElementById('access-username');
+        sel.innerHTML = '<option value="">Select user...</option>' + _accessUsers.map(function(u) {
+          return '<option value="' + esc(u) + '">' + esc(u) + '</option>';
+        }).join('');
+      } catch(e) {}
     }
 
     async function loadAccessList() {
@@ -1174,13 +1205,18 @@ const dashboardHTML = `<!DOCTYPE html>
           document.getElementById('access-list').innerHTML = '<div style="color:var(--muted);font-size:0.85rem">No users have access yet</div>';
           return;
         }
+        var ownerCount = users.filter(function(u) { return u.role === 'owner'; }).length;
         var rows = users.map(function(u) {
           var avatar = '<img src="https://github.com/' + esc(u.username) + '.png" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px">';
+          var canRemove = !(u.role === 'owner' && ownerCount <= 1);
+          var removeBtn = canRemove ?
+            '<button onclick="removeAccess(\'' + esc(u.username) + '\')" style="padding:2px 8px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem">Remove</button>' :
+            '<span style="font-size:0.6rem;color:var(--muted)">last owner</span>';
           return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">' +
             '<div>' + avatar + '<span style="font-size:0.85rem">' + esc(u.username) + '</span></div>' +
             '<div style="display:flex;align-items:center;gap:8px">' +
             '<span class="role-badge role-' + u.role.replace(' ','-') + '" style="font-size:0.7rem">' + esc(u.role) + '</span>' +
-            '<button onclick="removeAccess(\'' + esc(u.username) + '\')" style="padding:2px 8px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem">Remove</button>' +
+            removeBtn +
             '</div></div>';
         }).join('');
         document.getElementById('access-list').innerHTML = rows;
@@ -1190,9 +1226,9 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     async function addAccess() {
-      var username = document.getElementById('access-username').value.trim();
+      var username = document.getElementById('access-username').value;
       var role = document.getElementById('access-role').value;
-      if (!username) { alert('Enter a GitHub username'); return; }
+      if (!username) { alert('Select a user'); return; }
       try {
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/access', {
           method: 'POST',

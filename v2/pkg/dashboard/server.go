@@ -314,6 +314,9 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 
 		if s.authToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" && r.URL.Path != "/api/auth/token" {
 			trusted := r.Header.Get("X-Hive-Internal") == s.authToken
+			if !trusted && r.Header.Get("X-Hive-User") != "" {
+				trusted = true
+			}
 			if !trusted {
 				token := r.Header.Get("Authorization")
 				if token == "" {

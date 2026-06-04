@@ -169,6 +169,9 @@ function checkContextUsage() {
 
 function tmuxSendKeys(text) {
   try {
+    try {
+      execSync(`find /tmp -maxdepth 1 -user dev -not -name contributor-task.json -not -name '.hive-*' -not -name 'claude-*' -mmin +30 -exec rm -rf {} + 2>/dev/null`, { timeout: 5000 });
+    } catch (_) {}
     const ctxPct = checkContextUsage();
     if (ctxPct >= CLEAR_CONTEXT_THRESHOLD_PCT) {
       console.log(`Context at ${ctxPct}% — sending /clear before next task`);

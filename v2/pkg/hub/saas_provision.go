@@ -168,11 +168,19 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 			}
 			return strings.Join(lines, "\n")
 		}(),
-		"CPURequest":     cpuRequest,
-		"CPULimit":       cpuLimit,
-		"MemRequest":     memRequest,
-		"MemLimit":       memLimit,
-		"PVCSize":        pvcSize,
+		"CPURequest":      cpuRequest,
+		"CPULimit":        cpuLimit,
+		"MemRequest":      memRequest,
+		"MemLimit":        memLimit,
+		"PVCSize":         pvcSize,
+		"DashboardToken": func() string {
+			const chars = "abcdef0123456789"
+			b := make([]byte, 64)
+			for i := range b {
+				b[i] = chars[rand.Intn(len(chars))]
+			}
+			return string(b)
+		}(),
 	}
 
 	tmpl, err := template.New("manifests").Parse(k8sManifestTemplate)
@@ -295,6 +303,7 @@ metadata:
   namespace: {{.Namespace}}
 type: Opaque
 stringData:
+  dashboard-token: {{.DashboardToken}}
 {{- if .UseApp}}
   gh-app-key.pem: |
 {{.AppPrivateKey}}
@@ -344,6 +353,11 @@ spec:
               name: hive-secrets
               key: github-token
 {{- end}}
+        - name: DASHBOARD_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hive-secrets
+              key: dashboard-token
         - name: HIVE_ID
           value: "{{.ID}}"
         - name: HIVE_LEVEL
@@ -407,6 +421,8 @@ metadata:
     nginx.ingress.kubernetes.io/auth-url: "https://hive.kubestellar.io/api/saas/auth-check?hive={{.ID}}"
     nginx.ingress.kubernetes.io/auth-signin: "https://hive.kubestellar.io/login?redirect=$scheme://$http_host$request_uri"
     nginx.ingress.kubernetes.io/auth-response-headers: "X-Hive-User, X-Hive-Role"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Hive-Internal "{{.DashboardToken}}";
     nginx.ingress.kubernetes.io/server-snippet: |
       error_page 403 = @denied;
       location @denied {

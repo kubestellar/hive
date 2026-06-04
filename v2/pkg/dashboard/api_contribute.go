@@ -105,6 +105,9 @@ func (s *Server) registerContributeRoutes() {
 	s.mux.HandleFunc("POST /api/contributors/{id}/revoke", s.handleContributorRevoke)
 	s.mux.HandleFunc("DELETE /api/contributors/{id}", s.handleContributorDelete)
 
+	s.mux.HandleFunc("/api/v1/", s.handleAPIv1)
+	s.mux.HandleFunc("GET /api/docs", s.handleAPIDocs)
+
 	s.mux.HandleFunc("GET /leaderboard", s.handleLeaderboardPage)
 	s.mux.HandleFunc("GET /api/leaderboard", s.handleLeaderboardAPI)
 
@@ -1340,5 +1343,157 @@ func isValidUsername(s string) bool {
 		}
 	}
 	return true
+}
+
+// validateGitHubToken checks a GitHub personal access token against the GitHub API
+// and returns the authenticated username, or empty string on failure.
+func validateGitHubToken(token string) string {
+	if token == "" {
+		return ""
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		return ""
+	}
+	defer resp.Body.Close()
+	var user struct {
+		Login string `json:"login"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&user) != nil {
+		return ""
+	}
+	return user.Login
+}
+
+// handleAPIv1 wraps contribute API endpoints with GitHub token auth.
+// Accepts Authorization: Bearer <gh-personal-access-token>.
+func (s *Server) handleAPIv1(w http.ResponseWriter, r *http.Request) {
+	token := r.Header.Get("Authorization")
+	if strings.HasPrefix(token, "Bearer ") {
+		token = token[7:]
+	} else if strings.HasPrefix(token, "token ") {
+		token = token[6:]
+	} else {
+		token = r.URL.Query().Get("token")
+	}
+
+	username := validateGitHubToken(token)
+	if username == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":"Invalid or missing GitHub token. Use: Authorization: Bearer <gh-token>"}`))
+		return
+	}
+
+	subpath := strings.TrimPrefix(r.URL.Path, "/api/v1")
+	switch subpath {
+	case "/status":
+		s.handleContributeStatus(w, r)
+	case "/activity":
+		s.handleContributeActivity(w, r)
+	case "/contributors":
+		s.handleContributorsList(w, r)
+	case "/knowledge":
+		s.handleKnowledgeExport(w, r)
+	case "/me":
+		profiles := listContributorProfiles()
+		for _, p := range profiles {
+			if strings.EqualFold(p.GitHubUsername, username) {
+				p.TokenPlain = ""
+				p.RegistrationToken = ""
+				var liveStates map[string]ContributorLiveState
+				if s.contributeHub != nil {
+					liveStates = s.contributeHub.LiveStates()
+				}
+				if ls, ok := liveStates[p.ContributorID]; ok {
+					p.Active = ls.Active
+					p.CurrentTask = ls.CurrentTask
+					p.ActiveTasks = ls.Tasks
+					p.Sessions = ls.Sessions
+				}
+				jsonResponse(w, p)
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"Not registered as a contributor. Run: just contribute-setup"}`))
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"Unknown endpoint","available":["/api/v1/status","/api/v1/activity","/api/v1/contributors","/api/v1/knowledge","/api/v1/me"]}`))
+	}
+}
+
+func (s *Server) handleAPIDocs(w http.ResponseWriter, r *http.Request) {
+	baseURL := "https://" + r.Host
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Hive API</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;padding:40px;max-width:900px;margin:0 auto}
+h1{margin-bottom:8px;font-size:1.8rem}
+.subtitle{color:#8b949e;margin-bottom:32px}
+h2{margin-top:32px;margin-bottom:12px;color:#58a6ff;font-size:1.2rem}
+.endpoint{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin-bottom:12px}
+.method{color:#3fb950;font-weight:bold;margin-right:8px}
+.path{color:#58a6ff;font-family:monospace}
+.desc{color:#8b949e;margin-top:4px;font-size:0.9rem}
+pre{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:12px;overflow-x:auto;font-size:0.85rem;color:#e6edf3}
+code{font-family:'SF Mono',monospace;font-size:0.85rem}
+.token-box{background:#161b22;border:1px solid #f0883e;border-radius:8px;padding:16px;margin:16px 0}
+.token-box h3{color:#f0883e;margin-bottom:8px}
+a{color:#58a6ff}
+</style></head><body>
+<h1>🐝 Hive API</h1>
+<p class="subtitle">Authenticated access to the contributor API</p>
+
+<div class="token-box">
+<h3>Authentication</h3>
+<p>Use your GitHub personal access token (from <code>gh auth token</code>):</p>
+<pre>curl -H "Authorization: Bearer $(gh auth token)" %s/api/v1/status</pre>
+</div>
+
+<h2>Endpoints</h2>
+
+<div class="endpoint">
+<span class="method">GET</span><span class="path">/api/v1/status</span>
+<div class="desc">Hub status — online, active contributors, actionable items</div>
+<pre>curl -H "Authorization: Bearer $TOKEN" %s/api/v1/status</pre>
+</div>
+
+<div class="endpoint">
+<span class="method">GET</span><span class="path">/api/v1/me</span>
+<div class="desc">Your contributor profile — tasks completed, active sessions, current task</div>
+<pre>curl -H "Authorization: Bearer $TOKEN" %s/api/v1/me</pre>
+</div>
+
+<div class="endpoint">
+<span class="method">GET</span><span class="path">/api/v1/contributors</span>
+<div class="desc">All registered contributors with live state</div>
+<pre>curl -H "Authorization: Bearer $TOKEN" %s/api/v1/contributors</pre>
+</div>
+
+<div class="endpoint">
+<span class="method">GET</span><span class="path">/api/v1/activity</span>
+<div class="desc">Live activity feed — joined, left, picked up, completed events</div>
+<pre>curl -H "Authorization: Bearer $TOKEN" %s/api/v1/activity</pre>
+</div>
+
+<div class="endpoint">
+<span class="method">GET</span><span class="path">/api/v1/knowledge</span>
+<div class="desc">Knowledge base export as markdown (used by agent.md)</div>
+<pre>curl -H "Authorization: Bearer $TOKEN" %s/api/v1/knowledge</pre>
+</div>
+
+</body></html>`, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL)
 }
 

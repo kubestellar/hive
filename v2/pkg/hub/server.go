@@ -82,6 +82,7 @@ func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
 	s.mux.HandleFunc("GET /api/registry", s.handleRegistry)
 	s.mux.HandleFunc("GET /api/hub/leaderboard", s.handleLeaderboard)
 	s.mux.HandleFunc("GET /api/hub/stats", s.handleStats)
+	s.mux.HandleFunc("GET /api/hub/version", s.handleHubVersion)
 	s.mux.HandleFunc("GET /learn", s.serveStatic("static/learn.html"))
 	s.mux.HandleFunc("GET /get-started", s.serveStatic("static/get-started.html"))
 	s.mux.HandleFunc("GET /api/docs", s.serveStatic("static/api-docs.html"))
@@ -308,6 +309,15 @@ func (s *HubServer) handleStats(w http.ResponseWriter, r *http.Request) {
 		"contributors": totalContributors,
 		"issues":       totalIssues,
 		"prs":          totalPRs,
+	})
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
+}
+
+func (s *HubServer) handleHubVersion(w http.ResponseWriter, r *http.Request) {
+	data, _ := json.Marshal(map[string]any{
+		"git_hash":   s.hubGitHash,
+		"latest_sha": getLatestSHA(),
 	})
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)

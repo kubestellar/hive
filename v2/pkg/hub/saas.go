@@ -88,7 +88,7 @@ func ensureSaaSUser(username string) *SaaSUser {
 	}
 	quota := 0
 	if username == hubAdminUsername {
-		quota = maxHivesPerUser
+		quota = -1
 	}
 	u = &SaaSUser{
 		GitHubUsername: username,
@@ -201,8 +201,20 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		saveSaaSUser(user)
 	}
 
+	saasCount := 0
+	for _, h := range result {
+		if strings.HasPrefix(h.ID, "saas-") {
+			saasCount++
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"hives": result})
+	json.NewEncoder(w).Encode(map[string]any{
+		"hives":          result,
+		"saas_quota":     user.SaaSQuota,
+		"saas_used":      saasCount,
+		"is_admin":       user.GitHubUsername == hubAdminUsername,
+	})
 }
 
 func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
@@ -218,7 +230,7 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if user.SaaSQuota <= 0 {
+	if user.SaaSQuota == 0 {
 		http.Error(w, `{"error":"no SaaS quota — contact the hub admin to request access"}`, http.StatusForbidden)
 		return
 	}
@@ -240,7 +252,7 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if countUserHives(username) >= user.SaaSQuota {
+	if user.SaaSQuota > 0 && countUserHives(username) >= user.SaaSQuota {
 		http.Error(w, fmt.Sprintf(`{"error":"quota reached — max %d SaaS hives"}`, user.SaaSQuota), http.StatusBadRequest)
 		return
 	}
@@ -429,7 +441,7 @@ const dashboardHTML = `<!DOCTYPE html>
         <h1>My Hives</h1>
         <p class="subtitle">Hive instances you own or have access to</p>
       </div>
-      <button class="btn-primary" id="btn-add-hive" onclick="document.getElementById('create-modal').style.display='flex'">+ Add SaaS Hive</button>
+      <button class="btn-primary" id="btn-add-hive" disabled onclick="document.getElementById('create-modal').style.display='flex'">+ Add Hosted Hive</button>
     </div>
 
     <div id="hives-container"><div class="loading">Loading your hives...</div></div>
@@ -492,6 +504,8 @@ const dashboardHTML = `<!DOCTYPE html>
       } catch(e) {}
     }
 
+    var _userQuota = 0, _userUsed = 0;
+
     async function loadHives() {
       try {
         var resp = await fetch('/api/saas/my-hives');
@@ -500,6 +514,14 @@ const dashboardHTML = `<!DOCTYPE html>
           return;
         }
         var data = await resp.json();
+        _userQuota = data.saas_quota || 0;
+        _userUsed = data.saas_used || 0;
+        var canCreate = _userQuota < 0 || _userQuota > _userUsed;
+        var addBtn = document.getElementById('btn-add-hive');
+        if (addBtn) {
+          addBtn.disabled = !canCreate;
+          addBtn.title = canCreate ? '' : 'No SaaS quota — contact hub admin';
+        }
         renderHives(data.hives || []);
       } catch(e) {
         document.getElementById('hives-container').innerHTML = '<div class="loading">Failed to load hives</div>';
@@ -521,6 +543,10 @@ const dashboardHTML = `<!DOCTYPE html>
         var rp = repoPath(h);
         var repoLink = rp ? '<a href="https://github.com/' + esc(rp) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
         var repoCount = (h.repos || []).length;
+        var isLocal = !h.id || !h.id.startsWith('saas-');
+        var canConvert = isLocal && h.role === 'owner' && (_userQuota < 0 || _userQuota > _userUsed);
+        var convertBtn = canConvert ?
+          '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to SaaS</button>' : '';
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
@@ -535,11 +561,12 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + roleBadge(h.role) + '</td>' +
           '<td>' + dashboardLink(h) + '</td>' +
           '<td>' + snapshotLink(h) + '</td>' +
+          '<td>' + convertBtn + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Hive</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th>' +
+        '<th>#</th><th>Hive</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 
@@ -622,6 +649,15 @@ const dashboardHTML = `<!DOCTYPE html>
       } catch(e) { alert('Error: ' + e.message); }
     }
 
+    function openConvert(btn) {
+      document.getElementById('f-org').value = btn.dataset.org || '';
+      document.getElementById('f-repos').value = btn.dataset.repos || '';
+      document.getElementById('f-primary').value = btn.dataset.primary || '';
+      document.getElementById('f-name').value = btn.dataset.name || '';
+      document.getElementById('f-level').value = btn.dataset.level || '1';
+      document.getElementById('create-modal').style.display = 'flex';
+    }
+
     async function createHive() {
       var org = document.getElementById('f-org').value.trim();
       var repos = document.getElementById('f-repos').value.trim();
@@ -671,7 +707,7 @@ const dashboardHTML = `<!DOCTYPE html>
 
   <div id="create-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:500px;width:90%">
-      <h2 style="font-size:1.3rem;margin-bottom:16px;color:var(--accent)">Create SaaS Hive</h2>
+      <h2 style="font-size:1.3rem;margin-bottom:16px;color:var(--accent)">Create Hosted Hive</h2>
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Organization *</label>
         <input id="f-org" type="text" placeholder="my-org" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">

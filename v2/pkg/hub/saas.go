@@ -111,6 +111,10 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/access", s.requireAuth(s.handleAccessList))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/access", s.requireAuth(s.handleAccessAdd))
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}/access/{username}", s.requireAuth(s.handleAccessRemove))
+	s.mux.HandleFunc("POST /api/saas/hives/{id}/request-access", s.requireAuth(s.handleRequestAccess))
+	s.mux.HandleFunc("GET /api/saas/hives/{id}/requests", s.requireAuth(s.handleGetRequests))
+	s.mux.HandleFunc("POST /api/saas/hives/{id}/requests/{username}/approve", s.requireAuth(s.handleApproveRequest))
+	s.mux.HandleFunc("POST /api/saas/hives/{id}/requests/{username}/deny", s.requireAuth(s.handleDenyRequest))
 	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
 
@@ -701,6 +705,189 @@ func (s *HubServer) handleAccessRemove(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "revoked"})
 }
 
+type AccessRequest struct {
+	Username    string `json:"username"`
+	RequestedAt string `json:"requested_at"`
+	Status      string `json:"status"`
+}
+
+func loadAccessRequests(hiveID string) []AccessRequest {
+	path := filepath.Join(saasHivesDir, hiveID, "requests.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var reqs []AccessRequest
+	json.Unmarshal(data, &reqs)
+	return reqs
+}
+
+func saveAccessRequests(hiveID string, reqs []AccessRequest) {
+	dir := filepath.Join(saasHivesDir, hiveID)
+	os.MkdirAll(dir, 0o755)
+	data, _ := json.MarshalIndent(reqs, "", "  ")
+	os.WriteFile(filepath.Join(dir, "requests.json"), data, 0o644)
+}
+
+func (s *HubServer) handleRequestAccess(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("id")
+	username := s.getAuthUser(r)
+
+	h := loadSaaSHive(hiveID)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+
+	user := loadSaaSUser(username)
+	if user != nil {
+		if _, ok := user.Hives[hiveID]; ok {
+			http.Error(w, `{"error":"you already have access"}`, http.StatusBadRequest)
+			return
+		}
+	}
+
+	reqs := loadAccessRequests(hiveID)
+	for _, req := range reqs {
+		if req.Username == username && req.Status == "pending" {
+			http.Error(w, `{"error":"request already pending"}`, http.StatusBadRequest)
+			return
+		}
+	}
+
+	reqs = append(reqs, AccessRequest{
+		Username:    username,
+		RequestedAt: time.Now().UTC().Format(time.RFC3339),
+		Status:      "pending",
+	})
+	saveAccessRequests(hiveID, reqs)
+
+	s.logger.Info("audit: access requested", "hive", hiveID, "by", username)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "requested"})
+}
+
+func (s *HubServer) handleGetRequests(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("id")
+	username := s.getAuthUser(r)
+
+	h := loadSaaSHive(hiveID)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+
+	user := loadSaaSUser(username)
+	if user == nil {
+		http.Error(w, `{"error":"not authorized"}`, http.StatusForbidden)
+		return
+	}
+	role := user.Hives[hiveID]
+	if role != "owner" && role != "read-write" && username != hubAdminUsername {
+		http.Error(w, `{"error":"need owner or read-write access"}`, http.StatusForbidden)
+		return
+	}
+
+	reqs := loadAccessRequests(hiveID)
+	pending := make([]AccessRequest, 0)
+	for _, req := range reqs {
+		if req.Status == "pending" {
+			pending = append(pending, req)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"requests": pending})
+}
+
+func (s *HubServer) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("id")
+	targetUsername := r.PathValue("username")
+	approver := s.getAuthUser(r)
+
+	h := loadSaaSHive(hiveID)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+
+	approverUser := loadSaaSUser(approver)
+	if approverUser == nil {
+		http.Error(w, `{"error":"not authorized"}`, http.StatusForbidden)
+		return
+	}
+	approverRole := approverUser.Hives[hiveID]
+	if approverRole != "owner" && approverRole != "read-write" && approver != hubAdminUsername {
+		http.Error(w, `{"error":"need owner or read-write access"}`, http.StatusForbidden)
+		return
+	}
+
+	var body struct {
+		Role string `json:"role"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	if body.Role == "" {
+		body.Role = "read"
+	}
+
+	roleRank := map[string]int{"read": 1, "read-write": 2, "owner": 3}
+	if approver != hubAdminUsername && roleRank[body.Role] > roleRank[approverRole] {
+		http.Error(w, `{"error":"cannot grant a role higher than your own"}`, http.StatusForbidden)
+		return
+	}
+
+	target := ensureSaaSUser(targetUsername)
+	target.Hives[hiveID] = body.Role
+	saveSaaSUser(target)
+
+	reqs := loadAccessRequests(hiveID)
+	for i := range reqs {
+		if reqs[i].Username == targetUsername && reqs[i].Status == "pending" {
+			reqs[i].Status = "approved"
+		}
+	}
+	saveAccessRequests(hiveID, reqs)
+
+	s.logger.Info("audit: access request approved", "hive", hiveID, "target", targetUsername, "role", body.Role, "by", approver)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "approved"})
+}
+
+func (s *HubServer) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("id")
+	targetUsername := r.PathValue("username")
+	denier := s.getAuthUser(r)
+
+	h := loadSaaSHive(hiveID)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+
+	denierUser := loadSaaSUser(denier)
+	if denierUser == nil {
+		http.Error(w, `{"error":"not authorized"}`, http.StatusForbidden)
+		return
+	}
+	denierRole := denierUser.Hives[hiveID]
+	if denierRole != "owner" && denierRole != "read-write" && denier != hubAdminUsername {
+		http.Error(w, `{"error":"need owner or read-write access"}`, http.StatusForbidden)
+		return
+	}
+
+	reqs := loadAccessRequests(hiveID)
+	for i := range reqs {
+		if reqs[i].Username == targetUsername && reqs[i].Status == "pending" {
+			reqs[i].Status = "denied"
+		}
+	}
+	saveAccessRequests(hiveID, reqs)
+
+	s.logger.Info("audit: access request denied", "hive", hiveID, "target", targetUsername, "by", denier)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "denied"})
+}
+
 func (s *HubServer) handleUserToken(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		HiveID   string `json:"hive_id"`
@@ -864,11 +1051,11 @@ const dashboardHTML = `<!DOCTYPE html>
     .content { max-width: 1600px; margin: 0 auto; padding: 80px 24px 48px; }
     h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .subtitle { color: var(--muted); margin-bottom: 32px; }
-    .table-wrap { overflow-x: auto; margin: 0 auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border) transparent; -webkit-mask-image: linear-gradient(to right, #000 95%, transparent 100%); mask-image: linear-gradient(to right, #000 95%, transparent 100%); }
-    .table-wrap::-webkit-scrollbar { height: 6px; }
-    .table-wrap::-webkit-scrollbar-track { background: transparent; }
-    .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    .table-wrap:hover { -webkit-mask-image: none; mask-image: none; }
+    .table-wrap { overflow-x: auto; margin: 0 auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .table-wrap::-webkit-scrollbar { height: 8px; }
+    .table-wrap::-webkit-scrollbar-track { background: var(--surface); border-radius: 4px; }
+    .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .table-wrap::-webkit-scrollbar-thumb:hover { background: var(--muted); }
     .hive-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .hive-table th { text-align: center; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.05em; }
     .hive-table td { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; text-align: center; }
@@ -1356,6 +1543,10 @@ const dashboardHTML = `<!DOCTYPE html>
       <h2 style="font-size:1.3rem;margin-bottom:16px;color:var(--accent)">Manage Access</h2>
       <p style="font-size:0.8rem;color:var(--muted);margin-bottom:16px" id="access-hive-label"></p>
       <div id="access-list"><div class="loading">Loading...</div></div>
+      <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+        <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--accent)">Pending Requests</h3>
+        <div id="pending-requests"><span style="color:var(--muted);font-size:0.8rem">Loading...</span></div>
+      </div>
       <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
         <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--text)">Add User</h3>
         <div style="display:flex;gap:8px">
@@ -1383,6 +1574,47 @@ const dashboardHTML = `<!DOCTYPE html>
       document.getElementById('access-modal').style.display = 'flex';
       await loadAccessList();
       await loadAccessUserDropdown();
+      await loadPendingRequests();
+    }
+
+    async function loadPendingRequests() {
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/requests');
+        if (!resp.ok) return;
+        var data = await resp.json();
+        var reqs = data.requests || [];
+        var el = document.getElementById('pending-requests');
+        if (!el) return;
+        if (!reqs.length) { el.innerHTML = '<span style="color:var(--muted);font-size:0.8rem">No pending requests</span>'; return; }
+        el.innerHTML = reqs.map(function(r) {
+          var avatar = '<img src="https://github.com/' + esc(r.username) + '.png" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px">';
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">' +
+            '<div>' + avatar + '<span style="font-size:0.85rem">' + esc(r.username) + '</span> <span style="font-size:0.7rem;color:var(--muted)">' + esc(r.requested_at.substring(0,10)) + '</span></div>' +
+            '<div style="display:flex;gap:4px">' +
+            '<select id="req-role-' + esc(r.username) + '" style="padding:2px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.7rem"><option value="read">Read</option><option value="read-write">Read-Write</option></select>' +
+            '<button onclick="approveRequest(\'' + esc(r.username) + '\')" style="padding:2px 8px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem">Approve</button>' +
+            '<button onclick="denyRequest(\'' + esc(r.username) + '\')" style="padding:2px 8px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem">Deny</button>' +
+            '</div></div>';
+        }).join('');
+      } catch(e) {}
+    }
+
+    async function approveRequest(username) {
+      var role = (document.getElementById('req-role-' + username) || {}).value || 'read';
+      try {
+        await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/requests/' + encodeURIComponent(username) + '/approve', {
+          method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({role: role})
+        });
+        loadPendingRequests();
+        loadAccessList();
+      } catch(e) { alert('Error: ' + e.message); }
+    }
+
+    async function denyRequest(username) {
+      try {
+        await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/requests/' + encodeURIComponent(username) + '/deny', {method: 'POST'});
+        loadPendingRequests();
+      } catch(e) { alert('Error: ' + e.message); }
     }
 
     async function loadAccessUserDropdown() {

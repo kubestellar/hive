@@ -184,7 +184,7 @@
 
     function renderStats(hives) {
       var agents = 0, contributors = 0, online = 0;
-      hives.forEach(function(h) { agents += h.agentCount || 0; contributors += h.contributorCount || 0; if (h.online) online++; });
+      hives.forEach(function(h) { agents += h.agentCount || 0; contributors += h.activeContributors || 0; if (h.online) online++; });
       document.getElementById('hero-stats').innerHTML =
         '<span>' + online + '/' + hives.length + ' hives online</span>' +
         '<span class="dot"></span><span>' + agents + ' agents running</span>' +
@@ -199,22 +199,24 @@
         var link = h.snapshotUrl ? '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="repo-link">live</a>' : '';
         var repoPath = h.org && h.primaryRepo ? h.org + '/' + h.primaryRepo : h.primaryRepo || '';
         var repoLink = repoPath ? '<a href="https://github.com/' + esc(repoPath) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
+        var repoCount = (h.repos || []).length;
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
           '<td>' + repoLink + '</td>' +
+          '<td>' + repoCount + '</td>' +
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
           '<td>' + (h.agentCount || 0) + '</td>' +
           '<td>' + modeBadge(h.governorMode) + '</td>' +
           '<td>' + (h.actionableIssues || 0) + '</td>' +
           '<td>' + (h.actionablePRs || 0) + '</td>' +
-          '<td>' + (h.contributorCount || 0) + '</td>' +
+          '<td>' + (h.activeContributors || 0) + '</td>' +
           '<td>' + link + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('hive-table-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Hive</th><th>Repo</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Links</th>' +
+        '<th>#</th><th>Hive</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Links</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 

@@ -99,13 +99,18 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 	}
 
 	inceptionBeads := w.findInceptionBeads()
-	if len(inceptionBeads) == 0 {
-		return
-	}
 
 	switch state.Phase {
 	case knowledge.PhaseCapture:
-		w.checkForQuestions(inceptionBeads)
+		if len(inceptionBeads) > 0 {
+			w.checkForQuestions(inceptionBeads)
+		}
+		// Fallback: if beads aren't appearing, parse questions from the
+		// agent's tmux output. The model always produces a question table
+		// even when it doesn't execute bd create commands.
+		if state.Phase == knowledge.PhaseCapture && w.agentMgr != nil {
+			w.checkForQuestionsInOutput()
+		}
 	case knowledge.PhaseStructure:
 		// Check for fact beads — already filtered by StartedAt in
 		// findInceptionBeads. User answers gate the phase transition
@@ -232,6 +237,141 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 	w.logger.Info("inception watcher: questions extracted, advancing to clarify",
 		"count", len(questions),
 	)
+}
+
+const outputParseLineCount = 100
+
+// checkForQuestionsInOutput reads the brainstorm agent's tmux output buffer
+// and parses question tables. The model always produces a formatted table of
+// questions (with │ delimiters) even when bd create doesn't execute. This
+// catches the ~30% of cases where beads aren't created but questions exist.
+func (w *InceptionWatcher) checkForQuestionsInOutput() {
+	lines, err := w.agentMgr.GetBufferOutput("brainstorm", outputParseLineCount)
+	if err != nil || len(lines) == 0 {
+		return
+	}
+
+	questions := parseQuestionTable(lines)
+	if len(questions) < minQuestionsForAdvance {
+		return
+	}
+	if len(questions) == w.lastQuestionCount {
+		return
+	}
+	w.lastQuestionCount = len(questions)
+
+	if err := w.inception.SetQuestions(questions); err != nil {
+		w.logger.Warn("inception watcher: failed to set questions from output parse", "error", err, "count", len(questions))
+		return
+	}
+
+	w.logger.Info("inception watcher: questions extracted from agent output (table parse)",
+		"count", len(questions),
+	)
+}
+
+// parseQuestionTable extracts questions from the agent's formatted table output.
+// The table uses │ as column delimiters with columns: #/Bead, Category, Question, Default.
+func parseQuestionTable(lines []string) []knowledge.Question {
+	var questions []knowledge.Question
+	seen := make(map[string]bool)
+
+	var currentCat, currentQuestion, currentDefault string
+	inTable := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Detect table borders
+		if strings.HasPrefix(trimmed, "┌") || strings.HasPrefix(trimmed, "├") {
+			inTable = true
+			continue
+		}
+		if strings.HasPrefix(trimmed, "└") {
+			// End of table section — flush current question
+			if currentCat != "" && currentQuestion != "" {
+				key := currentCat + ":" + currentQuestion
+				if !seen[key] {
+					seen[key] = true
+					questions = append(questions, knowledge.Question{
+						ID:       currentCat,
+						Text:     strings.TrimSpace(currentQuestion),
+						Default:  strings.TrimSpace(currentDefault),
+						Category: currentCat,
+					})
+				}
+			}
+			currentCat = ""
+			currentQuestion = ""
+			currentDefault = ""
+			inTable = false
+			continue
+		}
+
+		if !inTable || !strings.Contains(trimmed, "│") {
+			continue
+		}
+
+		// Parse table row: │ col1 │ col2 │ col3 │ col4 │
+		cols := strings.Split(trimmed, "│")
+		if len(cols) < 4 {
+			continue
+		}
+
+		// Strip empty first/last elements from leading/trailing │
+		var cleaned []string
+		for _, c := range cols {
+			c = strings.TrimSpace(c)
+			if c != "" {
+				cleaned = append(cleaned, c)
+			}
+		}
+
+		if len(cleaned) < 3 {
+			// Continuation row — append to current question/default
+			if len(cleaned) >= 2 {
+				currentQuestion += " " + cleaned[0]
+				currentDefault += " " + cleaned[1]
+			} else if len(cleaned) == 1 {
+				currentQuestion += " " + cleaned[0]
+			}
+			continue
+		}
+
+		// New row with category — flush previous
+		if currentCat != "" && currentQuestion != "" {
+			key := currentCat + ":" + currentQuestion
+			if !seen[key] {
+				seen[key] = true
+				questions = append(questions, knowledge.Question{
+					ID:       currentCat,
+					Text:     strings.TrimSpace(currentQuestion),
+					Default:  strings.TrimSpace(currentDefault),
+					Category: currentCat,
+				})
+			}
+		}
+
+		// Skip header row
+		cat := strings.TrimSpace(cleaned[1])
+		if cat == "Category" || cat == "" {
+			currentCat = ""
+			currentQuestion = ""
+			currentDefault = ""
+			continue
+		}
+
+		// Start new question
+		currentCat = cat
+		currentQuestion = cleaned[2]
+		if len(cleaned) >= 4 {
+			currentDefault = cleaned[3]
+		} else {
+			currentDefault = ""
+		}
+	}
+
+	return questions
 }
 
 func (w *InceptionWatcher) checkForFacts(ctx context.Context, inceptionBeads []*beads.Bead) {

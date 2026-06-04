@@ -159,8 +159,8 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 		"ACMMLevel":      h.ACMMLevel,
 		"Token":          req.GitHubToken,
 		"UseApp":         useApp,
-		"AppID":          req.AppID,
-		"InstallationID": req.InstallationID,
+		"AppID":          sanitize(req.AppID),
+		"InstallationID": sanitize(req.InstallationID),
 		"AppPrivateKey": func() string {
 			lines := strings.Split(strings.TrimSpace(req.AppPrivateKey), "\n")
 			for i := range lines {

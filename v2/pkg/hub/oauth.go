@@ -142,10 +142,12 @@ func (s *HubServer) handleAuthUser(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"authenticated":false}`))
 		return
 	}
+	isAdmin := cookie.Value == hubAdminUsername
 	data, _ := json.Marshal(map[string]any{
 		"authenticated": true,
 		"login":         cookie.Value,
 		"avatar_url":    fmt.Sprintf("https://github.com/%s.png", cookie.Value),
+		"hub_admin":     isAdmin,
 	})
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)

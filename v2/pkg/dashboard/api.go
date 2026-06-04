@@ -3282,6 +3282,10 @@ func (s *Server) handleBeadsReset(w http.ResponseWriter, r *http.Request) {
 	if err := decodeBody(r, &body); err != nil {
 		body.Reason = "manual reset via API"
 	}
+	body.Reason = sanitizeString(body.Reason)
+	if body.Reason == "" {
+		body.Reason = "manual reset via API"
+	}
 
 	results := make(map[string]int)
 	for name, store := range s.deps.BeadStores {
@@ -3314,6 +3318,10 @@ func (s *Server) handleBeadsResetAgent(w http.ResponseWriter, r *http.Request) {
 		Reason string `json:"reason"`
 	}
 	if err := decodeBody(r, &body); err != nil {
+		body.Reason = "manual reset via API"
+	}
+	body.Reason = sanitizeString(body.Reason)
+	if body.Reason == "" {
 		body.Reason = "manual reset via API"
 	}
 

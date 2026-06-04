@@ -132,8 +132,14 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		Version:            payload.Version,
 		GitHash:            payload.GitHash,
 		Agents:             payload.Agents,
-		Leaderboard:        payload.Leaderboard,
-		Online:             true,
+		Leaderboard: func() []LeaderboardEntry {
+			hiveName := payload.Org + "/" + payload.PrimaryRepo
+			for i := range payload.Leaderboard {
+				payload.Leaderboard[i].HiveName = hiveName
+			}
+			return payload.Leaderboard
+		}(),
+		Online: true,
 	}
 
 	s.mu.Lock()

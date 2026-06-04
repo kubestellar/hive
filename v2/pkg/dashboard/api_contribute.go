@@ -773,6 +773,8 @@ type LeaderboardEntry struct {
 	TasksCompleted int    `json:"tasks_completed"`
 	TasksFailed    int    `json:"tasks_failed"`
 	RegisteredAt   string `json:"registered_at"`
+	Active         bool   `json:"active,omitempty"`
+	CurrentTask    string `json:"current_task,omitempty"`
 }
 
 // buildLeaderboard loads all contributor profiles, sorts by tasks completed
@@ -822,7 +824,26 @@ func (s *Server) ContributorSummary() (registered, active int) {
 }
 
 func (s *Server) LeaderboardForHub() []LeaderboardEntry {
-	return buildLeaderboard()
+	entries := buildLeaderboard()
+	if s.contributeHub != nil {
+		liveStates := s.contributeHub.LiveStates()
+		profiles := listContributorProfiles()
+		liveByUsername := make(map[string]ContributorLiveState)
+		for _, p := range profiles {
+			if ls, ok := liveStates[p.ContributorID]; ok {
+				liveByUsername[p.GitHubUsername] = ls
+			}
+		}
+		for i := range entries {
+			if ls, ok := liveByUsername[entries[i].GitHubUsername]; ok {
+				entries[i].Active = ls.Active
+				if ls.CurrentTask != nil {
+					entries[i].CurrentTask = ls.CurrentTask.Title
+				}
+			}
+		}
+	}
+	return entries
 }
 
 // trustTierColor maps trust tiers to CSS colour values for badges.

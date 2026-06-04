@@ -255,6 +255,25 @@ function startProgressReporting() {
   progressInterval = setInterval(() => {
     if (!currentTask) return;
     if (Date.now() - taskAssignedAt < TASK_GRACE_PERIOD_MS) return;
+
+    try {
+      const procs = execSync(
+        `for p in /proc/[0-9]*/cmdline; do tr "\\0" " " < "$p" 2>/dev/null; done`,
+        { encoding: 'utf8', timeout: 5000 }
+      );
+      const cliAlive = procs.includes(BACKEND) || procs.includes('claude') || procs.includes('copilot') || procs.includes('gemini');
+      if (!cliAlive) {
+        console.error(`CLI process (${BACKEND}) died — reporting task as failed`);
+        send({ type: 'task_failed', seq: nextSeq(), task_id: currentTask.task_id, reason: 'CLI process exited' });
+        currentTask = null;
+        taskAssignedAt = 0;
+        clearInterval(progressInterval);
+        progressInterval = null;
+        send({ type: 'ready', seq: nextSeq() });
+        return;
+      }
+    } catch (_) {}
+
     const idle = checkTmuxIdle();
     const tmuxLines = captureTmuxLines(TMUX_TAIL_LINES);
     if (idle) {

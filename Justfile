@@ -56,9 +56,18 @@ contribute-setup backend="claude":
     CID=$(echo "$RESPONSE" | jq -r '.contributor_id')
     MSG=$(echo "$RESPONSE" | jq -r '.message')
     if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
-      echo "ERROR: ${MSG:-No token received}"
-      exit 1
-    fi
+      if echo "$MSG" | grep -qi "already registered"; then
+        if [[ -f "{{config_dir}}/contributor.env" ]]; then
+          source "{{config_dir}}/contributor.env"
+          echo "Already registered — ${GH_USER} (${CONTRIBUTOR_ID:-unknown})"
+        else
+          echo "ERROR: Already registered but no local config found."
+          exit 1
+        fi
+      else
+        echo "ERROR: ${MSG:-No token received}"
+        exit 1
+      fi
     cat > "{{config_dir}}/contributor.env" <<EOF
     HIVE_REGISTRATION_TOKEN=${TOKEN}
     HIVE_HUB={{hive_hub}}

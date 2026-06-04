@@ -643,8 +643,8 @@ func main() {
 	// resume and send inception kick via SendKick. Otherwise start paused.
 	if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
 		msg := sched.BuildAgentMessage("brainstorm", nil, nil)
-		if err := agentMgr.RestartThenSendKick(ctx, "brainstorm", msg); err != nil {
-			logger.Warn("inception RestartThenSendKick on startup failed", "error", err)
+		if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
+			logger.Warn("failed to resume brainstorm for active inception", "error", err)
 		} else {
 			logger.Info("brainstorm resumed for active inception", "phase", state.Phase)
 		}
@@ -954,13 +954,14 @@ func main() {
 			restarted := agentMgr.CheckAndRestartCrashedAgents(ctx)
 			// If brainstorm crashed during inception, re-kick via SendKick.
 			// SendKick waits for the CLI to be ready and sends the message
-			// reliably, unlike RestartWithBootstrap which depends on $(cat file).
+			// If brainstorm crashed during inception, re-kick with bootstrap.
+			// The table parser in the watcher will catch questions from the
+			// agent's output even if bd create doesn't execute.
 			for _, name := range restarted {
 				if name == "brainstorm" && inceptionEngine != nil {
 					if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
 						msg := sched.BuildAgentMessage("brainstorm", nil, sched.GetLastActionable())
-						// Agent just crashed and was restarted — SendKick to the fresh CLI.
-						if err := agentMgr.SendKick("brainstorm", msg); err != nil {
+						if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
 							logger.Warn("inception re-kick after crash failed", "error", err)
 						} else {
 							logger.Info("brainstorm re-kicked after crash", "phase", state.Phase)

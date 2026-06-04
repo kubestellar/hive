@@ -377,18 +377,13 @@ func (s *Server) kickBrainstorm() {
 		return
 	}
 	go func() {
+		// RestartWithBootstrap: atomic set override + restart gives a clean
+		// slate with the inception prompt as the bootstrap message. The table
+		// parser in the watcher catches cases where the agent produces a
+		// question table but doesn't execute bd create.
 		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
-
-		// RestartThenSendKick: restart for clean slate (no stale context),
-		// wait for CLI ready, then SendKick for reliable prompt delivery.
-		// This avoids both problems:
-		//   - RestartWithBootstrap's fragile $(cat file) shell expansion
-		//   - SendKick-only's stale conversation context from previous kicks
-		if err := s.deps.AgentMgr.RestartThenSendKick(s.deps.Ctx, "brainstorm", msg); err != nil {
-			s.logger.Warn("inception RestartThenSendKick failed, trying RestartWithBootstrap", "error", err)
-			if err2 := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err2 != nil {
-				s.logger.Error("inception kick failed (all attempts)", "error", err2)
-			}
+		if err := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err != nil {
+			s.logger.Warn("failed to restart brainstorm for inception", "error", err)
 		}
 
 		if s.deps.Governor != nil {

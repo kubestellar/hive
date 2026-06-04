@@ -336,10 +336,11 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <label style="font-size:.9rem;color:#8b949e">Choose your CLI:</label>
 <select id="cli-select" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.9rem;cursor:pointer">
 <option value="claude" data-install="npm i -g @anthropic-ai/claude-code">Claude Code</option>
-<option value="copilot" data-install="gh extension install github/gh-copilot">GitHub Copilot</option>
-<option value="gemini" data-install="npm i -g @anthropic-ai/gemini-cli">Gemini CLI</option>
-<option value="bob" data-install="npm i -g @anthropic-ai/bob">Bob</option>
-<option value="goose" data-install="pip install goose-ai">Goose</option>
+<option value="copilot" data-install="npm i -g @github/copilot">GitHub Copilot</option>
+<option value="goose" data-install="brew install block-goose-cli">Goose (Block)</option>
+<option value="codex" data-install="npm i -g @openai/codex">OpenAI Codex</option>
+<option value="agy" data-install="npm i -g agy">Agy</option>
+<option value="bob" data-install="npm i -g bobshell">Bob (IBM)</option>
 </select>
 </div>
 <ol>
@@ -362,13 +363,14 @@ var cmds=document.getElementById('copy-cmds');
 var installCmd=document.getElementById('install-cmd');
 var stepCli=document.getElementById('step-cli');
 var hubURL='%s';
-var tpl='brew install just gh\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
+var base='brew install just gh\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
+var extras={goose:'\n# Optional: set provider/model (default: ollama/phi4)\n# export GOOSE_PROVIDER=anthropic  # or openai, ollama\n# export GOOSE_MODEL=claude-sonnet-4-6\n# export ANTHROPIC_API_KEY=sk-ant-...',codex:'\n# Requires OpenAI API key\nexport OPENAI_API_KEY=sk-...',claude:'\n# Uses your Claude subscription or API key\n# export ANTHROPIC_API_KEY=sk-ant-...  # optional if using /login'};
 function update(){
 var cli=sel.value;
 var opt=sel.options[sel.selectedIndex];
 installCmd.textContent=opt.getAttribute('data-install');
 stepCli.textContent=cli;
-cmds.textContent=tpl.replace('CLI',cli);
+cmds.textContent=base.replace('CLI',cli)+(extras[cli]||'');
 }
 sel.addEventListener('change',update);
 document.getElementById('copy-btn').addEventListener('click',function(){

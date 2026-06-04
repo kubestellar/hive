@@ -275,11 +275,10 @@
       });
       if (!orgs.length) return;
       var imgs = orgs.map(function(o) { return '<img src="https://github.com/' + esc(o) + '.png" alt="' + esc(o) + '" title="' + esc(o) + '">'; });
-      var set = imgs.join('');
-      var repeats = Math.max(6, Math.ceil(20 / orgs.length));
-      var track = '';
-      for (var r = 0; r < repeats; r++) track += set;
-      document.getElementById('ticker').innerHTML = '<div class="ticker-track">' + track + '</div>';
+      var perSet = Math.max(1, Math.ceil(16 / orgs.length));
+      var oneSet = '';
+      for (var p = 0; p < perSet; p++) oneSet += imgs.join('');
+      document.getElementById('ticker').innerHTML = '<div class="ticker-track">' + oneSet + oneSet + '</div>';
     }
 
     loadRegistry();

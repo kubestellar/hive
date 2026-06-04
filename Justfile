@@ -63,6 +63,7 @@ contribute-setup backend="claude":
     HIVE_REGISTRATION_TOKEN=${TOKEN}
     HIVE_HUB={{hive_hub}}
     CONTRIBUTOR_ID=${CID}
+    CONTRIBUTOR_USERNAME=${GH_USER}
     AGENT_BACKEND={{backend}}
     EOF
     echo "${MSG} — ${GH_USER} (${CID})"

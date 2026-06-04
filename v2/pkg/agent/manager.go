@@ -2113,6 +2113,32 @@ func (m *Manager) RestartWithBootstrap(ctx context.Context, name, prompt string)
 	return m.launchInTmux(ctx, agent)
 }
 
+// RestartThenSendKick restarts the agent with a clean slate (no bootstrap
+// override), waits for the CLI to become ready, then delivers the message
+// via SendKick. This combines the clean-context benefit of restart with
+// the reliable prompt-waited delivery of SendKick — avoiding the fragile
+// $(cat file) shell expansion that RestartWithBootstrap uses.
+func (m *Manager) RestartThenSendKick(ctx context.Context, name, message string) error {
+	// Step 1: Restart with NO bootstrap override — clean slate launch.
+	if err := m.Restart(ctx, name); err != nil {
+		return fmt.Errorf("restart failed: %w", err)
+	}
+
+	// Step 2: Wait for CLI to be ready (input prompt visible).
+	m.mu.RLock()
+	agent, ok := m.agents[name]
+	m.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("agent %s not found after restart", name)
+	}
+	if !m.waitForCLIReadyForAgent(agent) {
+		return fmt.Errorf("agent %s CLI not ready after restart", name)
+	}
+
+	// Step 3: Send the message via SendKick — waits for prompt, chunks reliably.
+	return m.SendKick(name, message)
+}
+
 func (m *Manager) Restart(ctx context.Context, name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

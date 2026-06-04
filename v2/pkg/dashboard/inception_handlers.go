@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
@@ -373,8 +372,6 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]interface{}{"ok": true, "imported": imported})
 }
 
-const inceptionKickRetryDelay = 5 * time.Second
-
 func (s *Server) kickBrainstorm() {
 	if s.deps.AgentMgr == nil || s.deps.Scheduler == nil {
 		return
@@ -382,23 +379,15 @@ func (s *Server) kickBrainstorm() {
 	go func() {
 		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
 
-		// Ensure brainstorm is running (it starts paused for on-demand).
-		// Resume launches the CLI if needed so SendKick has a target.
-		if err := s.deps.AgentMgr.Resume(s.deps.Ctx, "brainstorm", "inception", "inception kick"); err != nil {
-			s.logger.Debug("brainstorm resume before kick", "error", err)
-		}
-
-		// Use SendKick: waits for input prompt, clears stale input,
-		// sends message in chunks. More reliable than RestartWithBootstrap
-		// which depends on $(cat file) shell expansion in a fresh tmux session.
-		if err := s.deps.AgentMgr.SendKick("brainstorm", msg); err != nil {
-			s.logger.Warn("inception SendKick failed, retrying", "error", err)
-			time.Sleep(inceptionKickRetryDelay)
-			if err2 := s.deps.AgentMgr.SendKick("brainstorm", msg); err2 != nil {
-				s.logger.Warn("inception SendKick retry failed, falling back to RestartWithBootstrap", "error", err2)
-				if err3 := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err3 != nil {
-					s.logger.Error("inception kick failed (all attempts)", "error", err3)
-				}
+		// RestartThenSendKick: restart for clean slate (no stale context),
+		// wait for CLI ready, then SendKick for reliable prompt delivery.
+		// This avoids both problems:
+		//   - RestartWithBootstrap's fragile $(cat file) shell expansion
+		//   - SendKick-only's stale conversation context from previous kicks
+		if err := s.deps.AgentMgr.RestartThenSendKick(s.deps.Ctx, "brainstorm", msg); err != nil {
+			s.logger.Warn("inception RestartThenSendKick failed, trying RestartWithBootstrap", "error", err)
+			if err2 := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err2 != nil {
+				s.logger.Error("inception kick failed (all attempts)", "error", err2)
 			}
 		}
 

@@ -159,7 +159,18 @@
     }
 
     function modeBadge(mode) {
-      return '<span class="mode-badge mode-' + (mode || 'idle') + '">' + esc(mode || 'idle') + '</span>';
+      var m = (mode || 'idle').toUpperCase();
+      var levels = {IDLE:0, QUIET:1, BUSY:2, SURGE:3};
+      var colors = {IDLE:'#6b7280', QUIET:'#3b82f6', BUSY:'#f59e0b', SURGE:'#ef4444'};
+      var fill = levels[m] !== undefined ? levels[m] : 0;
+      var c = colors[m] || '#6b7280';
+      var bars = '';
+      for (var i = 0; i < 4; i++) {
+        var h = 6 + i * 4;
+        var bc = i <= fill ? c : '#1e1e2e';
+        bars += '<rect x="' + (i * 6) + '" y="' + (20 - h) + '" width="4" height="' + h + '" rx="1" fill="' + bc + '"/>';
+      }
+      return '<span title="' + m + '" style="display:inline-flex;align-items:center;gap:4px"><svg width="24" height="20" viewBox="0 0 24 20">' + bars + '</svg><span style="font-size:0.7rem;color:' + c + ';font-weight:600">' + m + '</span></span>';
     }
 
     function sparkSvg(values, color) {
@@ -214,7 +225,7 @@
           : '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:600;background:rgba(107,114,128,0.15);color:#9ca3af;border:1px solid rgba(107,114,128,0.3)" title="Self-hosted by the owner">local</span>';
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
-          '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
+          '<td style="display:flex;align-items:center;gap:10px"><img src="https://github.com/' + esc(h.org) + '.png" style="width:36px;height:36px;border-radius:6px;flex-shrink:0" onerror="this.style.display=\'none\'">' + dot + '<div><span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></div></td>' +
           '<td>' + htype + '</td>' +
           '<td>' + repoLink + '</td>' +
           '<td>' + repoCount + '</td>' +

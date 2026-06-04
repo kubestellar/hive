@@ -271,8 +271,18 @@ function startProgressReporting() {
       );
       const cliAlive = procs.includes(BACKEND) || procs.includes('claude') || procs.includes('copilot') || procs.includes('gemini');
       if (!cliAlive) {
-        console.error(`CLI process (${BACKEND}) died — reporting task as failed`);
-        send({ type: 'task_failed', seq: nextSeq(), task_id: currentTask.task_id, reason: 'CLI process exited' });
+        console.error(`CLI process (${BACKEND}) died — restarting and reporting task as failed`);
+        try {
+          const CMD = execSync(`bash -c 'source /usr/local/etc/hive/backends.conf 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
+          const PERM = execSync(`bash -c 'source /usr/local/etc/hive/backends.conf 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
+          execSync(`tmux send-keys -t ${TMUX_SESSION} '${CMD} ${PERM}' Enter`, { timeout: 5000 });
+          console.log(`CLI restarted: ${CMD} ${PERM}`);
+          cliReady = false;
+          waitForCLI().then(() => { cliReady = true; }).catch(() => {});
+        } catch (e) {
+          console.error('Failed to restart CLI:', e.message);
+        }
+        send({ type: 'task_failed', seq: nextSeq(), task_id: currentTask.task_id, reason: 'CLI process exited — restarted' });
         currentTask = null;
         taskAssignedAt = 0;
         clearInterval(progressInterval);

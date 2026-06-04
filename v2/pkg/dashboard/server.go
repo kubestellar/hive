@@ -18,6 +18,7 @@ import (
 var staticFS embed.FS
 
 const agentSkipAfterFullBroadcastS = 5 * time.Second
+const maxSSEClients = 100
 
 type Server struct {
 	port       int
@@ -442,6 +443,11 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 	ch := make(chan []byte, 16)
 	s.sseMu.Lock()
+	if len(s.sseClients) >= maxSSEClients {
+		s.sseMu.Unlock()
+		http.Error(w, "too many SSE connections", http.StatusServiceUnavailable)
+		return
+	}
 	s.sseClients[ch] = struct{}{}
 	s.sseMu.Unlock()
 

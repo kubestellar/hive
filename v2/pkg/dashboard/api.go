@@ -2866,15 +2866,8 @@ func (s *Server) handleObsidianSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bodyBytes, readErr := io.ReadAll(r.Body)
-	if readErr != nil {
-		s.logger.Warn("obsidian sync: failed to read body", "error", readErr)
-		jsonError(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-
 	var req knowledge.ObsidianSyncRequest
-	if err := json.Unmarshal(bodyBytes, &req); err != nil {
+	if err := decodeBody(r, &req); err != nil {
 		s.logger.Warn("obsidian sync: json decode failed", "error", err)
 		jsonError(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
 		return

@@ -216,6 +216,18 @@
     }
 
     var _allMainHives = [];
+    var _mainSortKey = '', _mainSortAsc = true;
+
+    function sortMainHives(key) {
+      if (_mainSortKey === key) { _mainSortAsc = !_mainSortAsc; } else { _mainSortKey = key; _mainSortAsc = true; }
+      var sorted = _allMainHives.slice().sort(function(a, b) {
+        var va = a[key] || '', vb = b[key] || '';
+        if (typeof va === 'number' && typeof vb === 'number') return _mainSortAsc ? va - vb : vb - va;
+        return _mainSortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+      });
+      renderHives(sorted);
+    }
+
     function filterHiveTable() {
       var q = (document.getElementById('hive-search').value || '').toLowerCase();
       if (!q) { renderHives(_allMainHives); return; }
@@ -230,7 +242,7 @@
       if (!pub.length) { document.getElementById('hive-table-container').innerHTML = '<div class="loading">No public hives registered yet</div>'; return; }
       var rows = pub.map(function(h, i) {
         var dot = '<span class="online-dot ' + (h.online ? 'on' : 'off') + '"></span>';
-        var link = h.snapshotUrl ? '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="repo-link">preview</a>' : '';
+        var link = h.snapshotUrl ? '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="repo-link">↗</a>' : '';
         var repoPath = h.org && h.primaryRepo ? h.org + '/' + h.primaryRepo : h.primaryRepo || '';
         var repoLink = repoPath ? '<a href="https://github.com/' + esc(repoPath) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
         var repoCount = (h.repos || []).length;
@@ -250,12 +262,15 @@
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
           '<td>' + link + '</td>' +
-          '<td><a href="/contribute?hive=' + esc(h.id) + '" target="_blank" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;text-decoration:none">Contribute</a></td>' +
+          '<td>' + (function() {
+            var cUrl = h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? h.dashboardUrl + '/contribute' : (h.snapshotUrl ? h.snapshotUrl : '');
+            return cUrl ? '<a href="' + esc(cUrl) + '" target="_blank" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;text-decoration:none">Contribute</a>' : '';
+          })() + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('hive-table-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>Hive</th><th>Type</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Preview</th><th></th>' +
+        '<th onclick="sortMainHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortMainHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Repo</th><th>Repos</th><th onclick="sortMainHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortMainHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortMainHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortMainHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortMainHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortMainHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th><th>Preview</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 

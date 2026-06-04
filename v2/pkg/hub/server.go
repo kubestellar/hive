@@ -81,6 +81,7 @@ func NewHubServer(port int, logger *slog.Logger) *HubServer {
 	s.mux.HandleFunc("GET /api/hub/stats", s.handleStats)
 	s.mux.HandleFunc("GET /learn", s.serveStatic("static/learn.html"))
 	s.mux.HandleFunc("GET /get-started", s.serveStatic("static/get-started.html"))
+	s.mux.HandleFunc("GET /api/docs", s.serveStatic("static/api-docs.html"))
 	s.mux.HandleFunc("GET /{$}", s.serveStatic("static/index.html"))
 	s.mux.Handle("GET /", http.FileServerFS(staticFS))
 

@@ -275,10 +275,16 @@ func decodeBody(r *http.Request, v interface{}) error {
 // htmlTagPattern matches HTML/XML tags for sanitization.
 var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
 
-// sanitizeString strips HTML tags from user input to prevent stored XSS.
+// sanitizeString strips HTML tags and env var placeholders from user input
+// to prevent stored XSS and environment variable injection on config reload.
 func sanitizeString(s string) string {
-	return strings.TrimSpace(htmlTagPattern.ReplaceAllString(s, ""))
+	s = strings.TrimSpace(htmlTagPattern.ReplaceAllString(s, ""))
+	s = envVarEscapePattern.ReplaceAllString(s, "")
+	return s
 }
+
+var envVarEscapePattern = regexp.MustCompile(`\$\{[^}]*\}`)
+
 
 // --- Core status endpoints ---
 

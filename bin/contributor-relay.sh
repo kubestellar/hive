@@ -220,13 +220,19 @@ function shellQuote(s) {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 
+function redactTokens(text) {
+  return text.replace(/gho_[A-Za-z0-9]{36}/g, 'gho_***REDACTED***')
+    .replace(/ghp_[A-Za-z0-9]{36}/g, 'ghp_***REDACTED***')
+    .replace(/ghs_[A-Za-z0-9]{36}/g, 'ghs_***REDACTED***');
+}
+
 function captureTmuxLines(n) {
   try {
     const output = execSync(
       `tmux capture-pane -t ${TMUX_SESSION} -p -S -${n} 2>/dev/null`,
       { encoding: 'utf8', timeout: 5000 }
     );
-    return output.trim().split('\n').slice(-n);
+    return output.trim().split('\n').slice(-n).map(l => redactTokens(l));
   } catch (_) {
     return [];
   }

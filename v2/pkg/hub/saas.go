@@ -220,6 +220,9 @@ func (s *HubServer) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 
 func (s *HubServer) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	users := listAllSaaSUsers()
+	for i := range users {
+		users[i].EncryptedToken = ""
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"users": users})
 }

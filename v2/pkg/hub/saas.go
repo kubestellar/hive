@@ -1067,8 +1067,8 @@ const dashboardHTML = `<!DOCTYPE html>
           ? '<span style="color:var(--accent);white-space:nowrap">⏳ Provisioning</span>'
           : modeBadge(h.governorMode);
         var contributeUrl = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io/contribute' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? h.dashboardUrl + '/contribute' : '');
-        var contributeBtn = contributeUrl ? '<a href="' + contributeUrl + '" target="_blank" style="padding:3px 10px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.7rem;white-space:nowrap;text-decoration:none;margin-right:4px">Contribute</a>' : '';
-        var actions = contributeBtn;
+        var contributeCell = contributeUrl ? '<a href="' + contributeUrl + '" target="_blank" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;text-decoration:none">Contribute</a>' : '';
+        var actions = '';
         if (canConvert) {
           actions = '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
         } else if (isHosted && h.role === 'owner') {
@@ -1098,6 +1098,7 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
           '<td>' + roleBadge(h.role) + '</td>' +
+          '<td>' + contributeCell + '</td>' +
           '<td>' + dashboardLink(h) + '</td>' +
           '<td>' + snapshotLink(h) + '</td>' +
           '<td>' + apiLink(h) + '</td>' +
@@ -1106,7 +1107,7 @@ const dashboardHTML = `<!DOCTYPE html>
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<div class="table-wrap"><table class="hive-table"><thead><tr>' +
-        '<th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repo</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th><th>Role</th><th>Dashboard</th><th>Preview</th><th>API</th><th></th>' +
+        '<th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repo</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th><th>Role</th><th></th><th>Dashboard</th><th>Preview</th><th>API</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table></div>';
     }
 

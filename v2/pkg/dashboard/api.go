@@ -2039,7 +2039,7 @@ func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 	stripped := make([]string, 0, len(body.Repos))
 	for _, repo := range body.Repos {
 		repo = sanitizeString(repo)
-		if strings.Contains(repo, "..") || strings.ContainsAny(repo, "<>\"';&|") {
+		if repo == "" || strings.Contains(repo, "..") || strings.ContainsAny(repo, "<>\"';&|") {
 			jsonError(w, fmt.Sprintf("invalid repo name: %s", repo), http.StatusBadRequest)
 			return
 		}

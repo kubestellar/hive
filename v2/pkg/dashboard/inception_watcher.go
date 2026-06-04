@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 
@@ -254,6 +255,9 @@ func (w *InceptionWatcher) checkForQuestionsInOutput() {
 
 	questions := parseQuestionTable(lines)
 	if len(questions) < minQuestionsForAdvance {
+		questions = parseNumberedQuestions(lines)
+	}
+	if len(questions) < minQuestionsForAdvance {
 		return
 	}
 	if len(questions) == w.lastQuestionCount {
@@ -363,6 +367,60 @@ func parseQuestionTable(lines []string) []knowledge.Question {
 				Category: currentCat,
 			})
 		}
+	}
+
+	return questions
+}
+
+// numberedQuestionRe matches lines like "1. Primary users — who will use this?"
+// or "1. **Primary users** — who will use this?" or "- Primary users: ..."
+var numberedQuestionRe = regexp.MustCompile(`^\s*(?:\d+[\.\)]\s*|[-*]\s+)(?:\*\*)?(\w[\w/\s]*?)(?:\*\*)?\s*[-—:]+\s*(.+)`)
+
+// parseNumberedQuestions extracts questions from numbered or bulleted lists.
+// Catches the case where the agent outputs questions as:
+//   1. Primary users — who will use this and how?
+//   2. Must-have features — the 2-3 things it must do
+// instead of a │-delimited table.
+func parseNumberedQuestions(lines []string) []knowledge.Question {
+	var questions []knowledge.Question
+	seen := make(map[string]bool)
+
+	for _, line := range lines {
+		m := numberedQuestionRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+
+		label := strings.TrimSpace(strings.ToLower(m[1]))
+		question := strings.TrimSpace(m[2])
+		if question == "" {
+			continue
+		}
+
+		// Map label to category
+		cat := ""
+		for kw := range categoryKeywords {
+			if strings.Contains(label, kw) {
+				cat = kw
+				break
+			}
+		}
+		if cat == "" {
+			cat = "general"
+		}
+
+		key := cat + ":" + question
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		questions = append(questions, knowledge.Question{
+			ID:       cat,
+			Text:     question,
+			Default:  "",
+			Category: cat,
+		})
 	}
 
 	return questions

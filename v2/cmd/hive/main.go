@@ -640,13 +640,20 @@ func main() {
 	sched.SetInception(inceptionEngine)
 
 	// Brainstorm is on-demand only. If inception is active (state on disk),
-	// resume with bootstrap override. Otherwise start paused.
+	// resume and send inception kick via SendKick. Otherwise start paused.
 	if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
 		msg := sched.BuildAgentMessage("brainstorm", nil, nil)
-		if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
-			logger.Warn("failed to resume brainstorm for active inception", "error", err)
+		// Resume first (launches CLI), then SendKick (waits for prompt, sends message)
+		if err := agentMgr.Resume(ctx, "brainstorm", "inception-startup", "active inception on disk"); err != nil {
+			logger.Debug("brainstorm resume on startup", "error", err)
+		}
+		if err := agentMgr.SendKick("brainstorm", msg); err != nil {
+			logger.Warn("inception SendKick on startup failed, trying RestartWithBootstrap", "error", err)
+			if err2 := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err2 != nil {
+				logger.Error("brainstorm inception resume failed (all attempts)", "error", err2)
+			}
 		} else {
-			logger.Info("brainstorm resumed for active inception", "phase", state.Phase)
+			logger.Info("brainstorm resumed for active inception via SendKick", "phase", state.Phase)
 		}
 	} else {
 		if err := agentMgr.Pause("brainstorm", "startup", "on-demand agent — triggered by inception only"); err != nil {
@@ -921,21 +928,24 @@ func main() {
 			return
 		case <-ticker.C:
 			restarted := agentMgr.CheckAndRestartCrashedAgents(ctx)
-			// If brainstorm crashed during inception, re-kick with the inception
-			// bootstrap instead of the standard kick. Without this, the agent
-			// restarts idle and the inception flow stalls.
+			// If brainstorm crashed during inception, re-kick via SendKick.
+			// SendKick waits for the CLI to be ready and sends the message
+			// reliably, unlike RestartWithBootstrap which depends on $(cat file).
 			for _, name := range restarted {
 				if name == "brainstorm" && inceptionEngine != nil {
 					if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
 						msg := sched.BuildAgentMessage("brainstorm", nil, sched.GetLastActionable())
-						if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
-							logger.Warn("inception re-kick after crash failed", "error", err)
+						if err := agentMgr.SendKick("brainstorm", msg); err != nil {
+							logger.Warn("inception SendKick after crash failed, trying RestartWithBootstrap", "error", err)
+							if err2 := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err2 != nil {
+								logger.Error("inception re-kick failed (all attempts)", "error", err2)
+							}
 						} else {
-							logger.Info("brainstorm re-kicked with inception bootstrap after crash",
+							logger.Info("brainstorm re-kicked with SendKick after crash",
 								"phase", state.Phase,
 							)
-							gov.RecordKick("brainstorm")
 						}
+						gov.RecordKick("brainstorm")
 					}
 				}
 			}

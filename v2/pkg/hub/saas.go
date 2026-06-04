@@ -382,6 +382,7 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		"saas_used":      saasCount,
 		"is_admin":       user.GitHubUsername == hubAdminUsername,
 		"latest_sha":     getLatestSHA(),
+		"hub_git_hash":   s.hubGitHash,
 	})
 }
 
@@ -1051,11 +1052,12 @@ const dashboardHTML = `<!DOCTYPE html>
     .content { max-width: 1600px; margin: 0 auto; padding: 80px 24px 48px; }
     h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .subtitle { color: var(--muted); margin-bottom: 32px; }
-    .table-wrap { overflow-x: scroll; margin: 0 auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-    .table-wrap::-webkit-scrollbar { height: 8px; }
+    .table-wrap { overflow-x: auto; margin: 0 auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .table-wrap::-webkit-scrollbar { height: 10px; display: block; }
     .table-wrap::-webkit-scrollbar-track { background: var(--surface); border-radius: 4px; }
-    .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; min-width: 40px; }
     .table-wrap::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+    .table-wrap.has-scroll { padding-bottom: 4px; border-bottom: 2px solid var(--border); }
     .hive-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     .hive-table th { text-align: center; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.05em; }
     .hive-table td { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; text-align: center; }
@@ -1100,6 +1102,7 @@ const dashboardHTML = `<!DOCTYPE html>
   <nav class="nav">
     <div class="nav-inner">
       <a href="/" class="nav-brand"><span>🐝</span> Hive Hub <span onclick="window.open(&#39;https://github.com/kubestellar/hive&#39;,&#39;_blank&#39;)" title="Source Code" style="opacity:0.6;margin-left:2px;cursor:pointer"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span></a>
+      <span id="hub-version" style="margin-left:8px"></span>
       <div class="nav-links">
         <a href="/">Hives</a>
         <a href="/learn">Learn</a>
@@ -1225,6 +1228,8 @@ const dashboardHTML = `<!DOCTYPE html>
     var _allDashHives = [];
     var _dashSortKey = '', _dashSortAsc = true;
     var _hivesLoading = false;
+    var _lastHivesJSON = '';
+    var _lastUsersJSON = '';
 
     function sortDashHives(key) {
       if (_dashSortKey === key) { _dashSortAsc = !_dashSortAsc; } else { _dashSortKey = key; _dashSortAsc = true; }
@@ -1233,7 +1238,7 @@ const dashboardHTML = `<!DOCTYPE html>
         if (typeof va === 'number' && typeof vb === 'number') return _dashSortAsc ? va - vb : vb - va;
         return _dashSortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
       });
-      renderHives(sorted);
+      renderHives(sorted, true);
     }
 
     async function loadHives() {
@@ -1250,6 +1255,15 @@ const dashboardHTML = `<!DOCTYPE html>
         _userUsed = data.saas_used || 0;
         _allDashHives = data.hives || [];
         _latestSHA = data.latest_sha || _latestSHA;
+        var hubHash = data.hub_git_hash || '';
+        if (hubHash) {
+          var el = document.getElementById('hub-version');
+          if (el) {
+            var isCurrent = _latestSHA && hubHash === _latestSHA;
+            el.innerHTML = '<span style="font-family:monospace;font-size:0.7rem;color:var(--muted)">' + esc(hubHash) + '</span>' +
+              (isCurrent ? '<span style="color:var(--green);margin-left:3px" title="hub is on latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="hub is behind latest ' + esc(_latestSHA) + '">↑</span>');
+          }
+        }
         var canCreate = _userQuota < 0 || _userQuota > _userUsed;
         var addBtn = document.getElementById('btn-add-hive');
         if (addBtn) {
@@ -1266,7 +1280,10 @@ const dashboardHTML = `<!DOCTYPE html>
       }
     }
 
-    function renderHives(hives) {
+    function renderHives(hives, force) {
+      var sig = JSON.stringify(hives);
+      if (!force && sig === _lastHivesJSON) return;
+      _lastHivesJSON = sig;
       if (!hives.length) {
         document.getElementById('hives-container').innerHTML =
           '<div class="empty-state">' +
@@ -1336,6 +1353,10 @@ const dashboardHTML = `<!DOCTYPE html>
         '<div class="table-wrap"><table class="hive-table"><thead><tr>' +
         '<th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repo</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th><th></th><th>Dashboard</th><th>Preview</th><th>API</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+      setTimeout(function() {
+        var tw = document.querySelector('.table-wrap');
+        if (tw && tw.scrollWidth > tw.clientWidth) tw.classList.add('has-scroll');
+      }, 0);
     }
 
     async function upgradeHive(id) {
@@ -1395,10 +1416,13 @@ const dashboardHTML = `<!DOCTYPE html>
     function filterUsers() {
       var q = (document.getElementById('user-search').value || '').toLowerCase();
       var filtered = _allUsers.filter(function(u) { return u.github_username.toLowerCase().includes(q); });
-      renderUsers(filtered);
+      renderUsers(filtered, true);
     }
 
-    function renderUsers(users) {
+    function renderUsers(users, force) {
+      var sig = JSON.stringify(users);
+      if (!force && sig === _lastUsersJSON) return;
+      _lastUsersJSON = sig;
       if (!users.length) { document.getElementById('users-container').innerHTML = '<div class="loading">No users found</div>'; return; }
       var rows = users.map(function(u) {
         var blocked = u.blocked ? '<span style="color:var(--red);font-weight:600">BLOCKED</span>' : '<span style="color:var(--green)">active</span>';

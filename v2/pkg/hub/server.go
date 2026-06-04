@@ -59,18 +59,20 @@ type RegistryEntry struct {
 }
 
 type HubServer struct {
-	mux      *http.ServeMux
-	registry Registry
-	mu       sync.RWMutex
-	logger   *slog.Logger
-	saveCh   chan struct{}
+	mux        *http.ServeMux
+	registry   Registry
+	mu         sync.RWMutex
+	logger     *slog.Logger
+	saveCh     chan struct{}
+	hubGitHash string
 }
 
-func NewHubServer(port int, logger *slog.Logger) *HubServer {
+func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
 	s := &HubServer{
-		mux:    http.NewServeMux(),
-		logger: logger,
-		saveCh: make(chan struct{}, 1),
+		mux:        http.NewServeMux(),
+		logger:     logger,
+		saveCh:     make(chan struct{}, 1),
+		hubGitHash: gitHash,
 	}
 
 	s.loadRegistry()
@@ -80,6 +82,7 @@ func NewHubServer(port int, logger *slog.Logger) *HubServer {
 	s.mux.HandleFunc("GET /api/registry", s.handleRegistry)
 	s.mux.HandleFunc("GET /api/hub/leaderboard", s.handleLeaderboard)
 	s.mux.HandleFunc("GET /api/hub/stats", s.handleStats)
+	s.mux.HandleFunc("GET /api/hub/version", s.handleHubVersion)
 	s.mux.HandleFunc("GET /learn", s.serveStatic("static/learn.html"))
 	s.mux.HandleFunc("GET /get-started", s.serveStatic("static/get-started.html"))
 	s.mux.HandleFunc("GET /api/docs", s.serveStatic("static/api-docs.html"))
@@ -311,6 +314,15 @@ func (s *HubServer) handleStats(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+func (s *HubServer) handleHubVersion(w http.ResponseWriter, r *http.Request) {
+	data, _ := json.Marshal(map[string]any{
+		"git_hash":   s.hubGitHash,
+		"latest_sha": getLatestSHA(),
+	})
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
+}
+
 func (s *HubServer) markStaleHives() {
 	now := time.Now()
 	for i := range s.registry.Hives {
@@ -353,6 +365,9 @@ func (s *HubServer) mergeLeaderboards() []LeaderboardEntry {
 	}
 	result := make([]LeaderboardEntry, 0, len(merged))
 	for _, v := range merged {
+		if v.TasksCompleted == 0 && v.TasksFailed == 0 && !v.Active {
+			continue
+		}
 		result = append(result, *v)
 	}
 	return result

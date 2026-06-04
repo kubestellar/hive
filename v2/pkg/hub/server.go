@@ -209,7 +209,7 @@ func (s *HubServer) handleRegistry(w http.ResponseWriter, r *http.Request) {
 		if !h.IsPublic {
 			continue
 		}
-		if h.HiveType != "hosted" && hostedNames[h.Name] {
+		if h.HiveType != "hosted" && !h.Online && hostedNames[h.Name] {
 			continue
 		}
 		filtered.Hives = append(filtered.Hives, h)

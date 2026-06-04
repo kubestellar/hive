@@ -106,7 +106,9 @@ func (s *HubServer) handleOAuthCallback(w http.ResponseWriter, r *http.Request) 
 	}
 	http.SetCookie(w, cookie)
 
-	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+	ensureSaaSUser(user.Login)
+
+	http.Redirect(w, r, "/dashboard", http.StatusTemporaryRedirect)
 }
 
 func (s *HubServer) handleAuthUser(w http.ResponseWriter, r *http.Request) {

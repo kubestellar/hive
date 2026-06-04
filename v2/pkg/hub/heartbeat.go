@@ -55,6 +55,7 @@ type HeartbeatPayload struct {
 	Health       map[string]any     `json:"health"`
 	DashboardURL string             `json:"dashboard_url"`
 	SnapshotURL  string             `json:"snapshot_url"`
+	Owner        string             `json:"owner,omitempty"`
 	IsPublic     bool               `json:"is_public"`
 	Version      string             `json:"version"`
 	GitHash      string             `json:"git_hash"`

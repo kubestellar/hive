@@ -43,6 +43,7 @@ type RegistryEntry struct {
 	ActionablePRs      int            `json:"actionablePRs"`
 	ContributorCount   int            `json:"contributorCount"`
 	ActiveContributors int            `json:"activeContributors"`
+	Owner              string         `json:"owner,omitempty"`
 	IsPublic           bool           `json:"isPublic"`
 	RegisteredAt       string         `json:"registeredAt"`
 	LastHeartbeat      string         `json:"lastHeartbeat"`
@@ -81,6 +82,7 @@ func NewHubServer(port int, logger *slog.Logger) *HubServer {
 	s.mux.Handle("GET /", http.FileServerFS(staticFS))
 
 	s.registerOAuth()
+	s.registerSaaSRoutes()
 	go s.saveLoop()
 
 	return s
@@ -126,6 +128,7 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		ActionablePRs:      payload.Governor.PRs,
 		ContributorCount:   payload.Contributors.Registered,
 		ActiveContributors: payload.Contributors.Active,
+		Owner:              payload.Owner,
 		IsPublic:           payload.IsPublic,
 		LastHeartbeat:      time.Now().UTC().Format(time.RFC3339),
 		Health:             payload.Health,

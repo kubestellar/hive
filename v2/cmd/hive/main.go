@@ -1141,13 +1141,20 @@ func runEvalCycle(
 
 	if actionable.Issues.SLAViolations > 0 {
 		const doubleSLAMinutes = 60
+		const maxSLANotificationsPerCycle = 3
+		sent := 0
 		for _, issue := range actionable.Issues.Items {
 			if issue.AgeMinutes > doubleSLAMinutes {
+				if sent >= maxSLANotificationsPerCycle {
+					logger.Info("SLA notification cap reached, skipping remaining", "remaining", actionable.Issues.SLAViolations-sent)
+					break
+				}
 				notifier.Send(
 					"SLA 2x breach",
 					fmt.Sprintf("%s#%d age %dm: %s\n%s", issue.Repo, issue.Number, issue.AgeMinutes, issue.Title, issue.URL),
 					notify.PriorityHigh,
 				)
+				sent++
 			}
 		}
 	}

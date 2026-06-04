@@ -6056,11 +6056,11 @@ function burnAreaChart() {
           const tierOptions = Object.keys(TRUST_TIER_COLORS).filter(t => t !== 'revoked').map(t =>
             `<option value="${t}"${t === c.trust_tier ? ' selected' : ''}>${t}</option>`
           ).join('');
-          return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px;overflow:hidden">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0">
+          return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
               <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0" title="${dotTitle}"></span>
               <img src="${avatar}" alt="" style="width:28px;height:28px;border-radius:50%;flex-shrink:0" onerror="this.style.display='none'">
-              <a href="${ghLink}" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">@${esc(c.github_username)}</a>
+              <a href="${ghLink}" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:none;font-weight:600">@${esc(c.github_username)}</a>
               <span style="flex-shrink:0">${trustTierBadge(c.trust_tier)}</span>
             </div>
             ${cliLine ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">${cliLine}${roleLine ? ' · ' + roleLine : ''}</div>` : (roleLine ? `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">${roleLine}</div>` : '')}
@@ -6075,7 +6075,7 @@ function burnAreaChart() {
             </div>
           </div>`;
         }).join('');
-        html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:12px">${cards}</div>`;
+        html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(500px,1fr));gap:12px">${cards}</div>`;
       } else if (!revoked.length) {
         html += '<div style="color:var(--muted);padding:24px;text-align:center;background:var(--card-bg);border:1px solid var(--border);border-radius:8px">No contributors match the selected filters.</div>';
       }

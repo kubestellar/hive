@@ -85,6 +85,8 @@ function getCLIState() {
     } else if (BACKEND === 'gemini') {
       if (/not authenticated|login required/i.test(text)) return 'needs-login';
       if (/>\s*$|❯/.test(text)) return 'ready';
+    } else if (BACKEND === 'goose') {
+      if (/>\s*$|goose>|G\s*>/.test(text)) return 'ready';
     } else {
       if (/>\s*$|❯|\$\s*$/.test(text)) return 'ready';
     }
@@ -260,6 +262,10 @@ function checkTmuxIdle() {
       hasIdlePrompt = />\s*$|❯\s*$/.test(text);
       hasCompletionMarker = /completed|Done|finished/i.test(text);
       isWorking = /Thinking|Running|Searching/i.test(text);
+    } else if (BACKEND === 'goose') {
+      hasIdlePrompt = />\s*$|goose>|G\s*>/.test(text);
+      hasCompletionMarker = true;
+      isWorking = /working|running|executing/i.test(text);
     } else {
       hasIdlePrompt = />\s*$|\$\s*$/.test(text);
       hasCompletionMarker = /completed|done|finished/i.test(text);

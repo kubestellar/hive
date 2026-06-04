@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
     > /etc/apt/sources.list.d/nodesource.list \
   && apt-get update && apt-get install -y nodejs \
-  && npm install -g @anthropic-ai/claude-code @google/gemini-cli \
+  && npm install -g @anthropic-ai/claude-code @github/copilot \
   && rm -rf /var/lib/apt/lists/*
 
 # Install gh CLI
@@ -20,8 +20,17 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     > /etc/apt/sources.list.d/github-cli.list \
   && apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
 
-# Install Copilot CLI
-RUN npm install -g @github/copilot
+# Install Goose CLI (Block's AI agent)
+RUN ARCH=$(dpkg --print-architecture) \
+  && GOOSE_ARCH=$([ "$ARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
+  && mkdir -p /tmp/goose-dl \
+  && curl -fsSL "https://github.com/block/goose/releases/latest/download/goose-${GOOSE_ARCH}-unknown-linux-gnu.tar.gz" \
+    -o /tmp/goose-dl/goose.tar.gz \
+  && cd /tmp/goose-dl && tar -xzf goose.tar.gz \
+  && find /tmp/goose-dl -name "goose" -type f -exec cp {} /usr/local/bin/goose \; \
+  && chmod +x /usr/local/bin/goose \
+  && rm -rf /tmp/goose-dl \
+  || echo "Goose install skipped"
 
 # Install Go (needed for building/testing Go projects)
 ARG GO_VERSION=1.24.4

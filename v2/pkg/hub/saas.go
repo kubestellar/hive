@@ -99,6 +99,7 @@ func decryptToken(encoded string) (string, error) {
 
 func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /dashboard", s.handleDashboard)
+	s.mux.HandleFunc("GET /access-denied", s.handleAccessDenied)
 	s.mux.HandleFunc("GET /api/saas/my-hives", s.requireAuth(s.handleMyHives))
 	s.mux.HandleFunc("POST /api/saas/hives", s.requireAuth(s.handleCreateHive))
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
@@ -782,6 +783,55 @@ func (s *HubServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, dashboardHTML)
+}
+
+func (s *HubServer) handleAccessDenied(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.URL.Query().Get("hive")
+
+	ownerLink := ""
+	s.mu.RLock()
+	for _, h := range s.registry.Hives {
+		if h.ID == hiveID && h.Owner != "" {
+			ownerLink = fmt.Sprintf(`<a href="https://github.com/%s" target="_blank" style="color:#58a6ff;text-decoration:underline">the hive owner</a>`, h.Owner)
+			break
+		}
+	}
+	s.mu.RUnlock()
+	if ownerLink == "" {
+		ownerLink = "the hive owner"
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusForbidden)
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Access Denied — Hive Hub</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:48px;max-width:520px;text-align:center}
+h1{font-size:2rem;margin-bottom:8px}
+.bee{font-size:3rem;margin-bottom:16px}
+.msg{color:#8b949e;margin-bottom:24px;line-height:1.6}
+.hive-name{color:#f0883e;font-family:monospace;font-weight:600}
+.btn{display:inline-block;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:0.9rem;margin:6px}
+.btn-primary{background:#238636;color:#fff}
+.btn-secondary{background:transparent;color:#58a6ff;border:1px solid #30363d}
+.help{color:#8b949e;font-size:0.8rem;margin-top:24px}
+</style></head><body>
+<div class="card">
+<div class="bee">🐝</div>
+<h1>Access Denied</h1>
+<p class="msg">
+You don't have access to
+<span class="hive-name">%s</span>.<br><br>
+Ask %s to grant you access from their
+<a href="/dashboard" style="color:#58a6ff">My Hives</a> dashboard.
+</p>
+<a href="/dashboard" class="btn btn-primary">Go to My Hives</a>
+<a href="/" class="btn btn-secondary">Browse Public Hives</a>
+<p class="help">If you believe this is an error, <a href="https://github.com/kubestellar/hive/issues" style="color:#58a6ff">file an issue</a>.</p>
+</div>
+</body></html>`, hiveID, ownerLink)
 }
 
 const dashboardHTML = `<!DOCTYPE html>

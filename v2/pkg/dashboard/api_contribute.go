@@ -342,14 +342,11 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <option value="goose" data-install="pip install goose-ai">Goose</option>
 </select>
 </div>
-<ol>
-<li><strong>Install</strong> — <code>brew install just gh</code> + <a href="https://docker.com/get-started" target="_blank" style="color:#58a6ff">Docker</a> + <code id="install-cmd">npm i -g @anthropic-ai/claude-code</code></li>
-<li><strong>Setup</strong> — <code>just contribute-setup <span id="step-cli">claude</span></code> (registers + authenticates GitHub + CLI)</li>
-<li><strong>Run</strong> — <code>just contribute-hive</code> — then walk away</li>
-</ol>
+<p style="color:#8b949e;margin-bottom:8px">Copy and paste these commands to get started:</p>
 <div style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;position:relative">
 <button id="copy-btn" style="position:absolute;top:8px;right:8px;background:#238636;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:.75rem">Copy</button>
 <pre id="copy-cmds" style="color:#e6edf3;font-size:.85rem;margin:0;overflow-x:auto;white-space:pre">brew install just gh
+npm i -g @anthropic-ai/claude-code
 git clone -b v2 https://github.com/kubestellar/hive && cd hive
 export HIVE_HUB=%s
 just contribute-setup claude
@@ -359,16 +356,12 @@ just contribute-hive</pre>
 (function(){
 var sel=document.getElementById('cli-select');
 var cmds=document.getElementById('copy-cmds');
-var installCmd=document.getElementById('install-cmd');
-var stepCli=document.getElementById('step-cli');
 var hubURL='%s';
-var tpl='brew install just gh\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
+var tpl='brew install just gh\nINSTALL\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
 function update(){
 var cli=sel.value;
 var opt=sel.options[sel.selectedIndex];
-installCmd.textContent=opt.getAttribute('data-install');
-stepCli.textContent=cli;
-cmds.textContent=tpl.replace('CLI',cli);
+cmds.textContent=tpl.replace('INSTALL',opt.getAttribute('data-install')).replace('CLI',cli);
 }
 sel.addEventListener('change',update);
 document.getElementById('copy-btn').addEventListener('click',function(){

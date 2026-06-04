@@ -246,6 +246,8 @@ function checkTmuxIdle() {
 
 const TASK_GRACE_PERIOD_MS = 180000;
 let taskAssignedAt = 0;
+let tasksCompletedCount = 0;
+const PR_REVIEW_EVERY_N = 5;
 
 function startProgressReporting() {
   if (progressInterval) clearInterval(progressInterval);
@@ -258,11 +260,25 @@ function startProgressReporting() {
     if (idle) {
       console.log(`Task ${currentTask.task_id} completed — agent idle`);
       send({ type: 'task_complete', seq: nextSeq(), task_id: currentTask.task_id, result: 'completed', summary: 'Agent returned to idle', tmux_output: tmuxLines });
+      const completedRepo = currentTask.repo;
       currentTask = null;
       taskAssignedAt = 0;
       clearInterval(progressInterval);
       progressInterval = null;
-      send({ type: 'ready', seq: nextSeq() });
+      tasksCompletedCount++;
+      if (tasksCompletedCount % PR_REVIEW_EVERY_N === 0) {
+        console.log(`PR review cycle (${tasksCompletedCount} tasks completed) — checking open PRs`);
+        currentTask = { task_id: `pr-review-${Date.now()}`, kind: 'review', repo: completedRepo, number: 0, title: 'Review open PRs for comments' };
+        taskAssignedAt = Date.now();
+        const reviewPrompt = `Check your open PRs on ${completedRepo} for review comments. ` +
+          `Run 'GH_TOKEN=$GH_TOKEN gh pr list --repo ${completedRepo} --author @me --state open' to find them. ` +
+          `For each PR with review comments, read the comments, address the feedback, push fixes, and respond. ` +
+          `If no PRs have comments, just say "No PR comments to address."`;
+        tmuxSendKeys(reviewPrompt);
+        startProgressReporting();
+      } else {
+        send({ type: 'ready', seq: nextSeq() });
+      }
     } else {
       send({ type: 'task_progress', seq: nextSeq(), task_id: currentTask.task_id, status: 'working', tmux_output: tmuxLines });
     }

@@ -12,10 +12,15 @@ import (
 
 const saasUsersDir = "/data/saas/users"
 
+const hubAdminUsername = "clubanderson"
+
 type SaaSUser struct {
 	GitHubUsername string            `json:"github_username"`
-	CreatedAt     string            `json:"created_at"`
-	Hives         map[string]string `json:"hives"`
+	CreatedAt      string           `json:"created_at"`
+	LastLogin      string           `json:"last_login"`
+	Hives          map[string]string `json:"hives"`
+	SaaSQuota      int              `json:"saas_quota"`
+	Blocked        bool             `json:"blocked"`
 }
 
 func (s *HubServer) registerSaaSRoutes() {
@@ -24,6 +29,8 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("POST /api/saas/hives", s.requireAuth(s.handleCreateHive))
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
+	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
+	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
 
 	go StartProvisionWatcher(s.logger, &s.mu)
 }
@@ -72,17 +79,89 @@ func saveSaaSUser(u *SaaSUser) error {
 }
 
 func ensureSaaSUser(username string) *SaaSUser {
+	now := time.Now().UTC().Format(time.RFC3339)
 	u := loadSaaSUser(username)
 	if u != nil {
+		u.LastLogin = now
+		saveSaaSUser(u)
 		return u
+	}
+	quota := 0
+	if username == hubAdminUsername {
+		quota = maxHivesPerUser
 	}
 	u = &SaaSUser{
 		GitHubUsername: username,
-		CreatedAt:     time.Now().UTC().Format(time.RFC3339),
+		CreatedAt:     now,
+		LastLogin:     now,
 		Hives:         map[string]string{},
+		SaaSQuota:     quota,
 	}
 	saveSaaSUser(u)
 	return u
+}
+
+func listAllSaaSUsers() []SaaSUser {
+	os.MkdirAll(saasUsersDir, 0o755)
+	entries, err := os.ReadDir(saasUsersDir)
+	if err != nil {
+		return nil
+	}
+	var users []SaaSUser
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		u := loadSaaSUser(strings.TrimSuffix(e.Name(), ".json"))
+		if u != nil {
+			users = append(users, *u)
+		}
+	}
+	return users
+}
+
+func (s *HubServer) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		username := s.getAuthUser(r)
+		if username != hubAdminUsername {
+			http.Error(w, `{"error":"admin access required"}`, http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func (s *HubServer) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
+	users := listAllSaaSUsers()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"users": users})
+}
+
+func (s *HubServer) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
+	u := loadSaaSUser(username)
+	if u == nil {
+		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
+		return
+	}
+	var body struct {
+		SaaSQuota *int  `json:"saas_quota"`
+		Blocked   *bool `json:"blocked"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+	if body.SaaSQuota != nil {
+		u.SaaSQuota = *body.SaaSQuota
+	}
+	if body.Blocked != nil {
+		u.Blocked = *body.Blocked
+	}
+	saveSaaSUser(u)
+	s.logger.Info("audit: admin updated user", "target", username, "quota", u.SaaSQuota, "blocked", u.Blocked)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
 }
 
 type MyHiveEntry struct {
@@ -133,6 +212,17 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	user := loadSaaSUser(username)
+	if user == nil || user.Blocked {
+		http.Error(w, `{"error":"account blocked or not found"}`, http.StatusForbidden)
+		return
+	}
+
+	if user.SaaSQuota <= 0 {
+		http.Error(w, `{"error":"no SaaS quota — contact the hub admin to request access"}`, http.StatusForbidden)
+		return
+	}
+
 	var req CreateHiveRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
@@ -144,8 +234,8 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if countUserHives(username) >= maxHivesPerUser {
-		http.Error(w, fmt.Sprintf(`{"error":"max %d hives per user"}`, maxHivesPerUser), http.StatusBadRequest)
+	if countUserHives(username) >= user.SaaSQuota {
+		http.Error(w, fmt.Sprintf(`{"error":"quota reached — max %d SaaS hives"}`, user.SaaSQuota), http.StatusBadRequest)
 		return
 	}
 
@@ -186,7 +276,6 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := ensureSaaSUser(username)
 	user.Hives[hiveID] = "owner"
 	saveSaaSUser(user)
 
@@ -338,6 +427,14 @@ const dashboardHTML = `<!DOCTYPE html>
     </div>
 
     <div id="hives-container"><div class="loading">Loading your hives...</div></div>
+
+    <div id="admin-section" style="display:none;margin-top:48px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <h2 style="font-size:1.3rem;color:var(--accent)">Hub Admin — Users</h2>
+        <input type="text" id="user-search" placeholder="Search users..." oninput="filterUsers()" style="padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;width:250px">
+      </div>
+      <div id="users-container"><div class="loading">Loading users...</div></div>
+    </div>
   </div>
 
   <script>
@@ -434,6 +531,78 @@ const dashboardHTML = `<!DOCTYPE html>
     loadUser();
     loadHives();
     setInterval(loadHives, 60000);
+
+    var _allUsers = [];
+    async function loadAdminUsers() {
+      try {
+        var resp = await fetch('/api/saas/admin/users');
+        if (resp.status === 403) return;
+        document.getElementById('admin-section').style.display = '';
+        var data = await resp.json();
+        _allUsers = data.users || [];
+        renderUsers(_allUsers);
+      } catch(e) {}
+    }
+
+    function filterUsers() {
+      var q = (document.getElementById('user-search').value || '').toLowerCase();
+      var filtered = _allUsers.filter(function(u) { return u.github_username.toLowerCase().includes(q); });
+      renderUsers(filtered);
+    }
+
+    function renderUsers(users) {
+      if (!users.length) { document.getElementById('users-container').innerHTML = '<div class="loading">No users found</div>'; return; }
+      var rows = users.map(function(u) {
+        var blocked = u.blocked ? '<span style="color:var(--red);font-weight:600">BLOCKED</span>' : '<span style="color:var(--green)">active</span>';
+        var avatar = '<img src="https://github.com/' + esc(u.github_username) + '.png" style="width:24px;height:24px;border-radius:50%;vertical-align:middle;margin-right:6px">';
+        var isAdmin = u.github_username === 'clubanderson';
+        var hivesObj = u.hives || {};
+        var hiveIds = Object.keys(hivesObj);
+        var hiveCount = hiveIds.length;
+        var expandId = 'expand-' + esc(u.github_username);
+
+        var hiveRows = '';
+        if (hiveCount > 0) {
+          hiveRows = '<tr id="' + expandId + '" style="display:none"><td colspan="7"><div style="padding:8px 12px 8px 40px;font-size:0.75rem">';
+          hiveRows += '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:var(--muted);font-size:0.7rem"><th style="text-align:left;padding:4px 8px">Hive ID</th><th>Role</th><th>Type</th><th>Link</th></tr></thead><tbody>';
+          hiveIds.forEach(function(hid) {
+            var role = hivesObj[hid];
+            var isSaas = hid.startsWith('saas-');
+            var link = isSaas ? '<a href="https://' + esc(hid) + '.hive.kubestellar.io" target="_blank" class="dash-link">' + esc(hid) + '.hive.kubestellar.io</a>' : '<span style="color:var(--muted)">local</span>';
+            var typeBadge = isSaas ? '<span style="color:#60a5fa">hosted</span>' : '<span style="color:#9ca3af">local</span>';
+            hiveRows += '<tr><td style="padding:4px 8px">' + esc(hid) + '</td><td style="text-align:center">' + esc(role) + '</td><td style="text-align:center">' + typeBadge + '</td><td>' + link + '</td></tr>';
+          });
+          hiveRows += '</tbody></table></div></td></tr>';
+        }
+
+        return '<tr>' +
+          '<td>' + avatar + '<a href="https://github.com/' + esc(u.github_username) + '" target="_blank">' + esc(u.github_username) + '</a>' + (isAdmin ? ' <span style="color:var(--accent);font-size:0.7rem">admin</span>' : '') + '</td>' +
+          '<td style="font-size:0.75rem;color:var(--muted)">' + esc((u.created_at || '').substring(0, 10)) + '</td>' +
+          '<td style="font-size:0.75rem;color:var(--muted)">' + esc((u.last_login || '').substring(0, 10)) + '</td>' +
+          '<td>' + blocked + '</td>' +
+          '<td><input type="number" min="0" max="10" value="' + (u.saas_quota || 0) + '" style="width:50px;padding:4px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);text-align:center" onchange="updateUser(\'' + esc(u.github_username) + '\',{saas_quota:parseInt(this.value)||0})"></td>' +
+          '<td>' + (hiveCount > 0 ? '<a href="#" onclick="var e=document.getElementById(\'' + expandId + '\');e.style.display=e.style.display===\'none\'?\'\':\'none\';return false" style="color:var(--blue);font-size:0.8rem">' + hiveCount + ' hive' + (hiveCount > 1 ? 's' : '') + '</a>' : '<span style="color:var(--muted)">0</span>') + '</td>' +
+          '<td>' + (isAdmin ? '' : '<button onclick="updateUser(\'' + esc(u.github_username) + '\',{blocked:' + (!u.blocked) + '})" style="padding:3px 10px;background:' + (u.blocked ? 'var(--green)' : 'var(--red)') + ';color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem">' + (u.blocked ? 'Unblock' : 'Block') + '</button>') + '</td>' +
+          '</tr>' + hiveRows;
+      }).join('');
+      document.getElementById('users-container').innerHTML =
+        '<table class="hive-table"><thead><tr>' +
+        '<th>User</th><th>Joined</th><th>Last Login</th><th>Status</th><th>Quota</th><th>Hives</th><th>Actions</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+
+    async function updateUser(username, updates) {
+      try {
+        await fetch('/api/saas/admin/users/' + encodeURIComponent(username), {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(updates)
+        });
+        loadAdminUsers();
+      } catch(e) { alert('Error: ' + e.message); }
+    }
+
+    loadAdminUsers();
 
     async function createHive() {
       var org = document.getElementById('f-org').value.trim();

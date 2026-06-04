@@ -6075,7 +6075,7 @@ function burnAreaChart() {
             </div>
           </div>`;
         }).join('');
-        html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`;
+        html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:12px">${cards}</div>`;
       } else if (!revoked.length) {
         html += '<div style="color:var(--muted);padding:24px;text-align:center;background:var(--card-bg);border:1px solid var(--border);border-radius:8px">No contributors match the selected filters.</div>';
       }
@@ -7739,7 +7739,7 @@ function burnAreaChart() {
 
     const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Pipeline', 'Hooks', 'Restrictions', 'Stats', 'Prompt Template', 'Last Prompt'];
     const AGENT_CREATE_TABS = ['General', 'Cadences'];
-    const GOVERNOR_CONFIG_TABS = ['General', 'Agents', 'Thresholds', 'Labels', 'Repos', 'Budget', 'Notifications', 'Health', 'Sensing', 'Logging', 'Hub'];
+    const GOVERNOR_CONFIG_TABS = ['General', 'Agents', 'Thresholds', 'Labels', 'Repos', 'Budget', 'Notifications', 'Health', 'Sensing', 'Logging'];
     const PIPELINE_STAGES = ['resolve-beads', 'track-prs', 'stale-check', 'repo-scan', 'coverage-gate', 'prompt-compose', 'budget-check', 'api-collect', 'final-compose'];
     const PIPELINE_STAGE_TIPS = {
       'resolve-beads': 'Fetch and inject knowledge beads (facts, patterns, gotchas) relevant to the agent\'s current task context.',
@@ -8132,47 +8132,8 @@ function burnAreaChart() {
         case 'Health': return renderGovHealth(d.health || {});
         case 'Sensing': return renderGovSensing(d.sensing || {});
         case 'Logging': return renderGovLogging(d.logging || {});
-        case 'Hub': return renderGovHub(d.hub || {});
         default: return '';
       }
-    }
-
-    function renderGovHub(h) {
-      const enabled = h.enabled || false;
-      const url = h.url || 'https://hive.kubestellar.io';
-      const isPublic = h.isPublic !== false;
-      const snapshotUrl = h.snapshotUrl || '';
-      return `
-        <div class="config-field">
-          <label>Register on Hive Hub <span class="config-info">i<span class="config-tooltip">Register this hive instance on the central hub at hive.kubestellar.io. When enabled, the hive pushes status heartbeats to the hub every eval cycle.</span></span></label>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.8rem">
-              <input type="checkbox" id="cfg-hub-enabled" ${enabled ? 'checked' : ''} onchange="markDirty('hub','enabled',this.checked)">
-              Enabled
-            </label>
-          </div>
-        </div>
-        <div class="config-field">
-          <label>Hub URL <span class="config-info">i<span class="config-tooltip">The URL of the Hive Hub server to register with. Default: https://hive.kubestellar.io</span></span></label>
-          <input type="text" id="cfg-hub-url" value="${esc(url)}" placeholder="https://hive.kubestellar.io" onchange="markDirty('hub','url',this.value)">
-        </div>
-        <div class="config-field">
-          <label>Visibility <span class="config-info">i<span class="config-tooltip">Public hives appear in the hub's Active Hives table and contribute to the cross-hive leaderboard. Private hives are registered but hidden from the public listing.</span></span></label>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.8rem">
-              <input type="checkbox" id="cfg-hub-public" ${isPublic ? 'checked' : ''} onchange="markDirty('hub','isPublic',this.checked)">
-              Public (visible on hub)
-            </label>
-          </div>
-        </div>
-        <div class="config-field">
-          <label>Public Snapshot URL <span class="config-info">i<span class="config-tooltip">The public URL where this hive's dashboard snapshot is hosted (e.g. https://kubestellar.io/live/hive/bluefin). Shown as the "live" link on the hub. Leave empty if no snapshot is published.</span></span></label>
-          <input type="text" id="cfg-hub-snapshot" value="${esc(snapshotUrl)}" placeholder="https://kubestellar.io/live/hive/..." onchange="markDirty('hub','snapshotUrl',this.value)">
-        </div>
-        <div style="font-size:0.7rem;color:var(--muted);margin-top:8px;padding:8px;background:var(--surface);border-radius:6px;border:1px solid var(--border)">
-          When enabled, this hive sends a heartbeat to the hub every eval cycle with: hive ID, ACMM level, agent states, governor mode, and contributor stats.
-          ${enabled ? '<div style="color:var(--green);margin-top:4px">✓ Heartbeat active — pushing to ' + esc(url) + '</div>' : '<div style="color:var(--muted);margin-top:4px">Heartbeat disabled — not registered on any hub</div>'}
-        </div>`;
     }
 
     // ── Agent Tab Renderers ──

@@ -625,6 +625,12 @@ func (s *HubServer) handleUserToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	requester := s.getAuthUser(r)
+	if requester != body.Username && requester != hubAdminUsername {
+		http.Error(w, `{"error":"can only retrieve your own token"}`, http.StatusForbidden)
+		return
+	}
+
 	user := loadSaaSUser(body.Username)
 	if user == nil {
 		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)

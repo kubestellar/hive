@@ -808,6 +808,23 @@ func (s *Server) handleLeaderboardAPI(w http.ResponseWriter, _ *http.Request) {
 	jsonResponse(w, map[string]any{"leaderboard": buildLeaderboard()})
 }
 
+func (s *Server) ContributorSummary() (registered, active int) {
+	profiles := listContributorProfiles()
+	registered = len(profiles)
+	if s.contributeHub != nil {
+		for _, ls := range s.contributeHub.LiveStates() {
+			if ls.Active {
+				active++
+			}
+		}
+	}
+	return
+}
+
+func (s *Server) LeaderboardForHub() []LeaderboardEntry {
+	return buildLeaderboard()
+}
+
 // trustTierColor maps trust tiers to CSS colour values for badges.
 func trustTierColor(tier string) string {
 	switch tier {

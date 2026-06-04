@@ -872,7 +872,24 @@ func main() {
 				ACMMLevel:   acmmLvl,
 				Agents:      agents,
 				Governor:    hub.GovernorSummary{Mode: string(govState.Mode), Issues: govState.QueueIssues, PRs: govState.QueuePRs},
-				Contributors: hub.ContributorSummary{},
+				Contributors: func() hub.ContributorSummary {
+					reg, active := dashSrv.ContributorSummary()
+					return hub.ContributorSummary{Registered: reg, Active: active}
+				}(),
+				Leaderboard: func() []hub.LeaderboardEntry {
+					lb := dashSrv.LeaderboardForHub()
+					out := make([]hub.LeaderboardEntry, len(lb))
+					for i, e := range lb {
+						out[i] = hub.LeaderboardEntry{
+							GitHubUsername:  e.GitHubUsername,
+							AvatarURL:      e.AvatarURL,
+							TrustTier:      e.TrustTier,
+							TasksCompleted: e.TasksCompleted,
+							TasksFailed:    e.TasksFailed,
+						}
+					}
+					return out
+				}(),
 				Health:       map[string]any{},
 				DashboardURL: fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port),
 				IsPublic:     cfg.Hub.IsPublic,

@@ -273,17 +273,29 @@ func validateGovernorBudget(totalTokens int64, periodDays, criticalPct int) erro
 }
 
 // validateNotificationURL validates that a notification URL is either empty
-// or starts with https://.
-func validateNotificationURL(url, fieldName string) error {
-	if url == "" {
+// or starts with https:// and doesn't target internal/private addresses.
+func validateNotificationURL(rawURL, fieldName string) error {
+	if rawURL == "" {
 		return nil
 	}
-	// Allow masked values (already stored, not being changed)
-	if strings.HasPrefix(url, "•") {
+	if strings.HasPrefix(rawURL, "•") {
 		return nil
 	}
-	if !strings.HasPrefix(url, "https://") {
+	if !strings.HasPrefix(rawURL, "https://") {
 		return fmt.Errorf("%s must start with https:// or be empty", fieldName)
+	}
+	host := strings.TrimPrefix(rawURL, "https://")
+	if idx := strings.IndexAny(host, ":/"); idx >= 0 {
+		host = host[:idx]
+	}
+	host = strings.ToLower(host)
+	blockedPrefixes := []string{"localhost", "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
+		"172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
+		"172.28.", "172.29.", "172.30.", "172.31.", "192.168.", "169.254.", "[::1]", "0.0.0.0"}
+	for _, p := range blockedPrefixes {
+		if strings.HasPrefix(host, p) {
+			return fmt.Errorf("%s must not target private/internal addresses", fieldName)
+		}
 	}
 	return nil
 }

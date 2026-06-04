@@ -341,11 +341,23 @@ spec:
         app: hive
         hive-id: {{.ID}}
     spec:
+      initContainers:
+      - name: config-seed
+        image: busybox
+        command: ["sh", "-c", "test -f /data/hive.yaml || cp /etc/hive/hive.yaml /data/hive.yaml"]
+        volumeMounts:
+        - name: config
+          mountPath: /etc/hive
+          readOnly: true
+        - name: data
+          mountPath: /data
       containers:
       - name: hive
         image: ghcr.io/kubestellar/hive:v2-latest
         imagePullPolicy: Always
         env:
+        - name: HIVE_CONFIG
+          value: /data/hive.yaml
 {{- if not .UseApp}}
         - name: HIVE_GITHUB_TOKEN
           valueFrom:

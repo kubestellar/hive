@@ -46,7 +46,11 @@ var (
 )
 
 func main() {
-	configPath := flag.String("config", "/etc/hive/hive.yaml", "path to hive.yaml config file")
+	defaultConfig := "/etc/hive/hive.yaml"
+	if envCfg := os.Getenv("HIVE_CONFIG"); envCfg != "" {
+		defaultConfig = envCfg
+	}
+	configPath := flag.String("config", defaultConfig, "path to hive.yaml config file")
 	flag.Parse()
 	dashboard.SetGitVersion(gitHash, gitShort)
 

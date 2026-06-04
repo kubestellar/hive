@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -44,6 +45,7 @@ type RegistryEntry struct {
 	ContributorCount   int            `json:"contributorCount"`
 	ActiveContributors int            `json:"activeContributors"`
 	Owner              string         `json:"owner,omitempty"`
+	HiveType           string         `json:"hiveType,omitempty"`
 	IsPublic           bool           `json:"isPublic"`
 	RegisteredAt       string         `json:"registeredAt"`
 	LastHeartbeat      string         `json:"lastHeartbeat"`
@@ -129,7 +131,13 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		ContributorCount:   payload.Contributors.Registered,
 		ActiveContributors: payload.Contributors.Active,
 		Owner:              payload.Owner,
-		IsPublic:           payload.IsPublic,
+		HiveType: func() string {
+			if strings.HasPrefix(payload.HiveID, "saas-") {
+				return "hosted"
+			}
+			return "local"
+		}(),
+		IsPublic: payload.IsPublic,
 		LastHeartbeat:      time.Now().UTC().Format(time.RFC3339),
 		Health:             payload.Health,
 		Version:            payload.Version,

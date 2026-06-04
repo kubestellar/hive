@@ -105,7 +105,8 @@ func (s *Server) registerContributeRoutes() {
 	s.mux.HandleFunc("POST /api/contributors/{id}/revoke", s.handleContributorRevoke)
 	s.mux.HandleFunc("DELETE /api/contributors/{id}", s.handleContributorDelete)
 
-	s.mux.HandleFunc("/api/v1/", s.handleAPIv1)
+	s.mux.HandleFunc("GET /api/v1/", s.handleAPIv1)
+	s.mux.HandleFunc("POST /api/v1/", s.handleAPIv1)
 	s.mux.HandleFunc("GET /api/docs", s.handleAPIDocs)
 
 	s.mux.HandleFunc("GET /leaderboard", s.handleLeaderboardPage)

@@ -42,12 +42,16 @@ type SaaSHive struct {
 }
 
 type CreateHiveRequest struct {
-	Org         string `json:"org"`
-	Repos       string `json:"repos"`
-	PrimaryRepo string `json:"primary_repo"`
-	ProjectName string `json:"project_name"`
-	ACMMLevel   int    `json:"acmm_level"`
-	GitHubToken string `json:"github_token"`
+	Org            string `json:"org"`
+	Repos          string `json:"repos"`
+	PrimaryRepo    string `json:"primary_repo"`
+	ProjectName    string `json:"project_name"`
+	ACMMLevel      int    `json:"acmm_level"`
+	GitHubToken    string `json:"github_token"`
+	AuthMethod     string `json:"auth_method"`
+	AppID          string `json:"app_id"`
+	InstallationID string `json:"installation_id"`
+	AppPrivateKey  string `json:"app_private_key"`
 }
 
 func generateHiveID(org, repo string) string {
@@ -125,7 +129,7 @@ func countUserHives(username string) int {
 	return count
 }
 
-func provisionHive(h *SaaSHive, token string, logger *slog.Logger) error {
+func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) error {
 	dir := filepath.Join(saasHivesDir, h.ID, "manifests")
 	os.MkdirAll(dir, 0o755)
 
@@ -139,19 +143,25 @@ func provisionHive(h *SaaSHive, token string, logger *slog.Logger) error {
 		reposYAML = "\n" + strings.Join(parts, "\n")
 	}
 
+	useApp := req.AuthMethod == "app" && req.AppID != "" && req.InstallationID != "" && req.AppPrivateKey != ""
+
 	data := map[string]any{
-		"ID":          h.ID,
-		"Namespace":   "hive-saas-" + h.ID,
-		"Org":         h.Org,
-		"Repos":       reposYAML,
-		"PrimaryRepo": h.PrimaryRepo,
-		"ACMMLevel":   h.ACMMLevel,
-		"Token":       token,
-		"CPURequest":  cpuRequest,
-		"CPULimit":    cpuLimit,
-		"MemRequest":  memRequest,
-		"MemLimit":    memLimit,
-		"PVCSize":     pvcSize,
+		"ID":             h.ID,
+		"Namespace":      "hive-saas-" + h.ID,
+		"Org":            h.Org,
+		"Repos":          reposYAML,
+		"PrimaryRepo":    h.PrimaryRepo,
+		"ACMMLevel":      h.ACMMLevel,
+		"Token":          req.GitHubToken,
+		"UseApp":         useApp,
+		"AppID":          req.AppID,
+		"InstallationID": req.InstallationID,
+		"AppPrivateKey":  req.AppPrivateKey,
+		"CPURequest":     cpuRequest,
+		"CPULimit":       cpuLimit,
+		"MemRequest":     memRequest,
+		"MemLimit":       memLimit,
+		"PVCSize":        pvcSize,
 	}
 
 	tmpl, err := template.New("manifests").Parse(k8sManifestTemplate)
@@ -252,7 +262,13 @@ data:
           guide: 2h
           scanner: 2h
     github:
+{{- if .UseApp}}
+      app_id: {{.AppID}}
+      installation_id: {{.InstallationID}}
+      key_file: /secrets/gh-app-key.pem
+{{- else}}
       token: "${HIVE_GITHUB_TOKEN}"
+{{- end}}
     dashboard:
       port: 3002
     hub:
@@ -268,7 +284,12 @@ metadata:
   namespace: {{.Namespace}}
 type: Opaque
 stringData:
+{{- if .UseApp}}
+  gh-app-key.pem: |
+    {{.AppPrivateKey}}
+{{- else}}
   github-token: {{.Token}}
+{{- end}}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -305,11 +326,13 @@ spec:
         image: ghcr.io/kubestellar/hive:v2-latest
         imagePullPolicy: Always
         env:
+{{- if not .UseApp}}
         - name: HIVE_GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
               name: hive-secrets
               key: github-token
+{{- end}}
         - name: HIVE_LEVEL
           value: "{{.ACMMLevel}}"
         - name: HIVE_HUB_URL
@@ -328,6 +351,11 @@ spec:
           mountPath: /etc/hive
         - name: data
           mountPath: /data
+{{- if .UseApp}}
+        - name: secrets
+          mountPath: /secrets
+          readOnly: true
+{{- end}}
       volumes:
       - name: config
         configMap:
@@ -335,6 +363,11 @@ spec:
       - name: data
         persistentVolumeClaim:
           claimName: hive-data
+{{- if .UseApp}}
+      - name: secrets
+        secret:
+          secretName: hive-secrets
+{{- end}}
 ---
 apiVersion: v1
 kind: Service

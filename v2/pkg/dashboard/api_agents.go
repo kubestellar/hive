@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/kubestellar/hive/v2/pkg/config"
 )
@@ -47,6 +48,10 @@ func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Name == "" {
 		jsonError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if !displayNamePattern.MatchString(body.Name) || strings.Contains(body.Name, "..") || strings.Contains(body.Name, "/") {
+		jsonError(w, "name must contain only alphanumeric characters, hyphens, and underscores", http.StatusBadRequest)
 		return
 	}
 

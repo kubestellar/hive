@@ -248,7 +248,7 @@ let taskAssignedAt = 0;
 
 function startProgressReporting() {
   if (progressInterval) clearInterval(progressInterval);
-  taskAssignedAt = Date.now();
+  if (!taskAssignedAt) taskAssignedAt = Date.now();
   progressInterval = setInterval(() => {
     if (!currentTask) return;
     if (Date.now() - taskAssignedAt < TASK_GRACE_PERIOD_MS) return;
@@ -258,6 +258,7 @@ function startProgressReporting() {
       console.log(`Task ${currentTask.task_id} completed — agent idle`);
       send({ type: 'task_complete', seq: nextSeq(), task_id: currentTask.task_id, result: 'completed', summary: 'Agent returned to idle', tmux_output: tmuxLines });
       currentTask = null;
+      taskAssignedAt = 0;
       clearInterval(progressInterval);
       progressInterval = null;
       send({ type: 'ready', seq: nextSeq() });
@@ -335,6 +336,7 @@ function handleMessage(data) {
     case 'task_revoke':
       console.log(`Task revoked: ${msg.task_id} — ${msg.reason}`);
       currentTask = null;
+      taskAssignedAt = 0;
       if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
       send({ type: 'ready', seq: nextSeq() });
       break;

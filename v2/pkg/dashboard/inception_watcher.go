@@ -273,23 +273,47 @@ func (w *InceptionWatcher) checkForQuestionsInOutput() {
 
 // parseQuestionTable extracts questions from the agent's formatted table output.
 // The table uses │ as column delimiters with columns: #/Bead, Category, Question, Default.
+// categoryKeywords are the valid question categories the agent produces.
+var categoryKeywords = map[string]bool{
+	"users": true, "features": true, "constraints": true,
+	"testing": true, "deployment": true, "storage": true,
+	"language": true, "general": true,
+}
+
+// parseQuestionTable extracts questions from the agent's formatted table output.
+// Scans each │-delimited row for a column matching a known category keyword,
+// then takes the next column as the question and the one after as the default.
+// Handles variable column layouts (# | Category | Question | Default) and
+// (Bead | Category | Question | Default) by finding the category dynamically.
 func parseQuestionTable(lines []string) []knowledge.Question {
 	var questions []knowledge.Question
 	seen := make(map[string]bool)
 
 	var currentCat, currentQuestion, currentDefault string
-	inTable := false
 
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Detect table borders
-		if strings.HasPrefix(trimmed, "┌") || strings.HasPrefix(trimmed, "├") {
-			inTable = true
+		if !strings.Contains(line, "│") {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "└") {
-			// End of table section — flush current question
+
+		// Split by │ delimiter
+		cols := strings.Split(line, "│")
+		var cleaned []string
+		for _, c := range cols {
+			cleaned = append(cleaned, strings.TrimSpace(c))
+		}
+
+		// Find category column by matching known keywords
+		catIdx := -1
+		for i, c := range cleaned {
+			if categoryKeywords[strings.ToLower(c)] {
+				catIdx = i
+				break
+			}
+		}
+
+		if catIdx >= 0 && catIdx+1 < len(cleaned) {
+			// Flush previous question
 			if currentCat != "" && currentQuestion != "" {
 				key := currentCat + ":" + currentQuestion
 				if !seen[key] {
@@ -302,73 +326,42 @@ func parseQuestionTable(lines []string) []knowledge.Question {
 					})
 				}
 			}
-			currentCat = ""
-			currentQuestion = ""
-			currentDefault = ""
-			inTable = false
-			continue
-		}
 
-		if !inTable || !strings.Contains(trimmed, "│") {
-			continue
-		}
-
-		// Parse table row: │ col1 │ col2 │ col3 │ col4 │
-		cols := strings.Split(trimmed, "│")
-		if len(cols) < 4 {
-			continue
-		}
-
-		// Strip empty first/last elements from leading/trailing │
-		var cleaned []string
-		for _, c := range cols {
-			c = strings.TrimSpace(c)
-			if c != "" {
-				cleaned = append(cleaned, c)
+			// Start new question
+			currentCat = strings.ToLower(cleaned[catIdx])
+			currentQuestion = cleaned[catIdx+1]
+			if catIdx+2 < len(cleaned) {
+				currentDefault = cleaned[catIdx+2]
+			} else {
+				currentDefault = ""
+			}
+		} else if currentCat != "" {
+			// Continuation row — append non-empty columns to question/default
+			nonEmpty := 0
+			for _, c := range cleaned {
+				if c != "" {
+					nonEmpty++
+					if nonEmpty == 1 {
+						currentQuestion += " " + c
+					} else if nonEmpty == 2 {
+						currentDefault += " " + c
+					}
+				}
 			}
 		}
+	}
 
-		if len(cleaned) < 3 {
-			// Continuation row — append to current question/default
-			if len(cleaned) >= 2 {
-				currentQuestion += " " + cleaned[0]
-				currentDefault += " " + cleaned[1]
-			} else if len(cleaned) == 1 {
-				currentQuestion += " " + cleaned[0]
-			}
-			continue
-		}
-
-		// New row with category — flush previous
-		if currentCat != "" && currentQuestion != "" {
-			key := currentCat + ":" + currentQuestion
-			if !seen[key] {
-				seen[key] = true
-				questions = append(questions, knowledge.Question{
-					ID:       currentCat,
-					Text:     strings.TrimSpace(currentQuestion),
-					Default:  strings.TrimSpace(currentDefault),
-					Category: currentCat,
-				})
-			}
-		}
-
-		// Skip header row
-		cat := strings.TrimSpace(cleaned[1])
-		if cat == "Category" || cat == "" {
-			currentCat = ""
-			currentQuestion = ""
-			currentDefault = ""
-			continue
-		}
-
-		// Start new question
-		currentCat = cat
-		currentQuestion = cleaned[2]
-		if len(cleaned) >= 4 {
-			currentDefault = cleaned[3]
-		} else {
-			currentDefault = ""
+	// Flush last question
+	if currentCat != "" && currentQuestion != "" {
+		key := currentCat + ":" + currentQuestion
+		if !seen[key] {
+			seen[key] = true
+			questions = append(questions, knowledge.Question{
+				ID:       currentCat,
+				Text:     strings.TrimSpace(currentQuestion),
+				Default:  strings.TrimSpace(currentDefault),
+				Category: currentCat,
+			})
 		}
 	}
 

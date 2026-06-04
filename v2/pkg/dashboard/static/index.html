@@ -9388,7 +9388,7 @@ function burnAreaChart() {
           avatarWrap.style.display = '';
           const img = document.getElementById('oc-gh-avatar');
           if (avatarURL) {
-            img.src = avatarURL + '&s=56';
+            img.src = avatarURL + (avatarURL.includes('?') ? '&' : '?') + 's=56';
             img.alt = username;
           }
           document.getElementById('oc-gh-menu-user').textContent = username;

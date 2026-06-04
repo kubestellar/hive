@@ -166,7 +166,9 @@ func (s *HubServer) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request
 
 type MyHiveEntry struct {
 	RegistryEntry
-	Role string `json:"role"`
+	Role        string `json:"role"`
+	ProvError   string `json:"provError,omitempty"`
+	ProvStatus  string `json:"provStatus,omitempty"`
 }
 
 func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
@@ -220,10 +222,12 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 					},
 					Role: role,
 				}
+				entry.ProvStatus = sh.Status
 				if sh.Status == "provisioning" {
 					entry.GovernorMode = "PROVISIONING"
 				} else if sh.Status == "error" {
 					entry.GovernorMode = "ERROR"
+					entry.ProvError = sh.Error
 				}
 				result = append(result, entry)
 			}
@@ -590,7 +594,7 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + repoCount + '</td>' +
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
           '<td>' + (h.agentCount || 0) + '</td>' +
-          '<td>' + modeBadge(h.governorMode) + '</td>' +
+          '<td>' + (h.provStatus === 'error' ? '<span style="color:var(--red);cursor:help" title="' + esc(h.provError || '') + '">ERROR ⚠</span>' : h.provStatus === 'provisioning' ? '<span style="color:var(--accent)">⏳ Provisioning</span>' : modeBadge(h.governorMode)) + '</td>' +
           '<td>' + (h.actionableIssues || 0) + '</td>' +
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +

@@ -303,12 +303,20 @@ func (s *HubServer) mergeLeaderboards() []LeaderboardEntry {
 			continue
 		}
 		for _, lb := range h.Leaderboard {
+			if lb.GitHubUsername == "" {
+				continue
+			}
 			if existing, ok := merged[lb.GitHubUsername]; ok {
 				existing.TasksCompleted += lb.TasksCompleted
 				existing.TasksFailed += lb.TasksFailed
+				if lb.Active {
+					existing.Active = true
+					existing.CurrentTask = lb.CurrentTask
+					existing.HiveName = lb.HiveName
+				}
 			} else {
-				copy := lb
-				merged[lb.GitHubUsername] = &copy
+				entry := lb
+				merged[lb.GitHubUsername] = &entry
 			}
 		}
 	}

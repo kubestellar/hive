@@ -196,12 +196,28 @@ contribute-hive mode="docker":
         docker pull {{hive_image}} 2>/dev/null || echo "Pull failed — using local image"
         echo ""
       fi
+      # Mount CLI-specific config directories
+      CLI_MOUNTS=""
+      case "${BACKEND}" in
+        claude)
+          CLI_MOUNTS="-v ${HOME}/.claude:/home/dev/.claude -v ${HOME}/.config/claude-code:/home/dev/.config/claude-code"
+          ;;
+        copilot)
+          [ -d "${HOME}/.copilot" ] && CLI_MOUNTS="-v ${HOME}/.copilot:/home/dev/.copilot"
+          ;;
+        gemini)
+          [ -d "${HOME}/.gemini" ] && CLI_MOUNTS="-v ${HOME}/.gemini:/home/dev/.gemini"
+          [ -d "${HOME}/.config/gemini" ] && CLI_MOUNTS="${CLI_MOUNTS} -v ${HOME}/.config/gemini:/home/dev/.config/gemini"
+          ;;
+        goose)
+          [ -d "${HOME}/.config/goose" ] && CLI_MOUNTS="-v ${HOME}/.config/goose:/home/dev/.config/goose"
+          ;;
+      esac
       docker run -it --rm \
         --name hive-contributor \
         --network host \
         -v "{{config_dir}}:/home/dev/.config/hive:ro" \
-        -v "${HOME}/.claude:/home/dev/.claude" \
-        -v "${HOME}/.config/claude-code:/home/dev/.config/claude-code" \
+        ${CLI_MOUNTS} \
         -v "${HOME}/.config/gh:/home/dev/.config/gh:ro" \
         -e HIVE_HUB="{{hive_hub}}" \
         -e AGENT_BACKEND="${BACKEND}" \
@@ -209,6 +225,8 @@ contribute-hive mode="docker":
         -e HIVE_USE_CONTRIBUTOR_GH=true \
         -e HIVE_CONTAINER_NAME=hive-contributor \
         ${ANTHROPIC_API_KEY:+-e ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}"} \
+        ${GOOGLE_API_KEY:+-e GOOGLE_API_KEY="${GOOGLE_API_KEY}"} \
+        ${GOOSE_API_KEY:+-e GOOSE_API_KEY="${GOOSE_API_KEY}"} \
         {{hive_image}}
     fi
 

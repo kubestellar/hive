@@ -469,7 +469,13 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				contributor.mu.Lock()
 				contributor.tmuxOutput = msg.TmuxOutput
 				if contributor.currentTask == nil && msg.TaskID != "" {
-					contributor.currentTask = &WSTaskAssign{TaskID: msg.TaskID}
+					contributor.currentTask = &WSTaskAssign{
+						TaskID: msg.TaskID,
+						Kind:   msg.Kind,
+						Repo:   msg.Repo,
+						Number: msg.Number,
+						Title:  msg.Title,
+					}
 				}
 				contributor.mu.Unlock()
 			}

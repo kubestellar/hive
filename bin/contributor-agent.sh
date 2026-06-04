@@ -157,8 +157,24 @@ KNOWLEDGE_REFRESH_SECS=600
   done
 ) &
 
-# Make agent.md visible as CLAUDE.md in the working directory
-ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+# Make agent.md visible to each CLI backend
+case "$AGENT_BACKEND" in
+  claude)
+    ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+    ;;
+  copilot)
+    mkdir -p "${HOME}/.copilot"
+    ln -sf "$AGENT_MD" "${HOME}/COPILOT.md"
+    ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+    ;;
+  gemini)
+    ln -sf "$AGENT_MD" "${HOME}/GEMINI.md"
+    ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+    ;;
+  *)
+    ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+    ;;
+esac
 
 # Create tmux session for the agent
 tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true

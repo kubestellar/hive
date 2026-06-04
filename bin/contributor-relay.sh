@@ -74,9 +74,19 @@ function getCLIState() {
       { encoding: 'utf8', timeout: 5000 }
     );
     const text = output.toString();
-    if (/Not logged in|Please run \/login/.test(text)) return 'needs-login';
-    if (/bypass permissions|Welcome back|Try "how does|medium.*effort|@gmail\.com|@.*\.com.*Organization/.test(text)) return 'ready';
-    if (/Choose the text style|trust this folder/.test(text)) return 'onboarding';
+    if (BACKEND === 'claude') {
+      if (/Not logged in|Please run \/login/.test(text)) return 'needs-login';
+      if (/bypass permissions|Welcome back|Try "how does|medium.*effort|@gmail\.com|@.*\.com.*Organization/.test(text)) return 'ready';
+      if (/Choose the text style|trust this folder/.test(text)) return 'onboarding';
+    } else if (BACKEND === 'copilot') {
+      if (/copilot login|gh auth login/.test(text)) return 'needs-login';
+      if (/autopilot|allow-all|>\s*$|❯/.test(text)) return 'ready';
+    } else if (BACKEND === 'gemini') {
+      if (/not authenticated|login required/i.test(text)) return 'needs-login';
+      if (/>\s*$|❯/.test(text)) return 'ready';
+    } else {
+      if (/>\s*$|❯|\$\s*$/.test(text)) return 'ready';
+    }
     return 'starting';
   } catch (_) {
     return 'starting';
@@ -208,9 +218,25 @@ function checkTmuxIdle() {
       { encoding: 'utf8', timeout: 5000 }
     );
     const text = output.toString();
-    const hasIdlePrompt = /bypass permissions|shift\+tab to cycle/.test(text);
-    const hasCompletionMarker = /[✻✶✽] \S+ed for \d+[ms]|Honking|tokens\)/.test(text);
-    const isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching|ing…/.test(text);
+    let hasIdlePrompt, hasCompletionMarker, isWorking;
+
+    if (BACKEND === 'claude') {
+      hasIdlePrompt = /bypass permissions|shift\+tab to cycle/.test(text);
+      hasCompletionMarker = /[✻✶✽] \S+ed for \d+[ms]|Honking|tokens\)/.test(text);
+      isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching|ing…/.test(text);
+    } else if (BACKEND === 'copilot') {
+      hasIdlePrompt = />\s*$|❯\s*$|autopilot/.test(text);
+      hasCompletionMarker = /completed|Done!|finished|Total tokens/i.test(text);
+      isWorking = /Running|Executing|Thinking|searching/i.test(text);
+    } else if (BACKEND === 'gemini') {
+      hasIdlePrompt = />\s*$|❯\s*$/.test(text);
+      hasCompletionMarker = /completed|Done|finished/i.test(text);
+      isWorking = /Thinking|Running|Searching/i.test(text);
+    } else {
+      hasIdlePrompt = />\s*$|\$\s*$/.test(text);
+      hasCompletionMarker = /completed|done|finished/i.test(text);
+      isWorking = false;
+    }
     return hasIdlePrompt && hasCompletionMarker && !isWorking;
   } catch (_) {
     return false;
@@ -264,7 +290,7 @@ function handleMessage(data) {
       } else {
         console.log(`Reconnected while working on ${currentTask.repo}#${currentTask.number} — resuming`);
         send({ type: 'task_accepted', seq: nextSeq(), task_id: currentTask.task_id });
-        send({ type: 'task_progress', seq: nextSeq(), task_id: currentTask.task_id, status: 'working' });
+        send({ type: 'task_progress', seq: nextSeq(), task_id: currentTask.task_id, kind: currentTask.kind, repo: currentTask.repo, number: currentTask.number, title: currentTask.title, status: 'working' });
         startProgressReporting();
       }
       break;

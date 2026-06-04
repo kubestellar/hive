@@ -79,6 +79,7 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("POST /api/config/governor/agents", s.handleGovernorAddAgent)
 	s.mux.HandleFunc("DELETE /api/config/governor/agents/{name}", s.handleGovernorRemoveAgent)
 	s.mux.HandleFunc("PUT /api/config/governor/repos", s.handleGovernorRepos)
+	s.mux.HandleFunc("PUT /api/config/governor/hub", s.handleGovernorHub)
 
 	s.mux.HandleFunc("GET /api/agents", s.handleAgentsList)
 	s.mux.HandleFunc("POST /api/agents", s.handleAgentCreate)
@@ -1730,6 +1731,11 @@ func (s *Server) handleGovernorConfigGet(w http.ResponseWriter, r *http.Request)
 			"compress":   cfg.Governor.Logging.Compress,
 			"level":      cfg.Governor.Logging.Level,
 		},
+		"hub": map[string]interface{}{
+			"enabled":  cfg.Hub.Enabled,
+			"url":      cfg.Hub.URL,
+			"isPublic": cfg.Hub.IsPublic,
+		},
 	})
 }
 
@@ -2035,6 +2041,23 @@ func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 	if s.deps.EnumerateFunc != nil {
 		go s.deps.EnumerateFunc()
 	}
+	s.refreshAndPersist()
+	okResponse(w, map[string]string{"status": "updated"})
+}
+
+func (s *Server) handleGovernorHub(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Enabled  bool   `json:"enabled"`
+		URL      string `json:"url"`
+		IsPublic bool   `json:"isPublic"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		jsonError(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	s.deps.Config.Hub.Enabled = body.Enabled
+	s.deps.Config.Hub.URL = body.URL
+	s.deps.Config.Hub.IsPublic = body.IsPublic
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }

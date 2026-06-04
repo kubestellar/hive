@@ -22,6 +22,7 @@ type Config struct {
 	Dashboard     DashboardConfig              `yaml:"dashboard"`
 	Data          DataConfig                   `yaml:"data"`
 	Knowledge     KnowledgeConfig              `yaml:"knowledge"`
+	Hub           HubConfig                    `yaml:"hub"`
 	HiveID        string                       `yaml:"hive_id"`
 	ACMMLevel     *int                         `yaml:"acmm_level,omitempty" json:"acmm_level"`
 
@@ -325,6 +326,12 @@ type DiscordConfig struct {
 	ChannelID string `yaml:"channel_id"`
 }
 
+type HubConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	URL      string `yaml:"url"`
+	IsPublic bool   `yaml:"is_public"`
+}
+
 type DashboardConfig struct {
 	Port               int    `yaml:"port"`
 	SnapshotDir        string `yaml:"snapshot_dir"`
@@ -570,6 +577,10 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Data.AgentsDir == "" {
 		c.Data.AgentsDir = "/data/agent-configs"
+	}
+	if c.Hub.URL == "" {
+		c.Hub.URL = "https://hive.kubestellar.io"
+		c.Hub.IsPublic = true
 	}
 	for name, agent := range c.Agents {
 		agent.name = name

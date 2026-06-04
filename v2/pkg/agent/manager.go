@@ -2264,12 +2264,6 @@ func (m *Manager) SetModelOverride(name, model string) error {
 }
 
 func (m *Manager) SetBackendOverride(name, backend string) error {
-	switch backend {
-	case "copilot", "claude", "gemini", "":
-	default:
-		return fmt.Errorf("backend must be one of: copilot, claude, gemini; got %q", backend)
-	}
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

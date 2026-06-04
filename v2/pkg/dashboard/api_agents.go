@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -58,15 +57,6 @@ func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) {
 	if len(body.Name) > 64 {
 		jsonError(w, "name must be at most 64 characters", http.StatusBadRequest)
 		return
-	}
-
-	if body.Agent.Backend != "" {
-		switch body.Agent.Backend {
-		case "copilot", "claude", "gemini":
-		default:
-			jsonError(w, fmt.Sprintf("backend must be one of: copilot, claude, gemini; got %q", body.Agent.Backend), http.StatusBadRequest)
-			return
-		}
 	}
 
 	if _, exists := s.deps.Config.Agents[body.Name]; exists {

@@ -141,8 +141,36 @@ function tmuxSendEnters() {
   }
 }
 
+const CLEAR_CONTEXT_THRESHOLD_PCT = 70;
+
+function checkContextUsage() {
+  try {
+    const output = execSync(
+      `tmux capture-pane -t ${TMUX_SESSION} -p -S -3 2>/dev/null`,
+      { encoding: 'utf8', timeout: 5000 }
+    );
+    const match = output.match(/ctx:(\d+)%|(\d+)% context/);
+    return match ? parseInt(match[1] || match[2], 10) : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
 function tmuxSendKeys(text) {
   try {
+    const ctxPct = checkContextUsage();
+    if (ctxPct >= CLEAR_CONTEXT_THRESHOLD_PCT) {
+      console.log(`Context at ${ctxPct}% — sending /clear before next task`);
+      execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 5000 });
+      sleepMs(200);
+      execSync(`tmux send-keys -t ${TMUX_SESSION} C-a`, { timeout: 5000 });
+      execSync(`tmux send-keys -t ${TMUX_SESSION} C-k`, { timeout: 5000 });
+      sleepMs(200);
+      execSync(`tmux send-keys -t ${TMUX_SESSION} -l '/clear'`, { timeout: 5000 });
+      sleepMs(200);
+      tmuxSendEnters();
+      sleepMs(3000);
+    }
     execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 5000 });
     sleepMs(200);
     execSync(`tmux send-keys -t ${TMUX_SESSION} C-a`, { timeout: 5000 });
@@ -181,10 +209,9 @@ function checkTmuxIdle() {
     );
     const text = output.toString();
     const hasIdlePrompt = /bypass permissions|shift\+tab to cycle/.test(text);
-    const hasCompletionMarker = /[A-Z][a-z]+ed for \d+[ms]|Honking|tokens\)/.test(text);
+    const hasCompletionMarker = /[✻✶✽] \S+ed for \d+[ms]|Honking|tokens\)/.test(text);
     const isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching|ing…/.test(text);
-    const hasErrors = /Error:|BLOCKED:|fatal:|failed|Interrupted/.test(text);
-    return hasIdlePrompt && hasCompletionMarker && !isWorking && !hasErrors;
+    return hasIdlePrompt && hasCompletionMarker && !isWorking;
   } catch (_) {
     return false;
   }
@@ -235,7 +262,10 @@ function handleMessage(data) {
       if (!currentTask) {
         send({ type: 'ready', seq: nextSeq() });
       } else {
-        console.log(`Reconnected while working on ${currentTask.repo}#${currentTask.number} — not requesting new task`);
+        console.log(`Reconnected while working on ${currentTask.repo}#${currentTask.number} — resuming`);
+        send({ type: 'task_accepted', seq: nextSeq(), task_id: currentTask.task_id });
+        send({ type: 'task_progress', seq: nextSeq(), task_id: currentTask.task_id, status: 'working' });
+        startProgressReporting();
       }
       break;
 
@@ -331,7 +361,6 @@ function connect() {
 function cleanup() {
   if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
   if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
-  currentTask = null;
 }
 
 process.on('SIGTERM', () => { cleanup(); process.exit(0); });

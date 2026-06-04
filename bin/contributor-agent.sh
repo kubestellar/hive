@@ -132,6 +132,34 @@ with open(p, 'w') as f: json.dump(d, f, indent=2)
 " 2>/dev/null || true
 fi
 
+# Download agent knowledge base from hub
+AGENT_MD="${HOME}/agent.md"
+HUB_HTTP=$(echo "$HIVE_HUB" | sed 's|^wss://|https://|;s|^ws://|http://|;s|/contribute$||')
+curl -sf "${HUB_HTTP}/api/knowledge/export" -o "$AGENT_MD" 2>/dev/null && \
+  echo "Agent knowledge downloaded ($(wc -l < "$AGENT_MD") lines)" || \
+  echo "# Agent Knowledge\n\nKnowledge base not yet available." > "$AGENT_MD"
+
+# Refresh agent.md every 10 minutes in the background
+KNOWLEDGE_REFRESH_SECS=600
+(
+  while true; do
+    sleep "$KNOWLEDGE_REFRESH_SECS"
+    TMPF=$(mktemp)
+    if curl -sf "${HUB_HTTP}/api/knowledge/export" -o "$TMPF" 2>/dev/null; then
+      if ! cmp -s "$TMPF" "$AGENT_MD"; then
+        mv "$TMPF" "$AGENT_MD"
+      else
+        rm -f "$TMPF"
+      fi
+    else
+      rm -f "$TMPF"
+    fi
+  done
+) &
+
+# Make agent.md visible as CLAUDE.md in the working directory
+ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+
 # Create tmux session for the agent
 tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$TMUX_SESSION" -x 200 -y 50

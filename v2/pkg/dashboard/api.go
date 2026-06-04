@@ -79,7 +79,6 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("POST /api/config/governor/agents", s.handleGovernorAddAgent)
 	s.mux.HandleFunc("DELETE /api/config/governor/agents/{name}", s.handleGovernorRemoveAgent)
 	s.mux.HandleFunc("PUT /api/config/governor/repos", s.handleGovernorRepos)
-	s.mux.HandleFunc("PUT /api/config/governor/hub", s.handleGovernorHub)
 
 	s.mux.HandleFunc("GET /api/agents", s.handleAgentsList)
 	s.mux.HandleFunc("POST /api/agents", s.handleAgentCreate)
@@ -94,6 +93,7 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("GET /api/config/backends", s.handleBackends)
 
 	s.mux.HandleFunc("GET /api/knowledge", s.handleKnowledgeList)
+	s.mux.HandleFunc("GET /api/knowledge/export", s.handleKnowledgeExport)
 	s.mux.HandleFunc("GET /api/knowledge/search", s.handleKnowledgeSearch)
 	s.mux.HandleFunc("GET /api/knowledge/health", s.handleKnowledgeHealth)
 	s.mux.HandleFunc("GET /api/knowledge/stats", s.handleKnowledgeStats)
@@ -1731,12 +1731,6 @@ func (s *Server) handleGovernorConfigGet(w http.ResponseWriter, r *http.Request)
 			"compress":   cfg.Governor.Logging.Compress,
 			"level":      cfg.Governor.Logging.Level,
 		},
-		"hub": map[string]interface{}{
-			"enabled":     cfg.Hub.Enabled,
-			"url":         cfg.Hub.URL,
-			"isPublic":    cfg.Hub.IsPublic,
-			"snapshotUrl": cfg.Hub.SnapshotURL,
-		},
 	})
 }
 
@@ -2046,25 +2040,6 @@ func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 	okResponse(w, map[string]string{"status": "updated"})
 }
 
-func (s *Server) handleGovernorHub(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Enabled     bool   `json:"enabled"`
-		URL         string `json:"url"`
-		IsPublic    bool   `json:"isPublic"`
-		SnapshotURL string `json:"snapshotUrl"`
-	}
-	if err := decodeBody(r, &body); err != nil {
-		jsonError(w, "invalid body", http.StatusBadRequest)
-		return
-	}
-	s.deps.Config.Hub.Enabled = body.Enabled
-	s.deps.Config.Hub.URL = body.URL
-	s.deps.Config.Hub.IsPublic = body.IsPublic
-	s.deps.Config.Hub.SnapshotURL = body.SnapshotURL
-	s.refreshAndPersist()
-	okResponse(w, map[string]string{"status": "updated"})
-}
-
 // --- Sidebar endpoints ---
 
 func (s *Server) handleSidebarGet(w http.ResponseWriter, r *http.Request) {
@@ -2174,6 +2149,76 @@ func (s *Server) handleKnowledgeList(w http.ResponseWriter, r *http.Request) {
 		"count":   len(facts),
 		"facts":   facts,
 	})
+}
+
+func (s *Server) handleKnowledgeExport(w http.ResponseWriter, r *http.Request) {
+	if !s.ensureKnowledge() {
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		w.Write([]byte("# Agent Knowledge\n\nKnowledge base not available.\n"))
+		return
+	}
+
+	facts := s.deps.Knowledge.SearchAllWithVaults(s.deps.Ctx, "", "", 0)
+
+	grouped := make(map[string][]knowledge.Fact)
+	for _, f := range facts {
+		t := string(f.Type)
+		if t == "" {
+			t = "general"
+		}
+		grouped[t] = append(grouped[t], f)
+	}
+
+	typeLabels := map[string]string{
+		"pattern":        "Patterns",
+		"gotcha":         "Gotchas",
+		"decision":       "Decisions",
+		"regression":     "Regressions",
+		"test_scaffold":  "Test Scaffolds",
+		"integration":    "Integration",
+		"coverage_rule":  "Coverage Rules",
+		"idea":           "Ideas",
+		"vision":         "Vision",
+		"constitution":   "Constitution",
+		"requirement":    "Requirements",
+		"constraint":     "Constraints",
+		"stakeholder":    "Stakeholders",
+		"general":        "General",
+	}
+
+	var sb strings.Builder
+	sb.WriteString("# Agent Knowledge\n\n")
+	sb.WriteString("This file is auto-generated from the hive knowledge base.\n")
+	sb.WriteString("It refreshes periodically — do not edit manually.\n\n")
+
+	order := []string{"constitution", "constraint", "requirement", "decision",
+		"pattern", "gotcha", "regression", "coverage_rule", "test_scaffold",
+		"integration", "idea", "vision", "stakeholder", "general"}
+
+	for _, t := range order {
+		ff, ok := grouped[t]
+		if !ok || len(ff) == 0 {
+			continue
+		}
+		label := typeLabels[t]
+		if label == "" {
+			label = strings.Title(t)
+		}
+		sb.WriteString("## " + label + "\n\n")
+		for _, f := range ff {
+			sb.WriteString("### " + f.Title + "\n\n")
+			if f.Body != "" {
+				sb.WriteString(f.Body + "\n\n")
+			}
+			if len(f.Tags) > 0 {
+				sb.WriteString("Tags: " + strings.Join(f.Tags, ", ") + "\n\n")
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, len(facts)))
+	w.Write([]byte(sb.String()))
 }
 
 func (s *Server) handleKnowledgeSearch(w http.ResponseWriter, r *http.Request) {

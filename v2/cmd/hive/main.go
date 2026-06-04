@@ -899,6 +899,7 @@ func main() {
 				}(),
 				Health:       map[string]any{},
 				DashboardURL: fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port),
+				SnapshotURL:  cfg.Hub.SnapshotURL,
 				IsPublic:     cfg.Hub.IsPublic,
 				Version:      "2.0.0",
 				GitHash:      gitShort,

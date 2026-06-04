@@ -842,10 +842,18 @@ func main() {
 		}
 	}
 
-	// Start hub heartbeat push if configured
-	hubURL := os.Getenv("HIVE_HUB_URL")
-	if hubURL != "" {
+	// Start hub heartbeat push if configured (env var or config)
+	hubURL := cfg.Hub.URL
+	if envHub := os.Getenv("HIVE_HUB_URL"); envHub != "" {
+		hubURL = envHub
+		cfg.Hub.Enabled = true
+		cfg.Hub.URL = envHub
+	}
+	if cfg.Hub.Enabled && hubURL != "" {
 		go hub.StartHeartbeat(ctx, hubURL, func() *hub.HeartbeatPayload {
+			if !cfg.Hub.Enabled {
+				return nil
+			}
 			statuses := agentMgr.AllStatuses()
 			govState := gov.GetState()
 			agents := make([]hub.AgentSummary, 0, len(statuses))
@@ -867,7 +875,7 @@ func main() {
 				Contributors: hub.ContributorSummary{},
 				Health:       map[string]any{},
 				DashboardURL: fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port),
-				IsPublic:     true,
+				IsPublic:     cfg.Hub.IsPublic,
 				Version:      "2.0.0",
 				GitHash:      gitShort,
 			}

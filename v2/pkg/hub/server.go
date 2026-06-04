@@ -169,7 +169,13 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 func (s *HubServer) handleRegistry(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	s.markStaleHives()
-	data, _ := json.Marshal(s.registry)
+	filtered := Registry{UpdatedAt: s.registry.UpdatedAt}
+	for _, h := range s.registry.Hives {
+		if h.IsPublic {
+			filtered.Hives = append(filtered.Hives, h)
+		}
+	}
+	data, _ := json.Marshal(filtered)
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")

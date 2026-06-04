@@ -21,6 +21,11 @@ type SaaSUser struct {
 func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /dashboard", s.handleDashboard)
 	s.mux.HandleFunc("GET /api/saas/my-hives", s.requireAuth(s.handleMyHives))
+	s.mux.HandleFunc("POST /api/saas/hives", s.requireAuth(s.handleCreateHive))
+	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
+	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
+
+	go StartProvisionWatcher(s.logger, &s.mu)
 }
 
 func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
@@ -121,6 +126,128 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"hives": result})
 }
 
+func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
+	username := s.getAuthUser(r)
+	if username == "" {
+		http.Error(w, `{"error":"not authenticated"}`, http.StatusUnauthorized)
+		return
+	}
+
+	var req CreateHiveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.Org == "" || req.Repos == "" || req.GitHubToken == "" {
+		http.Error(w, `{"error":"org, repos, and github_token are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if countUserHives(username) >= maxHivesPerUser {
+		http.Error(w, fmt.Sprintf(`{"error":"max %d hives per user"}`, maxHivesPerUser), http.StatusBadRequest)
+		return
+	}
+
+	if len(listSaaSHives()) >= maxSaaSHivesTotal {
+		http.Error(w, `{"error":"SaaS capacity reached — try again later"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	repos := strings.Split(req.Repos, ",")
+	for i := range repos {
+		repos[i] = strings.TrimSpace(repos[i])
+	}
+	primaryRepo := req.PrimaryRepo
+	if primaryRepo == "" && len(repos) > 0 {
+		primaryRepo = repos[0]
+	}
+	acmm := req.ACMMLevel
+	if acmm < 1 || acmm > 6 {
+		acmm = 1
+	}
+
+	hiveID := generateHiveID(req.Org, primaryRepo)
+	h := &SaaSHive{
+		ID:          hiveID,
+		Owner:       username,
+		ProjectName: req.ProjectName,
+		Org:         req.Org,
+		Repos:       repos,
+		PrimaryRepo: primaryRepo,
+		ACMMLevel:   acmm,
+		Status:      "provisioning",
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		Subdomain:   hiveID + ".hive.kubestellar.io",
+	}
+
+	if err := saveSaaSHive(h); err != nil {
+		http.Error(w, `{"error":"failed to save hive metadata"}`, http.StatusInternalServerError)
+		return
+	}
+
+	user := ensureSaaSUser(username)
+	user.Hives[hiveID] = "owner"
+	saveSaaSUser(user)
+
+	go func() {
+		if err := provisionHive(h, req.GitHubToken, s.logger); err != nil {
+			h.Status = "error"
+			h.Error = err.Error()
+			saveSaaSHive(h)
+			s.logger.Warn("saas hive provision failed", "hive_id", hiveID, "error", err)
+			return
+		}
+		h.Status = "provisioning"
+		saveSaaSHive(h)
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"id":        hiveID,
+		"status":    "provisioning",
+		"subdomain": h.Subdomain,
+	})
+}
+
+func (s *HubServer) handleHiveStatus(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	h := loadSaaSHive(id)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(h)
+}
+
+func (s *HubServer) handleSaaSAuthCheck(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.URL.Query().Get("hive")
+	if hiveID == "" {
+		http.Error(w, "missing hive param", http.StatusBadRequest)
+		return
+	}
+
+	username := s.getAuthUser(r)
+	if username == "" {
+		http.Error(w, "not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	user := loadSaaSUser(username)
+	if user == nil {
+		http.Error(w, "no access", http.StatusForbidden)
+		return
+	}
+
+	if _, ok := user.Hives[hiveID]; !ok {
+		http.Error(w, "no access to this hive", http.StatusForbidden)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *HubServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("hive_hub_user")
 	if err != nil || cookie.Value == "" {
@@ -146,10 +273,12 @@ const dashboardHTML = `<!DOCTYPE html>
     .nav { position: fixed; top: 0; width: 100%; z-index: 50; background: rgba(10,10,15,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
     .nav-inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
     .nav-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; }
-    .nav-links { display: flex; align-items: center; gap: 20px; font-size: 0.85rem; }
-    .nav-links a { color: var(--muted); }
+    .nav-links { display: flex; align-items: center; gap: 20px; font-size: 0.85rem; flex-wrap: nowrap; }
+    .nav-links a { color: var(--muted); white-space: nowrap; }
     .nav-links a:hover { color: var(--text); text-decoration: none; }
-    .nav-user { display: flex; align-items: center; gap: 8px; }
+    .nav-login { padding: 6px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 0.8rem; }
+    .nav-login:hover { border-color: var(--accent); color: var(--text); }
+    .nav-user { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
     .nav-avatar { width: 28px; height: 28px; border-radius: 50%; }
     .content { max-width: 1200px; margin: 0 auto; padding: 80px 24px 48px; }
     h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
@@ -192,7 +321,8 @@ const dashboardHTML = `<!DOCTYPE html>
         <a href="/learn">Learn</a>
         <a href="/get-started">Get Started</a>
         <a href="/dashboard" style="color:var(--accent)">My Hives</a>
-        <span id="nav-user"></span>
+        <a href="https://github.com/kubestellar/hive" target="_blank" title="Source Code" style="font-size:1.1rem">🐙</a>
+        <span id="nav-user" class="nav-user"></span>
         <a href="#" class="nav-login" onclick="fetch('/api/auth/logout',{method:'POST'}).then(function(){location.href='/'});return false;">Logout</a>
       </div>
     </div>
@@ -204,7 +334,7 @@ const dashboardHTML = `<!DOCTYPE html>
         <h1>My Hives</h1>
         <p class="subtitle">Hive instances you own or have access to</p>
       </div>
-      <button class="btn-primary" id="btn-add-hive" disabled title="Coming soon">+ Add SaaS Hive</button>
+      <button class="btn-primary" id="btn-add-hive" onclick="document.getElementById('create-modal').style.display='flex'">+ Add SaaS Hive</button>
     </div>
 
     <div id="hives-container"><div class="loading">Loading your hives...</div></div>
@@ -289,6 +419,7 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + modeBadge(h.governorMode) + '</td>' +
           '<td>' + (h.actionableIssues || 0) + '</td>' +
           '<td>' + (h.actionablePRs || 0) + '</td>' +
+          '<td>' + (h.activeContributors || 0) + '</td>' +
           '<td>' + roleBadge(h.role) + '</td>' +
           '<td>' + dashboardLink(h) + '</td>' +
           '<td>' + snapshotLink(h) + '</td>' +
@@ -296,13 +427,92 @@ const dashboardHTML = `<!DOCTYPE html>
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Hive</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Role</th><th>Dashboard</th><th>Snapshot</th>' +
+        '<th>#</th><th>Hive</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 
     loadUser();
     loadHives();
     setInterval(loadHives, 60000);
+
+    async function createHive() {
+      var org = document.getElementById('f-org').value.trim();
+      var repos = document.getElementById('f-repos').value.trim();
+      var primary = document.getElementById('f-primary').value.trim();
+      var name = document.getElementById('f-name').value.trim();
+      var level = parseInt(document.getElementById('f-level').value) || 1;
+      var token = document.getElementById('f-token').value.trim();
+
+      if (!org || !repos || !token) { alert('Org, repos, and GitHub token are required'); return; }
+
+      document.getElementById('btn-go').disabled = true;
+      document.getElementById('btn-go').textContent = 'Provisioning...';
+
+      try {
+        var resp = await fetch('/api/saas/hives', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({org: org, repos: repos, primary_repo: primary || repos.split(',')[0].trim(), project_name: name, acmm_level: level, github_token: token})
+        });
+        var data = await resp.json();
+        if (!resp.ok) { alert(data.error || 'Failed to create hive'); return; }
+
+        document.getElementById('create-modal').style.display = 'none';
+        document.getElementById('btn-go').disabled = false;
+        document.getElementById('btn-go').textContent = 'Go';
+
+        alert('Hive ' + data.id + ' is provisioning! It will appear in your dashboard shortly.');
+        loadHives();
+      } catch(e) {
+        alert('Error: ' + e.message);
+      } finally {
+        document.getElementById('btn-go').disabled = false;
+        document.getElementById('btn-go').textContent = 'Go';
+      }
+    }
   </script>
+
+  <div id="create-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:500px;width:90%">
+      <h2 style="font-size:1.3rem;margin-bottom:16px;color:var(--accent)">Create SaaS Hive</h2>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Organization *</label>
+        <input id="f-org" type="text" placeholder="my-org" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">Repositories * <span style="font-size:0.7rem">(comma-separated)</span></label>
+        <input id="f-repos" type="text" placeholder="repo1, repo2" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">Primary Repository</label>
+        <input id="f-primary" type="text" placeholder="defaults to first repo" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">Project Name</label>
+        <input id="f-name" type="text" placeholder="defaults to org/repo" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:12px">
+        <div style="flex:1">
+          <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">ACMM Level</label>
+          <select id="f-level" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+            <option value="1">L1 — Idea</option>
+            <option value="2">L2 — Measured</option>
+            <option value="3" selected>L3 — CI/CD</option>
+            <option value="4">L4 — Auto PR</option>
+            <option value="5">L5 — Self-Governing</option>
+            <option value="6">L6 — Fully Autonomous</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Token * <span style="font-size:0.7rem">(ghp_... or github_pat_...)</span></label>
+        <input id="f-token" type="password" placeholder="ghp_xxxxxxxxxxxx" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end">
+        <button onclick="document.getElementById('create-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Cancel</button>
+        <button id="btn-go" onclick="createHive()" class="btn-primary">Go</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>`

@@ -2782,6 +2782,14 @@ func (s *Server) handleGitSourcesConnect(w http.ResponseWriter, r *http.Request)
 		jsonError(w, "name and url are required", http.StatusBadRequest)
 		return
 	}
+	if !strings.HasPrefix(req.URL, "https://") && !strings.HasPrefix(req.URL, "http://") && !strings.HasPrefix(req.URL, "git@") {
+		jsonError(w, "url must start with https://, http://, or git@", http.StatusBadRequest)
+		return
+	}
+	if strings.Contains(req.Name, "..") || strings.ContainsAny(req.Name, "/\\") {
+		jsonError(w, "invalid name", http.StatusBadRequest)
+		return
+	}
 	if req.Layer == "" {
 		req.Layer = "project"
 	}
@@ -2960,7 +2968,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, map[string]interface{}{
-		"answer": fmt.Sprintf("Chat is not yet fully implemented. You asked: %s", body.Query),
+		"answer": fmt.Sprintf("Chat is not yet fully implemented. You asked: %s", sanitizeString(body.Query)),
 		"status": "stub",
 	})
 }

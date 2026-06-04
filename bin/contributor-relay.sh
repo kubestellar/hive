@@ -290,7 +290,7 @@ function handleMessage(data) {
       } else {
         console.log(`Reconnected while working on ${currentTask.repo}#${currentTask.number} — resuming`);
         send({ type: 'task_accepted', seq: nextSeq(), task_id: currentTask.task_id });
-        send({ type: 'task_progress', seq: nextSeq(), task_id: currentTask.task_id, status: 'working' });
+        send({ type: 'task_progress', seq: nextSeq(), task_id: currentTask.task_id, kind: currentTask.kind, repo: currentTask.repo, number: currentTask.number, title: currentTask.title, status: 'working' });
         startProgressReporting();
       }
       break;

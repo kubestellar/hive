@@ -229,8 +229,14 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Org == "" || req.Repos == "" || req.GitHubToken == "" {
-		http.Error(w, `{"error":"org, repos, and github_token are required"}`, http.StatusBadRequest)
+	if req.Org == "" || req.Repos == "" {
+		http.Error(w, `{"error":"org and repos are required"}`, http.StatusBadRequest)
+		return
+	}
+	hasToken := req.GitHubToken != ""
+	hasApp := req.AuthMethod == "app" && req.AppID != "" && req.InstallationID != "" && req.AppPrivateKey != ""
+	if !hasToken && !hasApp {
+		http.Error(w, `{"error":"provide either a GitHub token or GitHub App credentials"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -280,7 +286,7 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 	saveSaaSUser(user)
 
 	go func() {
-		if err := provisionHive(h, req.GitHubToken, s.logger); err != nil {
+		if err := provisionHive(h, &req, s.logger); err != nil {
 			h.Status = "error"
 			h.Error = err.Error()
 			saveSaaSHive(h)
@@ -537,9 +543,14 @@ const dashboardHTML = `<!DOCTYPE html>
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 
-    loadUser();
-    loadHives();
+    async function init() {
+      await loadUser();
+      loadHives();
+      loadAdminUsers();
+    }
+    init();
     setInterval(loadHives, 60000);
+    setInterval(loadAdminUsers, 60000);
 
     var _allUsers = [];
     async function loadAdminUsers() {
@@ -611,26 +622,34 @@ const dashboardHTML = `<!DOCTYPE html>
       } catch(e) { alert('Error: ' + e.message); }
     }
 
-    loadAdminUsers();
-
     async function createHive() {
       var org = document.getElementById('f-org').value.trim();
       var repos = document.getElementById('f-repos').value.trim();
       var primary = document.getElementById('f-primary').value.trim();
       var name = document.getElementById('f-name').value.trim();
       var level = parseInt(document.getElementById('f-level').value) || 1;
+      var method = document.querySelector('input[name="auth-method"]:checked').value;
       var token = document.getElementById('f-token').value.trim();
+      var appId = (document.getElementById('f-app-id') || {}).value || '';
+      var installId = (document.getElementById('f-install-id') || {}).value || '';
+      var appKey = (document.getElementById('f-app-key') || {}).value || '';
 
-      if (!org || !repos || !token) { alert('Org, repos, and GitHub token are required'); return; }
+      if (!org || !repos) { alert('Org and repos are required'); return; }
+      if (method === 'pat' && !token) { alert('GitHub token is required'); return; }
+      if (method === 'app' && (!appId || !installId || !appKey)) { alert('App ID, Installation ID, and Private Key are required'); return; }
 
       document.getElementById('btn-go').disabled = true;
       document.getElementById('btn-go').textContent = 'Provisioning...';
 
       try {
+        var body = {org: org, repos: repos, primary_repo: primary || repos.split(',')[0].trim(), project_name: name, acmm_level: level, auth_method: method};
+        if (method === 'pat') body.github_token = token;
+        else { body.app_id = appId.trim(); body.installation_id = installId.trim(); body.app_private_key = appKey.trim(); }
+
         var resp = await fetch('/api/saas/hives', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({org: org, repos: repos, primary_repo: primary || repos.split(',')[0].trim(), project_name: name, acmm_level: level, github_token: token})
+          body: JSON.stringify(body)
         });
         var data = await resp.json();
         if (!resp.ok) { alert(data.error || 'Failed to create hive'); return; }
@@ -682,14 +701,36 @@ const dashboardHTML = `<!DOCTYPE html>
           </select>
         </div>
       </div>
-      <div style="margin-bottom:20px">
-        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Personal Access Token *</label>
-        <input id="f-token" type="password" placeholder="ghp_xxxxxxxxxxxx" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
-        <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;line-height:1.5">
-          Create a <a href="https://github.com/settings/tokens?type=beta" target="_blank">Fine-grained PAT</a> with these permissions on your repos:<br>
-          <strong>Required:</strong> Contents (read/write), Issues (read/write), Pull requests (read/write), Metadata (read)<br>
-          <strong>Optional:</strong> Actions (read), Commit statuses (read)<br>
-          Classic tokens (<code>ghp_</code>) also work with <code>repo</code> scope.
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">Authentication Method</label>
+        <div style="display:flex;gap:12px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.8rem"><input type="radio" name="auth-method" value="pat" checked onchange="document.getElementById('auth-pat').style.display='';document.getElementById('auth-app').style.display='none'"> Personal Access Token</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.8rem"><input type="radio" name="auth-method" value="app" onchange="document.getElementById('auth-pat').style.display='none';document.getElementById('auth-app').style.display=''"> GitHub App</label>
+        </div>
+      </div>
+      <div id="auth-pat">
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Token *</label>
+          <input id="f-token" type="password" placeholder="ghp_xxxxxxxxxxxx" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;line-height:1.5">
+            Create a <a href="https://github.com/settings/tokens?type=beta" target="_blank">Fine-grained PAT</a>: Contents, Issues, Pull requests (read/write), Metadata (read).<br>
+            Classic tokens (<code>ghp_</code>) work with <code>repo</code> scope.
+          </div>
+        </div>
+      </div>
+      <div id="auth-app" style="display:none">
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">App ID *</label>
+          <input id="f-app-id" type="text" placeholder="123456" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">Installation ID *</label>
+          <input id="f-install-id" type="text" placeholder="78901234" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">Private Key (PEM) *</label>
+          <textarea id="f-app-key" rows="4" placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;font-family:monospace;resize:vertical"></textarea>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Download from your <a href="https://github.com/settings/apps" target="_blank">GitHub App settings</a> → Private keys.</div>
         </div>
       </div>
       <div style="display:flex;gap:12px;justify-content:flex-end">

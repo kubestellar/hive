@@ -18,15 +18,19 @@ CONFIG_DIR="${HOME}/.config/hive"
 CONFIG_FILE="${CONFIG_DIR}/contributor.env"
 TMUX_SESSION="contributor"
 
+# Save env vars passed via docker -e (before config file overrides them)
+_DOCKER_BACKEND="${AGENT_BACKEND:-}"
+
 # Load contributor config
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck source=/dev/null
   source "$CONFIG_FILE"
 fi
 
+# Docker -e takes precedence over config file
 export HIVE_HUB="${HIVE_HUB:-wss://hive.kubestellar.io:3001/contribute}"
 export HIVE_REGISTRATION_TOKEN="${HIVE_REGISTRATION_TOKEN:?Not registered — run 'just contribute-register' first}"
-export AGENT_BACKEND="${AGENT_BACKEND:-claude}"
+export AGENT_BACKEND="${_DOCKER_BACKEND:-${AGENT_BACKEND:-claude}}"
 export HIVE_AGENT_SESSION="$TMUX_SESSION"
 export HIVE_AGENT_ID="contributor"
 export HIVE_CONTRIBUTOR_MODE="true"

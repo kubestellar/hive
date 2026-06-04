@@ -142,7 +142,11 @@ contribute-setup backend="claude":
 # Start contributing — Docker (default) or local mode
 # Usage: just contribute-hive        (Docker, reads CLI from contributor.env)
 #        just contribute-hive local   (native, starts relay + CLI directly)
-contribute-hive mode="docker":
+# Start contributing — Docker (default) or local mode
+# Usage: just contribute-hive              (Docker, default CLI from setup)
+#        just contribute-hive copilot      (Docker, copilot backend)
+#        just contribute-hive claude local  (native mode, claude)
+contribute-hive backend="" mode="docker":
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ ! -f "{{config_dir}}/contributor.env" ]]; then
@@ -155,7 +159,11 @@ contribute-hive mode="docker":
     fi
     source "{{config_dir}}/gh-auth.env"
     source "{{config_dir}}/contributor.env"
-    BACKEND="${AGENT_BACKEND:-claude}"
+    if [[ -n "{{backend}}" ]]; then
+      BACKEND="{{backend}}"
+    else
+      BACKEND="${AGENT_BACKEND:-claude}"
+    fi
     echo "=== Hive Contributor Agent ==="
     echo "Backend:  ${BACKEND}"
     echo "Hub:      {{hive_hub}}"
@@ -189,8 +197,6 @@ contribute-hive mode="docker":
       esac
     else
       # ── Docker mode: stop existing, start fresh ──
-      docker rm -f hive-contributor >/dev/null 2>&1 || true
-      sleep 1
       if [[ "${HIVE_SKIP_PULL:-}" != "true" ]]; then
         echo "Pulling {{hive_image}}..."
         docker pull {{hive_image}} 2>/dev/null || echo "Pull failed — using local image"
@@ -213,8 +219,9 @@ contribute-hive mode="docker":
           [ -d "${HOME}/.config/goose" ] && CLI_MOUNTS="-v ${HOME}/.config/goose:/home/dev/.config/goose"
           ;;
       esac
+      CONTAINER_NAME="hive-contributor-${BACKEND}-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' ')"
       docker run -it --rm \
-        --name hive-contributor \
+        --name "${CONTAINER_NAME}" \
         --network host \
         -v "{{config_dir}}:/home/dev/.config/hive:ro" \
         ${CLI_MOUNTS} \
@@ -223,7 +230,7 @@ contribute-hive mode="docker":
         -e AGENT_BACKEND="${BACKEND}" \
         -e GH_TOKEN="${GH_TOKEN}" \
         -e HIVE_USE_CONTRIBUTOR_GH=true \
-        -e HIVE_CONTAINER_NAME=hive-contributor \
+        -e HIVE_CONTAINER_NAME="${CONTAINER_NAME}" \
         ${ANTHROPIC_API_KEY:+-e ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}"} \
         ${GOOGLE_API_KEY:+-e GOOGLE_API_KEY="${GOOGLE_API_KEY}"} \
         ${GOOSE_API_KEY:+-e GOOSE_API_KEY="${GOOSE_API_KEY}"} \
@@ -255,4 +262,4 @@ contribute-browse:
 
 # Stop contributing (if running in background)
 contribute-stop:
-    @docker stop hive-contributor 2>/dev/null && echo "Stopped." || echo "Not running."
+    @docker ps --filter "name=hive-contributor-" --format '{{.Names}}' | xargs -r docker stop 2>/dev/null && echo "Stopped." || echo "Not running."

@@ -624,6 +624,17 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 		return nil
 	}
 
+	activeIssues := make(map[string]bool)
+	h.mu.RLock()
+	for _, conn := range h.connections {
+		conn.mu.Lock()
+		if conn.currentTask != nil {
+			activeIssues[fmt.Sprintf("%s#%d", conn.currentTask.Repo, conn.currentTask.Number)] = true
+		}
+		conn.mu.Unlock()
+	}
+	h.mu.RUnlock()
+
 	for _, repo := range status.Repos {
 		if len(repo.ActionableIssues) == 0 {
 			continue
@@ -651,6 +662,9 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 				continue
 			}
 			if h.isTaskInCooldown(repo.Full, number) {
+				continue
+			}
+			if activeIssues[fmt.Sprintf("%s#%d", repo.Full, number)] {
 				continue
 			}
 

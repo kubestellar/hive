@@ -1550,9 +1550,13 @@ func (s *Server) handleAgentConfigRestrictions(w http.ResponseWriter, r *http.Re
 
 	var lines []string
 	for _, r := range body.Agent {
-		line := r.Pattern
-		if r.Reason != "" {
-			line += "|" + r.Reason
+		pattern := strings.ReplaceAll(r.Pattern, "\n", "")
+		pattern = strings.ReplaceAll(pattern, "\r", "")
+		reason := strings.ReplaceAll(r.Reason, "\n", "")
+		reason = strings.ReplaceAll(reason, "\r", "")
+		line := pattern
+		if reason != "" {
+			line += "|" + reason
 		}
 		lines = append(lines, line)
 	}

@@ -311,6 +311,33 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	for _, sh := range listSaaSHives() {
+		if sh.Owner == username && !seen[sh.ID] {
+			user.Hives[sh.ID] = "owner"
+			entry := MyHiveEntry{
+				RegistryEntry: RegistryEntry{
+					ID:          sh.ID,
+					Name:        sh.Org + "/" + sh.PrimaryRepo,
+					Org:         sh.Org,
+					Repos:       sh.Repos,
+					PrimaryRepo: sh.PrimaryRepo,
+					ACMMLevel:   sh.ACMMLevel,
+					HiveType:    "hosted",
+				},
+				Role: "owner",
+			}
+			entry.ProvStatus = sh.Status
+			if sh.Status == "provisioning" {
+				entry.GovernorMode = "PROVISIONING"
+			} else if sh.Status == "error" {
+				entry.GovernorMode = "ERROR"
+				entry.ProvError = sh.Error
+			}
+			result = append(result, entry)
+			seen[sh.ID] = true
+		}
+	}
+
 	if len(user.Hives) > 0 {
 		saveSaaSUser(user)
 	}

@@ -2978,6 +2978,12 @@ func (s *Server) handleNousMode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	validModes := map[string]bool{"observe": true, "passive": true, "active": true, "off": true}
+	if !validModes[body.Mode] {
+		jsonError(w, "mode must be one of: observe, passive, active, off", http.StatusBadRequest)
+		return
+	}
+
 	if s.deps.Nous != nil {
 		s.deps.Nous.Mode = body.Mode
 	}
@@ -2991,6 +2997,12 @@ func (s *Server) handleNousScope(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := decodeBody(r, &body); err != nil || body.Scope == "" {
 		jsonError(w, "scope is required", http.StatusBadRequest)
+		return
+	}
+
+	validScopes := map[string]bool{"governor": true, "agents": true, "full": true}
+	if !validScopes[body.Scope] {
+		jsonError(w, "scope must be one of: governor, agents, full", http.StatusBadRequest)
 		return
 	}
 

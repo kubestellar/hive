@@ -131,6 +131,9 @@ func (s *HubServer) getAuthUser(r *http.Request) string {
 }
 
 func loadSaaSUser(username string) *SaaSUser {
+	if strings.Contains(username, "..") || strings.Contains(username, "/") || strings.Contains(username, "\\") {
+		return nil
+	}
 	path := filepath.Join(saasUsersDir, username+".json")
 	data, err := os.ReadFile(path)
 	if err != nil {

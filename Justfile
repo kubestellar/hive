@@ -6,7 +6,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 hive_image := env("HIVE_CONTRIBUTOR_IMAGE", "ghcr.io/kubestellar/hive-contributor:latest")
-hive_hub := env("HIVE_HUB", "wss://hive.kubestellar.io:3001/contribute")
+hive_hub := env("HIVE_HUB", "wss://hive.kubestellar.io/contribute")
 config_dir := env("HOME") + "/.config/hive"
 
 # Show available commands
@@ -46,12 +46,17 @@ contribute-setup backend="claude":
     # ── Step 2: Register with hive hub ──
     echo "── Step 2/3: Hive Registration ──"
     HUB_HTTP=$(echo "{{hive_hub}}" | sed 's|^wss://|https://|;s|^ws://|http://|;s|/contribute$||')
-    RESPONSE=$(curl -sf -X POST "${HUB_HTTP}/api/contribute/register" \
+    RESPONSE=$(curl -sf --max-time 15 -X POST "${HUB_HTTP}/api/contribute/register" \
       -H "Content-Type: application/json" \
-      -d "{\"github_username\": \"${GH_USER}\"}" 2>&1) || {
+      -d "{\"github_username\": \"${GH_USER}\"}" 2>/dev/null) || {
         echo "ERROR: Registration failed. Is the hub running at ${HUB_HTTP}?"
+        echo "  Check: curl -sf ${HUB_HTTP}/api/contribute/status"
         exit 1
     }
+    if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
+      echo "ERROR: Hub returned invalid response: ${RESPONSE:0:200}"
+      exit 1
+    fi
     TOKEN=$(echo "$RESPONSE" | jq -r '.registration_token')
     CID=$(echo "$RESPONSE" | jq -r '.contributor_id')
     MSG=$(echo "$RESPONSE" | jq -r '.message')
@@ -126,12 +131,28 @@ contribute-setup backend="claude":
         if command -v goose &>/dev/null; then
           echo "Goose CLI detected — authentication handled on first run."
         else
-          echo "ERROR: Goose CLI not found."
+          echo "ERROR: Goose CLI not found. Install: https://github.com/block/goose/releases"
+          exit 1
+        fi
+        ;;
+      codex)
+        if command -v codex &>/dev/null; then
+          echo "Codex CLI detected — uses OPENAI_API_KEY from environment."
+        else
+          echo "ERROR: Codex CLI not found. Install: npm i -g @openai/codex"
+          exit 1
+        fi
+        ;;
+      agy)
+        if command -v agy &>/dev/null; then
+          echo "Agy CLI detected — authentication handled on first run."
+        else
+          echo "ERROR: Agy CLI not found."
           exit 1
         fi
         ;;
       *)
-        echo "ERROR: Unknown backend '{{backend}}'. Supported: claude, copilot, gemini, bob, goose"
+        echo "ERROR: Unknown backend '{{backend}}'. Supported: claude, copilot, goose, codex, agy, bob"
         exit 1
         ;;
     esac
@@ -205,10 +226,11 @@ contribute-hive backend="" mode="docker":
       echo "Launching ${BACKEND} CLI (interactive)..."
       case "${BACKEND}" in
         claude)  claude --dangerously-skip-permissions ;;
-        copilot) copilot ;;
+        copilot) copilot --allow-all ;;
         bob)     bob --accept-license ;;
-        gemini)  gemini --yolo ;;
-        goose)   goose --no-confirm ;;
+        goose)   goose session ;;
+        codex)   codex --full-auto ;;
+        agy)     agy ;;
         *)
           echo "ERROR: Unknown backend '${BACKEND}'"
           exit 1
@@ -230,12 +252,11 @@ contribute-hive backend="" mode="docker":
         copilot)
           [ -d "${HOME}/.copilot" ] && CLI_MOUNTS="-v ${HOME}/.copilot:/home/dev/.copilot"
           ;;
-        gemini)
-          [ -d "${HOME}/.gemini" ] && CLI_MOUNTS="-v ${HOME}/.gemini:/home/dev/.gemini"
-          [ -d "${HOME}/.config/gemini" ] && CLI_MOUNTS="${CLI_MOUNTS} -v ${HOME}/.config/gemini:/home/dev/.config/gemini"
-          ;;
         goose)
           [ -d "${HOME}/.config/goose" ] && CLI_MOUNTS="-v ${HOME}/.config/goose:/home/dev/.config/goose"
+          ;;
+        codex)
+          [ -d "${HOME}/.codex" ] && CLI_MOUNTS="-v ${HOME}/.codex:/home/dev/.codex"
           ;;
       esac
       CONTAINER_NAME="hive-contributor-${BACKEND}-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' ')"

@@ -80,7 +80,9 @@ function getCLIState() {
       if (/Choose the text style|trust this folder/.test(text)) return 'onboarding';
     } else if (BACKEND === 'copilot') {
       if (/copilot login|gh auth login/.test(text)) return 'needs-login';
-      if (/autopilot|allow-all|>\s*$|❯/.test(text)) return 'ready';
+      if (/Confirm folder trust|trust the files|Do you trust/.test(text)) return 'onboarding';
+      if (/AI Credits: 0/.test(text)) return 'needs-login';
+      if (/\/ commands.*help/.test(text)) return 'ready';
     } else if (BACKEND === 'gemini') {
       if (/not authenticated|login required/i.test(text)) return 'needs-login';
       if (/>\s*$|❯/.test(text)) return 'ready';

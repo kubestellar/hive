@@ -102,7 +102,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
-	s.mux.HandleFunc("POST /api/saas/user-token", s.handleUserToken)
+	s.mux.HandleFunc("POST /api/saas/user-token", s.requireAuth(s.handleUserToken))
 	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
 
@@ -442,6 +442,10 @@ func (s *HubServer) handleHiveStatus(w http.ResponseWriter, r *http.Request) {
 func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 	username := s.getAuthUser(r)
 	id := r.PathValue("id")
+	if strings.Contains(id, "..") || strings.Contains(id, "/") {
+		http.Error(w, `{"error":"invalid hive id"}`, http.StatusBadRequest)
+		return
+	}
 
 	h := loadSaaSHive(id)
 	if h == nil {

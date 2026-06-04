@@ -1759,7 +1759,19 @@ func (s *Server) handleGovernorSensing(w http.ResponseWriter, r *http.Request) {
 		s.deps.Config.Governor.Sensing.CLIExcludePatterns = body.CLIExcludePatterns
 	}
 	if body.LoginPatterns != nil {
-		s.deps.Config.Governor.Sensing.LoginPatterns = body.LoginPatterns
+		var filtered []string
+		for _, p := range body.LoginPatterns {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			if _, err := regexp.Compile(p); err != nil {
+				jsonError(w, fmt.Sprintf("invalid login pattern regex %q: %v", p, err), http.StatusBadRequest)
+				return
+			}
+			filtered = append(filtered, p)
+		}
+		s.deps.Config.Governor.Sensing.LoginPatterns = filtered
 	}
 	if body.TTLSeconds > 0 {
 		s.deps.Config.Governor.Sensing.TTLSeconds = body.TTLSeconds
@@ -2026,6 +2038,11 @@ func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 	org := s.deps.Config.Project.Org
 	stripped := make([]string, 0, len(body.Repos))
 	for _, repo := range body.Repos {
+		repo = sanitizeString(repo)
+		if strings.Contains(repo, "..") || strings.ContainsAny(repo, "<>\"';&|") {
+			jsonError(w, fmt.Sprintf("invalid repo name: %s", repo), http.StatusBadRequest)
+			return
+		}
 		if org != "" && strings.HasPrefix(repo, org+"/") {
 			stripped = append(stripped, strings.TrimPrefix(repo, org+"/"))
 		} else {

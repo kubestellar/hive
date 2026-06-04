@@ -184,7 +184,7 @@ func (g *Governor) Evaluate(queueIssues, queuePRs, queueHold, slaViolations int)
 		Mode:          g.state.Mode,
 		QueueIssues:   queueIssues,
 		QueuePRs:      queuePRs,
-		QueueTotal:    queueIssues + queuePRs,
+		QueueTotal:    queueIssues + queuePRs + queueHold,
 		QueueHold:     queueHold,
 		QueueActive:   queueIssues + queuePRs,
 		SLAViolations: slaViolations,

@@ -300,4 +300,4 @@ hive-api-docs:
 
 # Stop contributing (if running in background)
 contribute-stop:
-    @docker ps --filter "name=hive-contributor-" --format '{{.Names}}' | xargs -r docker stop 2>/dev/null && echo "Stopped." || echo "Not running."
+    @docker ps --filter "name=hive-contributor-" --format '{{ '{{' }}.Names{{ '}}' }}' | xargs -r docker stop 2>/dev/null && echo "Stopped." || echo "Not running."

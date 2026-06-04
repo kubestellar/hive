@@ -1284,7 +1284,7 @@ func TestHandleNousGateRespond_NilNous(t *testing.T) {
 func TestHandleNousMode_NilNous(t *testing.T) {
 	s, deps := apiServer(t)
 	deps.Nous = nil
-	rec := doPut(s, "/api/nous/mode", map[string]string{"mode": "observe"})
+	rec := doPut(s, "/api/nous/mode", map[string]string{"mode": "test"})
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d", rec.Code)
 	}
@@ -1293,7 +1293,7 @@ func TestHandleNousMode_NilNous(t *testing.T) {
 func TestHandleNousScope_NilNous(t *testing.T) {
 	s, deps := apiServer(t)
 	deps.Nous = nil
-	rec := doPut(s, "/api/nous/scope", map[string]string{"scope": "governor"})
+	rec := doPut(s, "/api/nous/scope", map[string]string{"scope": "test"})
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d", rec.Code)
 	}

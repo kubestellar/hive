@@ -2978,9 +2978,9 @@ func (s *Server) handleNousMode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validModes := map[string]bool{"observe": true, "passive": true, "active": true, "off": true}
-	if !validModes[body.Mode] {
-		jsonError(w, "mode must be one of: observe, passive, active, off", http.StatusBadRequest)
+	body.Mode = sanitizeString(body.Mode)
+	if body.Mode == "" {
+		jsonError(w, "mode is required", http.StatusBadRequest)
 		return
 	}
 
@@ -3000,9 +3000,9 @@ func (s *Server) handleNousScope(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validScopes := map[string]bool{"governor": true, "agents": true, "full": true}
-	if !validScopes[body.Scope] {
-		jsonError(w, "scope must be one of: governor, agents, full", http.StatusBadRequest)
+	body.Scope = sanitizeString(body.Scope)
+	if body.Scope == "" {
+		jsonError(w, "scope is required", http.StatusBadRequest)
 		return
 	}
 

@@ -904,7 +904,12 @@ func main() {
 					return ""
 				}(),
 				Health:       map[string]any{},
-				DashboardURL: fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port),
+				DashboardURL: func() string {
+					if cfg.Hub.DashboardURL != "" {
+						return cfg.Hub.DashboardURL
+					}
+					return fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port)
+				}(),
 				SnapshotURL:  cfg.Hub.SnapshotURL,
 				IsPublic:     cfg.Hub.IsPublic,
 				Version:      "2.0.0",

@@ -327,10 +327,11 @@ type DiscordConfig struct {
 }
 
 type HubConfig struct {
-	Enabled     bool   `yaml:"enabled"`
-	URL         string `yaml:"url"`
-	IsPublic    bool   `yaml:"is_public"`
-	SnapshotURL string `yaml:"snapshot_url"`
+	Enabled      bool   `yaml:"enabled"`
+	URL          string `yaml:"url"`
+	IsPublic     bool   `yaml:"is_public"`
+	SnapshotURL  string `yaml:"snapshot_url"`
+	DashboardURL string `yaml:"dashboard_url"`
 }
 
 type DashboardConfig struct {

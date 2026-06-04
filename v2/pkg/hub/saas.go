@@ -683,8 +683,14 @@ const dashboardHTML = `<!DOCTYPE html>
         </div>
       </div>
       <div style="margin-bottom:20px">
-        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Token * <span style="font-size:0.7rem">(ghp_... or github_pat_...)</span></label>
+        <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Personal Access Token *</label>
         <input id="f-token" type="password" placeholder="ghp_xxxxxxxxxxxx" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+        <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;line-height:1.5">
+          Create a <a href="https://github.com/settings/tokens?type=beta" target="_blank">Fine-grained PAT</a> with these permissions on your repos:<br>
+          <strong>Required:</strong> Contents (read/write), Issues (read/write), Pull requests (read/write), Metadata (read)<br>
+          <strong>Optional:</strong> Actions (read), Commit statuses (read)<br>
+          Classic tokens (<code>ghp_</code>) also work with <code>repo</code> scope.
+        </div>
       </div>
       <div style="display:flex;gap:12px;justify-content:flex-end">
         <button onclick="document.getElementById('create-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Cancel</button>

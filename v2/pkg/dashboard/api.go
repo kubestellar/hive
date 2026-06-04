@@ -3040,6 +3040,13 @@ func (s *Server) handleNousGateDecision(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	body.Decision = sanitizeString(body.Decision)
+	body.Reason = sanitizeString(body.Reason)
+	if body.Decision == "" {
+		jsonError(w, "decision is required", http.StatusBadRequest)
+		return
+	}
+
 	if s.deps.Nous.GatePending == nil {
 		s.deps.Nous.GatePending = make(map[string]interface{})
 	}

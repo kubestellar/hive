@@ -127,6 +127,12 @@ func New(cfg config.GovernorConfig, agents map[string]config.AgentConfig, logger
 	}
 }
 
+func (g *Governor) UpdateConfig(cfg config.GovernorConfig) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.cfg = cfg
+}
+
 func (g *Governor) Evaluate(queueIssues, queuePRs, queueHold, slaViolations int) []string {
 	g.mu.Lock()
 	defer g.mu.Unlock()

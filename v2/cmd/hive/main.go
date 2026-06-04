@@ -790,6 +790,7 @@ func main() {
 		if uc := userGHClient.Load(); uc != nil {
 			uc.SetRepos(cfg.Project.Repos)
 		}
+		gov.UpdateConfig(cfg.Governor)
 		initAgentConfigDrivenSystems(cfg)
 		refreshDashboard()
 	}, logger)

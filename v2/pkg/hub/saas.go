@@ -576,24 +576,28 @@ func (s *HubServer) handleLatestSHA(w http.ResponseWriter, r *http.Request) {
 	}
 	latestSHAMu.RUnlock()
 
-	cmd := exec.Command("git", "ls-remote", "https://github.com/kubestellar/hive.git", "v2")
-	out, err := cmd.Output()
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, _ := http.NewRequest("GET", "https://api.github.com/repos/kubestellar/hive/commits/v2", nil)
+	req.Header.Set("Accept", "application/vnd.github.sha")
+	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(w, `{"error":"failed to fetch latest SHA"}`, http.StatusInternalServerError)
 		return
 	}
-	parts := strings.Fields(string(out))
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	sha := strings.TrimSpace(string(body))
 
 	latestSHAMu.Lock()
-	if len(parts) > 0 && len(parts[0]) >= 7 {
-		latestSHACache = parts[0][:7]
+	if len(sha) >= 7 {
+		latestSHACache = sha[:7]
 		latestSHACacheTime = time.Now()
 	}
-	sha := latestSHACache
+	cached := latestSHACache
 	latestSHAMu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"sha": sha})
+	json.NewEncoder(w).Encode(map[string]string{"sha": cached})
 }
 
 func (s *HubServer) handleAccessList(w http.ResponseWriter, r *http.Request) {

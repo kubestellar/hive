@@ -66,6 +66,9 @@ func StartHeartbeat(ctx context.Context, hubURL string, collect StatusCollector,
 	}
 
 	logger.Info("hub heartbeat enabled", "url", hubURL, "interval", interval)
+
+	sendHeartbeat(ctx, hubURL, collect, logger)
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 

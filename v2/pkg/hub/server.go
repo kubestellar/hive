@@ -75,6 +75,7 @@ func NewHubServer(port int, logger *slog.Logger) *HubServer {
 	s.loadRegistry()
 
 	s.mux.HandleFunc("POST /api/heartbeat", s.handleHeartbeat)
+	s.mux.HandleFunc("POST /api/task-status", s.handleTaskStatus)
 	s.mux.HandleFunc("GET /api/registry", s.handleRegistry)
 	s.mux.HandleFunc("GET /api/hub/leaderboard", s.handleLeaderboard)
 	s.mux.HandleFunc("GET /api/hub/stats", s.handleStats)
@@ -208,6 +209,42 @@ func (s *HubServer) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
 	data, _ := json.Marshal(map[string]any{"leaderboard": merged})
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
+}
+
+func (s *HubServer) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxPayloadBytes))
+	if err != nil {
+		http.Error(w, "read error", http.StatusBadRequest)
+		return
+	}
+	var payload struct {
+		HiveID      string           `json:"hive_id"`
+		Leaderboard []LeaderboardEntry `json:"leaderboard"`
+		Contributors ContributorSummary `json:"contributors"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil || payload.HiveID == "" {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	hiveName := ""
+	s.mu.Lock()
+	for i, h := range s.registry.Hives {
+		if h.ID == payload.HiveID {
+			hiveName = h.Name
+			s.registry.Hives[i].ContributorCount = payload.Contributors.Registered
+			s.registry.Hives[i].ActiveContributors = payload.Contributors.Active
+			for j := range payload.Leaderboard {
+				payload.Leaderboard[j].HiveName = hiveName
+			}
+			s.registry.Hives[i].Leaderboard = payload.Leaderboard
+			break
+		}
+	}
+	s.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
 }
 
 func (s *HubServer) handleStats(w http.ResponseWriter, r *http.Request) {

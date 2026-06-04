@@ -916,6 +916,28 @@ func main() {
 				GitHash:      gitShort,
 			}
 		}, time.Duration(cfg.Governor.EvalIntervalS)*time.Second, logger)
+
+		go hub.StartTaskStatusPush(ctx, hubURL, func() *hub.TaskStatusPayload {
+			reg, active := dashSrv.ContributorSummary()
+			lb := dashSrv.LeaderboardForHub()
+			out := make([]hub.LeaderboardEntry, len(lb))
+			for i, e := range lb {
+				out[i] = hub.LeaderboardEntry{
+					GitHubUsername:  e.GitHubUsername,
+					AvatarURL:      e.AvatarURL,
+					TrustTier:      e.TrustTier,
+					TasksCompleted: e.TasksCompleted,
+					TasksFailed:    e.TasksFailed,
+					Active:         e.Active,
+					CurrentTask:    e.CurrentTask,
+				}
+			}
+			return &hub.TaskStatusPayload{
+				HiveID:       cfg.HiveID,
+				Leaderboard:  out,
+				Contributors: hub.ContributorSummary{Registered: reg, Active: active},
+			}
+		}, logger)
 	}
 
 	logger.Info("entering governor loop", "interval_seconds", cfg.Governor.EvalIntervalS)

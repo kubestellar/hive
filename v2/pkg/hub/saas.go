@@ -1081,6 +1081,15 @@ const dashboardHTML = `<!DOCTYPE html>
     .btn-primary { display: inline-block; padding: 10px 20px; background: var(--accent); color: #000; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; font-size: 0.85rem; }
     .btn-primary:hover { background: #d97706; text-decoration: none; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hive-toast { position: fixed; top: 70px; right: 24px; z-index: 200; padding: 12px 20px; border-radius: 8px; font-size: 0.85rem; max-width: 400px; animation: toast-in 0.3s ease; }
+    .hive-toast.success { background: rgba(22,163,74,0.9); color: #fff; }
+    .hive-toast.error { background: rgba(239,68,68,0.9); color: #fff; }
+    .hive-toast.info { background: rgba(59,130,246,0.9); color: #fff; }
+    @keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .hive-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 150; display: flex; align-items: center; justify-content: center; }
+    .hive-confirm { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; }
+    .hive-confirm p { color: var(--text); margin-bottom: 16px; font-size: 0.9rem; }
+    .hive-confirm-btns { display: flex; gap: 8px; justify-content: flex-end; }
     .empty-state { text-align: center; padding: 48px; color: var(--muted); }
     .dash-link { color: var(--blue); font-size: 0.8rem; }
     .repo-link { color: var(--blue); font-size: 0.8rem; }
@@ -1125,6 +1134,27 @@ const dashboardHTML = `<!DOCTYPE html>
 
   <script>
     function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    function hiveToast(msg, type) {
+      var t = document.createElement('div');
+      t.className = 'hive-toast ' + (type || 'info');
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(function() { t.remove(); }, 4000);
+    }
+
+    function hiveConfirm(msg) {
+      return new Promise(function(resolve) {
+        var overlay = document.createElement('div');
+        overlay.className = 'hive-confirm-overlay';
+        overlay.innerHTML = '<div class="hive-confirm"><p>' + esc(msg) + '</p><div class="hive-confirm-btns">' +
+          '<button style="padding:8px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer" onclick="this.closest(\'.hive-confirm-overlay\').remove()">Cancel</button>' +
+          '<button style="padding:8px 16px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer" id="hive-confirm-ok">Confirm</button></div></div>';
+        document.body.appendChild(overlay);
+        overlay.querySelector('#hive-confirm-ok').onclick = function() { overlay.remove(); resolve(true); };
+        overlay.querySelector('button:first-child').onclick = function() { overlay.remove(); resolve(false); };
+      });
+    }
 
     var ACMM_LABELS = {1:'L1 Idea',2:'L2 Measured',3:'L3 CI/CD',4:'L4 Auto PR',5:'L5 Self-Governing',6:'L6 Fully Autonomous'};
     function acmmBadge(level) {
@@ -1301,14 +1331,14 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     async function upgradeHive(id) {
-      if (!confirm('Upgrade hosted hive ' + id + ' to latest?')) return;
+      if (!await hiveConfirm('Upgrade ' + id + ' to latest?')) return;
       try {
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id) + '/upgrade', {method: 'POST'});
         var data = await resp.json();
-        if (!resp.ok) { alert(data.error || 'Upgrade failed'); return; }
-        alert('Upgrade started for ' + id + '. Pod will restart with the latest image.');
+        if (!resp.ok) { hiveToast(data.error || 'Upgrade failed', 'error'); return; }
+        hiveToast('Upgrade started for ' + id, 'success');
         loadHives();
-      } catch(e) { alert('Error: ' + e.message); }
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
     async function init() {
@@ -1399,17 +1429,17 @@ const dashboardHTML = `<!DOCTYPE html>
           body: JSON.stringify(updates)
         });
         loadAdminUsers();
-      } catch(e) { alert('Error: ' + e.message); }
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
     async function deleteHive(id) {
-      if (!confirm('Delete hosted hive ' + id + '? This will remove all data.')) return;
+      if (!await hiveConfirm('Delete ' + id + '? This removes all data.')) return;
       try {
         gtag('event','hive_deleted',{hive_id:id});
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id), {method: 'DELETE'});
-        if (!resp.ok) { var d = await resp.json(); alert(d.error || 'Delete failed'); return; }
+        if (!resp.ok) { var d = await resp.json(); hiveToast(d.error || 'Delete failed', 'error'); return; }
         loadHives();
-      } catch(e) { alert('Error: ' + e.message); }
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
     function openConvert(btn) {
@@ -1434,9 +1464,9 @@ const dashboardHTML = `<!DOCTYPE html>
       var appKey = (document.getElementById('f-app-key') || {}).value || '';
 
       gtag('event','hive_create_started',{org:org,primary_repo:primary,acmm_level:level});
-      if (!org || !repos) { alert('Org and repos are required'); return; }
-      if (method === 'pat' && !token) { alert('GitHub token is required'); return; }
-      if (method === 'app' && (!appId || !installId || !appKey)) { alert('App ID, Installation ID, and Private Key are required'); return; }
+      if (!org || !repos) { hiveToast('Org and repos are required', 'error'); return; }
+      if (method === 'pat' && !token) { hiveToast('GitHub token is required', 'error'); return; }
+      if (method === 'app' && (!appId || !installId || !appKey)) { hiveToast('App ID, Installation ID, and Private Key are required', 'error'); return; }
 
       document.getElementById('btn-go').disabled = true;
       document.getElementById('btn-go').textContent = 'Provisioning...';
@@ -1452,16 +1482,16 @@ const dashboardHTML = `<!DOCTYPE html>
           body: JSON.stringify(body)
         });
         var data = await resp.json();
-        if (!resp.ok) { alert(data.error || 'Failed to create hive'); return; }
+        if (!resp.ok) { hiveToast(data.error || 'Failed to create hive', 'error'); return; }
 
         document.getElementById('create-modal').style.display = 'none';
         document.getElementById('btn-go').disabled = false;
         document.getElementById('btn-go').textContent = 'Go';
 
-        alert('Hive ' + data.id + ' is provisioning! It will appear in your dashboard shortly.');
+        hiveToast('Hive ' + data.id + ' is provisioning!', 'success');
         loadHives();
       } catch(e) {
-        alert('Error: ' + e.message);
+        hiveToast('Error: ' + e.message, 'error');
       } finally {
         document.getElementById('btn-go').disabled = false;
         document.getElementById('btn-go').textContent = 'Go';
@@ -1609,14 +1639,14 @@ const dashboardHTML = `<!DOCTYPE html>
         });
         loadPendingRequests();
         loadAccessList();
-      } catch(e) { alert('Error: ' + e.message); }
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
     async function denyRequest(username) {
       try {
         await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/requests/' + encodeURIComponent(username) + '/deny', {method: 'POST'});
         loadPendingRequests();
-      } catch(e) { alert('Error: ' + e.message); }
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
     async function loadAccessUserDropdown() {
@@ -1664,25 +1694,25 @@ const dashboardHTML = `<!DOCTYPE html>
     async function addAccess() {
       var username = document.getElementById('access-username').value;
       var role = document.getElementById('access-role').value;
-      if (!username) { alert('Select a user'); return; }
+      if (!username) { hiveToast('Select a user', 'error'); return; }
       try {
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/access', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({username: username, role: role})
         });
-        if (!resp.ok) { var d = await resp.json(); alert(d.error || 'Failed'); return; }
+        if (!resp.ok) { var d = await resp.json(); hiveToast(d.error || 'Failed', 'error'); return; }
         document.getElementById('access-username').value = '';
         loadAccessList();
-      } catch(e) { alert('Error: ' + e.message); }
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
     async function removeAccess(username) {
-      if (!confirm('Remove access for ' + username + '?')) return;
+      if (!await hiveConfirm('Remove access for ' + username + '?')) return;
       try {
         await fetch('/api/saas/hives/' + encodeURIComponent(_accessHiveId) + '/access/' + encodeURIComponent(username), {method: 'DELETE'});
         loadAccessList();
-      } catch(e) { alert('Error: ' + e.message); }
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
   </script>
 </body>

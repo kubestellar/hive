@@ -91,8 +91,12 @@ func SaveState(path string, state *PersistedState, logger *slog.Logger) error {
 		return fmt.Errorf("marshaling state: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("writing state file: %w", err)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return fmt.Errorf("writing temp state file: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("renaming state file: %w", err)
 	}
 
 	logger.Info("state persisted", "path", path)

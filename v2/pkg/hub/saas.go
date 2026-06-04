@@ -744,6 +744,7 @@ const dashboardHTML = `<!DOCTYPE html>
         <a href="/learn">Learn</a>
         <a href="/get-started">Get Started</a>
         <a href="/dashboard" style="color:var(--accent)">My Hives</a>
+        <a href="/api/docs" target="_blank" style="font-size:0.85rem">API</a>
         <a href="https://github.com/kubestellar/hive" target="_blank" title="Source Code" style="font-size:1.1rem">🐙</a>
         <span id="nav-user" class="nav-user"></span>
         <a href="#" class="nav-login" onclick="fetch('/api/auth/logout',{method:'POST'}).then(function(){location.href='/'});return false;">Logout</a>
@@ -811,6 +812,17 @@ const dashboardHTML = `<!DOCTYPE html>
     function snapshotLink(h) {
       if (h.snapshotUrl) return '<a href="' + esc(h.snapshotUrl) + '" target="_blank" class="dash-link">snapshot</a>';
       return '';
+    }
+    function apiLink(h) {
+      var isHosted = h.id && (h.id.startsWith('hosted-') || h.id.startsWith('saas-'));
+      var base = '';
+      if (isHosted) {
+        base = 'https://' + esc(h.id) + '.hive.kubestellar.io';
+      } else if (h.dashboardUrl && !h.dashboardUrl.includes('localhost')) {
+        base = esc(h.dashboardUrl);
+      }
+      if (!base) return '';
+      return '<a href="' + base + '/api/docs" target="_blank" style="padding:3px 10px;background:rgba(88,166,255,0.15);color:#58a6ff;border:1px solid rgba(88,166,255,0.3);border-radius:4px;font-size:0.7rem;text-decoration:none;white-space:nowrap">API ↗</a>';
     }
 
     async function loadUser() {
@@ -896,12 +908,13 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + roleBadge(h.role) + '</td>' +
           '<td>' + dashboardLink(h) + '</td>' +
           '<td>' + snapshotLink(h) + '</td>' +
+          '<td>' + apiLink(h) + '</td>' +
           '<td>' + actions + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>Hive</th><th>Instance</th><th>SHA</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th></th>' +
+        '<th>Hive</th><th>Instance</th><th>SHA</th><th>Repo</th><th>Repos</th><th>ACMM</th><th>Agents</th><th>Mode</th><th>Issues</th><th>PRs</th><th>Contributors</th><th>Role</th><th>Dashboard</th><th>Snapshot</th><th>API</th><th></th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 

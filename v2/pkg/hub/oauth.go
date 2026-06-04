@@ -37,6 +37,9 @@ func (s *HubServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if redirect == "" {
 		redirect = r.URL.Query().Get("rd")
 	}
+	if redirect != "" && (!strings.HasPrefix(redirect, "/") || strings.HasPrefix(redirect, "//")) {
+		redirect = "/dashboard"
+	}
 	state := url.QueryEscape(redirect)
 	authURL := fmt.Sprintf("%s?client_id=%s&scope=read:user,repo&redirect_uri=%s&state=%s",
 		ghAuthorizeURL, clientID, "https://hive.kubestellar.io/api/auth/callback", state)
@@ -124,7 +127,7 @@ func (s *HubServer) handleOAuthCallback(w http.ResponseWriter, r *http.Request) 
 	redirect := "/dashboard"
 	if state := r.URL.Query().Get("state"); state != "" {
 		if decoded, err := url.QueryUnescape(state); err == nil && decoded != "" {
-			if strings.HasPrefix(decoded, "https://") || strings.HasPrefix(decoded, "/") {
+			if strings.HasPrefix(decoded, "/") && !strings.HasPrefix(decoded, "//") {
 				redirect = decoded
 			}
 		}

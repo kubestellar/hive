@@ -174,20 +174,33 @@ function tmuxSendKeys(text) {
     } catch (_) {}
     const ctxPct = checkContextUsage();
     const RESET_EVERY_N = 3;
-    const needsClear = (BACKEND === 'claude' && ctxPct >= CLEAR_CONTEXT_THRESHOLD_PCT)
-      || (BACKEND !== 'claude' && tasksCompletedCount > 0 && tasksCompletedCount % RESET_EVERY_N === 0);
-    if (needsClear) {
-      const clearCmd = BACKEND === 'claude' ? '/clear' : '/reset';
-      console.log(`Context reset — sending ${clearCmd} before next task (ctx=${ctxPct}% tasks=${tasksCompletedCount})`);
+    const needsClaudeClear = BACKEND === 'claude' && ctxPct >= CLEAR_CONTEXT_THRESHOLD_PCT;
+    const needsCliRestart = BACKEND !== 'claude' && tasksCompletedCount > 0 && tasksCompletedCount % RESET_EVERY_N === 0;
+    if (needsClaudeClear) {
+      console.log(`Context at ${ctxPct}% — sending /clear before next task`);
       execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 5000 });
       sleepMs(200);
       execSync(`tmux send-keys -t ${TMUX_SESSION} C-a`, { timeout: 5000 });
       execSync(`tmux send-keys -t ${TMUX_SESSION} C-k`, { timeout: 5000 });
       sleepMs(200);
-      execSync(`tmux send-keys -t ${TMUX_SESSION} -l '${clearCmd}'`, { timeout: 5000 });
+      execSync(`tmux send-keys -t ${TMUX_SESSION} -l '/clear'`, { timeout: 5000 });
       sleepMs(200);
       tmuxSendEnters();
       sleepMs(3000);
+    } else if (needsCliRestart) {
+      console.log(`Restarting ${BACKEND} CLI for memory cleanup (task ${tasksCompletedCount})`);
+      execSync(`tmux send-keys -t ${TMUX_SESSION} C-c`, { timeout: 5000 });
+      sleepMs(1000);
+      execSync(`tmux send-keys -t ${TMUX_SESSION} C-c`, { timeout: 5000 });
+      sleepMs(2000);
+      try {
+        const CMD = execSync(`bash -c 'source /usr/local/etc/hive/backends.conf 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
+        const PERM = execSync(`bash -c 'source /usr/local/etc/hive/backends.conf 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
+        execSync(`tmux send-keys -t ${TMUX_SESSION} '${CMD} ${PERM}' Enter`, { timeout: 5000 });
+        cliReady = false;
+        waitForCLI().then(() => { cliReady = true; }).catch(() => {});
+        sleepMs(10000);
+      } catch (e) { console.error('CLI restart failed:', e.message); }
     }
     execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 5000 });
     sleepMs(200);

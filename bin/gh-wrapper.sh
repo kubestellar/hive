@@ -90,11 +90,15 @@ for arg in "${args[@]}"; do
   esac
 done
 
-# Block gh issue list and gh pr list (global)
+# Block gh issue list and gh pr list (global) — except contributors listing their own PRs
 if { [ "$subcmd" = "issue" ] || [ "$subcmd" = "pr" ]; } && [ "$action" = "list" ]; then
-  echo "⛔ BLOCKED: gh $subcmd list is disabled for agents." >&2
-  echo "Read /var/run/hive-metrics/actionable.json instead." >&2
-  exit 1
+  if [[ "${HIVE_CONTRIBUTOR_MODE:-}" == "true" ]] && echo "$FULL_CMD" | grep -q "\-\-author"; then
+    : # Allow contributors to list their own PRs for review
+  else
+    echo "⛔ BLOCKED: gh $subcmd list is disabled for agents." >&2
+    echo "Read /var/run/hive-metrics/actionable.json instead." >&2
+    exit 1
+  fi
 fi
 
 # ── Mode-based enforcement (hot-reloadable via mode file) ──

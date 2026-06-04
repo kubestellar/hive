@@ -222,7 +222,7 @@ function checkTmuxIdle() {
     let hasIdlePrompt, hasCompletionMarker, isWorking;
 
     if (BACKEND === 'claude') {
-      const lastLines = text.split('\n').slice(-8).join('\n');
+      const lastLines = text.split('\n').slice(-15).join('\n');
       hasIdlePrompt = /bypass permissions|shift\+tab to cycle/.test(text);
       hasCompletionMarker = /[✻✶✽] \S+ed for \d+[ms]|Honking|tokens\)/.test(text);
       isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching/.test(lastLines) || /ing…/.test(lastLines);

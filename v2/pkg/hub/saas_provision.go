@@ -136,11 +136,16 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 	repos := h.Repos
 	reposYAML := "[]"
 	if len(repos) > 0 {
-		parts := make([]string, len(repos))
-		for i, r := range repos {
-			parts[i] = fmt.Sprintf("      - %s", r)
+		parts := make([]string, 0, len(repos))
+		for _, r := range repos {
+			clean := sanitize(r)
+			if clean != "" {
+				parts = append(parts, fmt.Sprintf("      - %s", clean))
+			}
 		}
-		reposYAML = "\n" + strings.Join(parts, "\n")
+		if len(parts) > 0 {
+			reposYAML = "\n" + strings.Join(parts, "\n")
+		}
 	}
 
 	useApp := req.AuthMethod == "app" && req.AppID != "" && req.InstallationID != "" && req.AppPrivateKey != ""
@@ -148,9 +153,9 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 	data := map[string]any{
 		"ID":             h.ID,
 		"Namespace":      "hive-hosted-" + h.ID,
-		"Org":            h.Org,
+		"Org":            sanitize(h.Org),
 		"Repos":          reposYAML,
-		"PrimaryRepo":    h.PrimaryRepo,
+		"PrimaryRepo":    sanitize(h.PrimaryRepo),
 		"ACMMLevel":      h.ACMMLevel,
 		"Token":          req.GitHubToken,
 		"UseApp":         useApp,

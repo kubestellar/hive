@@ -80,6 +80,11 @@ func TestNewServer_DefaultFields(t *testing.T) {
 	}
 }
 
+func TestAllRoutesRegisterWithoutPanic(t *testing.T) {
+	s := newTestServer()
+	s.registerContributeRoutes()
+}
+
 func TestHandleHealth_StatusCode(t *testing.T) {
 	s := newTestServer()
 	s.UpdateStatus(minimalPayload())

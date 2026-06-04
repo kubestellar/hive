@@ -808,6 +808,7 @@ func (s *HubServer) handleAccessDenied(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Access Denied — Hive Hub</title>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-4707R797K3"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","G-4707R797K3");gtag("event","access_denied",{hive_id:"%s"});</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;display:flex;justify-content:center;align-items:center;min-height:100vh}
@@ -834,7 +835,7 @@ Ask %s to grant you access from their
 <a href="/" class="btn btn-secondary">Browse Public Hives</a>
 <p class="help">If you believe this is an error, <a href="https://github.com/kubestellar/hive/issues" style="color:#58a6ff">file an issue</a>.</p>
 </div>
-</body></html>`, hiveID, ownerLink)
+</body></html>`, hiveID, hiveID, ownerLink)
 }
 
 const dashboardHTML = `<!DOCTYPE html>
@@ -842,6 +843,7 @@ const dashboardHTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- GA4 --><script async src="https://www.googletagmanager.com/gtag/js?id=G-4707R797K3"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","G-4707R797K3");</script>
   <title>My Hives — Hive Hub</title>
   <style>
     :root { --bg: #0a0a0f; --surface: #12121a; --border: #1e1e2e; --text: #e6edf3; --muted: #8b949e; --accent: #f59e0b; --green: #16a34a; --blue: #3b82f6; --red: #ef4444; --purple: #8b5cf6; }
@@ -1209,6 +1211,7 @@ const dashboardHTML = `<!DOCTYPE html>
     async function deleteHive(id) {
       if (!confirm('Delete hosted hive ' + id + '? This will remove all data.')) return;
       try {
+        gtag('event','hive_deleted',{hive_id:id});
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id), {method: 'DELETE'});
         if (!resp.ok) { var d = await resp.json(); alert(d.error || 'Delete failed'); return; }
         loadHives();
@@ -1236,6 +1239,7 @@ const dashboardHTML = `<!DOCTYPE html>
       var installId = (document.getElementById('f-install-id') || {}).value || '';
       var appKey = (document.getElementById('f-app-key') || {}).value || '';
 
+      gtag('event','hive_create_started',{org:org,primary_repo:primary,acmm_level:level});
       if (!org || !repos) { alert('Org and repos are required'); return; }
       if (method === 'pat' && !token) { alert('GitHub token is required'); return; }
       if (method === 'app' && (!appId || !installId || !appKey)) { alert('App ID, Installation ID, and Private Key are required'); return; }

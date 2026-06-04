@@ -223,8 +223,10 @@ func (h *ContributeWSHub) ActiveCount() int {
 }
 
 type ContributorLiveState struct {
-	Active      bool          `json:"active"`
-	CurrentTask *WSTaskAssign `json:"current_task,omitempty"`
+	Active      bool           `json:"active"`
+	CurrentTask *WSTaskAssign  `json:"current_task,omitempty"`
+	Tasks       []WSTaskAssign `json:"tasks,omitempty"`
+	Sessions    int            `json:"sessions"`
 }
 
 func (h *ContributeWSHub) LiveStates() map[string]ContributorLiveState {
@@ -244,7 +246,14 @@ func (h *ContributeWSHub) LiveStates() map[string]ContributorLiveState {
 		}
 		c.mu.Unlock()
 		if cid != "" {
-			out[cid] = ContributorLiveState{Active: true, CurrentTask: task}
+			existing := out[cid]
+			existing.Active = true
+			existing.Sessions++
+			if task != nil {
+				existing.CurrentTask = task
+				existing.Tasks = append(existing.Tasks, *task)
+			}
+			out[cid] = existing
 		}
 	}
 	return out
@@ -319,7 +328,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if contributor != nil && contributor.profile != nil {
 			h.mu.Lock()
-			delete(h.connections, contributor.profile.ContributorID)
+			delete(h.connections, connID)
 			h.mu.Unlock()
 			h.logger.Info("[contribute-ws] disconnected", "username", contributor.profile.GitHubUsername)
 			h.addActivity(contributor.profile.GitHubUsername, "left", contributor.role, contributor.cliBackend, contributor.model, "")
@@ -397,13 +406,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 
 			h.mu.Lock()
-			if old, exists := h.connections[profile.ContributorID]; exists {
-				h.logger.Info("[contribute-ws] replacing existing connection",
-					"username", profile.GitHubUsername,
-				)
-				old.ws.Close()
-			}
-			h.connections[profile.ContributorID] = contributor
+			h.connections[connID] = contributor
 			h.mu.Unlock()
 
 			var perms []string

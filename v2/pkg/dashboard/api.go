@@ -2796,6 +2796,14 @@ func (s *Server) handleGitSourcesConnect(w http.ResponseWriter, r *http.Request)
 		jsonError(w, "invalid name", http.StatusBadRequest)
 		return
 	}
+	if req.Branch != "" && strings.HasPrefix(req.Branch, "-") {
+		jsonError(w, "branch must not start with '-'", http.StatusBadRequest)
+		return
+	}
+	if req.Subpath != "" && (strings.HasPrefix(req.Subpath, "-") || strings.Contains(req.Subpath, "..")) {
+		jsonError(w, "subpath must not start with '-' or contain '..'", http.StatusBadRequest)
+		return
+	}
 	if req.Layer == "" {
 		req.Layer = "project"
 	}

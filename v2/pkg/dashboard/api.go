@@ -2663,12 +2663,12 @@ func (s *Server) handleVaultsConnect(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "path is required", http.StatusBadRequest)
 		return
 	}
-	if !strings.HasPrefix(req.Path, "/data/") {
-		jsonError(w, "vault path must be under /data/", http.StatusBadRequest)
-		return
-	}
 	if strings.Contains(req.Path, "..") {
 		jsonError(w, "vault path must not contain '..'", http.StatusBadRequest)
+		return
+	}
+	if !filepath.IsAbs(req.Path) {
+		jsonError(w, "vault path must be absolute", http.StatusBadRequest)
 		return
 	}
 	if req.Name == "" {

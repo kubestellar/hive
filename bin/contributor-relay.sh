@@ -80,7 +80,8 @@ function getCLIState() {
       if (/Choose the text style|trust this folder/.test(text)) return 'onboarding';
     } else if (BACKEND === 'copilot') {
       if (/copilot login|gh auth login/.test(text)) return 'needs-login';
-      if (/autopilot|allow-all|>\s*$|❯/.test(text)) return 'ready';
+      if (/Confirm folder trust|trust the files|Do you trust/.test(text)) return 'onboarding';
+      if (/\/ commands.*help/.test(text)) return 'ready';
     } else if (BACKEND === 'gemini') {
       if (/not authenticated|login required/i.test(text)) return 'needs-login';
       if (/>\s*$|❯/.test(text)) return 'ready';
@@ -225,9 +226,9 @@ function checkTmuxIdle() {
       hasCompletionMarker = /[✻✶✽] \S+ed for \d+[ms]|Honking|tokens\)/.test(text);
       isWorking = /─.*Bash\(|Reading|Editing|Writing|Searching|ing…/.test(text);
     } else if (BACKEND === 'copilot') {
-      hasIdlePrompt = />\s*$|❯\s*$|autopilot/.test(text);
-      hasCompletionMarker = /completed|Done!|finished|Total tokens/i.test(text);
-      isWorking = /Running|Executing|Thinking|searching/i.test(text);
+      hasIdlePrompt = /\/ commands.*help/.test(text);
+      hasCompletionMarker = /All tests pass|PR created|PR #|pull\/|pushed|committed|Done|finished/i.test(text);
+      isWorking = /◉|◎|esc cancel|Running|Executing|Thinking|searching/i.test(text);
     } else if (BACKEND === 'gemini') {
       hasIdlePrompt = />\s*$|❯\s*$/.test(text);
       hasCompletionMarker = /completed|Done|finished/i.test(text);
@@ -245,10 +246,12 @@ function checkTmuxIdle() {
 
 const TASK_GRACE_PERIOD_MS = 180000;
 let taskAssignedAt = 0;
+let tasksCompletedCount = 0;
+const PR_REVIEW_EVERY_N = 5;
 
 function startProgressReporting() {
   if (progressInterval) clearInterval(progressInterval);
-  taskAssignedAt = Date.now();
+  if (!taskAssignedAt) taskAssignedAt = Date.now();
   progressInterval = setInterval(() => {
     if (!currentTask) return;
     if (Date.now() - taskAssignedAt < TASK_GRACE_PERIOD_MS) return;
@@ -257,10 +260,25 @@ function startProgressReporting() {
     if (idle) {
       console.log(`Task ${currentTask.task_id} completed — agent idle`);
       send({ type: 'task_complete', seq: nextSeq(), task_id: currentTask.task_id, result: 'completed', summary: 'Agent returned to idle', tmux_output: tmuxLines });
+      const completedRepo = currentTask.repo;
       currentTask = null;
+      taskAssignedAt = 0;
       clearInterval(progressInterval);
       progressInterval = null;
-      send({ type: 'ready', seq: nextSeq() });
+      tasksCompletedCount++;
+      if (tasksCompletedCount % PR_REVIEW_EVERY_N === 0) {
+        console.log(`PR review cycle (${tasksCompletedCount} tasks completed) — checking open PRs`);
+        currentTask = { task_id: `pr-review-${Date.now()}`, kind: 'review', repo: completedRepo, number: 0, title: 'Review open PRs for comments' };
+        taskAssignedAt = Date.now();
+        const reviewPrompt = `Check your open PRs on ${completedRepo} for review comments. ` +
+          `Run 'GH_TOKEN=$GH_TOKEN gh pr list --repo ${completedRepo} --author @me --state open' to find them. ` +
+          `For each PR with review comments, read the comments, address the feedback, push fixes, and respond. ` +
+          `If no PRs have comments, just say "No PR comments to address."`;
+        tmuxSendKeys(reviewPrompt);
+        startProgressReporting();
+      } else {
+        send({ type: 'ready', seq: nextSeq() });
+      }
     } else {
       send({ type: 'task_progress', seq: nextSeq(), task_id: currentTask.task_id, status: 'working', tmux_output: tmuxLines });
     }
@@ -335,6 +353,7 @@ function handleMessage(data) {
     case 'task_revoke':
       console.log(`Task revoked: ${msg.task_id} — ${msg.reason}`);
       currentTask = null;
+      taskAssignedAt = 0;
       if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
       send({ type: 'ready', seq: nextSeq() });
       break;

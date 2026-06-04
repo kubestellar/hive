@@ -18,15 +18,19 @@ CONFIG_DIR="${HOME}/.config/hive"
 CONFIG_FILE="${CONFIG_DIR}/contributor.env"
 TMUX_SESSION="contributor"
 
+# Save env vars passed via docker -e (before config file overrides them)
+_DOCKER_BACKEND="${AGENT_BACKEND:-}"
+
 # Load contributor config
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck source=/dev/null
   source "$CONFIG_FILE"
 fi
 
+# Docker -e takes precedence over config file
 export HIVE_HUB="${HIVE_HUB:-wss://hive.kubestellar.io:3001/contribute}"
 export HIVE_REGISTRATION_TOKEN="${HIVE_REGISTRATION_TOKEN:?Not registered — run 'just contribute-register' first}"
-export AGENT_BACKEND="${AGENT_BACKEND:-claude}"
+export AGENT_BACKEND="${_DOCKER_BACKEND:-${AGENT_BACKEND:-claude}}"
 export HIVE_AGENT_SESSION="$TMUX_SESSION"
 export HIVE_AGENT_ID="contributor"
 export HIVE_CONTRIBUTOR_MODE="true"
@@ -164,6 +168,7 @@ case "$AGENT_BACKEND" in
     ;;
   copilot)
     mkdir -p "${HOME}/.copilot"
+    ln -sf "$AGENT_MD" "${HOME}/copilot-instructions.md"
     ln -sf "$AGENT_MD" "${HOME}/COPILOT.md"
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
     ;;
@@ -205,22 +210,22 @@ fi
 
 tmux send-keys -t "$TMUX_SESSION" "$CMD $PERM_FLAG $MODEL_FLAG" Enter
 
-# Auto-dismiss Claude startup prompts (workspace trust, etc.)
-if [[ "$AGENT_BACKEND" == "claude" ]]; then
-  AUTO_DISMISS_ATTEMPTS=10
-  AUTO_DISMISS_INTERVAL=3
-  (
-    for i in $(seq 1 $AUTO_DISMISS_ATTEMPTS); do
-      sleep "$AUTO_DISMISS_INTERVAL"
-      PANE=$(tmux capture-pane -t "$TMUX_SESSION" -p -S -5 2>/dev/null || true)
-      if echo "$PANE" | grep -q "trust this folder\|Enter to confirm"; then
-        tmux send-keys -t "$TMUX_SESSION" "1" Enter 2>/dev/null || true
-      elif echo "$PANE" | grep -q "^> *$"; then
-        break
-      fi
-    done
-  ) &
-fi
+# Auto-dismiss startup prompts (workspace trust, theme picker, etc.)
+AUTO_DISMISS_ATTEMPTS=10
+AUTO_DISMISS_INTERVAL=3
+(
+  for i in $(seq 1 $AUTO_DISMISS_ATTEMPTS); do
+    sleep "$AUTO_DISMISS_INTERVAL"
+    PANE=$(tmux capture-pane -t "$TMUX_SESSION" -p -S -10 2>/dev/null || true)
+    if echo "$PANE" | grep -q "trust this folder\|trust the files\|Confirm folder trust\|Enter to confirm"; then
+      tmux send-keys -t "$TMUX_SESSION" "2" Enter 2>/dev/null || true
+    elif echo "$PANE" | grep -q "Choose the text style"; then
+      tmux send-keys -t "$TMUX_SESSION" "1" Enter 2>/dev/null || true
+    elif echo "$PANE" | grep -q "bypass permissions\|autopilot\|❯\|> *$"; then
+      break
+    fi
+  done
+) &
 
 echo ""
 CONTAINER_NAME="${HIVE_CONTAINER_NAME:-hive-contributor}"

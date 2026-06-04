@@ -20,8 +20,8 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     > /etc/apt/sources.list.d/github-cli.list \
   && apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
 
-# Install Copilot CLI (via gh extension)
-RUN gh extension install github/gh-copilot 2>/dev/null || true
+# Install Copilot CLI
+RUN npm install -g @github/copilot
 
 # Install Go (needed for building/testing Go projects)
 ARG GO_VERSION=1.24.4

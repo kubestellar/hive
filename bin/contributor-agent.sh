@@ -209,22 +209,22 @@ fi
 
 tmux send-keys -t "$TMUX_SESSION" "$CMD $PERM_FLAG $MODEL_FLAG" Enter
 
-# Auto-dismiss Claude startup prompts (workspace trust, etc.)
-if [[ "$AGENT_BACKEND" == "claude" ]]; then
-  AUTO_DISMISS_ATTEMPTS=10
-  AUTO_DISMISS_INTERVAL=3
-  (
-    for i in $(seq 1 $AUTO_DISMISS_ATTEMPTS); do
-      sleep "$AUTO_DISMISS_INTERVAL"
-      PANE=$(tmux capture-pane -t "$TMUX_SESSION" -p -S -5 2>/dev/null || true)
-      if echo "$PANE" | grep -q "trust this folder\|Enter to confirm"; then
-        tmux send-keys -t "$TMUX_SESSION" "1" Enter 2>/dev/null || true
-      elif echo "$PANE" | grep -q "^> *$"; then
-        break
-      fi
-    done
-  ) &
-fi
+# Auto-dismiss startup prompts (workspace trust, theme picker, etc.)
+AUTO_DISMISS_ATTEMPTS=10
+AUTO_DISMISS_INTERVAL=3
+(
+  for i in $(seq 1 $AUTO_DISMISS_ATTEMPTS); do
+    sleep "$AUTO_DISMISS_INTERVAL"
+    PANE=$(tmux capture-pane -t "$TMUX_SESSION" -p -S -10 2>/dev/null || true)
+    if echo "$PANE" | grep -q "trust this folder\|trust the files\|Confirm folder trust\|Enter to confirm"; then
+      tmux send-keys -t "$TMUX_SESSION" "2" Enter 2>/dev/null || true
+    elif echo "$PANE" | grep -q "Choose the text style"; then
+      tmux send-keys -t "$TMUX_SESSION" "1" Enter 2>/dev/null || true
+    elif echo "$PANE" | grep -q "bypass permissions\|autopilot\|❯\|> *$"; then
+      break
+    fi
+  done
+) &
 
 echo ""
 CONTAINER_NAME="${HIVE_CONTAINER_NAME:-hive-contributor}"

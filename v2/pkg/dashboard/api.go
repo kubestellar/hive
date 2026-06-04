@@ -1768,6 +1768,7 @@ func (s *Server) handleGovernorSensing(w http.ResponseWriter, r *http.Request) {
 		s.deps.Config.Governor.Sensing.PullbackSeconds = body.PullbackSeconds
 	}
 
+	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config", "error", err) }
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }
@@ -1993,6 +1994,7 @@ func (s *Server) handleGovernorAddAgent(w http.ResponseWriter, r *http.Request) 
 	}
 	s.deps.Config.Agents[body.Name] = agentCfg
 	s.deps.AgentMgr.AddAgent(body.Name, agentCfg)
+	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config", "error", err) }
 
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "added", "agent": body.Name})
@@ -2005,6 +2007,7 @@ func (s *Server) handleGovernorRemoveAgent(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config", "error", err) }
 	delete(s.deps.Config.Agents, name)
 	s.deps.AgentMgr.RemoveAgent(name)
 	s.refreshAndPersist()
@@ -2033,6 +2036,7 @@ func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 	if s.deps.GHClient != nil {
 		s.deps.GHClient.SetRepos(stripped)
 	}
+	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config", "error", err) }
 	if s.deps.EnumerateFunc != nil {
 		go s.deps.EnumerateFunc()
 	}

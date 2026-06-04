@@ -377,10 +377,12 @@ func (s *Server) kickBrainstorm() {
 		return
 	}
 	go func() {
-		// RestartWithBootstrap: atomic set override + restart gives a clean
-		// slate with the inception prompt as the bootstrap message. The table
-		// parser in the watcher catches cases where the agent produces a
-		// question table but doesn't execute bd create.
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in kickBrainstorm — recovered", "panic", r)
+			}
+		}()
+
 		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
 		if err := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err != nil {
 			s.logger.Warn("failed to restart brainstorm for inception", "error", err)

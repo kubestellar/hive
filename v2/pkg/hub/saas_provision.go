@@ -64,7 +64,7 @@ func generateHiveID(org, repo string) string {
 	for i := range suffix {
 		suffix[i] = chars[rand.Intn(len(chars))]
 	}
-	return fmt.Sprintf("saas-%s-%s-%s", sanitize(org), sanitize(short), string(suffix))
+	return fmt.Sprintf("hosted-%s-%s-%s", sanitize(org), sanitize(short), string(suffix))
 }
 
 func sanitize(s string) string {
@@ -147,7 +147,7 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 
 	data := map[string]any{
 		"ID":             h.ID,
-		"Namespace":      "hive-saas-" + h.ID,
+		"Namespace":      "hive-hosted-" + h.ID,
 		"Org":            h.Org,
 		"Repos":          reposYAML,
 		"PrimaryRepo":    h.PrimaryRepo,
@@ -210,7 +210,7 @@ func StartProvisionWatcher(logger *slog.Logger, mu *sync.RWMutex) {
 				continue
 			}
 
-			ns := "hive-saas-" + h.ID
+			ns := "hive-hosted-" + h.ID
 			cmd := exec.Command("kubectl", "get", "deployment", "hive", "-n", ns, "-o", "jsonpath={.status.availableReplicas}")
 			out, err := cmd.Output()
 			if err != nil {

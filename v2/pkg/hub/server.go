@@ -133,7 +133,7 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		ActiveContributors: payload.Contributors.Active,
 		Owner:              payload.Owner,
 		HiveType: func() string {
-			if strings.HasPrefix(payload.HiveID, "saas-") {
+			if strings.HasPrefix(payload.HiveID, "hosted-") || strings.HasPrefix(payload.HiveID, "saas-") {
 				return "hosted"
 			}
 			return "local"

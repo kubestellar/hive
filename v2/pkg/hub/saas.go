@@ -203,7 +203,7 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 
 	saasCount := 0
 	for _, h := range result {
-		if strings.HasPrefix(h.ID, "saas-") {
+		if strings.HasPrefix(h.ID, "hosted-") || strings.HasPrefix(h.ID, "saas-") {
 			saasCount++
 		}
 	}
@@ -231,7 +231,7 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user.SaaSQuota == 0 {
-		http.Error(w, `{"error":"no SaaS quota — contact the hub admin to request access"}`, http.StatusForbidden)
+		http.Error(w, `{"error":"no hosted hive quota — contact the hub admin to request access"}`, http.StatusForbidden)
 		return
 	}
 
@@ -258,7 +258,7 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(listSaaSHives()) >= maxSaaSHivesTotal {
-		http.Error(w, `{"error":"SaaS capacity reached — try again later"}`, http.StatusServiceUnavailable)
+		http.Error(w, `{"error":"hosted capacity reached — try again later"}`, http.StatusServiceUnavailable)
 		return
 	}
 
@@ -302,7 +302,7 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 			h.Status = "error"
 			h.Error = err.Error()
 			saveSaaSHive(h)
-			s.logger.Warn("saas hive provision failed", "hive_id", hiveID, "error", err)
+			s.logger.Warn("hosted hive provision failed", "hive_id", hiveID, "error", err)
 			return
 		}
 		h.Status = "provisioning"
@@ -523,7 +523,7 @@ const dashboardHTML = `<!DOCTYPE html>
         var addBtn = document.getElementById('btn-add-hive');
         if (addBtn) {
           addBtn.disabled = !canCreate;
-          addBtn.title = canCreate ? '' : 'No SaaS quota — contact hub admin';
+          addBtn.title = canCreate ? '' : 'No hosted quota — contact hub admin';
         }
         renderHives(data.hives || []);
       } catch(e) {
@@ -536,7 +536,7 @@ const dashboardHTML = `<!DOCTYPE html>
         document.getElementById('hives-container').innerHTML =
           '<div class="empty-state">' +
           '<p style="font-size:1.2rem;margin-bottom:8px">No hives yet</p>' +
-          '<p>Log in to a local hive dashboard to see it here, or create a SaaS hive.</p>' +
+          '<p>Log in to a local hive dashboard to see it here, or create a hosted hive.</p>' +
           '</div>';
         return;
       }
@@ -546,10 +546,10 @@ const dashboardHTML = `<!DOCTYPE html>
         var rp = repoPath(h);
         var repoLink = rp ? '<a href="https://github.com/' + esc(rp) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
         var repoCount = (h.repos || []).length;
-        var isLocal = !h.id || !h.id.startsWith('saas-');
+        var isLocal = !h.id || !h.id.startsWith('hosted-') || h.id.startsWith('saas-');
         var canConvert = isLocal && h.role === 'owner' && (_userQuota < 0 || _userQuota > _userUsed);
         var convertBtn = canConvert ?
-          '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to SaaS</button>' : '';
+          '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>' : '';
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span></td>' +
@@ -621,7 +621,7 @@ const dashboardHTML = `<!DOCTYPE html>
           hiveRows += '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:var(--muted);font-size:0.7rem"><th style="text-align:left;padding:4px 8px">Hive ID</th><th>Role</th><th>Type</th><th>Link</th></tr></thead><tbody>';
           hiveIds.forEach(function(hid) {
             var role = hivesObj[hid];
-            var isSaas = hid.startsWith('saas-');
+            var isSaas = hid.startsWith('hosted-') || h.id.startsWith('saas-');
             var link = isSaas ? '<a href="https://' + esc(hid) + '.hive.kubestellar.io" target="_blank" class="dash-link">' + esc(hid) + '.hive.kubestellar.io</a>' : '<span style="color:var(--muted)">local</span>';
             var typeBadge = isSaas ? '<span style="color:#60a5fa">hosted</span>' : '<span style="color:#9ca3af">local</span>';
             hiveRows += '<tr><td style="padding:4px 8px">' + esc(hid) + '</td><td style="text-align:center">' + esc(role) + '</td><td style="text-align:center">' + typeBadge + '</td><td>' + link + '</td></tr>';

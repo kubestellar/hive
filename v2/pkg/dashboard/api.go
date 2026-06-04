@@ -1347,7 +1347,15 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 	}
 	if v, ok := body["mode"]; ok {
 		if s, ok := v.(string); ok {
-			agentCfg.Mode = sanitizeString(s)
+			s = sanitizeString(s)
+			if s != "" {
+				validModes := map[string]bool{"ADVISORY": true, "ISSUES_ONLY": true, "ISSUES_AND_PRS": true, "ISSUES_PRS_MERGE": true, "NO_GITHUB": true}
+				if !validModes[s] {
+					jsonError(w, "mode must be one of: ADVISORY, ISSUES_ONLY, ISSUES_AND_PRS, ISSUES_PRS_MERGE, NO_GITHUB", http.StatusBadRequest)
+					return
+				}
+			}
+			agentCfg.Mode = s
 		}
 	}
 	if v, ok := body["includeRepos"]; ok {

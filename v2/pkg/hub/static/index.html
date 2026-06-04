@@ -102,7 +102,8 @@
         <a href="#leaderboard">Leaderboard</a>
         <a href="/learn">Learn</a>
         <a href="/get-started">Get Started</a>
-        <a href="/login" class="nav-login">Login</a>
+        <a href="/dashboard" class="nav-login" id="nav-dashboard" style="display:none">My Hives</a>
+        <a href="/login" class="nav-login" id="nav-login">Login</a>
       </div>
     </div>
   </nav>
@@ -255,6 +256,15 @@
     loadLeaderboard();
     setInterval(loadRegistry, 60000);
     setInterval(loadLeaderboard, 60000);
+
+    fetch('/api/auth/user').then(function(r){return r.json()}).then(function(d){
+      if(d.authenticated){
+        document.getElementById('nav-login').style.display='none';
+        var el=document.getElementById('nav-dashboard');
+        el.style.display='';
+        el.innerHTML='<img src="'+esc(d.avatar_url)+'" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;margin-right:4px">My Hives';
+      }
+    }).catch(function(){});
   </script>
 </body>
 </html>

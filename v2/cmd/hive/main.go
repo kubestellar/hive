@@ -892,6 +892,17 @@ func main() {
 					}
 					return out
 				}(),
+				Owner: func() string {
+					if td, err := os.ReadFile("/data/gh-user-token"); err == nil {
+						tok := strings.TrimSpace(string(td))
+						if tok != "" {
+							if u, err := github.ValidateToken(tok); err == nil {
+								return u.Login
+							}
+						}
+					}
+					return ""
+				}(),
 				Health:       map[string]any{},
 				DashboardURL: fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port),
 				SnapshotURL:  cfg.Hub.SnapshotURL,

@@ -147,6 +147,8 @@ bd update <bead-id> --set-metadata detail="<detailed proposal>"
 bd list --status=open --actor=brainstorm --json 2>/dev/null
 ```
 
-Close stale beads. Print: `Reap: <N> open, <M> closed this cycle`
+⚠️ **DO NOT close beads with external_ref starting with "inception/"** — these are active inception question/fact beads managed by the inception engine. Only close non-inception beads that are genuinely stale.
+
+Close stale beads (non-inception only). Print: `Reap: <N> open, <M> closed this cycle`
 
 ${KNOWLEDGE}

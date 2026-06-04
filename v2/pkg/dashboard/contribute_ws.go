@@ -469,15 +469,6 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			)
 			task := h.selectTask(contributor)
 			if task != nil {
-				contributor.mu.Lock()
-				contributor.currentTask = &WSTaskAssign{
-					TaskID: task.TaskID,
-					Kind:   task.Kind,
-					Repo:   task.Repo,
-					Number: task.Number,
-					Title:  task.Title,
-				}
-				contributor.mu.Unlock()
 				if err := sendJSON(conn, *task); err != nil {
 					h.logger.Warn("[contribute-ws] failed to send task_assign", "error", err)
 					return
@@ -711,6 +702,16 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 					"Use the GH_TOKEN env var for all gh commands (do NOT use 'unset GITHUB_TOKEN').",
 				repo.Full, repo.Full, number, title, repo.Full,
 			)
+
+			c.mu.Lock()
+			c.currentTask = &WSTaskAssign{
+				TaskID: taskID,
+				Kind:   "issue",
+				Repo:   repo.Full,
+				Number: number,
+				Title:  title,
+			}
+			c.mu.Unlock()
 
 			return &WSMessage{
 				Type:           "task_assign",

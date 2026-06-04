@@ -365,6 +365,9 @@ func (s *HubServer) mergeLeaderboards() []LeaderboardEntry {
 	}
 	result := make([]LeaderboardEntry, 0, len(merged))
 	for _, v := range merged {
+		if v.TasksCompleted == 0 && v.TasksFailed == 0 && !v.Active {
+			continue
+		}
 		result = append(result, *v)
 	}
 	return result

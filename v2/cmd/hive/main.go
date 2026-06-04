@@ -893,6 +893,8 @@ func main() {
 							TrustTier:      e.TrustTier,
 							TasksCompleted: e.TasksCompleted,
 							TasksFailed:    e.TasksFailed,
+							Active:         e.Active,
+							CurrentTask:    e.CurrentTask,
 						}
 					}
 					return out

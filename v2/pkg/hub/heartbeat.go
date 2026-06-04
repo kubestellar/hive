@@ -36,6 +36,9 @@ type LeaderboardEntry struct {
 	TrustTier      string `json:"trust_tier"`
 	TasksCompleted int    `json:"tasks_completed"`
 	TasksFailed    int    `json:"tasks_failed"`
+	Active         bool   `json:"active"`
+	CurrentTask    string `json:"current_task,omitempty"`
+	HiveName       string `json:"hive_name,omitempty"`
 }
 
 type HeartbeatPayload struct {

@@ -221,17 +221,21 @@
       entries.sort(function(a, b) { return (b.tasks_completed || 0) - (a.tasks_completed || 0); });
       var rows = entries.map(function(e, i) {
         var avatar = e.avatar_url ? '<img src="' + esc(e.avatar_url) + '" width="24" height="24" style="border-radius:50%;vertical-align:middle;margin-right:6px">' : '';
+        var activeDot = e.active ? '<span class="online-dot on" style="margin-right:4px"></span>' : '';
+        var taskText = e.current_task ? '<span style="color:var(--green);font-size:0.75rem">' + esc(e.current_task) + '</span>' : '<span style="color:var(--muted);font-size:0.75rem">—</span>';
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
-          '<td>' + avatar + '<a href="https://github.com/' + esc(e.github_username) + '" target="_blank">' + esc(e.github_username) + '</a></td>' +
+          '<td>' + activeDot + avatar + '<a href="https://github.com/' + esc(e.github_username) + '" target="_blank">' + esc(e.github_username) + '</a></td>' +
+          '<td style="font-size:0.8rem;color:var(--muted)">' + esc(e.hive_name || '') + '</td>' +
           '<td>' + (e.tasks_completed || 0) + '</td>' +
           '<td>' + (e.tasks_failed || 0) + '</td>' +
           '<td><span class="acmm-badge acmm-2">' + esc(e.trust_tier || 'newcomer') + '</span></td>' +
+          '<td>' + taskText + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('leaderboard-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>#</th><th>Contributor</th><th>Completed</th><th>Failed</th><th>Tier</th>' +
+        '<th>#</th><th>Contributor</th><th>Hive</th><th>Completed</th><th>Failed</th><th>Tier</th><th>Current Task</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 

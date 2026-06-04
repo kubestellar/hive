@@ -168,6 +168,7 @@ case "$AGENT_BACKEND" in
     ;;
   copilot)
     mkdir -p "${HOME}/.copilot"
+    ln -sf "$AGENT_MD" "${HOME}/copilot-instructions.md"
     ln -sf "$AGENT_MD" "${HOME}/COPILOT.md"
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
     ;;

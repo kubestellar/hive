@@ -338,8 +338,15 @@ type HubConfig struct {
 	ContributeDenyLabels   []string `yaml:"contribute_deny_labels"`
 	ContributeDenyTitles   []string `yaml:"contribute_deny_titles"`
 	ContributeDenyAuthors  []string `yaml:"contribute_deny_authors"`
-	DisabledRepos          []string `yaml:"disabled_repos"`
-	DisabledTiers          []string `yaml:"disabled_tiers"`
+	DisabledRepos          []string            `yaml:"disabled_repos"`
+	DisabledTiers          []string            `yaml:"disabled_tiers"`
+	TierLimits             map[string]TierRate `yaml:"tier_limits"`
+}
+
+type TierRate struct {
+	MaxPerHour    int `yaml:"max_per_hour" json:"max_per_hour"`
+	MaxPerDay     int `yaml:"max_per_day" json:"max_per_day"`
+	MaxConcurrent int `yaml:"max_concurrent" json:"max_concurrent"`
 }
 
 type DashboardConfig struct {
@@ -626,6 +633,15 @@ func (c *Config) applyDefaults() {
 			"renovate[bot]",
 			"dependabot[bot]",
 			"mergeraptor[bot]",
+		}
+	}
+
+	if len(c.Hub.TierLimits) == 0 {
+		c.Hub.TierLimits = map[string]TierRate{
+			"newcomer":    {MaxPerHour: 3, MaxPerDay: 10, MaxConcurrent: 1},
+			"contributor": {MaxPerHour: 10, MaxPerDay: 50, MaxConcurrent: 2},
+			"trusted":     {MaxPerHour: 30, MaxPerDay: 200, MaxConcurrent: 5},
+			"advisor":     {MaxPerHour: 0, MaxPerDay: 0, MaxConcurrent: 0},
 		}
 	}
 

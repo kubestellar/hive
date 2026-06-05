@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -171,7 +172,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 		const summaryLines = 20
 		var liveSummary string
 		if pane := proc.PaneLines(summaryLines); len(pane) > 0 {
-			liveSummary = strings.Join(pane, "\n")
+			liveSummary = redactTokens(strings.Join(pane, "\n"))
 		}
 		var detailSummary string
 		const maxDetailLines = 50
@@ -180,12 +181,12 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			if len(lines) > maxDetailLines {
 				lines = lines[len(lines)-maxDetailLines:]
 			}
-			detailSummary = strings.Join(lines, "\n")
+			detailSummary = redactTokens(strings.Join(lines, "\n"))
 		} else if pane := proc.FilteredPaneLines(0); len(pane) > 0 {
 			if len(pane) > maxDetailLines {
 				pane = pane[len(pane)-maxDetailLines:]
 			}
-			detailSummary = strings.Join(pane, "\n")
+			detailSummary = redactTokens(strings.Join(pane, "\n"))
 		}
 
 		agentID := proc.ID
@@ -1120,4 +1121,15 @@ func readCgroupCPUUsageUsec(path string) int64 {
 func roundTo(f float64, decimals int) float64 {
 	shift := math.Pow10(decimals)
 	return math.Round(f*shift) / shift
+}
+
+var statusTokenRedactor = regexp.MustCompile(`(ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_]{10,}`)
+
+func redactTokens(s string) string {
+	return statusTokenRedactor.ReplaceAllStringFunc(s, func(m string) string {
+		if len(m) > 7 {
+			return m[:7] + "***"
+		}
+		return "***"
+	})
 }

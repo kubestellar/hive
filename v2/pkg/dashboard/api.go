@@ -1780,7 +1780,10 @@ func (s *Server) handleAgentConfigRestrictions(w http.ResponseWriter, r *http.Re
 		}
 		lines = append(lines, line)
 	}
-	_ = os.WriteFile(restFile, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	tmpRest := restFile + ".tmp"
+	if os.WriteFile(tmpRest, []byte(strings.Join(lines, "\n")+"\n"), 0o644) == nil {
+		_ = os.Rename(tmpRest, restFile)
+	}
 
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated", "agent": name})

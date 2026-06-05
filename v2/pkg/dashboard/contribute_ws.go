@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/kubestellar/hive/v2/pkg/config"
 )
 
 const (
@@ -684,8 +685,16 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 	}
 	h.logger.Info("[contribute-ws] selectTask scanning", "repos", len(status.Repos), "totalIssues", totalAvailable, "cooldown", len(h.completedTasks), "active", len(activeIssues))
 
+	var disabledRepos []string
+	if h.server.deps != nil && h.server.deps.Config != nil {
+		disabledRepos = h.server.deps.Config.Hub.DisabledRepos
+	}
+
 	for _, repo := range status.Repos {
 		if len(repo.ActionableIssues) == 0 {
+			continue
+		}
+		if config.MatchesAny(repo.Full, disabledRepos) || config.MatchesAny(repo.Name, disabledRepos) {
 			continue
 		}
 		for _, raw := range repo.ActionableIssues {
@@ -722,12 +731,14 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 
 			title, _ := issue["title"].(string)
 			url, _ := issue["url"].(string)
-			_, _ = issue["author"].(string)
+			author, _ := issue["author"].(string)
 
-			titleLower := strings.ToLower(title)
-			if strings.Contains(titleLower, "dependency dashboard") ||
-				strings.Contains(titleLower, "renovate dashboard") ||
-				strings.Contains(titleLower, "epic:") {
+			var denyTitles, denyAuthors []string
+			if h.server.deps != nil && h.server.deps.Config != nil {
+				denyTitles = h.server.deps.Config.Hub.ContributeDenyTitles
+				denyAuthors = h.server.deps.Config.Hub.ContributeDenyAuthors
+			}
+			if config.MatchesAny(title, denyTitles) || config.MatchesAny(author, denyAuthors) {
 				continue
 			}
 

@@ -30,7 +30,13 @@ var wsUpgrader = websocket.Upgrader{
 		if origin == "" {
 			return true
 		}
-		return strings.Contains(origin, r.Host)
+		// Extract host from origin URL (e.g. "https://example.com" → "example.com")
+		host := origin
+		if idx := strings.Index(host, "://"); idx >= 0 {
+			host = host[idx+3:]
+		}
+		host = strings.TrimRight(host, "/")
+		return host == r.Host
 	},
 }
 
@@ -215,7 +221,10 @@ func (h *ContributeWSHub) saveCompletedTasks() {
 	h.completedMu.Unlock()
 	data, _ := json.Marshal(saved)
 	os.MkdirAll("/data/contributors", 0o755)
-	os.WriteFile(completedTasksFile, data, 0o644)
+	tmpPath := completedTasksFile + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err == nil {
+		os.Rename(tmpPath, completedTasksFile)
+	}
 }
 
 func (h *ContributeWSHub) markTaskCompleted(repo string, number int) {

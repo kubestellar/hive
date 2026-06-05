@@ -327,12 +327,16 @@ type DiscordConfig struct {
 }
 
 type HubConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	URL          string `yaml:"url"`
-	IsPublic     bool   `yaml:"is_public"`
-	SnapshotURL  string `yaml:"snapshot_url"`
-	DashboardURL string `yaml:"dashboard_url"`
-	AutoSnapshot bool   `yaml:"auto_snapshot"`
+	Enabled                bool     `yaml:"enabled"`
+	URL                    string   `yaml:"url"`
+	IsPublic               bool     `yaml:"is_public"`
+	SnapshotURL            string   `yaml:"snapshot_url"`
+	DashboardURL           string   `yaml:"dashboard_url"`
+	AutoSnapshot           bool     `yaml:"auto_snapshot"`
+	ContributeAllowLabels  []string `yaml:"contribute_allow_labels"`
+	ContributeDenyLabels   []string `yaml:"contribute_deny_labels"`
+	DisabledRepos          []string `yaml:"disabled_repos"`
+	DisabledTiers          []string `yaml:"disabled_tiers"`
 }
 
 type DashboardConfig struct {

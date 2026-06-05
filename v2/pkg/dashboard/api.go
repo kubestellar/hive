@@ -428,11 +428,12 @@ func (s *Server) handleSnapshotAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
+	hubURL := "https://hive.kubestellar.io"
+	if s.deps != nil && s.deps.Config != nil && s.deps.Config.Hub.URL != "" {
+		hubURL = s.deps.Config.Hub.URL
+	}
+
 	if s.deps == nil || s.deps.Config == nil || !s.deps.Config.Hub.AutoSnapshot {
-		hubURL := "https://hive.kubestellar.io"
-		if s.deps != nil && s.deps.Config != nil && s.deps.Config.Hub.URL != "" {
-			hubURL = s.deps.Config.Hub.URL
-		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3;url=%s"><title>Hive</title>
 <style>body{font-family:system-ui,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
@@ -441,45 +442,72 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 			hubURL, hubURL, hubURL)
 		return
 	}
-	data, err := staticFS.ReadFile("static/index.html")
-	if err != nil {
-		http.Error(w, "dashboard not found", http.StatusInternalServerError)
+
+	s.statusMu.RLock()
+	status := s.status
+	s.statusMu.RUnlock()
+	if status == nil {
+		http.Error(w, "snapshot not yet generated", http.StatusServiceUnavailable)
 		return
 	}
-	html := strings.Replace(string(data), "</head>",
-		`<script>
-window.HIVE_SNAPSHOT_MODE=true;
-(function(){
-  var origFetch=window.fetch;
-  window.fetch=function(url,opts){
-    var method=(opts&&opts.method||'GET').toUpperCase();
-    if(method!=='GET'&&method!=='HEAD'){
-      console.warn('[snapshot] blocked '+method+' '+url);
-      return Promise.resolve(new Response('{"error":"read-only snapshot"}',{status:403,headers:{'Content-Type':'application/json'}}));
-    }
-    return origFetch.apply(this,arguments);
-  };
-})();
-</script>
-<style>
-  .config-gear, .restart-btn, .btn-toggle, [data-action="openConfigDialog"],
-  [data-action="kickAgent"], [data-action="restartAgent"],
-  [onclick*="kick"], [onclick*="pause"], [onclick*="resume"],
-  [onclick*="openConfig"], [onclick*="deleteAgent"],
-  .oc-nav-actions, .gh-auth-btn, #gh-auth-banner, #gh-auth-alert,
-  .gh-auth-alert, button[onclick*="Revoke"], button[onclick*="updateUser"],
-  select[onchange*="changeContributorTier"], #btn-add-hive,
-  button[onclick*="openConvert"], button[onclick*="deleteHive"],
-  button[onclick*="upgradeHive"], button[onclick*="openAccessModal"],
-  .system-gauges { display: none !important; }
-  body::before { content: "📸 Read-only snapshot"; display: block; text-align: center;
-    padding: 6px; background: #1a1a2e; color: #f59e0b; font-size: 0.8rem; font-weight: 600;
-    border-bottom: 2px solid #f59e0b; position: sticky; top: 0; z-index: 10000; }
-</style></head>`, 1)
+	statusJSON, _ := json.MarshalIndent(status, "", "  ")
+	projectName := ""
+	if s.deps != nil && s.deps.Config != nil {
+		projectName = s.deps.Config.Project.Org + "/" + s.deps.Config.Project.PrimaryRepo
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=60")
-	w.Write([]byte(html))
+	fmt.Fprintf(w, snapshotHTML, esc(projectName), status.Timestamp, status.Governor.Mode,
+		status.Governor.Issues, status.Governor.PRs, buildSnapshotAgents(status), string(statusJSON))
 }
+
+func esc(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	return s
+}
+
+func buildSnapshotAgents(status *StatusPayload) string {
+	var b strings.Builder
+	for _, a := range status.Agents {
+		stateClass := "state-" + a.State
+		b.WriteString(fmt.Sprintf(`<div class="agent"><span>%s %s</span><span class="%s">%s</span><span class="label">%s / %s</span></div>`,
+			esc(a.Emoji), esc(a.Name), stateClass, esc(a.State), esc(a.CLI), esc(a.Model)))
+	}
+	return b.String()
+}
+
+const snapshotHTML = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>📸 Hive Snapshot — %s</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;background:#0a0a0a;color:#e0e0e0}
+.banner{text-align:center;padding:8px;background:#1a1a2e;color:#f59e0b;font-size:0.85rem;font-weight:600;border-bottom:2px solid #f59e0b}
+.content{max-width:900px;margin:0 auto;padding:24px}
+h1{color:#f59e0b;margin:0 0 4px}
+.ts{color:#6b7280;font-size:0.82rem;margin-bottom:24px}
+.card{background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:16px;margin:16px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.label{color:#8b949e;font-size:0.8rem}.value{font-size:1.3rem;font-weight:700}
+.agent{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #222}
+.state-running{color:#22c55e}.state-paused{color:#eab308}.state-stopped{color:#6b7280}.state-failed{color:#ef4444}
+pre{background:#111;padding:16px;border-radius:6px;overflow-x:auto;font-size:0.78rem;max-height:400px;overflow-y:auto}
+</style></head><body>
+<div class="banner">📸 Read-only Snapshot</div>
+<div class="content">
+<h1>🐝 Hive Snapshot</h1>
+<p class="ts">Generated: %s</p>
+<div class="grid">
+  <div class="card"><div class="label">Governor Mode</div><div class="value">%s</div></div>
+  <div class="card"><div class="label">Issues</div><div class="value">%d</div></div>
+  <div class="card"><div class="label">PRs</div><div class="value">%d</div></div>
+</div>
+<h2>Agents</h2>
+<div class="card">%s</div>
+<h2>Raw Status</h2>
+<pre>%s</pre>
+</div></body></html>`
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	history := s.deps.Governor.EvalHistory()

@@ -1806,7 +1806,10 @@ func (s *Server) handleAgentConfigStats(w http.ResponseWriter, r *http.Request) 
 
 	data, err := json.Marshal(body)
 	if err == nil {
-		_ = os.WriteFile(statsFile, data, 0o644)
+		tmpStats := statsFile + ".tmp"
+		if os.WriteFile(tmpStats, data, 0o644) == nil {
+			_ = os.Rename(tmpStats, statsFile)
+		}
 	}
 
 	s.refreshAndPersist()

@@ -153,7 +153,12 @@ func saveContributorProfile(p *ContributorProfile) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(getContributorsDir(), p.GitHubUsername+".json"), data, 0o644)
+	path := filepath.Join(getContributorsDir(), p.GitHubUsername+".json")
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func listContributorProfiles() []ContributorProfile {
@@ -690,12 +695,17 @@ func loadFederationRegistry() *FederationRegistry {
 }
 
 func saveFederationRegistry(reg *FederationRegistry) error {
-	ensureDir(filepath.Dir(getFederationRegistryPath()))
+	path := getFederationRegistryPath()
+	ensureDir(filepath.Dir(path))
 	data, err := json.MarshalIndent(reg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(getFederationRegistryPath(), data, 0o644)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func (s *Server) handleHivesList(w http.ResponseWriter, r *http.Request) {

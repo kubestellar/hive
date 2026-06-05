@@ -61,14 +61,14 @@ if [[ -n "$AGENT_ID" ]]; then
     done < <(python3 -c "
 import json, sys
 try:
-    with open('${RESTRICTION_FILE}') as f:
+    with open(sys.argv[1]) as f:
         data = json.load(f)
     for r in data.get('rules', []):
         if r.get('enabled', True):
             print(r.get('pattern','') + '|' + r.get('reason',''))
 except Exception:
     pass
-" 2>/dev/null)
+" "$RESTRICTION_FILE" 2>/dev/null)
   fi
 fi
 
@@ -131,18 +131,21 @@ _capture_advisory_finding() {
   local ADVISORY_DIR="/data/advisory"
   mkdir -p "$ADVISORY_DIR"
   python3 -c "
-import json, datetime, sys
+import json, datetime, sys, os
+agent = sys.argv[1]
+adv_dir = sys.argv[2]
 f = {
-    'agent': '${AGENT_NAME_GW}',
+    'agent': agent,
     'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
     'type': 'issue',
     'severity': 'medium',
-    'title': sys.argv[1],
-    'detail': sys.argv[2][:500] if len(sys.argv[2]) > 500 else sys.argv[2]
+    'title': sys.argv[3],
+    'detail': sys.argv[4][:500] if len(sys.argv[4]) > 500 else sys.argv[4]
 }
-with open('${ADVISORY_DIR}/${AGENT_NAME_GW}.jsonl', 'a') as fh:
+path = os.path.join(adv_dir, agent + '.jsonl')
+with open(path, 'a') as fh:
     fh.write(json.dumps(f) + '\n')
-" "${_adv_title:-untitled}" "${_adv_body:-}" 2>/dev/null || true
+" "$AGENT_NAME_GW" "$ADVISORY_DIR" "${_adv_title:-untitled}" "${_adv_body:-}" 2>/dev/null || true
 }
 
 if [ -n "$AGENT_MODE" ]; then
@@ -257,11 +260,13 @@ if [ "$subcmd" = "pr" ] && [ "$action" = "merge" ]; then
     is_eligible=$(python3 -c "
 import json, sys
 try:
-    with open('${MERGE_ELIGIBLE_FILE}') as f:
+    pr_num_arg = sys.argv[1]
+    repo_filter = sys.argv[2]
+    merge_file = sys.argv[3]
+    with open(merge_file) as f:
         data = json.load(f)
-    repo_filter = '${pr_repo}'
     for pr in data.get('merge_eligible', []):
-        if str(pr.get('number')) == '${pr_num}':
+        if str(pr.get('number')) == pr_num_arg:
             if not repo_filter or pr.get('repo','') == repo_filter:
                 print('yes')
                 sys.exit(0)
@@ -269,7 +274,7 @@ try:
 except Exception as e:
     print('error:' + str(e), file=sys.stderr)
     print('no')
-" 2>/dev/null)
+" "$pr_num" "$pr_repo" "$MERGE_ELIGIBLE_FILE" 2>/dev/null)
 
     if [ "$is_eligible" != "yes" ]; then
       echo "⛔ BLOCKED: PR #${pr_num} is NOT in merge-eligible.json." >&2

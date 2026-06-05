@@ -73,7 +73,7 @@ function getCLIState() {
   try {
     const output = execSync(
       `tmux capture-pane -t ${TMUX_SESSION} -p 2>/dev/null`,
-      { encoding: 'utf8', timeout: 5000 }
+      { encoding: 'utf8', timeout: 15000 }
     );
     const text = output.toString();
     if (BACKEND === 'claude') {
@@ -94,7 +94,7 @@ function getCLIState() {
     } else if (BACKEND === 'codex') {
       if (/codex>|>\s*$|Codex CLI/.test(text)) return 'ready';
     } else if (BACKEND === 'pi') {
-      if (/>\s*$|pi>|pi \d|ready/.test(text)) return 'ready';
+      if (/pi v\d|0\.0%|auto\)|\d+\.\d+%/.test(text)) return 'ready';
     } else {
       if (/>\s*$|❯|\$\s*$/.test(text)) return 'ready';
     }
@@ -115,7 +115,7 @@ function waitForCLI() {
         resolve();
       } else if (state === 'onboarding') {
         console.log('Auto-dismissing trust/onboarding dialog...');
-        try { execSync(`tmux send-keys -t ${TMUX_SESSION} Enter`, { timeout: 5000 }); } catch (_) {}
+        try { execSync(`tmux send-keys -t ${TMUX_SESSION} Enter`, { timeout: 15000 }); } catch (_) {}
         setTimeout(check, CLI_READY_POLL_MS);
       } else if (state === 'needs-login' && !loginMessageShown) {
         loginMessageShown = true;
@@ -161,7 +161,7 @@ function sleepMs(ms) {
 
 function tmuxSendEnters() {
   for (let i = 0; i < ENTER_COUNT; i++) {
-    execSync(`tmux send-keys -t ${TMUX_SESSION} Enter`, { timeout: 5000 });
+    execSync(`tmux send-keys -t ${TMUX_SESSION} Enter`, { timeout: 15000 });
     if (i < ENTER_COUNT - 1) sleepMs(ENTER_DELAY_MS);
   }
 }
@@ -172,7 +172,7 @@ function checkContextUsage() {
   try {
     const output = execSync(
       `tmux capture-pane -t ${TMUX_SESSION} -p -S -3 2>/dev/null`,
-      { encoding: 'utf8', timeout: 5000 }
+      { encoding: 'utf8', timeout: 15000 }
     );
     const match = output.match(/ctx:(\d+)%|(\d+)% context/);
     return match ? parseInt(match[1] || match[2], 10) : 0;
@@ -184,7 +184,7 @@ function checkContextUsage() {
 function tmuxSendKeys(text) {
   try {
     try {
-      execSync(`find /tmp -maxdepth 1 -type d -user dev -not -name 'tmux-*' -not -name 'claude-*' -not -name 'node-*' -not -name '.' -mmin +60 -exec rm -rf {} + 2>/dev/null; find /tmp -maxdepth 1 -type f -user dev -name '*.out' -o -name '*.html' -mmin +60 -exec rm -f {} + 2>/dev/null`, { timeout: 5000 });
+      execSync(`find /tmp -maxdepth 1 -type d -user dev -not -name 'tmux-*' -not -name 'claude-*' -not -name 'node-*' -not -name '.' -mmin +60 -exec rm -rf {} + 2>/dev/null; find /tmp -maxdepth 1 -type f -user dev -name '*.out' -o -name '*.html' -mmin +60 -exec rm -f {} + 2>/dev/null`, { timeout: 15000 });
     } catch (_) {}
     const ctxPct = checkContextUsage();
     const RESET_EVERY_N = 3;
@@ -192,38 +192,38 @@ function tmuxSendKeys(text) {
     const needsCliRestart = BACKEND !== 'claude' && tasksCompletedCount > 0 && tasksCompletedCount % RESET_EVERY_N === 0;
     if (needsClaudeClear) {
       console.log(`Context at ${ctxPct}% — sending /clear before next task`);
-      execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 5000 });
+      execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 15000 });
       sleepMs(200);
-      execSync(`tmux send-keys -t ${TMUX_SESSION} C-a`, { timeout: 5000 });
-      execSync(`tmux send-keys -t ${TMUX_SESSION} C-k`, { timeout: 5000 });
+      execSync(`tmux send-keys -t ${TMUX_SESSION} C-a`, { timeout: 15000 });
+      execSync(`tmux send-keys -t ${TMUX_SESSION} C-k`, { timeout: 15000 });
       sleepMs(200);
-      execSync(`tmux send-keys -t ${TMUX_SESSION} -l '/clear'`, { timeout: 5000 });
+      execSync(`tmux send-keys -t ${TMUX_SESSION} -l '/clear'`, { timeout: 15000 });
       sleepMs(200);
       tmuxSendEnters();
       sleepMs(3000);
     } else if (needsCliRestart) {
       console.log(`Restarting ${BACKEND} CLI for memory cleanup (task ${tasksCompletedCount})`);
-      execSync(`tmux send-keys -t ${TMUX_SESSION} C-c`, { timeout: 5000 });
+      execSync(`tmux send-keys -t ${TMUX_SESSION} C-c`, { timeout: 15000 });
       sleepMs(1000);
-      execSync(`tmux send-keys -t ${TMUX_SESSION} C-c`, { timeout: 5000 });
+      execSync(`tmux send-keys -t ${TMUX_SESSION} C-c`, { timeout: 15000 });
       sleepMs(2000);
       try {
         const confPaths2 = ['/usr/local/etc/hive/backends.conf', path.join(process.cwd(), 'config/backends.conf')];
         const confPath2 = confPaths2.find(p => fs.existsSync(p)) || confPaths2[0];
-        const CMD = execSync(`bash -c 'source ${confPath2} 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim() || BACKEND;
-        const PERM = execSync(`bash -c 'source ${confPath2} 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
-        execSync(`tmux send-keys -t ${TMUX_SESSION} '${CMD} ${PERM}' Enter`, { timeout: 5000 });
+        const CMD = execSync(`bash -c 'source ${confPath2} 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 15000 }).trim() || BACKEND;
+        const PERM = execSync(`bash -c 'source ${confPath2} 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 15000 }).trim();
+        execSync(`tmux send-keys -t ${TMUX_SESSION} '${CMD} ${PERM}' Enter`, { timeout: 15000 });
         cliReady = false;
         waitForCLI().then(() => { cliReady = true; if (pendingTask) { const t = pendingTask; pendingTask = null; tmuxSendKeys(t); } }).catch(() => {});
         sleepMs(10000);
       } catch (e) { console.error('CLI restart failed:', e.message); }
     }
-    execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 5000 });
+    execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 15000 });
     sleepMs(200);
-    execSync(`tmux send-keys -t ${TMUX_SESSION} C-a`, { timeout: 5000 });
-    execSync(`tmux send-keys -t ${TMUX_SESSION} C-k`, { timeout: 5000 });
+    execSync(`tmux send-keys -t ${TMUX_SESSION} C-a`, { timeout: 15000 });
+    execSync(`tmux send-keys -t ${TMUX_SESSION} C-k`, { timeout: 15000 });
     sleepMs(200);
-    execSync(`tmux send-keys -t ${TMUX_SESSION} -l ${shellQuote(text)}`, { timeout: 10000 });
+    execSync(`tmux send-keys -t ${TMUX_SESSION} -l ${shellQuote(text)}`, { timeout: 30000 });
     sleepMs(300);
     tmuxSendEnters();
     console.log('Task prompt sent to CLI');
@@ -246,7 +246,7 @@ function captureTmuxLines(n) {
   try {
     const output = execSync(
       `tmux capture-pane -t ${TMUX_SESSION} -p -S -${n} 2>/dev/null`,
-      { encoding: 'utf8', timeout: 5000 }
+      { encoding: 'utf8', timeout: 15000 }
     );
     return output.trim().split('\n').slice(-n).map(l => redactTokens(l));
   } catch (_) {
@@ -258,7 +258,7 @@ function checkTmuxIdle() {
   try {
     const output = execSync(
       `tmux capture-pane -t ${TMUX_SESSION} -p 2>/dev/null`,
-      { encoding: 'utf8', timeout: 5000 }
+      { encoding: 'utf8', timeout: 15000 }
     );
     const text = output.toString();
     let hasIdlePrompt, hasCompletionMarker, isWorking;
@@ -289,9 +289,9 @@ function checkTmuxIdle() {
       hasCompletionMarker = /completed|done|finished/i.test(text);
       isWorking = /running|executing|thinking/i.test(text);
     } else if (BACKEND === 'pi') {
-      hasIdlePrompt = />\s*$|pi>/.test(text);
-      hasCompletionMarker = /completed|done|finished|tokens\)/i.test(text);
-      isWorking = /Reading|Writing|Bash|Editing|thinking/i.test(text);
+      hasIdlePrompt = /pi v\d|0\.0%|auto\)|\d+\.\d+%/.test(text);
+      hasCompletionMarker = /completed|done|finished|tokens\)|\d+\.\d+%/i.test(text);
+      isWorking = /Reading|Writing|Bash|Editing|thinking|running/i.test(text);
     } else {
       hasIdlePrompt = />\s*$|\$\s*$/.test(text);
       hasCompletionMarker = /completed|done|finished/i.test(text);
@@ -319,9 +319,9 @@ function startProgressReporting() {
       let procs = '';
       try {
         if (fs.existsSync('/proc')) {
-          procs = execSync(`for p in /proc/[0-9]*/cmdline; do tr "\\0" " " < "$p" 2>/dev/null; done`, { encoding: 'utf8', timeout: 5000 });
+          procs = execSync(`for p in /proc/[0-9]*/cmdline; do tr "\\0" " " < "$p" 2>/dev/null; done`, { encoding: 'utf8', timeout: 15000 });
         } else {
-          procs = execSync(`ps -eo command 2>/dev/null`, { encoding: 'utf8', timeout: 5000 });
+          procs = execSync(`ps -eo command 2>/dev/null`, { encoding: 'utf8', timeout: 15000 });
         }
       } catch (_) { procs = BACKEND; }
       const cliAlive = procs.includes(BACKEND) || procs.includes('claude') || procs.includes('copilot') || procs.includes('bob') || procs.includes('codex') || procs.includes('goose') || procs.includes('pi');
@@ -330,9 +330,9 @@ function startProgressReporting() {
         try {
           const confPaths = ['/usr/local/etc/hive/backends.conf', path.join(process.cwd(), 'config/backends.conf')];
           const confPath = confPaths.find(p => fs.existsSync(p)) || confPaths[0];
-          const CMD = execSync(`bash -c 'source ${confPath} 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim() || BACKEND;
-          const PERM = execSync(`bash -c 'source ${confPath} 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
-          execSync(`tmux send-keys -t ${TMUX_SESSION} '${CMD} ${PERM}' Enter`, { timeout: 5000 });
+          const CMD = execSync(`bash -c 'source ${confPath} 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 15000 }).trim() || BACKEND;
+          const PERM = execSync(`bash -c 'source ${confPath} 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 15000 }).trim();
+          execSync(`tmux send-keys -t ${TMUX_SESSION} '${CMD} ${PERM}' Enter`, { timeout: 15000 });
           console.log(`CLI restarted: ${CMD} ${PERM}`);
           cliReady = false;
           waitForCLI().then(() => { cliReady = true; }).catch(() => {});

@@ -107,6 +107,7 @@ type ContributeWSHub struct {
 	server         *Server
 	completedTasks map[string]time.Time
 	completedMu    sync.Mutex
+	selectMu       sync.Mutex
 }
 
 const completedTaskCooldownHours = 168
@@ -656,6 +657,9 @@ func (h *ContributeWSHub) heartbeatLoop(c *ContributorConnection) {
 }
 
 func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
+	h.selectMu.Lock()
+	defer h.selectMu.Unlock()
+
 	if h.server == nil {
 		return nil
 	}

@@ -522,11 +522,19 @@ func (s *Server) handleContributeStatus(w http.ResponseWriter, r *http.Request) 
 	if s.contributeHub != nil {
 		active = s.contributeHub.ActiveCount()
 	}
+	actionable := 0
+	s.statusMu.RLock()
+	if s.status != nil {
+		for _, repo := range s.status.Repos {
+			actionable += len(repo.ActionableIssues)
+		}
+	}
+	s.statusMu.RUnlock()
 	jsonResponse(w, map[string]any{
 		"hub":                  "online",
 		"active_contributors": active,
 		"total_registered":    len(profiles),
-		"actionable_items":    0,
+		"actionable_items":    actionable,
 	})
 }
 

@@ -124,6 +124,12 @@ func (s *HubServer) registerSaaSRoutes() {
 
 func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !isCSRFSafe(r) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(`{"error":"CSRF check failed"}`))
+			return
+		}
 		cookie, err := r.Cookie("hive_hub_user")
 		if err != nil || cookie.Value == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -138,8 +144,30 @@ func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			w.Write([]byte(`{"error":"unknown user — please log in again"}`))
 			return
 		}
+		if user.Blocked {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(`{"error":"account blocked"}`))
+			return
+		}
 		next(w, r)
 	}
+}
+
+func isCSRFSafe(r *http.Request) bool {
+	if r.Method == "GET" || r.Method == "HEAD" || r.Method == "OPTIONS" {
+		return true
+	}
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		return strings.Contains(origin, "hive.kubestellar.io") || strings.Contains(origin, "localhost")
+	}
+	referer := r.Header.Get("Referer")
+	if referer != "" {
+		return strings.Contains(referer, "hive.kubestellar.io") || strings.Contains(referer, "localhost")
+	}
+	ct := r.Header.Get("Content-Type")
+	return strings.Contains(ct, "application/json")
 }
 
 func (s *HubServer) getAuthUser(r *http.Request) string {
@@ -472,10 +500,28 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"org and repos are required"}`, http.StatusBadRequest)
 		return
 	}
+	if !isValidName(req.Org) {
+		http.Error(w, `{"error":"invalid org name — alphanumeric, dashes, dots, underscores only"}`, http.StatusBadRequest)
+		return
+	}
+	for _, r := range strings.Split(req.Repos, ",") {
+		if !isValidName(strings.TrimSpace(r)) {
+			http.Error(w, `{"error":"invalid repo name"}`, http.StatusBadRequest)
+			return
+		}
+	}
 	hasToken := req.GitHubToken != ""
 	hasApp := req.AuthMethod == "app" && req.AppID != "" && req.InstallationID != "" && req.AppPrivateKey != ""
 	if !hasToken && !hasApp {
 		http.Error(w, `{"error":"provide either a GitHub token or GitHub App credentials"}`, http.StatusBadRequest)
+		return
+	}
+	if hasToken && !strings.HasPrefix(req.GitHubToken, "ghp_") && !strings.HasPrefix(req.GitHubToken, "github_pat_") {
+		http.Error(w, `{"error":"token must start with ghp_ or github_pat_"}`, http.StatusBadRequest)
+		return
+	}
+	if hasApp && !strings.HasPrefix(strings.TrimSpace(req.AppPrivateKey), "-----BEGIN") {
+		http.Error(w, `{"error":"private key must be PEM format"}`, http.StatusBadRequest)
 		return
 	}
 

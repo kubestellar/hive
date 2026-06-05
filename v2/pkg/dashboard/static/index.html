@@ -6298,9 +6298,9 @@ function burnAreaChart() {
         const res = await fetch(`/api/contributors/${contributorId}/trust`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ trust_tier: tier }),
+          body: JSON.stringify({ tier: tier }),
         });
-        if (!res.ok) { await hiveAlert('Failed to change tier: ' + res.statusText); return; }
+        if (!res.ok) { const err = await res.json().catch(() => ({})); await hiveAlert('Failed to change tier: ' + (err.error || res.statusText)); return; }
         fetchContributors();
       } catch (e) { await hiveAlert('Error: ' + e.message); }
     }

@@ -295,7 +295,13 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	const maxRegistryEntries = 200
 	if !found {
+		if len(s.registry.Hives) >= maxRegistryEntries {
+			s.mu.Unlock()
+			http.Error(w, "registry full", http.StatusServiceUnavailable)
+			return
+		}
 		entry.RegisteredAt = time.Now().UTC().Format(time.RFC3339)
 		s.registry.Hives = append(s.registry.Hives, entry)
 	}

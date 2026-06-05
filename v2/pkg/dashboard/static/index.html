@@ -4079,7 +4079,22 @@ function burnAreaChart() {
       const el = document.getElementById('gh-rate-alert');
       const alerts = (ghRateLimits && ghRateLimits.alerts) || [];
       const pullbacks = (ghRateLimits && ghRateLimits.pullbacks) || [];
+      const core = (ghRateLimits && ghRateLimits.core) || {};
       const now = Math.floor(Date.now() / 1000);
+
+      const RATE_LIMIT_WARN_THRESHOLD = 100;
+      if (core.remaining !== undefined && core.remaining <= RATE_LIMIT_WARN_THRESHOLD && core.reset) {
+        const resetDate = new Date(core.reset);
+        const resetStr = resetDate.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+        const coreAlert = {
+          agent: 'github-api',
+          message: 'Core API: ' + core.remaining + '/' + (core.limit || '?') + ' remaining — resets ' + resetStr,
+          detected_epoch: now,
+          api_reset_epoch: Math.floor(resetDate.getTime() / 1000),
+        };
+        const hasCoreAlert = alerts.some(a => a.agent === 'github-api');
+        if (!hasCoreAlert) alerts.unshift(coreAlert);
+      }
       const GH_RATE_DEFAULT_TTL = 3600;
       const SECONDS_PER_MINUTE = 60;
       const MINUTES_PER_HOUR = 60;

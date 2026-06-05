@@ -335,6 +335,8 @@ type HubConfig struct {
 	AutoSnapshot           bool     `yaml:"auto_snapshot"`
 	ContributeAllowLabels  []string `yaml:"contribute_allow_labels"`
 	ContributeDenyLabels   []string `yaml:"contribute_deny_labels"`
+	ContributeDenyTitles   []string `yaml:"contribute_deny_titles"`
+	ContributeDenyAuthors  []string `yaml:"contribute_deny_authors"`
 	DisabledRepos          []string `yaml:"disabled_repos"`
 	DisabledTiers          []string `yaml:"disabled_tiers"`
 }
@@ -608,6 +610,22 @@ func (c *Config) applyDefaults() {
 		}
 		applyKnownAgentDefaults(name, &agent)
 		c.Agents[name] = agent
+	}
+
+	if len(c.Hub.ContributeDenyTitles) == 0 {
+		c.Hub.ContributeDenyTitles = []string{
+			"*dependency dashboard*",
+			"*renovate dashboard*",
+			"epic:*",
+			"epic(*",
+		}
+	}
+	if len(c.Hub.ContributeDenyAuthors) == 0 {
+		c.Hub.ContributeDenyAuthors = []string{
+			"renovate[bot]",
+			"dependabot[bot]",
+			"mergeraptor[bot]",
+		}
 	}
 
 	if len(c.Governor.Labels.Exempt) == 0 {
@@ -926,4 +944,56 @@ func (c *Config) Save() error {
 		return fmt.Errorf("closing config: %w", err)
 	}
 	return nil
+}
+
+// WildcardMatch checks if text matches a pattern supporting:
+// - * wildcards (match any substring)
+// - /regex/ syntax for full regex
+// - plain substring match (case-insensitive)
+func WildcardMatch(text, pattern string) bool {
+	text = strings.ToLower(text)
+	pattern = strings.TrimSpace(pattern)
+
+	if strings.HasPrefix(pattern, "/") && strings.HasSuffix(pattern, "/") {
+		re, err := regexp.Compile("(?i)" + pattern[1:len(pattern)-1])
+		if err != nil {
+			return false
+		}
+		return re.MatchString(text)
+	}
+
+	pattern = strings.ToLower(pattern)
+	if strings.Contains(pattern, "*") {
+		parts := strings.Split(pattern, "*")
+		idx := 0
+		for _, part := range parts {
+			if part == "" {
+				continue
+			}
+			found := strings.Index(text[idx:], part)
+			if found < 0 {
+				return false
+			}
+			idx += found + len(part)
+		}
+		if !strings.HasPrefix(pattern, "*") && !strings.HasPrefix(text, parts[0]) {
+			return false
+		}
+		if !strings.HasSuffix(pattern, "*") && !strings.HasSuffix(text, parts[len(parts)-1]) {
+			return false
+		}
+		return true
+	}
+
+	return strings.Contains(text, pattern)
+}
+
+// MatchesAny returns true if text matches any pattern in the list.
+func MatchesAny(text string, patterns []string) bool {
+	for _, p := range patterns {
+		if WildcardMatch(text, p) {
+			return true
+		}
+	}
+	return false
 }

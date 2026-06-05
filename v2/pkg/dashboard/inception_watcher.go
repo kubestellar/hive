@@ -132,6 +132,11 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		// (SubmitAnswers advances to structure), so all beads created
 		// after StartedAt in the current inception are valid.
 		w.checkForFacts(ctx, inceptionBeads)
+		// Retry kick if agent isn't creating facts — same pattern as capture.
+		// The structure kick via SendKick can fail if the agent crashed.
+		if state.Phase == knowledge.PhaseStructure && w.agentMgr != nil {
+			w.retryKickIfStale(state)
+		}
 	}
 }
 

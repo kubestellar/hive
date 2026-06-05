@@ -1,6 +1,6 @@
 FROM debian:bookworm-slim
 
-ARG NODE_MAJOR=22
+ARG NODE_MAJOR=24
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash curl git jq tmux python3 ca-certificates gnupg openssh-client \

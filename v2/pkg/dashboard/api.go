@@ -3404,7 +3404,10 @@ func (s *Server) handleNousConfigGet(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]interface{}{})
 		return
 	}
-	jsonResponse(w, s.deps.Nous.Config)
+	s.deps.Nous.Mu.Lock()
+	cfg := s.deps.Nous.Config
+	s.deps.Nous.Mu.Unlock()
+	jsonResponse(w, cfg)
 }
 
 func (s *Server) handleNousConfigGoals(w http.ResponseWriter, r *http.Request) {

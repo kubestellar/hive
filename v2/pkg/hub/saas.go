@@ -265,7 +265,12 @@ func saveSaaSUser(u *SaaSUser) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(saasUsersDir, u.GitHubUsername+".json"), data, 0o644)
+	path := filepath.Join(saasUsersDir, u.GitHubUsername+".json")
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func ensureSaaSUser(username string) *SaaSUser {

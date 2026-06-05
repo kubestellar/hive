@@ -752,7 +752,11 @@ func (e *InceptionEngine) saveState() error {
 		return fmt.Errorf("marshaling state: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return fmt.Errorf("writing state: %w", err)
+	}
+	return os.Rename(tmpPath, path)
 }
 
 // --- fact helpers ---

@@ -74,6 +74,9 @@ const apiProxy = createProxyMiddleware({
   pathRewrite: (path) => `/api${path}`,
   on: {
     proxyReq(proxyReq) {
+      proxyReq.removeHeader('X-Hive-Internal');
+      proxyReq.removeHeader('X-Hive-User');
+      proxyReq.removeHeader('X-Hive-Role');
       if (DASHBOARD_TOKEN) {
         proxyReq.setHeader('X-Hive-Internal', DASHBOARD_TOKEN);
       }
@@ -154,6 +157,9 @@ const contributeProxy = createProxyMiddleware({
   changeOrigin: true,
   on: {
     proxyReq(proxyReq, req) {
+      proxyReq.removeHeader('X-Hive-Internal');
+      proxyReq.removeHeader('X-Hive-User');
+      proxyReq.removeHeader('X-Hive-Role');
       proxyReq.setHeader('X-Forwarded-Host', req.headers.host || '');
     },
   },

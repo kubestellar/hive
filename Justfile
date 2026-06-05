@@ -259,7 +259,7 @@ contribute-hive backend="" mode="docker":
           ;;
       esac
       CONTAINER_NAME="hive-contributor-${BACKEND}-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' ')"
-      docker run -it --rm \
+      docker run -d --rm \
         --name "${CONTAINER_NAME}" \
         --network host \
         -v "{{config_dir}}:/home/dev/.config/hive:ro" \
@@ -276,7 +276,31 @@ contribute-hive backend="" mode="docker":
         ${GOOSE_PROVIDER:+-e GOOSE_PROVIDER="${GOOSE_PROVIDER}"} \
         ${GOOSE_MODEL:+-e GOOSE_MODEL="${GOOSE_MODEL}"} \
         ${OPENAI_API_KEY:+-e OPENAI_API_KEY="${OPENAI_API_KEY}"} \
-        {{hive_image}}
+        {{hive_image}} > /dev/null
+
+      echo "Container: ${CONTAINER_NAME}"
+      echo "Waiting for CLI session to start..."
+      sleep 3
+
+      # Open the CLI session in a new terminal window
+      ATTACH_CMD="docker exec -it ${CONTAINER_NAME} tmux attach -t contributor"
+      if [[ "$OSTYPE" == "darwin"* ]]; then
+        if pgrep -x "iTerm2" > /dev/null 2>&1; then
+          osascript -e "tell application \"iTerm2\" to tell current window to create tab with default profile command \"${ATTACH_CMD}\""
+        else
+          osascript -e "tell application \"Terminal\" to do script \"${ATTACH_CMD}\""
+        fi
+        echo ""
+        echo "✓ CLI session opened in a new terminal tab."
+      else
+        echo ""
+        echo "Attach to the CLI session with:"
+        echo "  ${ATTACH_CMD}"
+      fi
+
+      echo ""
+      echo "Relay logs:"
+      docker logs -f "${CONTAINER_NAME}"
     fi
 
 # Check hub status and your contributor profile

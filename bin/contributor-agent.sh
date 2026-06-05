@@ -248,9 +248,11 @@ AUTO_DISMISS_INTERVAL=3
 ) &
 
 echo ""
-echo "Contributor agent is running. Attaching to CLI session..."
-echo "  Press Ctrl-B then D to detach (relay keeps running)."
-echo "  Press Ctrl-C to stop contributing."
+CONTAINER_NAME="${HIVE_CONTAINER_NAME:-hive-contributor}"
+echo "Contributor agent is running."
+echo "  CLI:   $CMD"
+echo "  Relay: PID $RELAY_PID"
+echo "  Tmux:  docker exec -it $CONTAINER_NAME tmux attach -t $TMUX_SESSION"
 echo ""
 
 # Keep running until interrupted
@@ -262,6 +264,4 @@ cleanup() {
 }
 trap cleanup SIGTERM SIGINT
 
-# Wait for CLI to start, then attach so the user sees the session
-sleep 2
-tmux attach -t "$TMUX_SESSION" 2>/dev/null || wait "$RELAY_PID"
+wait "$RELAY_PID"

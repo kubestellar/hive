@@ -332,6 +332,7 @@ type HubConfig struct {
 	IsPublic     bool   `yaml:"is_public"`
 	SnapshotURL  string `yaml:"snapshot_url"`
 	DashboardURL string `yaml:"dashboard_url"`
+	AutoSnapshot bool   `yaml:"auto_snapshot"`
 }
 
 type DashboardConfig struct {

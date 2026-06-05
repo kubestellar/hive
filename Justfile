@@ -25,7 +25,7 @@ contribute-setup backend="claude":
       if [[ -n "$_TOKEN" ]]; then
         MY_HIVES=$(curl -sf -H "Authorization: Bearer ${_TOKEN}" "https://hive.kubestellar.io/api/saas/my-hives" 2>/dev/null || echo "")
         if [[ -n "$MY_HIVES" ]]; then
-          HIVE_LIST=$(echo "$MY_HIVES" | jq -r '.[] | "\(.id)|\(.name // .project_name)"' 2>/dev/null)
+          HIVE_LIST=$(echo "$MY_HIVES" | jq -r '.hives[]? // .[] | "\(.id)|\(.name // .project_name)"' 2>/dev/null)
         fi
       fi
       if [[ -z "$HIVE_LIST" ]]; then
@@ -100,7 +100,8 @@ contribute-setup backend="claude":
 
     # ── Step 2: Register with hive hub ──
     echo "── Step 2/3: Hive Registration ──"
-    HUB_HTTP=$(echo "{{hive_hub}}" | sed 's|^wss://|https://|;s|^ws://|http://|;s|/contribute$||')
+    _HUB="${HIVE_HUB:-{{hive_hub}}}"
+    HUB_HTTP=$(echo "$_HUB" | sed 's|^wss://|https://|;s|^ws://|http://|;s|/contribute$||')
     RESPONSE=$(curl -sf --max-time 15 -X POST "${HUB_HTTP}/api/contribute/register" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer ${GH_TOKEN}" \
@@ -132,7 +133,7 @@ contribute-setup backend="claude":
     else
       cat > "{{config_dir}}/contributor.env" <<EOF
     HIVE_REGISTRATION_TOKEN=${TOKEN}
-    HIVE_HUB={{hive_hub}}
+    HIVE_HUB=${_HUB}
     CONTRIBUTOR_ID=${CID}
     CONTRIBUTOR_USERNAME=${GH_USER}
     AGENT_BACKEND={{backend}}
@@ -233,7 +234,7 @@ contribute-setup backend="claude":
     echo "✓ Setup complete!"
     echo "  GitHub:  ${GH_USER}"
     echo "  CLI:     {{backend}}"
-    echo "  Hub:     {{hive_hub}}"
+    echo "  Hub:     ${_HUB:-{{hive_hub}}}"
     echo ""
     echo "Run 'just contribute-hive' to start contributing."
 

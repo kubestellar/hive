@@ -191,6 +191,12 @@ func (s *Server) handleInceptionApprove(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Re-pause brainstorm so the governor doesn't kick it with generic
+	// messages after inception completes (which can revert the phase).
+	if s.deps.AgentMgr != nil {
+		_ = s.deps.AgentMgr.Pause("brainstorm", "inception-complete", "inception complete — on-demand only")
+	}
+
 	jsonResponse(w, map[string]interface{}{"ok": true})
 }
 
@@ -203,6 +209,11 @@ func (s *Server) handleInceptionReset(w http.ResponseWriter, r *http.Request) {
 	if err := s.deps.Inception.Reset(); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Re-pause brainstorm after reset so the governor doesn't kick it.
+	if s.deps.AgentMgr != nil {
+		_ = s.deps.AgentMgr.Pause("brainstorm", "inception-reset", "inception reset — on-demand only")
 	}
 
 	jsonResponse(w, map[string]interface{}{"ok": true})

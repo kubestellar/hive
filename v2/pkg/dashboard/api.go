@@ -2021,9 +2021,21 @@ func (s *Server) handleGovernorSensing(w http.ResponseWriter, r *http.Request) {
 		s.deps.Config.Governor.EvalIntervalS = body.EvalIntervalS
 	}
 	if body.GHRatePatterns != nil {
+		for _, p := range body.GHRatePatterns {
+			if _, err := regexp.Compile(p); err != nil {
+				jsonError(w, fmt.Sprintf("invalid ghRatePattern regex %q: %v", p, err), http.StatusBadRequest)
+				return
+			}
+		}
 		s.deps.Config.Governor.Sensing.GHRatePatterns = body.GHRatePatterns
 	}
 	if body.CLIExcludePatterns != nil {
+		for _, p := range body.CLIExcludePatterns {
+			if _, err := regexp.Compile(p); err != nil {
+				jsonError(w, fmt.Sprintf("invalid cliExcludePattern regex %q: %v", p, err), http.StatusBadRequest)
+				return
+			}
+		}
 		s.deps.Config.Governor.Sensing.CLIExcludePatterns = body.CLIExcludePatterns
 	}
 	if body.LoginPatterns != nil {

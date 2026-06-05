@@ -23,7 +23,8 @@ var staticFS embed.FS
 
 const (
 	registryPath       = "/data/hub-registry.json"
-	maxHeartbeatAge    = 15 * time.Minute
+	maxHeartbeatAge    = 5 * time.Minute
+	staleRemoveAge     = 24 * time.Hour
 	registrySaveDelay  = 5 * time.Second
 	maxPayloadBytes    = 1 << 20 // 1MB
 )
@@ -451,18 +452,28 @@ func (s *HubServer) handleHubVersion(w http.ResponseWriter, r *http.Request) {
 
 func (s *HubServer) markStaleHives() {
 	now := time.Now()
+	kept := s.registry.Hives[:0]
 	for i := range s.registry.Hives {
 		if s.registry.Hives[i].LastHeartbeat == "" {
 			s.registry.Hives[i].Online = false
+			kept = append(kept, s.registry.Hives[i])
 			continue
 		}
 		t, err := time.Parse(time.RFC3339, s.registry.Hives[i].LastHeartbeat)
-		if err != nil || now.Sub(t) > maxHeartbeatAge {
+		if err != nil {
 			s.registry.Hives[i].Online = false
-		} else {
-			s.registry.Hives[i].Online = true
+			kept = append(kept, s.registry.Hives[i])
+			continue
 		}
+		age := now.Sub(t)
+		if age > staleRemoveAge {
+			s.logger.Info("removing stale hive", "id", s.registry.Hives[i].ID, "last_heartbeat", s.registry.Hives[i].LastHeartbeat)
+			continue
+		}
+		s.registry.Hives[i].Online = age <= maxHeartbeatAge
+		kept = append(kept, s.registry.Hives[i])
 	}
+	s.registry.Hives = kept
 }
 
 func (s *HubServer) mergeLeaderboards() []LeaderboardEntry {

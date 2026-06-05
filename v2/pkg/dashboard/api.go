@@ -3648,13 +3648,16 @@ func (s *Server) handleBeadsCreate(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
+	body.Title = sanitizeString(body.Title)
 	if body.Title == "" {
 		jsonError(w, "title is required", http.StatusBadRequest)
 		return
 	}
+	body.Type = sanitizeString(body.Type)
 	if body.Type == "" {
 		body.Type = "advisory"
 	}
+	body.ExternalRef = sanitizeString(body.ExternalRef)
 	if body.Priority < 0 || body.Priority > maxBeadPriority {
 		jsonError(w, "priority must be 0-4", http.StatusBadRequest)
 		return

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -48,9 +49,31 @@ func newAuditLog() *AuditLog {
 			MaxAge:     auditMaxAgeDays,
 			Compress:   true,
 		}
+		a.loadFromDisk()
 	}
 
 	return a
+}
+
+func (a *AuditLog) loadFromDisk() {
+	data, err := os.ReadFile(auditLogPath)
+	if err != nil {
+		return
+	}
+	lines := bytes.Split(data, []byte("\n"))
+	for _, line := range lines {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		var entry AuditEntry
+		if json.Unmarshal(line, &entry) == nil && entry.Timestamp != "" {
+			a.ring = append(a.ring, entry)
+		}
+	}
+	if len(a.ring) > auditRingCap {
+		a.ring = a.ring[len(a.ring)-auditRingCap:]
+	}
 }
 
 func (a *AuditLog) Log(user, action, detail, agent string) {

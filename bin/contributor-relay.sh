@@ -208,7 +208,7 @@ function tmuxSendKeys(text) {
         const PERM = execSync(`bash -c 'source /usr/local/etc/hive/backends.conf 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
         execSync(`tmux send-keys -t ${TMUX_SESSION} '${CMD} ${PERM}' Enter`, { timeout: 5000 });
         cliReady = false;
-        waitForCLI().then(() => { cliReady = true; }).catch(() => {});
+        waitForCLI().then(() => { cliReady = true; if (pendingTask) { const t = pendingTask; pendingTask = null; tmuxSendKeys(t); } }).catch(() => {});
         sleepMs(10000);
       } catch (e) { console.error('CLI restart failed:', e.message); }
     }

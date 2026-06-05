@@ -251,7 +251,16 @@ func (h *ContributeWSHub) LiveStates() map[string]ContributorLiveState {
 			existing.Sessions++
 			if task != nil {
 				existing.CurrentTask = task
-				existing.Tasks = append(existing.Tasks, *task)
+				dupe := false
+				for _, t := range existing.Tasks {
+					if t.TaskID == task.TaskID {
+						dupe = true
+						break
+					}
+				}
+				if !dupe {
+					existing.Tasks = append(existing.Tasks, *task)
+				}
 			}
 			out[cid] = existing
 		}

@@ -740,7 +740,7 @@ func (s *Server) handleKick(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 	name := s.resolveAgentParam(r.PathValue("agent"))
-	backend := r.PathValue("backend")
+	backend := sanitizeString(r.PathValue("backend"))
 
 	if err := s.deps.AgentMgr.SetBackendOverride(name, backend); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
@@ -755,7 +755,7 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleModelSet(w http.ResponseWriter, r *http.Request) {
 	name := s.resolveAgentParam(r.PathValue("agent"))
-	model := r.PathValue("model")
+	model := sanitizeString(r.PathValue("model"))
 
 	if err := s.deps.AgentMgr.SetModelOverride(name, model); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
@@ -1666,7 +1666,7 @@ func (s *Server) handleAgentConfigModels(w http.ResponseWriter, r *http.Request)
 		agentCfg.Backend = sanitizeString(body.Backend)
 	}
 	if body.Model != "" {
-		agentCfg.Model = body.Model
+		agentCfg.Model = sanitizeString(body.Model)
 	}
 	s.deps.Config.Agents[name] = agentCfg
 

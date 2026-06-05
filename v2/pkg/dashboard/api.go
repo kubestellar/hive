@@ -389,8 +389,18 @@ func (s *Server) handleConfigDownload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "config file not found", http.StatusNotFound)
 		return
 	}
+	org := ""
+	repo := ""
+	if s.deps != nil && s.deps.Config != nil {
+		org = s.deps.Config.Project.Org
+		if len(s.deps.Config.Project.Repos) > 0 {
+			repo = s.deps.Config.Project.Repos[0]
+		}
+	}
+	timestamp := time.Now().Format("2006-01-02_150405")
+	filename := fmt.Sprintf("hive-%s-%s-%s.yaml", org, repo, timestamp)
 	w.Header().Set("Content-Type", "application/x-yaml")
-	w.Header().Set("Content-Disposition", "attachment; filename=hive.yaml")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	w.Write(data)
 }
 

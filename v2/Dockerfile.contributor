@@ -45,7 +45,8 @@ RUN mkdir -p /opt/hive/node_modules && cd /opt/hive && npm install ws
 
 # Create non-root user
 RUN useradd -m -s /bin/bash -u 1000 dev
-RUN mkdir -p /var/run/hive-metrics && chown dev:dev /var/run/hive-metrics
+RUN mkdir -p /var/run/hive-metrics /home/dev/.config/goose /home/dev/.config/gh \
+  && chown -R dev:dev /var/run/hive-metrics /home/dev/.config
 
 # Copy agent scripts
 COPY bin/contributor-agent.sh /usr/local/bin/

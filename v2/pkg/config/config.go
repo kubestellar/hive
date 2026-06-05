@@ -341,6 +341,7 @@ type HubConfig struct {
 	DisabledRepos          []string            `yaml:"disabled_repos"`
 	DisabledTiers          []string            `yaml:"disabled_tiers"`
 	TierLimits             map[string]TierRate `yaml:"tier_limits"`
+	SnapshotIntervalMin    int                 `yaml:"snapshot_interval_min"`
 }
 
 type TierRate struct {

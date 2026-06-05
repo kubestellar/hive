@@ -705,11 +705,12 @@ const defaultObsidianConfidence = 0.7
 
 // ObsidianSync accepts a Post Webhook payload and upserts it as a knowledge fact.
 func (k *KnowledgeAPI) ObsidianSync(ctx context.Context, req ObsidianSyncRequest) (*ObsidianSyncResult, error) {
-	// Derive slug from filename (strip .md extension)
 	slug := strings.TrimSuffix(req.Filename, ".md")
 	slug = strings.TrimSuffix(slug, ".markdown")
-	// Normalize path separators to forward slashes for consistency
 	slug = strings.ReplaceAll(slug, "\\", "/")
+	if strings.Contains(slug, "..") {
+		return nil, fmt.Errorf("filename must not contain path traversal sequences")
+	}
 
 	// Extract metadata from frontmatter with defaults
 	title := extractFrontmatterString(req.Frontmatter, "title", "")

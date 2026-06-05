@@ -164,6 +164,7 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	payload.HiveID = sanitizeHeartbeatField(payload.HiveID)
 	if payload.HiveID == "" {
 		http.Error(w, "hive_id required", http.StatusBadRequest)
 		return
@@ -387,7 +388,12 @@ func (s *HubServer) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
 		Leaderboard []LeaderboardEntry `json:"leaderboard"`
 		Contributors ContributorSummary `json:"contributors"`
 	}
-	if err := json.Unmarshal(body, &payload); err != nil || payload.HiveID == "" {
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	payload.HiveID = sanitizeHeartbeatField(payload.HiveID)
+	if payload.HiveID == "" {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}

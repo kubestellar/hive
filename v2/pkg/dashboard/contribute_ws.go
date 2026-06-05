@@ -293,13 +293,14 @@ func (h *ContributeWSHub) LiveStates() map[string]ContributorLiveState {
 		if c.profile != nil {
 			cid = c.profile.ContributorID
 		}
+		stale := time.Since(c.lastPong) > wsHeartbeatTimeout
 		var task *WSTaskAssign
-		if c.currentTask != nil {
+		if c.currentTask != nil && !stale {
 			t := *c.currentTask
 			task = &t
 		}
 		c.mu.Unlock()
-		if cid != "" {
+		if cid != "" && !stale {
 			existing := out[cid]
 			existing.Active = true
 			existing.Sessions++

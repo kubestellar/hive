@@ -436,7 +436,35 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	html := strings.Replace(string(data), "</head>",
-		`<script>window.HIVE_SNAPSHOT_MODE=true;</script></head>`, 1)
+		`<script>
+window.HIVE_SNAPSHOT_MODE=true;
+(function(){
+  var origFetch=window.fetch;
+  window.fetch=function(url,opts){
+    var method=(opts&&opts.method||'GET').toUpperCase();
+    if(method!=='GET'&&method!=='HEAD'){
+      console.warn('[snapshot] blocked '+method+' '+url);
+      return Promise.resolve(new Response('{"error":"read-only snapshot"}',{status:403,headers:{'Content-Type':'application/json'}}));
+    }
+    return origFetch.apply(this,arguments);
+  };
+})();
+</script>
+<style>
+  .config-gear, .restart-btn, .btn-toggle, [data-action="openConfigDialog"],
+  [data-action="kickAgent"], [data-action="restartAgent"],
+  [onclick*="kick"], [onclick*="pause"], [onclick*="resume"],
+  [onclick*="openConfig"], [onclick*="deleteAgent"],
+  .oc-nav-actions, .gh-auth-btn, #gh-auth-banner, #gh-auth-alert,
+  .gh-auth-alert, button[onclick*="Revoke"], button[onclick*="updateUser"],
+  select[onchange*="changeContributorTier"], #btn-add-hive,
+  button[onclick*="openConvert"], button[onclick*="deleteHive"],
+  button[onclick*="upgradeHive"], button[onclick*="openAccessModal"],
+  .system-gauges { display: none !important; }
+  body::before { content: "📸 Read-only snapshot"; display: block; text-align: center;
+    padding: 6px; background: #1a1a2e; color: #f59e0b; font-size: 0.8rem; font-weight: 600;
+    border-bottom: 2px solid #f59e0b; position: sticky; top: 0; z-index: 10000; }
+</style></head>`, 1)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	w.Write([]byte(html))

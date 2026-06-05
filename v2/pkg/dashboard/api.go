@@ -373,6 +373,8 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"agents":           len(cfg.EnabledAgents()),
 		"eval_interval_s":  cfg.Governor.EvalIntervalS,
 		"primaryRepo":      primaryRepo,
+		"hub_url":          cfg.Hub.URL,
+		"hive_id":          cfg.HiveID,
 	})
 }
 

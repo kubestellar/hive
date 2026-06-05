@@ -339,6 +339,7 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <option value="copilot" data-install="" data-host-install="">GitHub Copilot</option>
 <option value="bob" data-install="" data-host-install="npm i -g bobshell">Bob</option>
 <option value="goose" data-install="" data-host-install="# Install: https://github.com/block/goose/releases\n# Configure provider: goose configure\nexport GOOSE_PROVIDER=ollama GOOSE_MODEL=phi4">Goose</option>
+<option value="pi" data-install="" data-host-install="curl -fsSL https://pi.dev/install.sh | sh">Pi</option>
 </select>
 <label style="font-size:.9rem;color:#8b949e">Mode:</label>
 <select id="mode-select" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.9rem;cursor:pointer">

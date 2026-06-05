@@ -151,8 +151,18 @@ contribute-setup backend="claude":
           exit 1
         fi
         ;;
+      pi)
+        if command -v pi &>/dev/null; then
+          echo "Pi CLI detected ($(pi --version 2>&1 | head -1))"
+          echo "  Supports: Anthropic, OpenAI, Google, Ollama, and more"
+          echo "  Set provider: --provider anthropic --model claude-sonnet-4-6"
+        else
+          echo "ERROR: Pi CLI not found. Install: curl -fsSL https://pi.dev/install.sh | sh"
+          exit 1
+        fi
+        ;;
       *)
-        echo "ERROR: Unknown backend '{{backend}}'. Supported: claude, copilot, goose, codex, bob"
+        echo "ERROR: Unknown backend '{{backend}}'. Supported: claude, copilot, goose, codex, pi, bob"
         exit 1
         ;;
     esac

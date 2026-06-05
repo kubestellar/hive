@@ -171,7 +171,7 @@ func listContributorProfiles() []ContributorProfile {
 			continue
 		}
 		var p ContributorProfile
-		if json.Unmarshal(data, &p) == nil {
+		if json.Unmarshal(data, &p) == nil && p.GitHubUsername != "" && p.ContributorID != "" {
 			profiles = append(profiles, p)
 		}
 	}

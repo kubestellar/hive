@@ -840,7 +840,11 @@ func saveAccessRequests(hiveID string, reqs []AccessRequest) {
 	dir := filepath.Join(saasHivesDir, hiveID)
 	os.MkdirAll(dir, 0o755)
 	data, _ := json.MarshalIndent(reqs, "", "  ")
-	os.WriteFile(filepath.Join(dir, "requests.json"), data, 0o644)
+	path := filepath.Join(dir, "requests.json")
+	tmpPath := path + ".tmp"
+	if os.WriteFile(tmpPath, data, 0o644) == nil {
+		os.Rename(tmpPath, path)
+	}
 }
 
 func (s *HubServer) handleRequestAccess(w http.ResponseWriter, r *http.Request) {

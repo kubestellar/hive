@@ -360,7 +360,17 @@ func (h *ContributeWSHub) ActiveConnections() []ContributorConnection {
 	return out
 }
 
+const maxWSConnections = 50
+
 func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
+	h.mu.RLock()
+	count := len(h.connections)
+	h.mu.RUnlock()
+	if count >= maxWSConnections {
+		http.Error(w, "too many WebSocket connections", http.StatusServiceUnavailable)
+		return
+	}
+
 	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Warn("ws upgrade failed", "error", err)

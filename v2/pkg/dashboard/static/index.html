@@ -8299,11 +8299,11 @@ function burnAreaChart() {
         <h4 style="font-size:0.8rem;color:var(--muted);margin:0 0 8px">Snapshot</h4>
         <div class="config-toggle">
           <div class="config-toggle-switch ${hub.auto_snapshot ? 'on' : ''}" onclick="toggleAutoSnapshot(this)" data-section="hub" data-key="auto_snapshot"></div>
-          <span class="config-toggle-label">Auto-publish Snapshot <span class="config-info">i<span class="config-tooltip">Publish a read-only snapshot at /snapshot. Generated immediately on enable and every 15 min. Deleted on disable.</span></span></span>
+          <span class="config-toggle-label">Auto-generate &amp; Publish Snapshot <span class="config-info">i<span class="config-tooltip">Generate a read-only snapshot at /snapshot every 15 min. When off, you can set a custom preview URL below.</span></span></span>
         </div>
         <div class="config-field">
-          <label>Snapshot URL <span class="config-info">i<span class="config-tooltip">Auto-set from Dashboard URL when enabled.</span></span></label>
-          <input type="text" id="hub-snapshot-url" value="${esc(snapUrl)}" onchange="markDirty('hub','snapshot_url',this.value)" ${hub.auto_snapshot ? '' : 'disabled style="opacity:0.5"'}>
+          <label>Snapshot / Preview URL <span class="config-info">i<span class="config-tooltip">${hub.auto_snapshot ? 'Auto-generated from Dashboard URL. Read-only while auto-publish is on.' : 'Enter a custom preview URL (e.g. your own static dashboard). Sent to hub as the Preview link.'}</span></span></label>
+          <input type="text" id="hub-snapshot-url" value="${esc(snapUrl)}" onchange="markDirty('hub','snapshot_url',this.value)" ${hub.auto_snapshot ? 'disabled style="opacity:0.5"' : ''} placeholder="${hub.auto_snapshot ? '' : 'https://your-site.com/dashboard-preview'}">
         </div>
 
         <hr style="border-color:var(--border);margin:16px 0">
@@ -8377,19 +8377,16 @@ function burnAreaChart() {
       markDirty('hub', 'auto_snapshot', isOn);
       var urlInput = document.getElementById('hub-snapshot-url');
       if (urlInput) {
-        urlInput.disabled = !isOn;
-        urlInput.style.opacity = isOn ? '1' : '0.5';
-        if (isOn && !urlInput.value) {
+        urlInput.disabled = isOn;
+        urlInput.style.opacity = isOn ? '0.5' : '1';
+        urlInput.placeholder = isOn ? '' : 'https://your-site.com/dashboard-preview';
+        if (isOn) {
           var dashUrl = (_configState.data.hub || {}).dashboard_url || '';
           if (dashUrl) {
             var snapUrl = dashUrl.replace(/\/$/, '') + '/snapshot';
             urlInput.value = snapUrl;
             markDirty('hub', 'snapshot_url', snapUrl);
           }
-        }
-        if (!isOn) {
-          urlInput.value = '';
-          markDirty('hub', 'snapshot_url', '');
         }
       }
     }

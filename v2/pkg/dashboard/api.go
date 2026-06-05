@@ -434,12 +434,13 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 		hubURL = s.deps.Config.Hub.URL
 	}
 
-	if s.deps == nil || s.deps.Config == nil || !s.deps.Config.Hub.AutoSnapshot {
+	cfg := s.deps.Config
+	if s.deps == nil || cfg == nil || !cfg.Hub.AutoSnapshot {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3;url=%s"><title>Hive</title>
 <style>body{font-family:system-ui,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
 .card{text-align:center;max-width:480px;padding:40px}.bee{font-size:3rem;margin-bottom:16px}h1{color:#f59e0b;margin:0 0 8px}p{color:#8b949e;line-height:1.6}a{color:#58a6ff}</style>
-</head><body><div class="card"><div class="bee">🐝</div><h1>Hive</h1><p>AI Agent Orchestration for GitHub</p><p>Snapshot is not currently published for this hive.</p><p>Redirecting to <a href="%s">%s</a>...</p></div></body></html>`,
+</head><body><div class="card"><div class="bee">🐝</div><h1>Hive</h1><p>AI Agent Orchestration for Open Source</p><p>Snapshot is not currently published for this hive.</p><p>Redirecting to <a href="%s">%s</a>...</p></div></body></html>`,
 			hubURL, hubURL, hubURL)
 		return
 	}
@@ -450,7 +451,11 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 	}
 	snapshotFile := fmt.Sprintf("/data/snapshots/snapshot-%s.html", mode)
 	info, err := os.Stat(snapshotFile)
-	staleThreshold := 15 * time.Minute
+	intervalMin := cfg.Hub.SnapshotIntervalMin
+	if intervalMin < 5 {
+		intervalMin = 15
+	}
+	staleThreshold := time.Duration(intervalMin) * time.Minute
 	needsRebuild := err != nil || time.Since(info.ModTime()) > staleThreshold
 
 	if needsRebuild {
@@ -1947,6 +1952,7 @@ func (s *Server) handleGovernorConfigGet(w http.ResponseWriter, r *http.Request)
 			"snapshot_url":             cfg.Hub.SnapshotURL,
 			"is_public":               cfg.Hub.IsPublic,
 			"auto_snapshot":           cfg.Hub.AutoSnapshot,
+			"snapshot_interval_min":   cfg.Hub.SnapshotIntervalMin,
 			"contribute_allow_labels": cfg.Hub.ContributeAllowLabels,
 			"contribute_deny_labels":  cfg.Hub.ContributeDenyLabels,
 			"disabled_repos":          cfg.Hub.DisabledRepos,

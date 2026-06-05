@@ -50,6 +50,7 @@ type ContributorProfile struct {
 	TasksCompleted     int                   `json:"total_tasks_completed"`
 	TasksFailed        int                   `json:"total_tasks_failed"`
 	LastActive         string                `json:"last_active,omitempty"`
+	LastCompletedTask  *WSTaskAssign         `json:"last_completed_task,omitempty"`
 	RateLimits         ContributorRateLimits `json:"rate_limits"`
 	Active             bool                  `json:"active,omitempty"`
 	CurrentTask        *WSTaskAssign         `json:"current_task,omitempty"`

@@ -381,6 +381,16 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	var contributor *ContributorConnection
 	defer func() {
 		if contributor != nil && contributor.profile != nil {
+			contributor.mu.Lock()
+			abandonedTask := contributor.currentTask
+			contributor.currentTask = nil
+			contributor.mu.Unlock()
+			if abandonedTask != nil {
+				h.logger.Warn("[contribute-ws] task released on disconnect",
+					"username", contributor.profile.GitHubUsername,
+					"task", abandonedTask.TaskID,
+				)
+			}
 			h.mu.Lock()
 			delete(h.connections, connID)
 			h.mu.Unlock()
@@ -582,6 +592,9 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 					contributor.mu.Lock()
 					contributor.profile.TasksCompleted++
 					contributor.profile.LastActive = time.Now().UTC().Format(time.RFC3339)
+					if completedTask != nil {
+						contributor.profile.LastCompletedTask = completedTask
+					}
 					if contributor.profile.TrustTier == "newcomer" && contributor.profile.TasksCompleted >= contributorAutoPromoteAt {
 						contributor.profile.TrustTier = "contributor"
 						h.logger.Info("[contribute-ws] auto-promoted", "username", contributor.profile.GitHubUsername)

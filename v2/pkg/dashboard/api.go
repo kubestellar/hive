@@ -474,9 +474,23 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 		`href="/live/hive"`,
 		`href="/snapshot"`, -1))
 
+	html := string(data)
+	dashURL := ""
+	if s.deps != nil && s.deps.Config != nil {
+		dashURL = s.deps.Config.Hub.DashboardURL
+	}
+	if dashURL != "" {
+		html = strings.ReplaceAll(html, `href="`+dashURL, `href="/snapshot`)
+		html = strings.ReplaceAll(html, `action="`+dashURL, `action="/snapshot`)
+		html = strings.ReplaceAll(html, dashURL, "/snapshot")
+	}
+	html = regexp.MustCompile(`href="https?://[^"]*\.hive\.kubestellar\.io[^"]*"`).ReplaceAllString(html, `href="/snapshot"`)
+	html = regexp.MustCompile(`href="http://localhost:\d+[^"]*"`).ReplaceAllString(html, `href="/snapshot"`)
+	html = regexp.MustCompile(`href="http://192\.168\.[^"]*"`).ReplaceAllString(html, `href="/snapshot"`)
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=60")
-	w.Write(data)
+	w.Write([]byte(html))
 }
 
 func (s *Server) buildSnapshot(outputFile, mode string) {

@@ -244,12 +244,12 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 			}
 			return count
 		}(),
-		GovernorMode:       payload.Governor.Mode,
-		TotalTokens24h:     payload.Tokens24h,
-		ActionableIssues:   payload.Governor.Issues,
-		ActionablePRs:      payload.Governor.PRs,
-		ContributorCount:   payload.Contributors.Registered,
-		ActiveContributors: payload.Contributors.Active,
+		GovernorMode:       sanitizeHeartbeatField(payload.Governor.Mode),
+		TotalTokens24h:     clampInt64(payload.Tokens24h, 0, 100_000_000),
+		ActionableIssues:   clampInt(payload.Governor.Issues, 0, 10_000),
+		ActionablePRs:      clampInt(payload.Governor.PRs, 0, 10_000),
+		ContributorCount:   clampInt(payload.Contributors.Registered, 0, 10_000),
+		ActiveContributors: clampInt(payload.Contributors.Active, 0, 10_000),
 		Owner:              sanitizeHeartbeatField(payload.Owner),
 		HiveType: func() string {
 			if strings.HasPrefix(payload.HiveID, "hosted-") || strings.HasPrefix(payload.HiveID, "saas-") {
@@ -267,6 +267,10 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 			for i := range payload.Agents {
 				payload.Agents[i].Name = sanitizeHeartbeatField(payload.Agents[i].Name)
 				payload.Agents[i].State = sanitizeHeartbeatField(payload.Agents[i].State)
+			}
+			const maxAgents = 50
+			if len(payload.Agents) > maxAgents {
+				payload.Agents = payload.Agents[:maxAgents]
 			}
 			return payload.Agents
 		}(),
@@ -689,6 +693,18 @@ func isPrivateURL(rawURL string) bool {
 		}
 	}
 	return false
+}
+
+func clampInt(v, min, max int) int {
+	if v < min { return min }
+	if v > max { return max }
+	return v
+}
+
+func clampInt64(v, min, max int64) int64 {
+	if v < min { return min }
+	if v > max { return max }
+	return v
 }
 
 func sanitizeHeartbeatField(s string) string {

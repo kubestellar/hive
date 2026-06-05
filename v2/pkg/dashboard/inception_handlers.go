@@ -490,22 +490,14 @@ func (s *Server) buildStructureKickMessage(state *knowledge.InceptionState) stri
 // writes to a named FIFO and confirms delivery via a command_received event.
 // Returns error if pst-send is not installed or the send fails.
 func pstSendKick(session, message string) error {
-	// Check if pst-send exists
 	pstPath, err := exec.LookPath("pst-send")
 	if err != nil {
 		return fmt.Errorf("pst-send not found: %w", err)
 	}
 
-	// Write message to temp file to avoid shell escaping issues
-	tmpFile := fmt.Sprintf("/tmp/.pst-kick-%s.txt", session)
-	if err := os.WriteFile(tmpFile, []byte(message), 0o644); err != nil {
-		return fmt.Errorf("write kick file: %w", err)
-	}
-
-	// pst-send reads from file and sends to the session's FIFO
 	cmd := exec.Command(pstPath,
 		"--session", "hive-"+session,
-		"--file", tmpFile,
+		"--text", message,
 		"--enter",
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {

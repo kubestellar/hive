@@ -278,7 +278,7 @@ type pstEvent struct {
 	Data    map[string]string `json:"data"`
 }
 
-const pstLogDir = "/var/run/pst"
+const pstLogDir = "/var/run/pub-sub-tmux/logs"
 
 // runPSTSubscriber tails the brainstorm session's pub-sub-tmux JSONL event
 // stream and takes immediate action on relevant events. This replaces 5s

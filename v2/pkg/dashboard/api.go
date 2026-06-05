@@ -296,6 +296,14 @@ func sanitizeString(s string) string {
 
 var envVarEscapePattern = regexp.MustCompile(`\$\{[^}]*\}`)
 
+func sanitizeFilenameComponent(s string) string {
+	return strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			return r
+		}
+		return '-'
+	}, s)
+}
 
 // --- Core status endpoints ---
 
@@ -403,9 +411,11 @@ func (s *Server) handleConfigDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	timestamp := time.Now().Format("2006-01-02_150405")
-	filename := fmt.Sprintf("hive-%s-%s-%s.yaml", org, repo, timestamp)
+	safeOrg := sanitizeFilenameComponent(org)
+	safeRepo := sanitizeFilenameComponent(repo)
+	filename := fmt.Sprintf("hive-%s-%s-%s.yaml", safeOrg, safeRepo, timestamp)
 	w.Header().Set("Content-Type", "application/x-yaml")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	w.Write(data)
 }
 

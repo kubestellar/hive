@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/classify"
@@ -21,6 +22,7 @@ type Scheduler struct {
 	inception      *knowledge.InceptionEngine
 	lastActionable *github.ActionableResult
 	logger         *slog.Logger
+	mu             sync.RWMutex
 }
 
 func New(cfg *config.Config, logger *slog.Logger) *Scheduler {
@@ -33,33 +35,45 @@ func New(cfg *config.Config, logger *slog.Logger) *Scheduler {
 // SetPrimer attaches a knowledge primer to the scheduler. When set, kick
 // messages include relevant facts from the wiki layers.
 func (s *Scheduler) SetPrimer(p *knowledge.Primer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.primer = p
 }
 
 // GetPrimer returns the attached primer, or nil if none is set.
 func (s *Scheduler) GetPrimer() *knowledge.Primer {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.primer
 }
 
 // SetInception attaches an inception engine so kick templates can inject
 // ideation state via ${INCEPTION_*} variables.
 func (s *Scheduler) SetInception(ie *knowledge.InceptionEngine) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.inception = ie
 }
 
 // GetInception returns the attached inception engine, or nil if none is set.
 func (s *Scheduler) GetInception() *knowledge.InceptionEngine {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.inception
 }
 
 // SetLastActionable caches the latest actionable result so manual kicks
 // (via the dashboard API) can prime knowledge from the same issue set.
 func (s *Scheduler) SetLastActionable(a *github.ActionableResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.lastActionable = a
 }
 
 // GetLastActionable returns the most recently cached actionable result.
 func (s *Scheduler) GetLastActionable() *github.ActionableResult {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.lastActionable
 }
 
@@ -664,7 +678,10 @@ const maxIssuesToPrime = 5
 // primeKnowledge queries the wiki layers for facts relevant to the given issues
 // and returns a formatted section for injection into the kick message.
 func (s *Scheduler) primeKnowledge(issues []github.Issue) string {
-	if s.primer == nil || len(issues) == 0 {
+	s.mu.RLock()
+	primer := s.primer
+	s.mu.RUnlock()
+	if primer == nil || len(issues) == 0 {
 		return ""
 	}
 
@@ -680,7 +697,7 @@ func (s *Scheduler) primeKnowledge(issues []github.Issue) string {
 	}
 
 	s.logger.Info("knowledge primer: searching", "keywords", len(keywords), "sample", keywordSample(keywords))
-	primed := s.primer.Prime(context.Background(), nil, keywords)
+	primed := primer.Prime(context.Background(), nil, keywords)
 	result := primed.FormatForPrompt()
 	if result != "" {
 		s.logger.Info("knowledge primer: injecting facts into kick", "facts", len(primed.Facts), "chars", len(result))
@@ -782,10 +799,13 @@ func isNoiseLabel(label string) bool {
 // inceptionVars extracts template variable values from the inception engine.
 // Returns empty strings when no inception is active — templates render cleanly.
 func (s *Scheduler) inceptionVars() (idea, phase, mode, answers, slug, repoURL string) {
-	if s.inception == nil {
+	s.mu.RLock()
+	inception := s.inception
+	s.mu.RUnlock()
+	if inception == nil {
 		return
 	}
-	state := s.inception.GetState()
+	state := inception.GetState()
 	if state == nil {
 		return
 	}

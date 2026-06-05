@@ -64,7 +64,7 @@
     .mode-quiet { background: rgba(59,130,246,0.12); color: #60a5fa; }
     .mode-busy { background: rgba(245,158,11,0.12); color: #fbbf24; }
     .mode-surge { background: rgba(239,68,68,0.12); color: #f87171; }
-    .online-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .online-dot { width: 8px; height: 8px; min-width: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
     .online-dot.on { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); }
     .online-dot.off { background: #6b7280; }
     .repo-link { font-size: 0.75rem; color: var(--blue); }

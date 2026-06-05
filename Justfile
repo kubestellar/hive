@@ -13,8 +13,25 @@ config_dir := env("HOME") + "/.config/hive"
 default:
     @just --list
 
+[private]
+check-version skip="false":
+    #!/usr/bin/env bash
+    if [[ "{{skip}}" == "true" || "${HIVE_SKIP_VERSION_CHECK:-}" == "true" ]]; then exit 0; fi
+    LOCAL=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    REMOTE=$(git rev-parse --short origin/v2 2>/dev/null || echo "")
+    if [[ -z "$REMOTE" ]]; then
+      git fetch origin v2 --quiet 2>/dev/null || exit 0
+      REMOTE=$(git rev-parse --short origin/v2 2>/dev/null || echo "unknown")
+    fi
+    if [[ "$LOCAL" != "$REMOTE" && "$REMOTE" != "unknown" ]]; then
+      echo "⚠ Your hive repo is behind (local: ${LOCAL}, latest: ${REMOTE})"
+      echo "  Run: git pull origin v2"
+      echo "  Or skip: export HIVE_SKIP_VERSION_CHECK=true"
+      exit 1
+    fi
+
 # One-time setup: register with hub + authenticate GitHub + authenticate CLI
-contribute-setup backend="claude":
+contribute-setup backend="claude": check-version
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ "{{hive_hub}}" == "wss://hive.kubestellar.io/contribute" ]]; then
@@ -245,7 +262,7 @@ contribute-setup backend="claude":
 # Usage: just contribute-hive              (Docker, default CLI from setup)
 #        just contribute-hive copilot      (Docker, copilot backend)
 #        just contribute-hive claude local  (native mode, claude)
-contribute-hive backend="" mode="docker":
+contribute-hive backend="" mode="docker": check-version
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ ! -f "{{config_dir}}/contributor.env" ]]; then

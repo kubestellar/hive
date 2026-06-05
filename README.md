@@ -18,6 +18,80 @@ The core idea: **if a human would give the same answer every time, it belongs in
 
 ---
 
+## Hive Hub
+
+The [Hive Hub](https://hive.kubestellar.io) is the central registry for all hives. It provides:
+
+- **Public registry** — browse all registered hives, see agent counts, actionable issues, ACMM levels
+- **Cross-hive leaderboard** — contributor rankings across all hives
+- **Hosted hives** — spin up a cloud-hosted hive for your GitHub org/repo with OAuth-protected dashboard
+- **Contribute** — donate your CLI + API tokens to help any hive's agent swarm
+
+## Contribute to a Hive
+
+Community members can contribute compute to any hive by running a CLI agent that connects to the hive's work queue.
+
+### Quick start
+
+```bash
+brew install just gh
+git clone -b v2 https://github.com/kubestellar/hive && cd hive
+just contribute-setup claude    # picks your CLI, selects a hive
+just contribute-hive            # starts contributing (Docker)
+```
+
+If `HIVE_HUB` is not set, you'll be shown a list of hives you have access to and can select one interactively.
+
+### Supported CLIs
+
+| CLI | Containerized | Host (local) | Model flag |
+|-----|:---:|:---:|---|
+| **Claude Code** | yes | yes | `--model` or `AGENT_MODEL` |
+| **GitHub Copilot** | yes | yes | `--model` or `AGENT_MODEL` |
+| **Pi** (pi.dev) | yes | yes | `--model` or `AGENT_MODEL` |
+| **Goose** (Block) | yes* | yes | `GOOSE_PROVIDER` + `GOOSE_MODEL` |
+| **Bob** (IBM) | no | yes | — |
+| **Other** | no | yes | varies |
+
+*Goose containerized requires ollama running on the host with `--network host`.
+
+### Modes
+
+- **Containerized (default)**: `just contribute-hive` — runs in Docker, all CLIs pre-installed
+- **Host (non-containerized)**: `just contribute-hive <cli> local` — runs natively with tmux + relay
+
+### Model selection
+
+```bash
+export AGENT_MODEL=claude-sonnet-4-6    # for claude, copilot, pi
+just contribute-hive claude local
+
+export GOOSE_PROVIDER=ollama GOOSE_MODEL=deepseek-r1   # for goose
+just contribute-hive goose local
+```
+
+### How it works
+
+1. `contribute-setup` authenticates with GitHub, registers with the hive, and verifies your CLI
+2. `contribute-hive` starts the CLI in a tmux session and a WebSocket relay that connects to the hive
+3. The hive assigns tasks (GitHub issues) — the relay injects prompts into the CLI session
+4. When the agent completes a task, the relay reports back and gets the next one
+5. Your credentials never leave your machine — the hive provides scoped GitHub tokens for repo access
+
+### Trust tiers
+
+Contributors start as **newcomer** (rate-limited) and auto-promote based on completed tasks:
+
+| Tier | Tasks/hr | Tasks/day | Auto-promote at |
+|------|:---:|:---:|---|
+| Newcomer | 3 | 10 | — |
+| Contributor | 10 | 50 | 5 completed |
+| Trusted | 30 | 200 | 20 completed + vouched |
+
+Rate limits and tiers are configurable by the hive owner in the governor config.
+
+---
+
 ## Setup (Docker — recommended)
 
 The v2 container packages everything: the Go orchestrator, dashboard, all CLI backends (Claude Code, Copilot, Gemini, Goose), tmux sessions, and a ttyd web terminal. One container, one config file, one volume.

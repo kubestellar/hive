@@ -711,7 +711,10 @@ func (s *HubServer) handleContributeWSProxy(w http.ResponseWriter, r *http.Reque
 
 func isPrivateURL(rawURL string) bool {
 	for _, scheme := range []string{"https://", "http://", "wss://", "ws://"} {
-		rawURL = strings.TrimPrefix(rawURL, scheme)
+		if strings.HasPrefix(rawURL, scheme) {
+			rawURL = strings.TrimPrefix(rawURL, scheme)
+			break
+		}
 	}
 	host := rawURL
 	if idx := strings.IndexAny(host, ":/"); idx >= 0 {
@@ -720,7 +723,7 @@ func isPrivateURL(rawURL string) bool {
 	host = strings.ToLower(host)
 	blocked := []string{"localhost", "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
 		"172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
-		"172.28.", "172.29.", "172.30.", "172.31.", "192.168.", "169.254.", "[::1]", "0.0.0.0"}
+		"172.28.", "172.29.", "172.30.", "172.31.", "192.168.", "169.254.", "[::1]", "[::ffff:", "0.0.0.0", "0."}
 	for _, p := range blocked {
 		if strings.HasPrefix(host, p) {
 			return true

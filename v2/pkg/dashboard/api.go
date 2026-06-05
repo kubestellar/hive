@@ -2905,6 +2905,14 @@ func (s *Server) handleKnowledgeSubsAdd(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "url is required", http.StatusBadRequest)
 		return
 	}
+	if !strings.HasPrefix(sub.URL, "https://") && !strings.HasPrefix(sub.URL, "http://") {
+		jsonError(w, "url must use http or https scheme", http.StatusBadRequest)
+		return
+	}
+	if isPrivateURL(sub.URL) {
+		jsonError(w, "subscription url must not point to private/internal addresses", http.StatusBadRequest)
+		return
+	}
 	if sub.Layer == "" {
 		sub.Layer = knowledge.LayerOrg
 	}
@@ -3007,6 +3015,14 @@ func (s *Server) handleVaultsDisconnect(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "path is required", http.StatusBadRequest)
 		return
 	}
+	if strings.Contains(req.Path, "..") {
+		jsonError(w, "vault path must not contain '..'", http.StatusBadRequest)
+		return
+	}
+	if !filepath.IsAbs(req.Path) {
+		jsonError(w, "vault path must be absolute", http.StatusBadRequest)
+		return
+	}
 
 	if err := s.deps.Knowledge.DisconnectVault(req.Path); err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
@@ -3034,6 +3050,10 @@ func (s *Server) handleVaultsReindex(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.Contains(req.Path, "..") {
 		jsonError(w, "path must not contain '..'", http.StatusBadRequest)
+		return
+	}
+	if !filepath.IsAbs(req.Path) {
+		jsonError(w, "path must be absolute", http.StatusBadRequest)
 		return
 	}
 

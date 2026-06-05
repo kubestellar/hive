@@ -710,7 +710,7 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 				number = n
 			}
 			if number == 0 {
-				h.logger.Debug("[contribute-ws] skip: number=0", "repo", repo.Full)
+				h.logger.Info("[contribute-ws] skip: number=0", "repo", repo.Full)
 				continue
 			}
 			if h.isTaskInCooldown(repo.Full, number) {
@@ -729,7 +729,7 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 				strings.Contains(titleLower, "renovate dashboard") ||
 				strings.Contains(titleLower, "epic:") ||
 				strings.HasSuffix(author, "[bot]") {
-				h.logger.Debug("[contribute-ws] skip: filtered", "repo", repo.Full, "number", number, "title", title, "author", author)
+				h.logger.Info("[contribute-ws] skip: filtered", "repo", repo.Full, "number", number, "title", title, "author", author)
 				continue
 			}
 			h.logger.Info("[contribute-ws] selectTask found candidate", "repo", repo.Full, "number", number, "title", title)

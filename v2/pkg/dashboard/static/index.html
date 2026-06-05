@@ -1758,11 +1758,12 @@
     </div>
     <div class="oc-nav-group">
       <div class="oc-nav-label">Resources</div>
-      <a class="oc-nav-item" data-section="repos-section" onclick="ocNavigate('repos-section')"><span class="oc-nav-emoji">📦</span><span class="oc-nav-text">Repos</span></a>
+      <a class="oc-nav-item" data-section="repos-section" onclick="ocNavigate('repos-section')"><span class="oc-nav-emoji">📦</span><span class="oc-nav-text">Repos</span><span id="repos-sidebar-badge" style="display:none;margin-left:auto;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:700;background:rgba(88,166,255,0.15);color:#58a6ff;border:1px solid rgba(88,166,255,0.3)"></span></a>
       <a class="oc-nav-item" data-section="beads-section" onclick="ocNavigate('beads-section')"><span class="oc-nav-emoji">🔮</span><span class="oc-nav-text">Beads</span></a>
       <a class="oc-nav-item" data-section="inception-section" onclick="ocNavigate('inception-section')"><span class="oc-nav-emoji">💡</span><span class="oc-nav-text">Inception</span></a>
       <a class="oc-nav-item" data-section="knowledge-section" onclick="ocNavigate('knowledge-section')"><span class="oc-nav-emoji">📚</span><span class="oc-nav-text">Knowledge</span></a>
       <a class="oc-nav-item" data-section="contributors-section" onclick="ocNavigate('contributors-section')"><span class="oc-nav-emoji">👥</span><span class="oc-nav-text">Contributors</span><span id="contributors-sidebar-badge" style="display:none;margin-left:auto;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:700;background:#238636;color:#fff"></span></a>
+      <a class="oc-nav-item" data-section="audit-section" onclick="ocNavigate('audit-section')"><span class="oc-nav-emoji">📋</span><span class="oc-nav-text">Audit Log</span></a>
       <a class="oc-nav-item" data-section="nous-section" onclick="ocNavigate('nous-section')"><span class="oc-nav-emoji">🧪</span><span class="oc-nav-text">Strategy Lab</span></a>
       <a class="oc-nav-item" href="/api/docs" target="_blank"><span class="oc-nav-emoji">📘</span><span class="oc-nav-text">API Spec (Redoc)</span></a>
     </div>
@@ -1850,6 +1851,13 @@
   <div id="beads-section" style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">Beads</h2>
     <div class="beads" id="beads"></div>
+  </div>
+
+  <div id="audit-section" style="display:none; margin-top: 16px; margin-bottom: 24px;">
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">📋 Audit Log</h2>
+    <div id="audit-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:500px;overflow-y:auto">
+      <div class="loading">Loading audit log...</div>
+    </div>
   </div>
 
   <div id="nous-section" style="display:none; margin-top: 16px; margin-bottom: 24px;">
@@ -5939,6 +5947,35 @@ function burnAreaChart() {
     fetchKnowledgeStats();
     setInterval(fetchKnowledgeStats, KB_POLL_MS);
 
+    // --- Audit Log ---
+    const AUDIT_POLL_MS = 30000;
+    async function fetchAuditLog() {
+      try {
+        const resp = await fetch('/api/audit');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const entries = data.entries || [];
+        const panel = document.getElementById('audit-panel');
+        if (!panel) return;
+        if (!entries.length) { panel.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:8px">No audit entries yet</div>'; return; }
+        panel.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.78rem">' +
+          '<thead><tr style="color:var(--muted);font-size:0.7rem;border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">Time</th><th style="text-align:left;padding:4px 8px">User</th><th style="text-align:left;padding:4px 8px">Action</th><th style="text-align:left;padding:4px 8px">Agent</th><th style="text-align:left;padding:4px 8px">Details</th></tr></thead>' +
+          '<tbody>' + entries.map(function(e) {
+            var t = e.ts ? new Date(e.ts) : null;
+            var timeStr = t ? t.toLocaleString() : '—';
+            return '<tr style="border-bottom:1px solid var(--border)">' +
+              '<td style="padding:4px 8px;white-space:nowrap;color:var(--muted)">' + timeStr + '</td>' +
+              '<td style="padding:4px 8px"><img src="https://github.com/' + (e.user||'ghost') + '.png?s=32" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px">' + (e.user||'—') + '</td>' +
+              '<td style="padding:4px 8px;font-weight:600">' + (e.action||'—') + '</td>' +
+              '<td style="padding:4px 8px">' + (e.agent||'—') + '</td>' +
+              '<td style="padding:4px 8px;color:var(--muted)">' + (e.detail||'') + '</td>' +
+              '</tr>';
+          }).join('') + '</tbody></table>';
+      } catch(e) {}
+    }
+    fetchAuditLog();
+    setInterval(fetchAuditLog, AUDIT_POLL_MS);
+
     // --- Contributors & Leaderboard ---
     const CONTRIBUTOR_POLL_MS = 10000;
     const LEADERBOARD_POLL_MS = 30000;
@@ -6435,6 +6472,8 @@ function burnAreaChart() {
       renderTokens(data.tokens || {});
       renderAdvisoryDigest(data.advisoryDigest || null);
       renderRepos(data.repos || []);
+      var reposBadge = document.getElementById('repos-sidebar-badge');
+      if (reposBadge) { var rc = (data.repos || []).length; if (rc > 0) { reposBadge.style.display = 'inline-block'; reposBadge.textContent = rc; } else { reposBadge.style.display = 'none'; } }
       renderBeads(data.beads || {});
       updateContributorBadge(data.contributorPool || null);
       renderSystemGauges(data.systemResources || null);

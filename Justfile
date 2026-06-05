@@ -94,14 +94,15 @@ contribute-setup backend="claude":
           echo "ERROR: Claude Code not installed. Install: npm i -g @anthropic-ai/claude-code"
           exit 1
         fi
-        if [[ -d "${HOME}/.claude" ]] || [[ -d "${HOME}/.config/claude-code" ]]; then
-          echo "Claude Code authenticated (credentials found)"
+        if claude -p "reply with OK" --max-turns 1 2>/dev/null | grep -qi "ok"; then
+          echo "Claude Code authenticated and working."
         else
-          echo "Claude Code needs authentication. Opening Claude Code..."
-          echo "Type /login then exit when done (Ctrl+C or type /exit)."
           echo ""
-          claude -p "/login"
-          echo "Claude Code authentication complete."
+          echo "Claude Code needs authentication."
+          echo "Run:  claude"
+          echo "Then type /login and follow the prompts."
+          echo "Once logged in, exit Claude (Ctrl+C) and re-run this setup."
+          exit 1
         fi
         ;;
       copilot)

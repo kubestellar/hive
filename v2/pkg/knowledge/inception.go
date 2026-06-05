@@ -59,6 +59,10 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 	if rawIdea == "" {
 		return nil, fmt.Errorf("idea text is required")
 	}
+	const maxIdeaLen = 4000
+	if len(rawIdea) > maxIdeaLen {
+		return nil, fmt.Errorf("idea text must be at most %d characters", maxIdeaLen)
+	}
 
 	if e.state != nil && e.state.Phase != PhaseComplete {
 		return nil, fmt.Errorf("inception already in progress (phase: %s) — reset first", e.state.Phase)

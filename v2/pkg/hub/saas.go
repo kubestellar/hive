@@ -608,7 +608,11 @@ func (s *HubServer) handleHiveStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user := loadSaaSUser(username)
-	if user == nil || (h.Owner != username && username != hubAdminUsername) {
+	if user == nil {
+		http.Error(w, `{"error":"access denied"}`, http.StatusForbidden)
+		return
+	}
+	if h.Owner != username && username != hubAdminUsername {
 		if _, hasAccess := user.Hives[id]; !hasAccess {
 			http.Error(w, `{"error":"access denied"}`, http.StatusForbidden)
 			return

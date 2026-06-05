@@ -73,6 +73,9 @@ detect_cli() {
     codex)
       if codex --version &>/dev/null; then echo "OK"; else echo "NOT_AUTHED"; fi
       ;;
+    pi)
+      if pi --version &>/dev/null; then echo "OK"; else echo "NOT_AUTHED"; fi
+      ;;
     agy)
       if agy --version &>/dev/null; then echo "OK"; else echo "NOT_AUTHED"; fi
       ;;
@@ -186,6 +189,10 @@ GOOSECFG
     echo "Goose config: provider=${GOOSE_PROVIDER:-ollama} model=${GOOSE_MODEL:-phi4}"
     ;;
   codex)
+    ln -sf "$AGENT_MD" "${HOME}/AGENTS.md"
+    ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
+    ;;
+  pi)
     ln -sf "$AGENT_MD" "${HOME}/AGENTS.md"
     ln -sf "$AGENT_MD" "${HOME}/CLAUDE.md"
     ;;

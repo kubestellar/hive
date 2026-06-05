@@ -41,8 +41,12 @@ func (b *Builder) Build(status *dashboard.StatusPayload) error {
 	}
 
 	latestPath := filepath.Join(b.outputDir, "latest.json")
-	if err := os.WriteFile(latestPath, data, 0644); err != nil {
+	tmpLatest := latestPath + ".tmp"
+	if err := os.WriteFile(tmpLatest, data, 0644); err != nil {
 		return fmt.Errorf("writing latest snapshot: %w", err)
+	}
+	if err := os.Rename(tmpLatest, latestPath); err != nil {
+		return fmt.Errorf("renaming latest snapshot: %w", err)
 	}
 
 	indexPath := filepath.Join(b.outputDir, "index.html")

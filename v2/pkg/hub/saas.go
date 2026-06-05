@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -166,14 +167,26 @@ func isCSRFSafe(r *http.Request) bool {
 	}
 	origin := r.Header.Get("Origin")
 	if origin != "" {
-		return strings.Contains(origin, "hive.kubestellar.io") || strings.Contains(origin, "localhost")
+		return isTrustedOrigin(origin)
 	}
 	referer := r.Header.Get("Referer")
 	if referer != "" {
-		return strings.Contains(referer, "hive.kubestellar.io") || strings.Contains(referer, "localhost")
+		return isTrustedOrigin(referer)
 	}
 	ct := r.Header.Get("Content-Type")
 	return strings.Contains(ct, "application/json")
+}
+
+func isTrustedOrigin(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "hive.kubestellar.io" ||
+		strings.HasSuffix(host, ".hive.kubestellar.io") ||
+		host == "localhost" ||
+		host == "127.0.0.1"
 }
 
 func (s *HubServer) getAuthUser(r *http.Request) string {

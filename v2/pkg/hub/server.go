@@ -234,7 +234,7 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		PrimaryRepo:        safePrimary,
 		DashboardURL:       payload.DashboardURL,
 		SnapshotURL:        payload.SnapshotURL,
-		ACMMLevel:          payload.ACMMLevel,
+		ACMMLevel:          clampInt(payload.ACMMLevel, 0, 6),
 		AgentCount: func() int {
 			count := 0
 			for _, a := range payload.Agents {

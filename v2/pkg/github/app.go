@@ -205,7 +205,8 @@ func NewClientFromApp(auth *AppAuth, org string, repos []string, logger *slog.Lo
 		auth: auth,
 		base: http.DefaultTransport,
 	}
-	httpClient := &http.Client{Transport: transport}
+	const appClientTimeout = 30 * time.Second
+	httpClient := &http.Client{Transport: transport, Timeout: appClientTimeout}
 	client := gh.NewClient(httpClient)
 
 	return &Client{

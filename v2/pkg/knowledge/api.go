@@ -721,6 +721,10 @@ func (k *KnowledgeAPI) ObsidianSync(ctx context.Context, req ObsidianSyncRequest
 	tags := extractFrontmatterStringSlice(req.Frontmatter, "tags")
 	factType := extractFrontmatterString(req.Frontmatter, "type", "pattern")
 	layer := extractFrontmatterString(req.Frontmatter, "layer", "project")
+	layer = filepath.Base(layer)
+	if layer == "" || layer == "." || layer == ".." {
+		layer = "project"
+	}
 	confidence := extractFrontmatterFloat(req.Frontmatter, "confidence", defaultObsidianConfidence)
 
 	layerType := LayerType(layer)

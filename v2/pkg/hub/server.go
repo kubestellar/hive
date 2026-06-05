@@ -4,12 +4,14 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -60,6 +62,20 @@ type RegistryEntry struct {
 	Online             bool           `json:"online"`
 }
 
+var safeNamePattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+func sanitizeField(s string) string {
+	s = html.EscapeString(strings.TrimSpace(s))
+	if len(s) > 200 {
+		s = s[:200]
+	}
+	return s
+}
+
+func isValidName(s string) bool {
+	return safeNamePattern.MatchString(s) && len(s) <= 100
+}
+
 type HubServer struct {
 	mux        *http.ServeMux
 	registry   Registry
@@ -67,14 +83,22 @@ type HubServer struct {
 	logger     *slog.Logger
 	saveCh     chan struct{}
 	hubGitHash string
+	hubSecret  string
 }
 
 func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
+	secret := os.Getenv("HIVE_HUB_SECRET")
+	if secret == "" {
+		if data, err := os.ReadFile("/data/saas/hub-secret.key"); err == nil {
+			secret = strings.TrimSpace(string(data))
+		}
+	}
 	s := &HubServer{
 		mux:        http.NewServeMux(),
 		logger:     logger,
 		saveCh:     make(chan struct{}, 1),
 		hubGitHash: gitHash,
+		hubSecret:  secret,
 	}
 
 	s.loadRegistry()
@@ -85,6 +109,7 @@ func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
 	s.mux.HandleFunc("GET /api/hub/leaderboard", s.handleLeaderboard)
 	s.mux.HandleFunc("GET /api/hub/stats", s.handleStats)
 	s.mux.HandleFunc("GET /api/hub/version", s.handleHubVersion)
+	s.mux.HandleFunc("DELETE /api/hub/registry/{id}", s.handleRegistryDelete)
 	s.mux.HandleFunc("POST /api/contribute/register", s.handleContributeProxy)
 	s.mux.HandleFunc("GET /api/contribute/status", s.handleContributeStatus)
 	s.mux.HandleFunc("GET /api/contribute/ws", s.handleContributeWSProxy)
@@ -108,6 +133,14 @@ func (s *HubServer) Start(port int) error {
 }
 
 func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
+	if s.hubSecret != "" {
+		auth := r.Header.Get("Authorization")
+		if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != s.hubSecret {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxPayloadBytes))
 	if err != nil {
 		http.Error(w, "read error", http.StatusBadRequest)
@@ -124,6 +157,24 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "hive_id required", http.StatusBadRequest)
 		return
 	}
+	if !isValidName(payload.HiveID) {
+		http.Error(w, "invalid hive_id", http.StatusBadRequest)
+		return
+	}
+	if payload.Org != "" && !isValidName(payload.Org) {
+		http.Error(w, "invalid org name", http.StatusBadRequest)
+		return
+	}
+	if payload.PrimaryRepo != "" && !isValidName(payload.PrimaryRepo) {
+		http.Error(w, "invalid repo name", http.StatusBadRequest)
+		return
+	}
+	for _, repo := range payload.Repos {
+		if !isValidName(repo) {
+			http.Error(w, "invalid repo name in list", http.StatusBadRequest)
+			return
+		}
+	}
 	if payload.DashboardURL != "" && !strings.HasPrefix(payload.DashboardURL, "http://") && !strings.HasPrefix(payload.DashboardURL, "https://") {
 		http.Error(w, "dashboard_url must start with http:// or https://", http.StatusBadRequest)
 		return
@@ -131,6 +182,17 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if payload.SnapshotURL != "" && !strings.HasPrefix(payload.SnapshotURL, "http://") && !strings.HasPrefix(payload.SnapshotURL, "https://") {
 		http.Error(w, "snapshot_url must start with http:// or https://", http.StatusBadRequest)
 		return
+	}
+
+	payload.Org = sanitizeField(payload.Org)
+	payload.PrimaryRepo = sanitizeField(payload.PrimaryRepo)
+	payload.Owner = sanitizeField(payload.Owner)
+	for i, a := range payload.Agents {
+		payload.Agents[i].Name = sanitizeField(a.Name)
+	}
+	for i, lb := range payload.Leaderboard {
+		payload.Leaderboard[i].GitHubUsername = sanitizeField(lb.GitHubUsername)
+		payload.Leaderboard[i].HiveName = sanitizeField(lb.HiveName)
 	}
 
 	entry := RegistryEntry{
@@ -251,6 +313,14 @@ func (s *HubServer) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HubServer) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
+	if s.hubSecret != "" {
+		auth := r.Header.Get("Authorization")
+		if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != s.hubSecret {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxPayloadBytes))
 	if err != nil {
 		http.Error(w, "read error", http.StatusBadRequest)
@@ -264,6 +334,9 @@ func (s *HubServer) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
 	if err := json.Unmarshal(body, &payload); err != nil || payload.HiveID == "" {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
+	}
+	for i, lb := range payload.Leaderboard {
+		payload.Leaderboard[i].GitHubUsername = sanitizeField(lb.GitHubUsername)
 	}
 
 	hiveName := ""
@@ -317,6 +390,31 @@ func (s *HubServer) handleStats(w http.ResponseWriter, r *http.Request) {
 	})
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
+}
+
+func (s *HubServer) handleRegistryDelete(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("hive_hub_user")
+	if err != nil || cookie.Value != hubAdminUsername {
+		http.Error(w, "admin access required", http.StatusForbidden)
+		return
+	}
+	id := r.PathValue("id")
+	s.mu.Lock()
+	removed := false
+	for i, h := range s.registry.Hives {
+		if h.ID == id {
+			s.registry.Hives = append(s.registry.Hives[:i], s.registry.Hives[i+1:]...)
+			removed = true
+			break
+		}
+	}
+	s.mu.Unlock()
+	if removed {
+		s.requestSave()
+		s.logger.Info("audit: admin removed registry entry", "id", id, "admin", cookie.Value)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"removed": removed, "id": id})
 }
 
 func (s *HubServer) handleHubVersion(w http.ResponseWriter, r *http.Request) {

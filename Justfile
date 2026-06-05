@@ -24,11 +24,12 @@ check-version skip="false":
       REMOTE=$(git rev-parse --short origin/v2 2>/dev/null || echo "unknown")
     fi
     if [[ "$LOCAL" != "$REMOTE" && "$REMOTE" != "unknown" ]]; then
-      echo "⚠ Your hive repo is behind (local: ${LOCAL}, latest: ${REMOTE})"
+      echo "✗ Version check failed (local: ${LOCAL}, latest: ${REMOTE})"
       echo "  Run: git pull origin v2"
       echo "  Or skip: export HIVE_SKIP_VERSION_CHECK=true"
       exit 1
     fi
+    echo "✓ Up to date (${LOCAL})"
 
 # One-time setup: register with hub + authenticate GitHub + authenticate CLI
 contribute-setup backend="claude": check-version

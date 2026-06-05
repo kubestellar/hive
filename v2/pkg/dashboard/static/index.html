@@ -1856,6 +1856,10 @@
 
   <div id="audit-section" style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">📋 Audit Log</h2>
+    <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+      <input id="audit-search" type="text" placeholder="Search audit log... (supports /regex/)" oninput="filterAuditLog()" style="flex:1;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.82rem">
+      <span id="audit-match-count" style="font-size:0.7rem;color:var(--muted);white-space:nowrap"></span>
+    </div>
     <div id="audit-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:500px;overflow-y:auto">
       <div class="loading">Loading audit log...</div>
     </div>
@@ -5950,28 +5954,67 @@ function burnAreaChart() {
 
     // --- Audit Log ---
     const AUDIT_POLL_MS = 30000;
+    var _auditEntries = [];
+
+    function renderAuditRow(e) {
+      var t = e.ts ? new Date(e.ts) : null;
+      var timeStr = t ? t.toLocaleString() : '—';
+      return '<tr style="border-bottom:1px solid var(--border)">' +
+        '<td style="padding:4px 8px;white-space:nowrap;color:var(--muted)">' + timeStr + '</td>' +
+        '<td style="padding:4px 8px"><img src="https://github.com/' + (e.user||'ghost') + '.png?s=32" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px">' + (e.user||'—') + '</td>' +
+        '<td style="padding:4px 8px;font-weight:600">' + (e.action||'—') + '</td>' +
+        '<td style="padding:4px 8px">' + (e.agent||'—') + '</td>' +
+        '<td style="padding:4px 8px;color:var(--muted)">' + (e.detail||'') + '</td>' +
+        '</tr>';
+    }
+
+    function renderAuditTable(entries) {
+      var panel = document.getElementById('audit-panel');
+      if (!panel) return;
+      if (!entries.length) { panel.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:8px">No audit entries yet</div>'; return; }
+      panel.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.78rem">' +
+        '<thead><tr style="color:var(--muted);font-size:0.7rem;border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">Time</th><th style="text-align:left;padding:4px 8px">User</th><th style="text-align:left;padding:4px 8px">Action</th><th style="text-align:left;padding:4px 8px">Agent</th><th style="text-align:left;padding:4px 8px">Details</th></tr></thead>' +
+        '<tbody>' + entries.map(renderAuditRow).join('') + '</tbody></table>';
+    }
+
+    function parseAuditQuery(q) {
+      q = q.trim();
+      if (q.length > 2 && q[0] === '/' && q[q.length - 1] === '/') {
+        try { return new RegExp(q.slice(1, -1), 'i'); } catch(e) { return null; }
+      }
+      if (q.length > 3 && q[0] === '/' && q.indexOf('/') > 0) {
+        var lastSlash = q.lastIndexOf('/');
+        var flags = q.slice(lastSlash + 1);
+        try { return new RegExp(q.slice(1, lastSlash), flags); } catch(e) { return null; }
+      }
+      return q.toLowerCase();
+    }
+
+    function filterAuditLog() {
+      var raw = (document.getElementById('audit-search').value || '').trim();
+      var countEl = document.getElementById('audit-match-count');
+      if (!raw) {
+        renderAuditTable(_auditEntries);
+        if (countEl) countEl.textContent = _auditEntries.length ? _auditEntries.length + ' entries' : '';
+        return;
+      }
+      var query = parseAuditQuery(raw);
+      var filtered = _auditEntries.filter(function(e) {
+        var haystack = [e.ts || '', e.user || '', e.action || '', e.agent || '', e.detail || ''].join(' ');
+        if (query instanceof RegExp) return query.test(haystack);
+        return haystack.toLowerCase().includes(query);
+      });
+      renderAuditTable(filtered);
+      if (countEl) countEl.textContent = filtered.length + ' / ' + _auditEntries.length;
+    }
+
     async function fetchAuditLog() {
       try {
-        const resp = await fetch('/api/audit');
+        var resp = await fetch('/api/audit');
         if (!resp.ok) return;
-        const data = await resp.json();
-        const entries = data.entries || [];
-        const panel = document.getElementById('audit-panel');
-        if (!panel) return;
-        if (!entries.length) { panel.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:8px">No audit entries yet</div>'; return; }
-        panel.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.78rem">' +
-          '<thead><tr style="color:var(--muted);font-size:0.7rem;border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px">Time</th><th style="text-align:left;padding:4px 8px">User</th><th style="text-align:left;padding:4px 8px">Action</th><th style="text-align:left;padding:4px 8px">Agent</th><th style="text-align:left;padding:4px 8px">Details</th></tr></thead>' +
-          '<tbody>' + entries.map(function(e) {
-            var t = e.ts ? new Date(e.ts) : null;
-            var timeStr = t ? t.toLocaleString() : '—';
-            return '<tr style="border-bottom:1px solid var(--border)">' +
-              '<td style="padding:4px 8px;white-space:nowrap;color:var(--muted)">' + timeStr + '</td>' +
-              '<td style="padding:4px 8px"><img src="https://github.com/' + (e.user||'ghost') + '.png?s=32" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px">' + (e.user||'—') + '</td>' +
-              '<td style="padding:4px 8px;font-weight:600">' + (e.action||'—') + '</td>' +
-              '<td style="padding:4px 8px">' + (e.agent||'—') + '</td>' +
-              '<td style="padding:4px 8px;color:var(--muted)">' + (e.detail||'') + '</td>' +
-              '</tr>';
-          }).join('') + '</tbody></table>';
+        var data = await resp.json();
+        _auditEntries = data.entries || [];
+        filterAuditLog();
       } catch(e) {}
     }
     fetchAuditLog();

@@ -381,6 +381,19 @@ func (s *Server) kickBrainstorm() {
 	if s.deps.AgentMgr == nil || s.deps.Scheduler == nil {
 		return
 	}
+
+	// Guard: only kick if inception is in a phase that needs the agent.
+	// Kicking during scaffold/complete is harmful — it restarts the agent
+	// and can revert the phase back to capture.
+	if s.deps.Inception != nil {
+		state := s.deps.Inception.GetState()
+		if state != nil && (state.Phase == knowledge.PhaseScaffold || state.Phase == knowledge.PhaseComplete) {
+			s.logger.Debug("skipping brainstorm kick — inception already past structure",
+				"phase", state.Phase)
+			return
+		}
+	}
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {

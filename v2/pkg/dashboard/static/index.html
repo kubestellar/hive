@@ -8261,13 +8261,32 @@ function burnAreaChart() {
     }
 
     function renderGovHub(hub) {
-      return `<div class="config-section">
-        ${configField('Hub Enabled', 'checkbox', hub.enabled, 'hub.enabled', 'Register this hive with the central hub')}
-        ${configField('Hub URL', 'text', hub.url || '', 'hub.url', 'URL of the Hive Hub (e.g. https://hive.kubestellar.io)')}
-        ${configField('Dashboard URL', 'text', hub.dashboard_url || '', 'hub.dashboard_url', 'Public URL of this hive dashboard')}
-        ${configField('Snapshot URL', 'text', hub.snapshot_url || '', 'hub.snapshot_url', 'URL to a published snapshot of this hive')}
-        ${configField('Public', 'checkbox', hub.is_public, 'hub.is_public', 'Show this hive on the public hub registry')}
-      </div>`;
+      return `
+        <div class="config-toggle">
+          <div class="config-toggle-switch ${hub.enabled ? 'on' : ''}" data-action="toggleConfigSwitch" data-section="hub" data-key="enabled"></div>
+          <span class="config-toggle-label">Hub Enabled <span class="config-info">i<span class="config-tooltip">Register this hive with the central hub at hive.kubestellar.io so it appears in the public registry.</span></span></span>
+        </div>
+        <div class="config-field">
+          <label>Hub URL <span class="config-info">i<span class="config-tooltip">URL of the Hive Hub (e.g. https://hive.kubestellar.io). Heartbeats and task status are sent here.</span></span></label>
+          <input type="text" value="${esc(hub.url || '')}" onchange="markDirty('hub','url',this.value)">
+        </div>
+        <div class="config-field">
+          <label>Dashboard URL <span class="config-info">i<span class="config-tooltip">Public URL of this hive's dashboard. Shown in the hub registry as the dashboard link.</span></span></label>
+          <input type="text" value="${esc(hub.dashboard_url || '')}" onchange="markDirty('hub','dashboard_url',this.value)">
+        </div>
+        <div class="config-toggle">
+          <div class="config-toggle-switch ${hub.is_public ? 'on' : ''}" data-action="toggleConfigSwitch" data-section="hub" data-key="is_public"></div>
+          <span class="config-toggle-label">Public <span class="config-info">i<span class="config-tooltip">Show this hive on the public hub registry. When off, the hive is hidden from the main page.</span></span></span>
+        </div>
+        <hr style="border-color:var(--border);margin:16px 0">
+        <div class="config-toggle">
+          <div class="config-toggle-switch ${hub.auto_snapshot ? 'on' : ''}" data-action="toggleConfigSwitch" data-section="hub" data-key="auto_snapshot"></div>
+          <span class="config-toggle-label">Auto-publish Snapshot <span class="config-info">i<span class="config-tooltip">Publish a read-only snapshot every 15 minutes at /snapshot. Anyone with the link can view dashboard state without auth. Off by default.</span></span></span>
+        </div>
+        <div class="config-field">
+          <label>Snapshot URL <span class="config-info">i<span class="config-tooltip">Public URL to the read-only snapshot. Auto-set when auto-publish is enabled.</span></span></label>
+          <input type="text" value="${esc(hub.snapshot_url || '')}" onchange="markDirty('hub','snapshot_url',this.value)">
+        </div>`;
     }
 
     // ── Agent Tab Renderers ──

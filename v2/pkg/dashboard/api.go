@@ -28,6 +28,8 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("GET /api/config", s.handleConfig)
 	s.mux.HandleFunc("GET /api/config/download", s.handleConfigDownload)
 	s.mux.HandleFunc("GET /api/audit", s.handleAuditLog)
+	s.mux.HandleFunc("GET /api/snapshot", s.handleSnapshotAPI)
+	s.mux.HandleFunc("GET /snapshot", s.handleSnapshotPage)
 	s.mux.HandleFunc("GET /api/history", s.handleHistory)
 	s.mux.HandleFunc("GET /api/trends", s.handleTrends)
 	s.mux.HandleFunc("GET /api/timeline", s.handleTimeline)
@@ -403,6 +405,40 @@ func (s *Server) handleConfigDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-yaml")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	w.Write(data)
+}
+
+func (s *Server) handleSnapshotAPI(w http.ResponseWriter, r *http.Request) {
+	if s.deps != nil && s.deps.Config != nil && !s.deps.Config.Hub.AutoSnapshot {
+		http.Error(w, "snapshots not enabled", http.StatusNotFound)
+		return
+	}
+	s.statusMu.RLock()
+	status := s.status
+	s.statusMu.RUnlock()
+	if status == nil {
+		http.Error(w, "no data yet", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=60")
+	json.NewEncoder(w).Encode(status)
+}
+
+func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
+	if s.deps != nil && s.deps.Config != nil && !s.deps.Config.Hub.AutoSnapshot {
+		http.Error(w, "snapshots not enabled", http.StatusNotFound)
+		return
+	}
+	data, err := staticFS.ReadFile("static/index.html")
+	if err != nil {
+		http.Error(w, "dashboard not found", http.StatusInternalServerError)
+		return
+	}
+	html := strings.Replace(string(data), "</head>",
+		`<script>window.HIVE_SNAPSHOT_MODE=true;</script></head>`, 1)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=60")
+	w.Write([]byte(html))
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
@@ -1839,6 +1875,7 @@ func (s *Server) handleGovernorConfigGet(w http.ResponseWriter, r *http.Request)
 			"dashboard_url": cfg.Hub.DashboardURL,
 			"snapshot_url":  cfg.Hub.SnapshotURL,
 			"is_public":     cfg.Hub.IsPublic,
+			"auto_snapshot": cfg.Hub.AutoSnapshot,
 		},
 	})
 }

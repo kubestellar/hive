@@ -23,6 +23,7 @@ const (
 	inceptionBeadRefPrefix   = "inception/"
 	minQuestionsForAdvance   = 5
 	minFactsForAdvance       = 3
+	autoFactFallbackTimeout  = 60 * time.Second
 )
 
 // InceptionWatcher polls brainstorm beads and bridges them into the inception
@@ -136,6 +137,14 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		// The structure kick via SendKick can fail if the agent crashed.
 		if state.Phase == knowledge.PhaseStructure && w.agentMgr != nil {
 			w.retryKickIfStale(state)
+		}
+		// Fallback: if the agent hasn't produced fact beads after the
+		// timeout, auto-generate facts from the user's Q&A so the
+		// lifecycle doesn't stall. Agent gets first shot.
+		if state.Phase == knowledge.PhaseStructure && state.PhaseChangedAt != nil {
+			if time.Since(*state.PhaseChangedAt) > autoFactFallbackTimeout {
+				w.autoGenerateFacts(ctx, state)
+			}
 		}
 	}
 }
@@ -750,5 +759,68 @@ func (w *InceptionWatcher) checkForFacts(ctx context.Context, inceptionBeads []*
 
 	w.logger.Info("inception watcher: facts extracted, advancing to scaffold",
 		"count", len(facts),
+	)
+}
+
+// autoGenerateFacts synthesizes facts from the inception Q&A when the
+// brainstorm agent hasn't produced fact beads within the timeout. This
+// is a fallback — the agent gets first shot during the timeout window.
+func (w *InceptionWatcher) autoGenerateFacts(ctx context.Context, state *knowledge.InceptionState) {
+	if len(state.Questions) == 0 || len(state.Answers) == 0 {
+		return
+	}
+
+	var facts []knowledge.IdeationFact
+
+	// Vision fact from the idea text
+	facts = append(facts, knowledge.IdeationFact{
+		Title: "Project Vision",
+		Body:  state.IdeaText,
+		Type:  knowledge.FactVision,
+		Tags:  []string{"auto-generated"},
+	})
+
+	// Map question categories to fact types
+	categoryToFact := map[string]knowledge.FactType{
+		"language":    knowledge.FactConstitution,
+		"features":    knowledge.FactRequirement,
+		"constraints": knowledge.FactConstraint,
+		"users":       knowledge.FactStakeholder,
+		"testing":     knowledge.FactAcceptance,
+		"deployment":  knowledge.FactConstraint,
+		"storage":     knowledge.FactRequirement,
+	}
+
+	for _, q := range state.Questions {
+		answer, ok := state.Answers[q.ID]
+		if !ok || strings.TrimSpace(answer) == "" {
+			continue
+		}
+
+		factType, mapped := categoryToFact[q.Category]
+		if !mapped {
+			factType = knowledge.FactRequirement
+		}
+
+		facts = append(facts, knowledge.IdeationFact{
+			Title: q.Text,
+			Body:  answer,
+			Type:  factType,
+			Tags:  []string{"auto-generated"},
+		})
+	}
+
+	if len(facts) < minFactsForAdvance {
+		return
+	}
+
+	if err := w.inception.RecordFacts(ctx, facts); err != nil {
+		w.logger.Warn("inception watcher: auto-fact fallback failed", "error", err, "count", len(facts))
+		return
+	}
+
+	w.logger.Info("inception watcher: auto-generated facts from Q&A (agent timeout fallback)",
+		"count", len(facts),
+		"timeout", autoFactFallbackTimeout,
 	)
 }

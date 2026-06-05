@@ -297,6 +297,11 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 	const maxRegistryEntries = 200
 	if !found {
+		if strings.HasPrefix(payload.HiveID, "hosted-") || strings.HasPrefix(payload.HiveID, "saas-") {
+			s.mu.Unlock()
+			http.Error(w, "hosted/saas hive IDs can only be created via provisioning", http.StatusForbidden)
+			return
+		}
 		if len(s.registry.Hives) >= maxRegistryEntries {
 			s.mu.Unlock()
 			http.Error(w, "registry full", http.StatusServiceUnavailable)

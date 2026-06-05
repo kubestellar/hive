@@ -1542,13 +1542,27 @@ const dashboardHTML = `<!DOCTYPE html>
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
-    function openConvert(btn) {
+    async function openConvert(btn) {
       document.getElementById('f-org').value = btn.dataset.org || '';
       document.getElementById('f-repos').value = btn.dataset.repos || '';
       document.getElementById('f-primary').value = btn.dataset.primary || '';
       document.getElementById('f-name').value = btn.dataset.name || '';
       document.getElementById('f-level').value = btn.dataset.level || '1';
       document.getElementById('create-modal').style.display = 'flex';
+      var dashUrl = btn.closest('tr').querySelector('a[href*="hive.kubestellar.io"], a[href*="192.168"]');
+      if (!dashUrl) dashUrl = btn.closest('tr').querySelector('a.dash-link');
+      var base = dashUrl ? dashUrl.href.replace(/\/$/, '') : '';
+      if (base) {
+        try {
+          var resp = await fetch(base + '/api/config/download');
+          if (resp.ok) {
+            var text = await resp.text();
+            var cfg = parseHiveYaml(text);
+            applyYamlConfig(cfg);
+            hiveToast('Config loaded from local hive', 'success');
+          }
+        } catch(e) {}
+      }
     }
 
     async function createHive() {
@@ -1597,11 +1611,82 @@ const dashboardHTML = `<!DOCTYPE html>
         document.getElementById('btn-go').textContent = 'Go';
       }
     }
+
+    function parseHiveYaml(text) {
+      var cfg = {};
+      var lines = text.split('\n');
+      var section = '';
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var trimmed = line.replace(/\s+$/, '');
+        if (/^project:/.test(trimmed)) { section = 'project'; continue; }
+        if (/^github:/.test(trimmed)) { section = 'github'; continue; }
+        if (/^governor:/.test(trimmed)) { section = 'governor'; continue; }
+        if (/^\S/.test(trimmed) && /:/.test(trimmed)) { section = ''; continue; }
+        if (section === 'project') {
+          var m;
+          if ((m = trimmed.match(/^\s+org:\s*(.+)/))) cfg.org = m[1].trim().replace(/^["']|["']$/g, '');
+          if ((m = trimmed.match(/^\s+repos:\s*$/))) { cfg.repos = []; for (var j = i + 1; j < lines.length && /^\s+-\s/.test(lines[j]); j++) { cfg.repos.push(lines[j].replace(/^\s+-\s*/, '').trim().replace(/^["']|["']$/g, '')); } }
+          if ((m = trimmed.match(/^\s+repos:\s*\[(.+)\]/))) cfg.repos = m[1].split(',').map(function(r) { return r.trim().replace(/^["']|["']$/g, ''); });
+          if ((m = trimmed.match(/^\s+primary_repo:\s*(.+)/))) cfg.primary = m[1].trim().replace(/^["']|["']$/g, '');
+          if ((m = trimmed.match(/^\s+name:\s*(.+)/))) cfg.name = m[1].trim().replace(/^["']|["']$/g, '');
+        }
+        if (section === 'github') {
+          var m;
+          if ((m = trimmed.match(/^\s+token:\s*(.+)/))) cfg.token = m[1].trim().replace(/^["']|["']$/g, '');
+          if ((m = trimmed.match(/^\s+app_id:\s*(\d+)/))) cfg.appId = m[1];
+          if ((m = trimmed.match(/^\s+installation_id:\s*(\d+)/))) cfg.installId = m[1];
+        }
+        if (section === 'governor') {
+          var m;
+          if ((m = trimmed.match(/^\s+acmm_level:\s*(\d+)/))) cfg.level = parseInt(m[1]);
+        }
+      }
+      return cfg;
+    }
+
+    function applyYamlConfig(cfg) {
+      if (cfg.org) document.getElementById('f-org').value = cfg.org;
+      if (cfg.repos) document.getElementById('f-repos').value = cfg.repos.join(', ');
+      if (cfg.primary) document.getElementById('f-primary').value = cfg.primary;
+      if (cfg.name) document.getElementById('f-name').value = cfg.name;
+      if (cfg.level) document.getElementById('f-level').value = cfg.level;
+      if (cfg.appId) {
+        document.querySelector('input[name="auth-method"][value="app"]').checked = true;
+        document.getElementById('auth-pat').style.display = 'none';
+        document.getElementById('auth-app').style.display = '';
+        document.getElementById('f-app-id').value = cfg.appId;
+        if (cfg.installId) document.getElementById('f-install-id').value = cfg.installId;
+      } else if (cfg.token) {
+        document.getElementById('f-token').value = cfg.token;
+      }
+      var drop = document.getElementById('yaml-drop');
+      drop.innerHTML = '<div style="font-size:0.82rem;color:var(--green)">✓ Config loaded</div>';
+    }
+
+    function readYamlFile(file) {
+      var reader = new FileReader();
+      reader.onload = function() {
+        var cfg = parseHiveYaml(reader.result);
+        applyYamlConfig(cfg);
+        hiveToast('Config loaded from ' + file.name, 'success');
+      };
+      reader.readAsText(file);
+    }
   </script>
 
   <div id="create-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:640px;width:90%;max-height:90vh;overflow-y:auto">
       <h2 style="font-size:1.3rem;margin-bottom:16px;color:var(--accent)">Create Hosted Hive</h2>
+      <div id="yaml-drop" style="margin-bottom:16px;border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:border-color 0.2s"
+        ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
+        ondragleave="this.style.borderColor='var(--border)'"
+        ondrop="event.preventDefault();this.style.borderColor='var(--border)';var f=event.dataTransfer.files[0];if(f)readYamlFile(f)"
+        onclick="document.getElementById('yaml-upload').click()">
+        <div style="font-size:0.82rem;color:var(--muted)">Drop a <code>hive.yaml</code> here or <span style="color:var(--accent);text-decoration:underline">browse</span></div>
+        <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Auto-fills all fields from your config</div>
+        <input type="file" id="yaml-upload" accept=".yaml,.yml" style="display:none" onchange="if(this.files[0])readYamlFile(this.files[0])">
+      </div>
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Organization *</label>
         <input id="f-org" type="text" placeholder="my-org" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">

@@ -1537,13 +1537,17 @@ const dashboardHTML = `<!DOCTYPE html>
 
     async function upgradeHive(id) {
       if (!await hiveConfirm('Upgrade ' + id + ' to latest?')) return;
+      var btns = document.querySelectorAll('button[onclick*="upgradeHive"]');
+      btns.forEach(function(b) { b.disabled = true; b.textContent = '⟳ Upgrading...'; b.style.opacity = '0.6'; });
       try {
+        hiveToast('Upgrading ' + id + '...', 'info');
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id) + '/upgrade', {method: 'POST'});
         var data = await resp.json();
         if (!resp.ok) { hiveToast(data.error || 'Upgrade failed', 'error'); return; }
         hiveToast('Upgrade started for ' + id, 'success');
         loadHives();
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
+      finally { btns.forEach(function(b) { b.disabled = false; b.textContent = '⟳'; b.style.opacity = '1'; }); }
     }
 
     async function init() {
@@ -1652,12 +1656,17 @@ const dashboardHTML = `<!DOCTYPE html>
 
     async function deleteHive(id) {
       if (!await hiveConfirm('Delete ' + id + '? This removes all data.')) return;
+      var btns = document.querySelectorAll('button[onclick*="deleteHive"]');
+      btns.forEach(function(b) { b.disabled = true; b.textContent = 'Deleting...'; b.style.opacity = '0.6'; });
       try {
         gtag('event','hive_deleted',{hive_id:id});
+        hiveToast('Deleting ' + id + '...', 'info');
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id), {method: 'DELETE'});
         if (!resp.ok) { var d = await resp.json(); hiveToast(d.error || 'Delete failed', 'error'); return; }
+        hiveToast('Deleted ' + id, 'success');
         loadHives();
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
+      finally { btns.forEach(function(b) { b.disabled = false; b.textContent = 'Delete'; b.style.opacity = '1'; }); }
     }
 
     async function openConvert(btn) {

@@ -720,57 +720,38 @@ func fetchSHA(logger *slog.Logger) {
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return
+	}
 	body, _ := io.ReadAll(resp.Body)
 	sha := strings.TrimSpace(string(body))
 	if len(sha) < 7 {
 		return
 	}
 	short := sha[:7]
-
-	if !isImageAvailable(short, logger) {
-		logger.Debug("latest SHA skipped — Docker image not ready", "sha", short)
-		return
-	}
-
-	latestSHAMu.Lock()
-	latestSHACache = short
-	latestSHAMu.Unlock()
-	logger.Debug("latest SHA updated", "sha", short)
+	latestCommitMu.Lock()
+	latestCommitSHA = short
+	latestCommitMu.Unlock()
 }
 
-func isImageAvailable(shortSHA string, logger *slog.Logger) bool {
-	client := &http.Client{Timeout: 10 * time.Second}
-	checkURL := "https://api.github.com/repos/kubestellar/hive/commits/" + shortSHA + "/check-runs"
-	req, err := http.NewRequest("GET", checkURL, nil)
-	if err != nil {
-		return true
+var (
+	latestCommitMu  sync.RWMutex
+	latestCommitSHA string
+)
+
+func updateLatestSHAFromHeartbeat(gitHash string) {
+	if gitHash == "" {
+		return
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return true
+	latestCommitMu.RLock()
+	commitSHA := latestCommitSHA
+	latestCommitMu.RUnlock()
+
+	if gitHash == commitSHA {
+		latestSHAMu.Lock()
+		latestSHACache = gitHash
+		latestSHAMu.Unlock()
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return true
-	}
-	var result struct {
-		CheckRuns []struct {
-			Name       string `json:"name"`
-			Status     string `json:"status"`
-			Conclusion string `json:"conclusion"`
-		} `json:"check_runs"`
-	}
-	json.NewDecoder(resp.Body).Decode(&result)
-	for _, cr := range result.CheckRuns {
-		if cr.Name == "docker" || cr.Name == "merge-hub" {
-			if cr.Status == "completed" && cr.Conclusion == "success" {
-				return true
-			}
-			return false
-		}
-	}
-	return false
 }
 
 func (s *HubServer) handleLatestSHA(w http.ResponseWriter, r *http.Request) {

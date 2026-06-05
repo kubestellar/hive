@@ -1,6 +1,7 @@
 package hub
 
 import (
+	cryptoRand "crypto/rand"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -92,6 +93,15 @@ func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
 		if data, err := os.ReadFile("/data/saas/hub-secret.key"); err == nil {
 			secret = strings.TrimSpace(string(data))
 		}
+	}
+	if secret == "" {
+		const secretLen = 32
+		b := make([]byte, secretLen)
+		cryptoRand.Read(b)
+		secret = fmt.Sprintf("%x", b)
+		os.MkdirAll("/data/saas", 0o755)
+		os.WriteFile("/data/saas/hub-secret.key", []byte(secret), 0o600)
+		logger.Info("generated hub secret", "path", "/data/saas/hub-secret.key")
 	}
 	s := &HubServer{
 		mux:        http.NewServeMux(),
@@ -188,9 +198,17 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	payload.PrimaryRepo = sanitizeField(payload.PrimaryRepo)
 	payload.Owner = sanitizeField(payload.Owner)
 	for i, a := range payload.Agents {
+		if !isValidName(a.Name) {
+			http.Error(w, "invalid agent name", http.StatusBadRequest)
+			return
+		}
 		payload.Agents[i].Name = sanitizeField(a.Name)
 	}
 	for i, lb := range payload.Leaderboard {
+		if !isValidName(lb.GitHubUsername) {
+			http.Error(w, "invalid leaderboard username", http.StatusBadRequest)
+			return
+		}
 		payload.Leaderboard[i].GitHubUsername = sanitizeField(lb.GitHubUsername)
 		payload.Leaderboard[i].HiveName = sanitizeField(lb.HiveName)
 	}
@@ -418,10 +436,15 @@ func (s *HubServer) handleRegistryDelete(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *HubServer) handleHubVersion(w http.ResponseWriter, r *http.Request) {
-	data, _ := json.Marshal(map[string]any{
+	resp := map[string]any{
 		"git_hash":   s.hubGitHash,
 		"latest_sha": getLatestSHA(),
-	})
+	}
+	cookie, _ := r.Cookie("hive_hub_user")
+	if cookie != nil && cookie.Value == hubAdminUsername {
+		resp["hub_secret"] = s.hubSecret
+	}
+	data, _ := json.Marshal(resp)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }

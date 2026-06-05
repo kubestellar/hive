@@ -142,6 +142,11 @@ func (s *HubServer) handleAuthUser(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"authenticated":false}`))
 		return
 	}
+	if loadSaaSUser(cookie.Value) == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"authenticated":false}`))
+		return
+	}
 	isAdmin := cookie.Value == hubAdminUsername
 	data, _ := json.Marshal(map[string]any{
 		"authenticated": true,

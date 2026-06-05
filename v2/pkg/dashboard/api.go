@@ -1038,8 +1038,13 @@ func (s *Server) handleGHUserAuthPoll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := os.WriteFile(userTokenPath, []byte(token), 0o600); err != nil {
+	tmpTokenPath := userTokenPath + ".tmp"
+	if err := os.WriteFile(tmpTokenPath, []byte(token), 0o600); err != nil {
 		jsonError(w, "failed to save token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.Rename(tmpTokenPath, userTokenPath); err != nil {
+		jsonError(w, "failed to persist token: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -2440,7 +2445,10 @@ func (s *Server) saveSidebarToDisk(sb interface{}) {
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(sidebarFile, data, 0o644)
+	tmpSidebar := sidebarFile + ".tmp"
+	if os.WriteFile(tmpSidebar, data, 0o644) == nil {
+		_ = os.Rename(tmpSidebar, sidebarFile)
+	}
 }
 
 func (s *Server) handleBackends(w http.ResponseWriter, r *http.Request) {

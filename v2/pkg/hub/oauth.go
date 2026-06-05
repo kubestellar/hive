@@ -73,13 +73,18 @@ func (s *HubServer) handleOAuthCallback(w http.ResponseWriter, r *http.Request) 
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	const maxOAuthResponseBytes = 1 << 16
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxOAuthResponseBytes))
 	var tokenResp struct {
 		AccessToken string `json:"access_token"`
 		TokenType   string `json:"token_type"`
 		Scope       string `json:"scope"`
 	}
-	json.Unmarshal(body, &tokenResp)
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		s.logger.Warn("OAuth: failed to parse token response", "error", err)
+		http.Error(w, "invalid token response", http.StatusBadGateway)
+		return
+	}
 
 	if tokenResp.AccessToken == "" {
 		s.logger.Warn("OAuth: no access token in response")
@@ -96,12 +101,22 @@ func (s *HubServer) handleOAuthCallback(w http.ResponseWriter, r *http.Request) 
 	}
 	defer userResp.Body.Close()
 
-	userBody, _ := io.ReadAll(userResp.Body)
+	userBody, _ := io.ReadAll(io.LimitReader(userResp.Body, maxOAuthResponseBytes))
 	var user struct {
 		Login     string `json:"login"`
 		AvatarURL string `json:"avatar_url"`
 	}
-	json.Unmarshal(userBody, &user)
+	if err := json.Unmarshal(userBody, &user); err != nil {
+		s.logger.Warn("OAuth: failed to parse user response", "error", err)
+		http.Error(w, "invalid user response", http.StatusBadGateway)
+		return
+	}
+
+	if user.Login == "" || !isValidName(user.Login) {
+		s.logger.Warn("OAuth: invalid or empty login", "login", user.Login)
+		http.Error(w, "invalid user login", http.StatusBadGateway)
+		return
+	}
 
 	s.logger.Info("audit: hub OAuth login", "user", user.Login)
 

@@ -123,10 +123,8 @@ RUN pip3 install --no-cache-dir --break-system-packages specify-cli 2>/dev/null 
     pip3 install --no-cache-dir specify-cli 2>/dev/null || \
     echo "WARN: spec-kit (specify-cli) install failed — inception will generate facts without it"
 # pub-sub-tmux: structured event streaming for AI agent tmux sessions
-RUN (which git && git clone https://github.com/kubestellar/pub-sub-tmux.git /tmp/pub-sub-tmux && \
-    cd /tmp/pub-sub-tmux && make install PREFIX=/usr/local && \
-    rm -rf /tmp/pub-sub-tmux) || \
-    echo "WARN: pub-sub-tmux install failed — skipping"
+RUN curl -sL https://raw.githubusercontent.com/kubestellar/pub-sub-tmux/main/install.sh | bash || \
+    echo "WARN: pub-sub-tmux install failed — inception will use RestartWithBootstrap fallback"
 RUN (which git && git clone -b feat/cli-agent-mode https://github.com/clubanderson/agentic-strategy-evolution /opt/nous && \
     python3 -m venv /opt/nous/venv && \
     /opt/nous/venv/bin/pip install --no-cache-dir -e /opt/nous 2>&1) || \

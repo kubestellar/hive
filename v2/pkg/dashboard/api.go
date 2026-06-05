@@ -409,8 +409,10 @@ func (s *Server) handleConfigDownload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSnapshotAPI(w http.ResponseWriter, r *http.Request) {
-	if s.deps != nil && s.deps.Config != nil && !s.deps.Config.Hub.AutoSnapshot {
-		http.Error(w, "snapshots not enabled", http.StatusNotFound)
+	if s.deps == nil || s.deps.Config == nil || !s.deps.Config.Hub.AutoSnapshot {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"snapshots not enabled"}`))
 		return
 	}
 	s.statusMu.RLock()
@@ -426,8 +428,17 @@ func (s *Server) handleSnapshotAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
-	if s.deps != nil && s.deps.Config != nil && !s.deps.Config.Hub.AutoSnapshot {
-		http.Error(w, "snapshots not enabled", http.StatusNotFound)
+	if s.deps == nil || s.deps.Config == nil || !s.deps.Config.Hub.AutoSnapshot {
+		hubURL := "https://hive.kubestellar.io"
+		if s.deps != nil && s.deps.Config != nil && s.deps.Config.Hub.URL != "" {
+			hubURL = s.deps.Config.Hub.URL
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3;url=%s"><title>Hive</title>
+<style>body{font-family:system-ui,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
+.card{text-align:center;max-width:480px;padding:40px}.bee{font-size:3rem;margin-bottom:16px}h1{color:#f59e0b;margin:0 0 8px}p{color:#8b949e;line-height:1.6}a{color:#58a6ff}</style>
+</head><body><div class="card"><div class="bee">🐝</div><h1>Hive</h1><p>AI Agent Orchestration for GitHub</p><p>Snapshot is not currently published for this hive.</p><p>Redirecting to <a href="%s">%s</a>...</p></div></body></html>`,
+			hubURL, hubURL, hubURL)
 		return
 	}
 	data, err := staticFS.ReadFile("static/index.html")

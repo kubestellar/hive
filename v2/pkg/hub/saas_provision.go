@@ -212,7 +212,7 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 
 	if err != nil {
 		logger.Warn("kubectl apply failed", "hive", h.ID, "output", string(out), "error", err)
-		return fmt.Errorf("kubectl apply: %s", string(out))
+		return fmt.Errorf("provisioning failed — check hub logs for details")
 	}
 
 	logger.Info("audit: saas hive provisioned", "hive_id", h.ID, "owner", h.Owner, "org", h.Org)

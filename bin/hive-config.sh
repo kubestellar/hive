@@ -95,7 +95,7 @@ _hive_read_array() {
     echo "${2:-}"
   else
     if command -v python3 &>/dev/null; then
-      python3 -c "import json; print(' '.join(json.loads('''$val''')))" 2>/dev/null || echo "${2:-}"
+      python3 -c "import json,sys; print(' '.join(json.loads(sys.argv[1])))" "$val" 2>/dev/null || echo "${2:-}"
     else
       echo "$val" | tr -d '[]",' | xargs
     fi
@@ -112,7 +112,7 @@ _hive_read_runtime_array() {
     _hive_read_array "$1" "${2:-}"
   else
     if command -v python3 &>/dev/null; then
-      python3 -c "import json; print(' '.join(json.loads('''$val''')))" 2>/dev/null || echo "${2:-}"
+      python3 -c "import json,sys; print(' '.join(json.loads(sys.argv[1])))" "$val" 2>/dev/null || echo "${2:-}"
     else
       echo "$val" | tr -d '[]",' | xargs
     fi

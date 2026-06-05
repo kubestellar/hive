@@ -663,6 +663,9 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 	if h.server == nil {
 		return nil
 	}
+	if h.server.deps != nil && h.server.deps.Config != nil && h.server.deps.Config.Hub.ContributeSuspended {
+		return nil
+	}
 
 	h.server.statusMu.RLock()
 	status := h.server.status

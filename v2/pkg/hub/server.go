@@ -199,6 +199,10 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "snapshot_url must start with http:// or https://", http.StatusBadRequest)
 		return
 	}
+	if payload.SnapshotURL != "" && isPrivateURL(payload.SnapshotURL) {
+		http.Error(w, "snapshot_url must not target private/internal addresses", http.StatusBadRequest)
+		return
+	}
 
 	payload.Org = sanitizeField(payload.Org)
 	payload.PrimaryRepo = sanitizeField(payload.PrimaryRepo)

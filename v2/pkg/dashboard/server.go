@@ -302,9 +302,17 @@ func (s *Server) Start() error {
 
 	handler := s.roleEnforcement(s.securityHeaders(s.mux))
 
+	const dashboardReadTimeout = 30 * time.Second
+	const dashboardIdleTimeout = 120 * time.Second
 	addr := fmt.Sprintf(":%d", s.port)
 	s.logger.Info("dashboard starting", "addr", addr)
-	return http.ListenAndServe(addr, handler)
+	srv := &http.Server{
+		Addr:        addr,
+		Handler:     handler,
+		ReadTimeout: dashboardReadTimeout,
+		IdleTimeout: dashboardIdleTimeout,
+	}
+	return srv.ListenAndServe()
 }
 
 func (s *Server) securityHeaders(next http.Handler) http.Handler {

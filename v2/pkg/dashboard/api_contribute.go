@@ -759,6 +759,7 @@ func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reg := loadFederationRegistry()
+	const maxFederationHives = 100
 	hiveID := fmt.Sprintf("hive-%s-%s", strings.ToLower(req.Org), strings.ToLower(req.ProjectName))
 	for i := range reg.Hives {
 		if reg.Hives[i].ID == hiveID {
@@ -768,6 +769,11 @@ func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
 			jsonResponse(w, map[string]any{"ok": true, "id": hiveID, "updated": true})
 			return
 		}
+	}
+
+	if len(reg.Hives) >= maxFederationHives {
+		jsonError(w, "federation registry full", http.StatusServiceUnavailable)
+		return
 	}
 
 	reg.Hives = append(reg.Hives, FederationHive{

@@ -120,6 +120,7 @@ func (p *GitHubProxy) Start() error {
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", p.listenAddr, err)
 	}
+	defer ln.Close()
 	p.logger.Info("proxy listening", "addr", p.listenAddr)
 
 	for {
@@ -202,8 +203,13 @@ func (p *GitHubProxy) handleTransparentTLS(conn net.Conn, peeked []byte) {
 		_, portStr, splitErr := net.SplitHostPort(conn.RemoteAddr().String())
 		if splitErr == nil {
 			port := 0
+			const maxPort = 65535
 			for _, c := range portStr {
 				port = port*10 + int(c-'0')
+				if port > maxPort {
+					port = 0
+					break
+				}
 			}
 			uid, lookupErr := LookupUIDByLocalPort(port)
 			if lookupErr == nil {
@@ -219,9 +225,17 @@ func (p *GitHubProxy) handleTransparentTLS(conn net.Conn, peeked []byte) {
 			return
 		}
 		defer upstream.Close()
-		upstream.Write(fullBuf)
-		go io.Copy(upstream, conn)
+		if _, err := upstream.Write(fullBuf); err != nil {
+			return
+		}
+		done := make(chan struct{})
+		go func() {
+			io.Copy(upstream, conn)
+			upstream.(*net.TCPConn).CloseWrite()
+			close(done)
+		}()
 		io.Copy(conn, upstream)
+		<-done
 		return
 	}
 
@@ -379,11 +393,15 @@ func (p *GitHubProxy) identifyAgentByUID(remoteAddr string) string {
 		return ""
 	}
 	port := 0
+	const maxPort = 65535
 	for _, c := range portStr {
 		if c < '0' || c > '9' {
 			return ""
 		}
 		port = port*10 + int(c-'0')
+		if port > maxPort {
+			return ""
+		}
 	}
 	uid, err := LookupUIDByLocalPort(port)
 	if err != nil {
@@ -531,14 +549,15 @@ func (p *GitHubProxy) recordViolation(agentName, method, path string) {
 	p.logger.Warn("proxy request blocked", "agent", agentName, "method", method, "path", path)
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.violations) < maxViolationLog {
+	if _, exists := p.violations[agentName]; exists || len(p.violations) < maxViolationLog {
 		p.violations[agentName]++
 	}
 }
 
 // tunnelDirect creates a raw TCP tunnel for non-GitHub CONNECT requests.
 func (p *GitHubProxy) tunnelDirect(conn net.Conn, r *http.Request) {
-	upstream, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
+	const tunnelDialTimeout = 10 * time.Second
+	upstream, err := net.DialTimeout("tcp", r.Host, tunnelDialTimeout)
 	if err != nil {
 		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\n\r\ndial %s: %v\n", r.Host, err)
 		return
@@ -547,11 +566,16 @@ func (p *GitHubProxy) tunnelDirect(conn net.Conn, r *http.Request) {
 
 	fmt.Fprintf(conn, "HTTP/1.1 200 Connection established\r\n\r\n")
 
+	done := make(chan struct{})
 	go func() {
 		io.Copy(upstream, conn)
-		upstream.Close()
+		if tc, ok := upstream.(*net.TCPConn); ok {
+			tc.CloseWrite()
+		}
+		close(done)
 	}()
 	io.Copy(conn, upstream)
+	<-done
 }
 
 func transfer(dst, src net.Conn) {

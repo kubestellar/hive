@@ -1992,6 +1992,10 @@
       };
     })();
 
+    function safeJsonParse(str, fallback) {
+      try { return JSON.parse(str); } catch(e) { return fallback; }
+    }
+
     /** Escape HTML special characters to prevent XSS in innerHTML sinks */
     function escapeHtml(str) {
       if (typeof str !== 'string') return '';
@@ -2732,7 +2736,7 @@
       const group = header.closest('.oc-sidebar-group');
       const name = group?.dataset?.groupName;
       if (name) {
-        const collapsed = JSON.parse(localStorage.getItem('hive-sidebar-collapsed') || '{}');
+        const collapsed = safeJsonParse(localStorage.getItem('hive-sidebar-collapsed') || '{}', {});
         collapsed[name] = header.classList.contains('collapsed');
         localStorage.setItem('hive-sidebar-collapsed', JSON.stringify(collapsed));
       }
@@ -2777,7 +2781,7 @@
       html += `</div>`;
 
       tree.innerHTML = html;
-      const collapsed = JSON.parse(localStorage.getItem('hive-sidebar-collapsed') || '{}');
+      const collapsed = safeJsonParse(localStorage.getItem('hive-sidebar-collapsed') || '{}', {});
       tree.querySelectorAll('.oc-sidebar-group[data-group-name]').forEach(g => {
         const name = g.dataset.groupName;
         if (name && collapsed[name]) {

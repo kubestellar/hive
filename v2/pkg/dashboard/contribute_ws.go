@@ -678,6 +678,12 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 	}
 	h.mu.RUnlock()
 
+	totalAvailable := 0
+	for _, repo := range status.Repos {
+		totalAvailable += len(repo.ActionableIssues)
+	}
+	h.logger.Info("[contribute-ws] selectTask scanning", "repos", len(status.Repos), "totalIssues", totalAvailable, "cooldown", len(h.completedTasks), "active", len(activeIssues))
+
 	for _, repo := range status.Repos {
 		if len(repo.ActionableIssues) == 0 {
 			continue

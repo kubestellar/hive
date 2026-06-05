@@ -234,6 +234,16 @@ contribute-hive backend="" mode="docker":
         exit 1
       fi
 
+      # Start ollama silently if needed for goose
+      if [[ "$BACKEND" == "goose" && "${GOOSE_PROVIDER:-}" == "ollama" ]]; then
+        if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
+          echo "Starting ollama..."
+          ollama serve > /dev/null 2>&1 &
+          OLLAMA_PID=$!
+          sleep 2
+        fi
+      fi
+
       # Ensure ws module is available
       if ! node -e "require('ws')" 2>/dev/null; then
         echo "Installing ws module..."

@@ -18,11 +18,8 @@ check-version skip="false":
     #!/usr/bin/env bash
     if [[ "{{skip}}" == "true" || "${HIVE_SKIP_VERSION_CHECK:-}" == "true" ]]; then exit 0; fi
     LOCAL=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-    REMOTE=$(git rev-parse --short origin/v2 2>/dev/null || echo "")
-    if [[ -z "$REMOTE" ]]; then
-      git fetch origin v2 --quiet 2>/dev/null || exit 0
-      REMOTE=$(git rev-parse --short origin/v2 2>/dev/null || echo "unknown")
-    fi
+    git fetch origin v2 --quiet 2>/dev/null || true
+    REMOTE=$(git rev-parse --short origin/v2 2>/dev/null || echo "unknown")
     if [[ "$LOCAL" != "$REMOTE" && "$REMOTE" != "unknown" ]]; then
       echo "✗ Version check failed (local: ${LOCAL}, latest: ${REMOTE})"
       echo "  Run: git pull origin v2"

@@ -219,6 +219,18 @@ func (h *ContributeWSHub) nextSeq() int {
 func (h *ContributeWSHub) ActiveCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+	seen := make(map[string]bool)
+	for _, c := range h.connections {
+		if c.profile != nil && c.profile.GitHubUsername != "" {
+			seen[c.profile.GitHubUsername] = true
+		}
+	}
+	return len(seen)
+}
+
+func (h *ContributeWSHub) ActiveSessionCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 	return len(h.connections)
 }
 

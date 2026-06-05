@@ -350,7 +350,6 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <div style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;position:relative">
 <button id="copy-btn" style="position:absolute;top:8px;right:8px;background:#238636;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:.75rem">Copy</button>
 <pre id="copy-cmds" style="color:#e6edf3;font-size:.85rem;margin:0;overflow-x:auto;white-space:pre">brew install just gh
-npm i -g @anthropic-ai/claude-code
 git clone -b v2 https://github.com/kubestellar/hive && cd hive
 export HIVE_HUB=%s
 just contribute-setup claude
@@ -362,16 +361,21 @@ var sel=document.getElementById('cli-select');
 var modeSel=document.getElementById('mode-select');
 var cmds=document.getElementById('copy-cmds');
 var hubURL='%s';
-var containerTpl='brew install just gh\nINSTALL\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
+var containerTpl='brew install just gh\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
 var hostTpl='brew install just gh\nINSTALL\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive CLI local';
 function update(){
 var cli=sel.value;
 var opt=sel.options[sel.selectedIndex];
 var mode=modeSel.value;
-var tpl=mode==='host'?hostTpl:containerTpl;
-var install=mode==='host'?opt.getAttribute('data-host-install'):opt.getAttribute('data-install');
+var tpl,install;
+if(mode==='host'){
+tpl=hostTpl;
+install=opt.getAttribute('data-host-install');
 if(!install)install='# '+cli+' uses your existing gh auth';
 cmds.textContent=tpl.replace('INSTALL',install).replace(/CLI/g,cli);
+}else{
+cmds.textContent=containerTpl.replace(/CLI/g,cli);
+}
 }
 sel.addEventListener('change',update);
 modeSel.addEventListener('change',update);

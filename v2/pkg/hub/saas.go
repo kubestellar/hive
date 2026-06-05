@@ -1044,6 +1044,11 @@ func (s *HubServer) handleSaaSAuthCheck(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if isUnfurlBot(r.Header.Get("User-Agent")) {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	username := s.getAuthUser(r)
 	if username == "" {
 		http.Error(w, "not authenticated", http.StatusUnauthorized)
@@ -1067,7 +1072,33 @@ func (s *HubServer) handleSaaSAuthCheck(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
+func isUnfurlBot(ua string) bool {
+	bots := []string{"Slackbot", "Slack-ImgProxy", "Discordbot", "Twitterbot", "facebookexternalhit", "LinkedInBot", "WhatsApp", "TelegramBot"}
+	for _, b := range bots {
+		if strings.Contains(ua, b) {
+			return true
+		}
+	}
+	return false
+}
+
+const ogFallbackHTML = `<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<meta property="og:title" content="My Hives — Hive Hub">
+<meta property="og:description" content="AI Agent Orchestration for Open Source. Manage your hive instances — monitor agents, governor mode, issues, PRs, and contributor activity.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Hive Hub">
+<meta property="og:url" content="https://hive.kubestellar.io/dashboard">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍯</text></svg>">
+<title>My Hives — Hive Hub</title>
+</head><body></body></html>`
+
 func (s *HubServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	if isUnfurlBot(r.UserAgent()) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(ogFallbackHTML))
+		return
+	}
 	cookie, err := r.Cookie("hive_hub_user")
 	if err != nil || cookie.Value == "" {
 		http.Redirect(w, r, "/login", http.StatusTemporaryRedirect)
@@ -1136,6 +1167,10 @@ const dashboardHTML = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍯</text></svg>">
+  <meta property="og:title" content="My Hives — Hive Hub">
+  <meta property="og:description" content="Manage your AI agent hives. View local and hosted hive instances, monitor status, upgrade, and control access.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hive Hub">
   <!-- GA4 --><script async src="https://www.googletagmanager.com/gtag/js?id=G-4707R797K3"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","G-4707R797K3");</script>
   <title>My Hives — Hive Hub</title>
   <style>

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -230,6 +231,7 @@ func (s *Server) handleContributeLanding(w http.ResponseWriter, r *http.Request)
 	if s.deps != nil && s.deps.Config != nil {
 		projectName = s.deps.Config.Project.Name
 	}
+	projectName = html.EscapeString(projectName)
 	if projectName == "" {
 		projectName = "Hive"
 	}
@@ -992,6 +994,7 @@ func (s *Server) handleLeaderboardPage(w http.ResponseWriter, _ *http.Request) {
 	if s.deps != nil && s.deps.Config != nil {
 		projectName = s.deps.Config.Project.Name
 	}
+	projectName = html.EscapeString(projectName)
 	if projectName == "" {
 		projectName = "Hive"
 	}

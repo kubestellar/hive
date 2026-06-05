@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -1862,12 +1863,16 @@ func runHub(logger *slog.Logger) {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigCh
-		logger.Info("hub received signal, shutting down", "signal", sig)
-		os.Exit(0)
+		logger.Info("hub received signal, shutting down gracefully", "signal", sig)
+		const shutdownTimeout = 10 * time.Second
+		if err := hubSrv.Shutdown(shutdownTimeout); err != nil {
+			logger.Error("hub graceful shutdown failed", "error", err)
+		}
 	}()
 
-	if err := hubSrv.Start(port); err != nil {
+	if err := hubSrv.Start(port); err != nil && err != http.ErrServerClosed {
 		logger.Error("hub server failed", "error", err)
 		os.Exit(1)
 	}
+	logger.Info("hub server stopped")
 }

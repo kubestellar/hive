@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	cryptoRand "crypto/rand"
 	"embed"
 	"encoding/json"
@@ -86,6 +87,7 @@ type HubServer struct {
 	saveCh     chan struct{}
 	hubGitHash string
 	hubSecret  string
+	httpServer *http.Server
 }
 
 func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
@@ -139,10 +141,32 @@ func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
 	return s
 }
 
+const (
+	hubReadTimeout  = 30 * time.Second
+	hubWriteTimeout = 60 * time.Second
+	hubIdleTimeout  = 120 * time.Second
+)
+
 func (s *HubServer) Start(port int) error {
 	addr := fmt.Sprintf(":%d", port)
 	s.logger.Info("hub server starting", "addr", addr)
-	return http.ListenAndServe(addr, s.mux)
+	s.httpServer = &http.Server{
+		Addr:         addr,
+		Handler:      s.mux,
+		ReadTimeout:  hubReadTimeout,
+		WriteTimeout: hubWriteTimeout,
+		IdleTimeout:  hubIdleTimeout,
+	}
+	return s.httpServer.ListenAndServe()
+}
+
+func (s *HubServer) Shutdown(timeout time.Duration) error {
+	if s.httpServer == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return s.httpServer.Shutdown(ctx)
 }
 
 func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {

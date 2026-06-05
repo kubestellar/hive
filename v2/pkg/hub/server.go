@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	cryptoRand "crypto/rand"
+	"crypto/subtle"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -77,6 +78,10 @@ func sanitizeField(s string) string {
 
 func isValidName(s string) bool {
 	return safeNamePattern.MatchString(s) && len(s) <= 100
+}
+
+func secureCompareHub(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 type HubServer struct {
@@ -172,7 +177,7 @@ func (s *HubServer) Shutdown(timeout time.Duration) error {
 func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if s.hubSecret != "" {
 		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != s.hubSecret {
+		if !strings.HasPrefix(auth, "Bearer ") || !secureCompareHub(strings.TrimPrefix(auth, "Bearer "), s.hubSecret) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -395,7 +400,7 @@ func (s *HubServer) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
 func (s *HubServer) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
 	if s.hubSecret != "" {
 		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != s.hubSecret {
+		if !strings.HasPrefix(auth, "Bearer ") || !secureCompareHub(strings.TrimPrefix(auth, "Bearer "), s.hubSecret) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

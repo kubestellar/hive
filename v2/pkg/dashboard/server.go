@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"crypto/subtle"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,10 @@ import (
 
 //go:embed static
 var staticFS embed.FS
+
+func secureCompare(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
 
 const agentSkipAfterFullBroadcastS = 5 * time.Second
 const maxSSEClients = 100
@@ -325,7 +330,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
 		if s.authToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" && r.URL.Path != "/api/auth/token" {
-			trusted := r.Header.Get("X-Hive-Internal") == s.authToken
+			trusted := secureCompare(r.Header.Get("X-Hive-Internal"), s.authToken)
 			if !trusted && r.Header.Get("X-Hive-User") != "" {
 				trusted = true
 			}
@@ -335,7 +340,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 					token = r.URL.Query().Get("token")
 				}
 				expected := "Bearer " + s.authToken
-				if token != expected && token != s.authToken {
+				if !secureCompare(token, expected) && !secureCompare(token, s.authToken) {
 					http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 					return
 				}

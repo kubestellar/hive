@@ -208,8 +208,10 @@ function tmuxSendKeys(text) {
       execSync(`tmux send-keys -t ${TMUX_SESSION} C-c`, { timeout: 5000 });
       sleepMs(2000);
       try {
-        const CMD = execSync(`bash -c 'source /usr/local/etc/hive/backends.conf 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
-        const PERM = execSync(`bash -c 'source /usr/local/etc/hive/backends.conf 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
+        const confPaths2 = ['/usr/local/etc/hive/backends.conf', path.join(process.cwd(), 'config/backends.conf')];
+        const confPath2 = confPaths2.find(p => fs.existsSync(p)) || confPaths2[0];
+        const CMD = execSync(`bash -c 'source ${confPath2} 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim() || BACKEND;
+        const PERM = execSync(`bash -c 'source ${confPath2} 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
         execSync(`tmux send-keys -t ${TMUX_SESSION} '${CMD} ${PERM}' Enter`, { timeout: 5000 });
         cliReady = false;
         waitForCLI().then(() => { cliReady = true; if (pendingTask) { const t = pendingTask; pendingTask = null; tmuxSendKeys(t); } }).catch(() => {});
@@ -314,16 +316,22 @@ function startProgressReporting() {
     if (Date.now() - taskAssignedAt < TASK_GRACE_PERIOD_MS) return;
 
     try {
-      const procs = execSync(
-        `for p in /proc/[0-9]*/cmdline; do tr "\\0" " " < "$p" 2>/dev/null; done`,
-        { encoding: 'utf8', timeout: 5000 }
-      );
+      let procs = '';
+      try {
+        if (fs.existsSync('/proc')) {
+          procs = execSync(`for p in /proc/[0-9]*/cmdline; do tr "\\0" " " < "$p" 2>/dev/null; done`, { encoding: 'utf8', timeout: 5000 });
+        } else {
+          procs = execSync(`ps -eo command 2>/dev/null`, { encoding: 'utf8', timeout: 5000 });
+        }
+      } catch (_) { procs = BACKEND; }
       const cliAlive = procs.includes(BACKEND) || procs.includes('claude') || procs.includes('copilot') || procs.includes('bob') || procs.includes('codex') || procs.includes('goose') || procs.includes('pi');
       if (!cliAlive) {
         console.error(`CLI process (${BACKEND}) died — restarting and reporting task as failed`);
         try {
-          const CMD = execSync(`bash -c 'source /usr/local/etc/hive/backends.conf 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
-          const PERM = execSync(`bash -c 'source /usr/local/etc/hive/backends.conf 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
+          const confPaths = ['/usr/local/etc/hive/backends.conf', path.join(process.cwd(), 'config/backends.conf')];
+          const confPath = confPaths.find(p => fs.existsSync(p)) || confPaths[0];
+          const CMD = execSync(`bash -c 'source ${confPath} 2>/dev/null; backend_binary ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim() || BACKEND;
+          const PERM = execSync(`bash -c 'source ${confPath} 2>/dev/null; backend_perm_flag ${BACKEND}'`, { encoding: 'utf8', timeout: 5000 }).trim();
           execSync(`tmux send-keys -t ${TMUX_SESSION} '${CMD} ${PERM}' Enter`, { timeout: 5000 });
           console.log(`CLI restarted: ${CMD} ${PERM}`);
           cliReady = false;

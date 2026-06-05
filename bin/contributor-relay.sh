@@ -156,7 +156,10 @@ const ENTER_COUNT = 3;
 const ENTER_DELAY_MS = 300;
 
 function sleepMs(ms) {
-  execSync(`sleep ${ms / 1000}`, { timeout: ms + 1000 });
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    try { execSync(`sleep 0.1`, { timeout: 5000 }); } catch (_) {}
+  }
 }
 
 function tmuxSendEnters() {
@@ -219,6 +222,8 @@ function tmuxSendKeys(text) {
       } catch (e) { console.error('CLI restart failed:', e.message); }
     }
     const MAX_SEND_RETRIES = 3;
+    const RETRY_DELAY_MS = 10000;
+    let sent = false;
     for (let attempt = 1; attempt <= MAX_SEND_RETRIES; attempt++) {
       try {
         execSync(`tmux send-keys -t ${TMUX_SESSION} Escape`, { timeout: 15000 });
@@ -230,12 +235,17 @@ function tmuxSendKeys(text) {
         sleepMs(300);
         tmuxSendEnters();
         console.log('Task prompt sent to CLI');
+        sent = true;
         break;
       } catch (e) {
         console.error(`tmux send-keys attempt ${attempt}/${MAX_SEND_RETRIES} failed: ${e.message}`);
-        if (attempt < MAX_SEND_RETRIES) sleepMs(5000);
+      }
+      if (!sent && attempt < MAX_SEND_RETRIES) {
+        console.log(`Waiting ${RETRY_DELAY_MS/1000}s before retry...`);
+        sleepMs(RETRY_DELAY_MS);
       }
     }
+    if (!sent) console.error('All tmux send-keys attempts failed — task prompt lost');
   } catch (e) {
     console.error('tmux send-keys failed:', e.message);
   }

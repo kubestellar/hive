@@ -256,6 +256,9 @@ func loadSaaSUser(username string) *SaaSUser {
 	if json.Unmarshal(data, &u) != nil {
 		return nil
 	}
+	if u.Hives == nil {
+		u.Hives = make(map[string]string)
+	}
 	return &u
 }
 

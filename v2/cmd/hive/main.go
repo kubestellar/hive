@@ -1056,7 +1056,7 @@ func runEvalCycle(
 	}
 	lastActionable.Store(actionable)
 	if data, err := json.Marshal(actionable); err == nil {
-		_ = os.WriteFile("/data/last-actionable.json", data, 0o644)
+		atomicWrite("/data/last-actionable.json", data)
 	}
 
 	shaResult, shaErr := ghClient.EnforceSHAHold(ctx, github.SHAHoldConfig{
@@ -1550,29 +1550,33 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 	if len(history) > 0 {
 		historyData, err := json.Marshal(history)
 		if err == nil {
-			_ = os.WriteFile("/data/sparkline-history.json", historyData, 0o644)
+			atomicWrite("/data/sparkline-history.json", historyData)
 		}
 	}
-
-
 
 	modeHistory := gov.ModeHistory()
 	if len(modeHistory) > 0 {
 		modeData, err := json.Marshal(modeHistory)
 		if err == nil {
-			_ = os.WriteFile("/data/mode-history.json", modeData, 0o644)
+			atomicWrite("/data/mode-history.json", modeData)
 		}
 	}
 
-	// Persist token sparkline history so token charts survive container restarts
 	if dashSrv != nil {
 		tokenHistory := dashSrv.TokenSparklineHistory()
 		if len(tokenHistory) > 0 {
 			tokenData, err := json.Marshal(tokenHistory)
 			if err == nil {
-				_ = os.WriteFile("/data/token-sparkline-history.json", tokenData, 0o644)
+				atomicWrite("/data/token-sparkline-history.json", tokenData)
 			}
 		}
+	}
+}
+
+func atomicWrite(path string, data []byte) {
+	tmp := path + ".tmp"
+	if os.WriteFile(tmp, data, 0o644) == nil {
+		_ = os.Rename(tmp, path)
 	}
 }
 

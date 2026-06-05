@@ -607,9 +607,9 @@ func (s *HubServer) findContributeHive() *RegistryEntry {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, h := range s.registry.Hives {
-		if h.Online && h.IsPublic && h.DashboardURL != "" && !isPrivateURL(h.DashboardURL) {
-			copy := h
-			return &copy
+		if h.Online && h.IsPublic && h.DashboardURL != "" && !isPrivateURL(h.DashboardURL) && h.Owner != "" {
+			cp := h
+			return &cp
 		}
 	}
 	return nil

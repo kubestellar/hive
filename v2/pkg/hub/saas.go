@@ -1122,7 +1122,7 @@ func (s *HubServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HubServer) handleAccessDenied(w http.ResponseWriter, r *http.Request) {
-	hiveID := r.URL.Query().Get("hive")
+	hiveID := sanitize(r.URL.Query().Get("hive"))
 
 	ownerLink := ""
 	s.mu.RLock()

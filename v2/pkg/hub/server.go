@@ -384,6 +384,11 @@ func (s *HubServer) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	for i, h := range s.registry.Hives {
 		if h.ID == payload.HiveID {
+			if !h.Online {
+				s.mu.Unlock()
+				http.Error(w, "hive is offline — heartbeat first", http.StatusForbidden)
+				return
+			}
 			hiveName = h.Name
 			s.registry.Hives[i].ContributorCount = payload.Contributors.Registered
 			s.registry.Hives[i].ActiveContributors = payload.Contributors.Active

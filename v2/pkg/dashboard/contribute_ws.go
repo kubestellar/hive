@@ -780,11 +780,9 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 				if tok, err := h.server.deps.GHAppAuth.ScopedToken(ctx, c.profile.TrustTier); err == nil {
 					ghToken = tok
 				} else {
-					h.logger.Warn("[contribute-ws] failed to mint scoped token, falling back to cache",
+					h.logger.Warn("[contribute-ws] failed to mint scoped token — skipping task",
 						"tier", c.profile.TrustTier, "error", err)
-					if tokenBytes, err := os.ReadFile("/var/run/hive-metrics/gh-app-token.cache"); err == nil {
-						ghToken = string(tokenBytes)
-					}
+					return nil
 				}
 			} else if tokenBytes, err := os.ReadFile("/var/run/hive-metrics/gh-app-token.cache"); err == nil {
 				ghToken = string(tokenBytes)

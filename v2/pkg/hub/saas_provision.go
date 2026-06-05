@@ -1,6 +1,8 @@
 package hub
 
 import (
+	cryptoRand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -182,12 +184,13 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 		"MemLimit":        memLimit,
 		"PVCSize":         pvcSize,
 		"DashboardToken": func() string {
-			const chars = "abcdef0123456789"
-			b := make([]byte, 64)
-			for i := range b {
-				b[i] = chars[rand.Intn(len(chars))]
+			const tokenBytes = 32
+			b := make([]byte, tokenBytes)
+			if _, err := cryptoRand.Read(b); err != nil {
+				logger.Error("failed to generate dashboard token", "error", err)
+				return ""
 			}
-			return string(b)
+			return hex.EncodeToString(b)
 		}(),
 	}
 

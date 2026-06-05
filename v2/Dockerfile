@@ -2,17 +2,20 @@ FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache git
 WORKDIR /src
 
-# Cache-buster: this ARG changes on every commit, invalidating all layers
-# below it so Docker never reuses a stale Go binary from a previous build.
-ARG GIT_HASH=unknown
+# Layer 1: cache Go module downloads (only re-runs when go.mod/go.sum change)
+COPY v2/go.mod v2/go.sum ./
+RUN go mod download
 
+# Layer 2: copy source and build (re-runs on any source change)
 COPY .git /repo/.git
 COPY v2/ .
+
+ARG GIT_HASH=unknown
 RUN GIT_HASH=$(git -C /repo rev-parse HEAD 2>/dev/null || echo "unknown") && \
     GIT_SHORT=$(git -C /repo rev-parse --short HEAD 2>/dev/null || echo "unknown") && \
     GIT_BRANCH=$(git -C /repo rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown") && \
-    GOCACHE=/tmp/gobuild CGO_ENABLED=0 go build -ldflags "-X main.gitHash=${GIT_HASH} -X main.gitShort=${GIT_SHORT} -X main.gitBranch=${GIT_BRANCH}" -o /hive ./cmd/hive
-RUN GOCACHE=/tmp/gobuild CGO_ENABLED=0 go build -o /bd ./cmd/bd
+    GOCACHE=/tmp/gobuild CGO_ENABLED=0 go build -ldflags "-X main.gitHash=${GIT_HASH} -X main.gitShort=${GIT_SHORT} -X main.gitBranch=${GIT_BRANCH}" -o /hive ./cmd/hive && \
+    GOCACHE=/tmp/gobuild CGO_ENABLED=0 go build -o /bd ./cmd/bd
 
 # --- tmux from source (cached until TMUX_VERSION changes) ---
 FROM node:24-slim AS tmux-builder
@@ -79,17 +82,18 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && npm cache
 # --- Application layers ---
 ENV HOME=/home/dev
 
-# Cache-buster: re-declare in the final stage so ALL COPY layers below
-# (proxy/, deploy/, dashboard/, bin/) are invalidated on every commit.
-# Without this, only the Go binary (from the builder stage) gets rebuilt
-# while nginx config, Node.js proxy, and script changes stay stale.
+# Proxy dependencies (only re-runs when package.json changes)
+COPY v2/proxy/package.json v2/proxy/package-lock.json* /opt/hive/proxy/
+RUN cd /opt/hive/proxy && npm install --omit=dev 2>/dev/null || true
+
+# Cache-buster: re-declare in the final stage so COPY layers below
+# are invalidated on every commit.
 ARG GIT_HASH=unknown
 
 COPY --from=builder /hive /usr/local/bin/hive
 COPY --from=builder /bd /usr/local/bin/bd
 
 COPY v2/proxy/ /opt/hive/proxy/
-RUN cd /opt/hive/proxy && npm install --omit=dev
 
 COPY v2/pkg/dashboard/static/index.html /opt/hive/proxy/public/
 

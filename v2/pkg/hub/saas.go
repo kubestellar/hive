@@ -729,32 +729,11 @@ func fetchSHA(logger *slog.Logger) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	sha := strings.TrimSpace(string(body))
-	if len(sha) < 7 {
-		return
-	}
-	short := sha[:7]
-	latestCommitMu.Lock()
-	latestCommitSHA = short
-	latestCommitMu.Unlock()
-}
-
-var (
-	latestCommitMu  sync.RWMutex
-	latestCommitSHA string
-)
-
-func updateLatestSHAFromHeartbeat(gitHash string) {
-	if gitHash == "" {
-		return
-	}
-	latestCommitMu.RLock()
-	commitSHA := latestCommitSHA
-	latestCommitMu.RUnlock()
-
-	if gitHash == commitSHA {
+	if len(sha) >= 7 {
 		latestSHAMu.Lock()
-		latestSHACache = gitHash
+		latestSHACache = sha[:7]
 		latestSHAMu.Unlock()
+		logger.Debug("latest SHA updated", "sha", sha[:7])
 	}
 }
 

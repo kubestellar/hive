@@ -7733,6 +7733,24 @@ function burnAreaChart() {
     setInterval(fetchGitVersion, GIT_VERSION_POLL_MS);
 
     // SSE connection
+    var _initialVersionHash = null;
+    var VERSION_CHECK_INTERVAL_MS = 60000;
+    function startVersionCheck() {
+      fetch('/api/version').then(function(r) { return r.json(); }).then(function(d) {
+        _initialVersionHash = d.hash || d.short || '';
+      }).catch(function() {});
+      setInterval(function() {
+        fetch('/api/version').then(function(r) { return r.json(); }).then(function(d) {
+          var current = d.hash || d.short || '';
+          if (_initialVersionHash && current && current !== _initialVersionHash) {
+            console.log('[hive] version changed from', _initialVersionHash, 'to', current, '— reloading');
+            window.location.reload();
+          }
+        }).catch(function() {});
+      }, VERSION_CHECK_INTERVAL_MS);
+    }
+    startVersionCheck();
+
     function connect() {
       const source = new EventSource('/api/events');
       const conn = document.getElementById('conn');

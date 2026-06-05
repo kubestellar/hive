@@ -516,6 +516,12 @@ func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	const maxContributors = 500
+	if len(listContributorProfiles()) >= maxContributors {
+		jsonError(w, "contributor registration full — contact the hive administrator", http.StatusServiceUnavailable)
+		return
+	}
+
 	existing, _ := loadContributorProfile(username)
 	if existing != nil {
 		if existing.TrustTier == "revoked" {

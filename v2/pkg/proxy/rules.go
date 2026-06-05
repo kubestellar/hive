@@ -87,8 +87,11 @@ func IsGraphQLPath(path string) bool {
 const graphQLBodyLimit = 64 * 1024
 
 type graphQLRequest struct {
-	Query string `json:"query"`
+	Query         string `json:"query"`
+	OperationName string `json:"operationName"`
 }
+
+var graphQLMutationRe = regexp.MustCompile(`(?m)^\s*mutation\b`)
 
 // GraphQLAllowed inspects a GraphQL request body and returns whether the
 // operation is allowed for the given mode. Queries (reads) are allowed at
@@ -105,7 +108,7 @@ func GraphQLAllowed(mode agent.AgentMode, body []byte) (bool, bool) {
 	}
 
 	query := strings.TrimSpace(req.Query)
-	isMutation := strings.HasPrefix(query, "mutation")
+	isMutation := graphQLMutationRe.MatchString(query)
 
 	if isMutation {
 		return mode >= agent.ModeIssuesOnly, true

@@ -367,9 +367,13 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 		content.WriteString(f.Body)
 
 		path := filepath.Join(vaultDir, filename)
-		if err := os.WriteFile(path, []byte(content.String()), 0o644); err != nil {
+		tmpWiki := path + ".tmp"
+		if err := os.WriteFile(tmpWiki, []byte(content.String()), 0o644); err != nil {
 			e.logger.Warn("failed to write inception fact file", "path", path, "error", err)
 			continue
+		}
+		if err := os.Rename(tmpWiki, path); err != nil {
+			e.logger.Warn("failed to rename inception fact file", "path", path, "error", err)
 		}
 	}
 

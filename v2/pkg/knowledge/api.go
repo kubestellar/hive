@@ -808,8 +808,11 @@ func (k *KnowledgeAPI) obsidianSyncToFile(slug, title, factType, layer string, c
 		action = "updated"
 	}
 
-	if err := os.WriteFile(path, []byte(buf.String()), 0o644); err != nil {
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(buf.String()), 0o644); err != nil {
 		k.logger.Warn("obsidian file sync failed", "path", path, "error", err)
+	} else if err := os.Rename(tmpPath, path); err != nil {
+		k.logger.Warn("obsidian file rename failed", "path", path, "error", err)
 	}
 
 	k.triggerVaultReindex(dir)

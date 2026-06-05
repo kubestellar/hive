@@ -332,14 +332,18 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 </div>
 <div class="steps">
 <h3>How it works</h3>
-<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">
+<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
 <label style="font-size:.9rem;color:#8b949e">Choose your CLI:</label>
 <select id="cli-select" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.9rem;cursor:pointer">
-<option value="claude" data-install="npm i -g @anthropic-ai/claude-code">Claude Code</option>
-<option value="copilot" data-install="gh extension install github/gh-copilot">GitHub Copilot</option>
-<option value="gemini" data-install="npm i -g @anthropic-ai/gemini-cli">Gemini CLI</option>
-<option value="bob" data-install="npm i -g @anthropic-ai/bob">Bob</option>
-<option value="goose" data-install="pip install goose-ai">Goose</option>
+<option value="claude" data-install="npm i -g @anthropic-ai/claude-code" data-host-install="npm i -g @anthropic-ai/claude-code">Claude Code</option>
+<option value="copilot" data-install="" data-host-install="">GitHub Copilot</option>
+<option value="bob" data-install="" data-host-install="npm i -g bobshell">Bob</option>
+<option value="goose" data-install="" data-host-install="# Install: https://github.com/block/goose/releases\n# Configure provider: goose configure\nexport GOOSE_PROVIDER=ollama GOOSE_MODEL=phi4">Goose</option>
+</select>
+<label style="font-size:.9rem;color:#8b949e">Mode:</label>
+<select id="mode-select" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.9rem;cursor:pointer">
+<option value="containerized">Containerized (recommended)</option>
+<option value="host">Host (non-containerized)</option>
 </select>
 </div>
 <p style="color:#8b949e;margin-bottom:8px">Copy and paste these commands to get started:</p>
@@ -355,15 +359,22 @@ just contribute-hive</pre>
 <script>
 (function(){
 var sel=document.getElementById('cli-select');
+var modeSel=document.getElementById('mode-select');
 var cmds=document.getElementById('copy-cmds');
 var hubURL='%s';
-var tpl='brew install just gh\nINSTALL\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
+var containerTpl='brew install just gh\nINSTALL\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
+var hostTpl='brew install just gh\nINSTALL\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive CLI local';
 function update(){
 var cli=sel.value;
 var opt=sel.options[sel.selectedIndex];
-cmds.textContent=tpl.replace('INSTALL',opt.getAttribute('data-install')).replace('CLI',cli);
+var mode=modeSel.value;
+var tpl=mode==='host'?hostTpl:containerTpl;
+var install=mode==='host'?opt.getAttribute('data-host-install'):opt.getAttribute('data-install');
+if(!install)install='# '+cli+' uses your existing gh auth';
+cmds.textContent=tpl.replace('INSTALL',install).replace(/CLI/g,cli);
 }
 sel.addEventListener('change',update);
+modeSel.addEventListener('change',update);
 document.getElementById('copy-btn').addEventListener('click',function(){
 var el=document.getElementById('copy-cmds');
 var btn=document.getElementById('copy-btn');

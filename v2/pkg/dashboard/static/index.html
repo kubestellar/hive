@@ -6483,11 +6483,12 @@ function burnAreaChart() {
     }
 
     let _hashScrollPending = false;
+    var SCROLL_SETTLE_DELAY_MS = 500;
     function _afterPaint(callback) {
       _hashScrollPending = true;
       requestAnimationFrame(function() {
         requestAnimationFrame(function() {
-          callback();
+          setTimeout(callback, SCROLL_SETTLE_DELAY_MS);
           setTimeout(function() { _hashScrollPending = false; }, 500);
         });
       });

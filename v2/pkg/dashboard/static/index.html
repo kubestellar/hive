@@ -8307,7 +8307,7 @@ function burnAreaChart() {
         </div>
 
         <hr style="border-color:var(--border);margin:16px 0">
-        <h4 style="font-size:0.8rem;color:var(--muted);margin:0 0 8px">Contribute Work Queue</h4>
+        <h4 style="font-size:0.8rem;color:var(--muted);margin:0 0 8px">Contribute Work Queue <span id="hub-queue-count" style="font-size:0.72rem;padding:2px 8px;border-radius:9999px;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)">loading...</span></h4>
 
         <div class="config-toggle">
           <div class="config-toggle-switch ${hub.contribute_suspended ? 'on' : ''}" data-action="toggleConfigSwitch" data-section="hub" data-key="contribute_suspended" style="${hub.contribute_suspended ? 'background:#f85149' : ''}"></div>
@@ -8349,10 +8349,12 @@ function burnAreaChart() {
           <label>Tier Access &amp; Rate Limits <span class="config-info">i<span class="config-tooltip">Toggle tiers on/off and set tasks/hour, tasks/day, max concurrent per tier. 0 = unlimited.</span></span></label>
           <div style="display:flex;flex-direction:column;gap:6px">${tiers.map(function(t) {
             const enabled = !(hub.disabled_tiers || []).includes(t);
+            const defaults = {newcomer:{mph:3,mpd:10,mc:1},contributor:{mph:5,mpd:20,mc:2},trusted:{mph:10,mpd:50,mc:3},advisor:{mph:0,mpd:0,mc:0}};
+            const def = defaults[t] || {mph:3,mpd:10,mc:1};
             const limits = (hub.tier_limits || {})[t] || {};
-            const mph = limits.max_per_hour != null ? limits.max_per_hour : '';
-            const mpd = limits.max_per_day != null ? limits.max_per_day : '';
-            const mc = limits.max_concurrent != null ? limits.max_concurrent : '';
+            const mph = limits.max_per_hour != null ? limits.max_per_hour : def.mph;
+            const mpd = limits.max_per_day != null ? limits.max_per_day : def.mpd;
+            const mc = limits.max_concurrent != null ? limits.max_concurrent : def.mc;
             return '<div style="display:flex;align-items:center;gap:8px;padding:2px 0"><div class="config-toggle-switch ' + (enabled ? 'on' : '') + '" onclick="toggleContribTier(this,\'' + t + '\')" style="flex-shrink:0"></div><span style="font-size:0.78rem;width:80px">' + t + '</span>' +
               '<input type="number" min="0" placeholder="/hr" value="' + mph + '" style="width:50px;padding:2px 4px;font-size:0.72rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="setTierLimit(\'' + t + '\',\'max_per_hour\',+this.value)">' +
               '<input type="number" min="0" placeholder="/day" value="' + mpd + '" style="width:50px;padding:2px 4px;font-size:0.72rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="setTierLimit(\'' + t + '\',\'max_per_day\',+this.value)">' +
@@ -8361,6 +8363,13 @@ function burnAreaChart() {
           }).join('')}</div>
         </div>`;
     }
+
+    (function fetchQueueCount() {
+      fetch('/api/contribute/status').then(function(r) { return r.json(); }).then(function(d) {
+        var el = document.getElementById('hub-queue-count');
+        if (el) el.textContent = (d.actionable_items || 0) + ' items in queue';
+      }).catch(function() {});
+    })();
 
     function toggleAutoSnapshot(el) {
       el.classList.toggle('on');

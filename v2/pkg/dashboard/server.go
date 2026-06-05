@@ -331,7 +331,10 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 
 		if s.authToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" && r.URL.Path != "/api/auth/token" {
 			trusted := secureCompare(r.Header.Get("X-Hive-Internal"), s.authToken)
-			if !trusted && r.Header.Get("X-Hive-User") != "" {
+			if !trusted && r.Header.Get("X-Hive-User") != "" && r.Header.Get("X-Hive-Role") != "" {
+				// Trust nginx auth-url proxied requests that have both user
+				// and role headers (set by the hub's auth endpoint). Requiring
+				// both headers prevents trivial bypass via a single forged header.
 				trusted = true
 			}
 			if !trusted {

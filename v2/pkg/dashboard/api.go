@@ -3247,19 +3247,33 @@ func (s *Server) handleNousStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleNousLedger(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Nous == nil || s.deps.Nous.Ledger == nil {
+	if s.deps.Nous == nil {
 		jsonResponse(w, []interface{}{})
 		return
 	}
-	jsonResponse(w, s.deps.Nous.Ledger)
+	s.deps.Nous.Mu.Lock()
+	ledger := s.deps.Nous.Ledger
+	s.deps.Nous.Mu.Unlock()
+	if ledger == nil {
+		jsonResponse(w, []interface{}{})
+		return
+	}
+	jsonResponse(w, ledger)
 }
 
 func (s *Server) handleNousPrinciples(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Nous == nil || s.deps.Nous.Principles == nil {
+	if s.deps.Nous == nil {
 		jsonResponse(w, []interface{}{})
 		return
 	}
-	jsonResponse(w, s.deps.Nous.Principles)
+	s.deps.Nous.Mu.Lock()
+	principles := s.deps.Nous.Principles
+	s.deps.Nous.Mu.Unlock()
+	if principles == nil {
+		jsonResponse(w, []interface{}{})
+		return
+	}
+	jsonResponse(w, principles)
 }
 
 func (s *Server) handleNousApprove(w http.ResponseWriter, r *http.Request) {
@@ -3428,6 +3442,7 @@ func (s *Server) handleNousDeletePrinciple(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	s.deps.Nous.Mu.Lock()
 	filtered := make([]NousPrinciple, 0, len(s.deps.Nous.Principles))
 	for _, p := range s.deps.Nous.Principles {
 		if p.ID != id {
@@ -3435,6 +3450,7 @@ func (s *Server) handleNousDeletePrinciple(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	s.deps.Nous.Principles = filtered
+	s.deps.Nous.Mu.Unlock()
 
 	okResponse(w, map[string]string{"status": "deleted", "id": id})
 }
@@ -3451,10 +3467,12 @@ func (s *Server) handleNousConfigSection(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	s.deps.Nous.Mu.Lock()
 	if s.deps.Nous.Config == nil {
 		s.deps.Nous.Config = make(map[string]interface{})
 	}
 	s.deps.Nous.Config[section] = body
+	s.deps.Nous.Mu.Unlock()
 
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated", "section": section})

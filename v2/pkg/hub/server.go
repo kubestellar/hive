@@ -267,7 +267,9 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	for i, h := range s.registry.Hives {
 		if h.ID == payload.HiveID {
 			entry.RegisteredAt = h.RegisteredAt
-			entry.SnapshotURL = h.SnapshotURL
+			if entry.SnapshotURL == "" {
+				entry.SnapshotURL = h.SnapshotURL
+			}
 			s.registry.Hives[i] = entry
 			found = true
 			break

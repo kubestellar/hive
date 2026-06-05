@@ -2205,9 +2205,9 @@ func (s *Server) handleGovernorNotifications(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) handleGovernorHealth(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		HealthcheckInterval int  `json:"healthcheckInterval"`
-		RestartCooldown     int  `json:"restartCooldown"`
-		ModelLock           bool `json:"modelLock"`
+		HealthcheckInterval int   `json:"healthcheckInterval"`
+		RestartCooldown     int   `json:"restartCooldown"`
+		ModelLock           *bool `json:"modelLock"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body", http.StatusBadRequest)
@@ -2224,7 +2224,9 @@ func (s *Server) handleGovernorHealth(w http.ResponseWriter, r *http.Request) {
 	if body.RestartCooldown > 0 {
 		s.deps.Config.Governor.Health.RestartCooldown = body.RestartCooldown
 	}
-	s.deps.Config.Governor.Health.ModelLock = body.ModelLock
+	if body.ModelLock != nil {
+		s.deps.Config.Governor.Health.ModelLock = *body.ModelLock
+	}
 	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config after health update", "error", err) }
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})

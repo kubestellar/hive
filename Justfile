@@ -18,19 +18,29 @@ contribute-setup backend="claude":
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ "{{hive_hub}}" == "wss://hive.kubestellar.io/contribute" ]]; then
-      echo "HIVE_HUB not set — fetching available hives..."
+      echo "HIVE_HUB not set — looking up your hives..."
       echo ""
-      HIVES_JSON=$(curl -sf "https://hive.kubestellar.io/api/registry" 2>/dev/null) || {
-        echo "ERROR: Could not reach hive.kubestellar.io"
-        echo "Set HIVE_HUB manually: export HIVE_HUB=wss://<hive>/contribute"
-        exit 1
-      }
-      HIVE_LIST=$(echo "$HIVES_JSON" | jq -r '.hives[] | select(.online==true) | "\(.id)|\(.name)"' 2>/dev/null)
+      _TOKEN=$(gh auth token 2>/dev/null || echo "")
+      HIVE_LIST=""
+      if [[ -n "$_TOKEN" ]]; then
+        MY_HIVES=$(curl -sf -H "Authorization: Bearer ${_TOKEN}" "https://hive.kubestellar.io/api/saas/my-hives" 2>/dev/null || echo "")
+        if [[ -n "$MY_HIVES" ]]; then
+          HIVE_LIST=$(echo "$MY_HIVES" | jq -r '.[] | "\(.id)|\(.name // .project_name)"' 2>/dev/null)
+        fi
+      fi
+      if [[ -z "$HIVE_LIST" ]]; then
+        HIVES_JSON=$(curl -sf "https://hive.kubestellar.io/api/registry" 2>/dev/null) || {
+          echo "ERROR: Could not reach hive.kubestellar.io"
+          echo "Set HIVE_HUB manually: export HIVE_HUB=wss://<hive>/contribute"
+          exit 1
+        }
+        HIVE_LIST=$(echo "$HIVES_JSON" | jq -r '.hives[] | select(.online==true) | "\(.id)|\(.name)"' 2>/dev/null)
+      fi
       if [[ -z "$HIVE_LIST" ]]; then
         echo "No hives available. Check https://hive.kubestellar.io"
         exit 1
       fi
-      echo "Available hives:"
+      echo "Your hives:"
       echo ""
       i=1
       declare -a HIVE_IDS
@@ -49,9 +59,13 @@ contribute-setup backend="claude":
       if [[ "$SELECTED" == hosted-* ]]; then
         export HIVE_HUB="wss://${SELECTED}.hive.kubestellar.io/contribute"
       else
-        DASH_URL=$(echo "$HIVES_JSON" | jq -r --arg id "$SELECTED" '.hives[] | select(.id==$id) | .dashboardUrl' 2>/dev/null)
-        DASH_URL=$(echo "$DASH_URL" | sed 's|^http://|ws://|;s|^https://|wss://|')
-        export HIVE_HUB="${DASH_URL}/contribute"
+        DASH_URL=$(echo "$HIVES_JSON" | jq -r --arg id "$SELECTED" '.hives[] | select(.id==$id) | .dashboardUrl' 2>/dev/null || echo "")
+        if [[ -n "$DASH_URL" ]]; then
+          DASH_URL=$(echo "$DASH_URL" | sed 's|^http://|ws://|;s|^https://|wss://|')
+          export HIVE_HUB="${DASH_URL}/contribute"
+        else
+          export HIVE_HUB="wss://${SELECTED}.hive.kubestellar.io/contribute"
+        fi
       fi
       echo ""
       echo "Selected: ${HIVE_HUB}"

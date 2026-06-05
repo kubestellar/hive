@@ -130,14 +130,18 @@ func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			w.Write([]byte(`{"error":"CSRF check failed"}`))
 			return
 		}
-		cookie, err := r.Cookie("hive_hub_user")
-		if err != nil || cookie.Value == "" {
+		username := s.getAuthUser(r)
+		if username == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte(`{"error":"not authenticated"}`))
 			return
 		}
-		user := loadSaaSUser(cookie.Value)
+		user := loadSaaSUser(username)
+		if user == nil {
+			ensureSaaSUser(username)
+			user = loadSaaSUser(username)
+		}
 		if user == nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)

@@ -118,7 +118,37 @@ func NewContributeWSHub(logger *slog.Logger, server *Server) *ContributeWSHub {
 		server:         server,
 	}
 	hub.loadCompletedTasks()
+	hub.loadActivity()
 	return hub
+}
+
+const activityFilePath = "/data/contributors/activity.json"
+
+func (h *ContributeWSHub) loadActivity() {
+	data, err := os.ReadFile(activityFilePath)
+	if err != nil {
+		return
+	}
+	h.activityMu.Lock()
+	defer h.activityMu.Unlock()
+	var entries []ActivityEntry
+	if json.Unmarshal(data, &entries) == nil {
+		h.activity = entries
+		h.logger.Info("[contribute-ws] activity restored", "entries", len(entries))
+	}
+}
+
+func (h *ContributeWSHub) saveActivity() {
+	h.activityMu.RLock()
+	entries := make([]ActivityEntry, len(h.activity))
+	copy(entries, h.activity)
+	h.activityMu.RUnlock()
+	data, err := json.Marshal(entries)
+	if err != nil {
+		return
+	}
+	os.MkdirAll("/data/contributors", 0o755)
+	os.WriteFile(activityFilePath, data, 0o644)
 }
 
 const activityDebounceSecs = 60
@@ -146,6 +176,7 @@ func (h *ContributeWSHub) addActivity(username, action, role, cli, model, task s
 	if len(h.activity) > maxActivityEntries {
 		h.activity = h.activity[len(h.activity)-maxActivityEntries:]
 	}
+	go h.saveActivity()
 }
 
 func (h *ContributeWSHub) RecentActivity() []ActivityEntry {

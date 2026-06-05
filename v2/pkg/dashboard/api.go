@@ -81,6 +81,7 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("PUT /api/config/governor/notifications", s.handleGovernorNotifications)
 	s.mux.HandleFunc("PUT /api/config/governor/health", s.handleGovernorHealth)
 	s.mux.HandleFunc("PUT /api/config/governor/logging", s.handleGovernorLogging)
+	s.mux.HandleFunc("PUT /api/config/governor/hub", s.handleGovernorHub)
 	s.mux.HandleFunc("POST /api/config/governor/agents", s.handleGovernorAddAgent)
 	s.mux.HandleFunc("DELETE /api/config/governor/agents/{name}", s.handleGovernorRemoveAgent)
 	s.mux.HandleFunc("PUT /api/config/governor/repos", s.handleGovernorRepos)
@@ -2144,6 +2145,56 @@ func (s *Server) handleGovernorLogging(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config after logging update", "error", err) }
+	s.refreshAndPersist()
+	okResponse(w, map[string]string{"status": "updated"})
+}
+
+func (s *Server) handleGovernorHub(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Enabled              *bool    `json:"enabled"`
+		URL                  string   `json:"url"`
+		DashboardURL         string   `json:"dashboard_url"`
+		SnapshotURL          string   `json:"snapshot_url"`
+		IsPublic             *bool    `json:"is_public"`
+		AutoSnapshot         *bool    `json:"auto_snapshot"`
+		ContributeAllowLabels []string `json:"contribute_allow_labels"`
+		ContributeDenyLabels  []string `json:"contribute_deny_labels"`
+		DisabledRepos         []string `json:"disabled_repos"`
+		DisabledTiers         []string `json:"disabled_tiers"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		jsonError(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	cfg := s.deps.Config
+	if body.Enabled != nil {
+		cfg.Hub.Enabled = *body.Enabled
+	}
+	if body.URL != "" {
+		cfg.Hub.URL = body.URL
+	}
+	if body.DashboardURL != "" {
+		cfg.Hub.DashboardURL = body.DashboardURL
+	}
+	cfg.Hub.SnapshotURL = body.SnapshotURL
+	if body.IsPublic != nil {
+		cfg.Hub.IsPublic = *body.IsPublic
+	}
+	if body.AutoSnapshot != nil {
+		cfg.Hub.AutoSnapshot = *body.AutoSnapshot
+	}
+	if body.ContributeAllowLabels != nil {
+		cfg.Hub.ContributeAllowLabels = body.ContributeAllowLabels
+	}
+	if body.ContributeDenyLabels != nil {
+		cfg.Hub.ContributeDenyLabels = body.ContributeDenyLabels
+	}
+	if body.DisabledRepos != nil {
+		cfg.Hub.DisabledRepos = body.DisabledRepos
+	}
+	if body.DisabledTiers != nil {
+		cfg.Hub.DisabledTiers = body.DisabledTiers
+	}
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
 }

@@ -470,18 +470,18 @@ func (s *Server) sendKickBrainstorm() {
 func (s *Server) buildStructureKickMessage(state *knowledge.InceptionState) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("INCEPTION TASK: Structure phase for idea: %q\n", state.IdeaText))
-	sb.WriteString("The user has answered your clarification questions. Extract structured facts from these answers.\n\n")
+	sb.WriteString("The user answered your clarification questions. Create fact beads NOW.\n\n")
 	for _, q := range state.Questions {
 		ans := state.Answers[q.ID]
 		if ans != "" {
 			sb.WriteString(fmt.Sprintf("Q: %s\nA: %s\n\n", q.Text, ans))
 		}
 	}
-	sb.WriteString("Create fact beads using `bd create` with:\n")
-	sb.WriteString("  - external_ref starting with 'inception/'\n")
-	sb.WriteString("  - meta field 'fact_type' set to one of: requirement, constraint, decision, assumption, dependency, goal\n")
-	sb.WriteString("  - meta field 'fact_body' with the extracted fact detail\n")
-	sb.WriteString("Create at least 3 fact beads from these answers.")
+	sb.WriteString("Create at least 3 fact beads. For EACH fact, run:\n\n")
+	sb.WriteString(fmt.Sprintf("bd create --title \"<fact title>\" --type advisory --priority 1 --actor brainstorm --external-ref \"inception/%s\"\n", state.IdeaSlug))
+	sb.WriteString("bd update <bead-id> --set-metadata fact_type=\"<vision|constitution|requirement|constraint|stakeholder|acceptance>\"\n")
+	sb.WriteString("bd update <bead-id> --set-metadata fact_body=\"<detailed fact content>\"\n\n")
+	sb.WriteString("Required facts: 1 vision, 1 constitution, 2+ requirements. Start creating beads IMMEDIATELY.")
 	return sb.String()
 }
 

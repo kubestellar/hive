@@ -289,6 +289,9 @@ func (g *Governor) agentsDueForKick() []string {
 		if cadence.Interval == 0 {
 			continue
 		}
+		if ac, ok := g.agents[agentName]; ok && ac.OnDemand {
+			continue
+		}
 
 		lastKick, kicked := g.state.LastKick[agentName]
 		if !kicked || now.Sub(lastKick) >= cadence.Interval {

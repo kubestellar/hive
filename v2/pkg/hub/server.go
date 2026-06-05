@@ -323,6 +323,7 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	s.requestSave()
+	updateLatestSHAFromHeartbeat(payload.GitHash)
 
 	s.logger.Info("audit: hub heartbeat received",
 		"hive_id", payload.HiveID,

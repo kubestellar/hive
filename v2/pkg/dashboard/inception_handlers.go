@@ -129,7 +129,10 @@ func (s *Server) handleInceptionAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.kickBrainstorm()
+	// Use SendKick (not RestartWithBootstrap) for the structure-phase kick.
+	// The agent is already running from the capture kick — restarting it
+	// kills its context and can revert the phase back to capture (bug #117).
+	s.sendKickBrainstorm()
 
 	jsonResponse(w, map[string]interface{}{
 		"ok":    true,
@@ -412,6 +415,35 @@ func (s *Server) kickBrainstorm() {
 			}
 		} else {
 			s.logger.Info("inception kick sent via pst-send")
+		}
+
+		if s.deps.Governor != nil {
+			s.deps.Governor.RecordKick("brainstorm")
+		}
+	}()
+}
+
+// sendKickBrainstorm sends the inception prompt to a RUNNING brainstorm agent
+// via SendKick (no restart). Used for the structure-phase kick after answers
+// are submitted — the agent is already running from the capture kick and
+// restarting it would kill its context and revert the phase.
+func (s *Server) sendKickBrainstorm() {
+	if s.deps.AgentMgr == nil || s.deps.Scheduler == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in sendKickBrainstorm — recovered", "panic", r)
+			}
+		}()
+
+		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
+		if err := s.deps.AgentMgr.SendKick("brainstorm", msg); err != nil {
+			s.logger.Warn("sendKick for structure phase failed, trying pst-send", "error", err)
+			if err2 := pstSendKick("brainstorm", msg); err2 != nil {
+				s.logger.Warn("pst-send also failed", "error", err2)
+			}
 		}
 
 		if s.deps.Governor != nil {

@@ -693,10 +693,12 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 			// Marshal/unmarshal to get a map we can read fields from.
 			b, err := json.Marshal(raw)
 			if err != nil {
+				h.logger.Debug("[contribute-ws] marshal fail", "repo", repo.Full, "error", err)
 				continue
 			}
 			var issue map[string]any
-			if json.Unmarshal(b, &issue) != nil {
+			if err := json.Unmarshal(b, &issue); err != nil {
+				h.logger.Debug("[contribute-ws] unmarshal fail", "repo", repo.Full, "error", err)
 				continue
 			}
 
@@ -708,6 +710,7 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 				number = n
 			}
 			if number == 0 {
+				h.logger.Debug("[contribute-ws] skip: number=0", "repo", repo.Full)
 				continue
 			}
 			if h.isTaskInCooldown(repo.Full, number) {
@@ -726,8 +729,10 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 				strings.Contains(titleLower, "renovate dashboard") ||
 				strings.Contains(titleLower, "epic:") ||
 				strings.HasSuffix(author, "[bot]") {
+				h.logger.Debug("[contribute-ws] skip: filtered", "repo", repo.Full, "number", number, "title", title, "author", author)
 				continue
 			}
+			h.logger.Info("[contribute-ws] selectTask found candidate", "repo", repo.Full, "number", number, "title", title)
 
 			ghToken := ""
 			if h.server.deps != nil && h.server.deps.GHAppAuth != nil {

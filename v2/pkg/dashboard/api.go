@@ -746,6 +746,12 @@ func (s *Server) handleKick(w http.ResponseWriter, r *http.Request) {
 		msg = body.Message
 	}
 
+	const maxKickPromptLen = 10000
+	if len(msg) > maxKickPromptLen {
+		jsonError(w, fmt.Sprintf("prompt too long (%d chars, max %d)", len(msg), maxKickPromptLen), http.StatusBadRequest)
+		return
+	}
+
 	if msg == "" && s.deps.Scheduler != nil {
 		msg = s.deps.Scheduler.BuildAgentMessage(name, nil, s.deps.Scheduler.GetLastActionable())
 	}
@@ -3721,8 +3727,13 @@ func (s *Server) handleBeadsCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body.Title = sanitizeString(body.Title)
+	const maxBeadTitleLen = 500
 	if body.Title == "" {
 		jsonError(w, "title is required", http.StatusBadRequest)
+		return
+	}
+	if len(body.Title) > maxBeadTitleLen {
+		jsonError(w, fmt.Sprintf("title too long (%d chars, max %d)", len(body.Title), maxBeadTitleLen), http.StatusBadRequest)
 		return
 	}
 	body.Type = sanitizeString(body.Type)
@@ -3741,8 +3752,16 @@ func (s *Server) handleBeadsCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const maxMetadataKeyLen = 100
+	const maxMetadataValueLen = 1000
+	const maxMetadataEntries = 50
+	metaCount := 0
 	for k, v := range body.Metadata {
+		if metaCount >= maxMetadataEntries || len(k) > maxMetadataKeyLen || len(v) > maxMetadataValueLen {
+			continue
+		}
 		_ = store.SetMetadata(b.ID, k, v)
+		metaCount++
 	}
 
 	w.WriteHeader(http.StatusCreated)

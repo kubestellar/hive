@@ -444,13 +444,18 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snapshotFile := "/data/snapshots/snapshot.html"
+	mode := r.URL.Query().Get("mode")
+	if mode != "classic" {
+		mode = "light"
+	}
+	snapshotFile := fmt.Sprintf("/data/snapshots/snapshot-%s.html", mode)
 	info, err := os.Stat(snapshotFile)
 	staleThreshold := 15 * time.Minute
 	needsRebuild := err != nil || time.Since(info.ModTime()) > staleThreshold
 
 	if needsRebuild {
-		s.buildSnapshot(snapshotFile)
+		s.buildSnapshot("/data/snapshots/snapshot-classic.html", "classic")
+		s.buildSnapshot("/data/snapshots/snapshot-light.html", "light")
 	}
 
 	data, err := os.ReadFile(snapshotFile)
@@ -458,18 +463,30 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "snapshot not yet generated — try again in a moment", http.StatusServiceUnavailable)
 		return
 	}
+
+	data = []byte(strings.Replace(string(data),
+		`href="/live/hive/light"`,
+		`href="/snapshot?mode=light"`, -1))
+	data = []byte(strings.Replace(string(data),
+		`href="/live/hive/classic"`,
+		`href="/snapshot?mode=classic"`, -1))
+	data = []byte(strings.Replace(string(data),
+		`href="/live/hive"`,
+		`href="/snapshot"`, -1))
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	w.Write(data)
 }
 
-func (s *Server) buildSnapshot(outputFile string) {
+func (s *Server) buildSnapshot(outputFile, mode string) {
 	os.MkdirAll("/data/snapshots", 0o755)
 	dashURL := fmt.Sprintf("http://localhost:%d", s.port)
 	htmlSource := "/opt/hive/proxy/public/index.html"
 	builderScript := "/opt/hive/dashboard/build-snapshot.mjs"
 	cmd := exec.Command("node", builderScript,
-		"--mode", "classic",
+		"--mode", mode,
+		"--base-path", "/snapshot",
 		"--html", htmlSource,
 		dashURL, outputFile)
 	cmd.Env = append(os.Environ(), "NODE_TLS_REJECT_UNAUTHORIZED=0")

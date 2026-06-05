@@ -79,6 +79,9 @@ func sanitize(s string) string {
 }
 
 func loadSaaSHive(id string) *SaaSHive {
+	if strings.Contains(id, "..") || strings.Contains(id, "/") || strings.Contains(id, "\\") {
+		return nil
+	}
 	path := filepath.Join(saasHivesDir, id, "meta.json")
 	data, err := os.ReadFile(path)
 	if err != nil {

@@ -133,7 +133,11 @@ func (n *Notifier) sendSlack(title, message string) {
 		"text": fmt.Sprintf("*%s*\n%s", title, message),
 	}
 
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		n.logger.Warn("slack payload marshal failed", "error", err)
+		return
+	}
 	resp, err := n.client.Post(n.cfg.Slack.Webhook, "application/json", bytes.NewReader(body))
 	if err != nil {
 		n.logger.Warn("slack send failed", "error", err)
@@ -150,7 +154,11 @@ func (n *Notifier) sendDiscordWebhook(title, message string) {
 		"content": fmt.Sprintf("**%s**\n%s", title, message),
 	}
 
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		n.logger.Warn("discord payload marshal failed", "error", err)
+		return
+	}
 	resp, err := n.client.Post(n.cfg.Discord.Webhook, "application/json", bytes.NewReader(body))
 	if err != nil {
 		n.logger.Warn("discord webhook send failed", "error", err)

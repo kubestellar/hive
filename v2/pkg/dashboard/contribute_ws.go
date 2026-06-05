@@ -156,7 +156,14 @@ func (h *ContributeWSHub) saveActivity() {
 		return
 	}
 	os.MkdirAll("/data/contributors", 0o755)
-	os.WriteFile(activityFilePath, data, 0o644)
+	tmpPath := activityFilePath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		h.logger.Warn("[contribute-ws] activity write failed", "error", err)
+		return
+	}
+	if err := os.Rename(tmpPath, activityFilePath); err != nil {
+		h.logger.Warn("[contribute-ws] activity rename failed", "error", err)
+	}
 }
 
 const activityDebounceSecs = 60
@@ -219,11 +226,19 @@ func (h *ContributeWSHub) saveCompletedTasks() {
 	saved := make(map[string]string, len(h.completedTasks))
 	for k, t := range h.completedTasks { saved[k] = t.Format(time.RFC3339) }
 	h.completedMu.Unlock()
-	data, _ := json.Marshal(saved)
+	data, err := json.Marshal(saved)
+	if err != nil {
+		h.logger.Warn("[contribute-ws] completed tasks marshal failed", "error", err)
+		return
+	}
 	os.MkdirAll("/data/contributors", 0o755)
 	tmpPath := completedTasksFile + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0o644); err == nil {
-		os.Rename(tmpPath, completedTasksFile)
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		h.logger.Warn("[contribute-ws] completed tasks write failed", "error", err)
+		return
+	}
+	if err := os.Rename(tmpPath, completedTasksFile); err != nil {
+		h.logger.Warn("[contribute-ws] completed tasks rename failed", "error", err)
 	}
 }
 

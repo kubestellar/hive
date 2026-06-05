@@ -362,7 +362,7 @@ agents:
 }
 
 func TestValidate_ValidBackends(t *testing.T) {
-	validBackends := []string{"claude", "copilot", "gemini", "goose"}
+	validBackends := []string{"claude", "copilot", "goose", "codex", "pi", "bob", "aider"}
 	for _, backend := range validBackends {
 		t.Run(backend, func(t *testing.T) {
 			yaml := `
@@ -395,7 +395,7 @@ func TestEnabledAgents_FiltersDisabled(t *testing.T) {
 	cfg := &Config{
 		Agents: map[string]AgentConfig{
 			"active":   {Backend: "claude", Enabled: true},
-			"inactive": {Backend: "gemini", Enabled: false},
+			"inactive": {Backend: "copilot", Enabled: false},
 		},
 	}
 	enabled := cfg.EnabledAgents()
@@ -414,7 +414,7 @@ func TestEnabledAgents_AllEnabled(t *testing.T) {
 	cfg := &Config{
 		Agents: map[string]AgentConfig{
 			"a": {Backend: "claude", Enabled: true},
-			"b": {Backend: "gemini", Enabled: true},
+			"b": {Backend: "copilot", Enabled: true},
 		},
 	}
 	enabled := cfg.EnabledAgents()

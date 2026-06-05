@@ -816,9 +816,9 @@ func (c *Config) validate() error {
 		return fmt.Errorf("github.token or github.app_id is required")
 	}
 	for name, agent := range c.Agents {
-		validBackends := map[string]bool{"claude": true, "copilot": true, "gemini": true, "goose": true}
-		if !validBackends[agent.Backend] {
-			return fmt.Errorf("agent %s: invalid backend %q (must be claude, copilot, gemini, or goose)", name, agent.Backend)
+		validBackends := map[string]bool{"claude": true, "copilot": true, "goose": true, "codex": true, "pi": true, "bob": true, "aider": true}
+		if agent.Backend != "" && !validBackends[agent.Backend] {
+			return fmt.Errorf("agent %s: invalid backend %q (must be claude, copilot, goose, codex, pi, bob, or aider)", name, agent.Backend)
 		}
 	}
 	return nil

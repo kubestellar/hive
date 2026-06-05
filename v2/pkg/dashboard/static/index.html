@@ -1812,8 +1812,9 @@
         <div id="oc-gh-user-menu" style="display:none;position:absolute;right:0;top:34px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:4px 0;min-width:160px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
           <div style="padding:8px 16px;border-bottom:1px solid #21262d;color:#f0f6fc;font-weight:600;font-size:0.85rem" id="oc-gh-menu-user"></div>
           <div id="oc-gh-menu-role" style="display:none;padding:2px 16px 6px;border-bottom:1px solid #21262d;font-size:0.72rem;color:#8b949e"></div>
-          <a href="/api/docs" target="_blank" style="display:block;padding:8px 16px;color:#58a6ff;text-decoration:none;font-size:0.82rem">API Docs ↗</a>
-          <button onclick="ghLogout()" style="display:block;width:100%;text-align:left;padding:8px 16px;background:none;border:none;color:#f85149;cursor:pointer;font-size:0.82rem">Sign out</button>
+          <a href="/api/config/download" id="oc-gh-menu-download" style="display:none;padding:8px 16px;color:#e6edf3;text-decoration:none;font-size:0.82rem">Download hive.yaml</a>
+          <a href="/api/docs" target="_blank" style="display:block;padding:8px 16px;color:#e6edf3;text-decoration:none;font-size:0.82rem">API Docs ↗</a>
+          <button onclick="ghLogout()" style="display:block;width:100%;text-align:left;padding:8px 16px;background:none;border:none;color:#e6edf3;cursor:pointer;font-size:0.82rem">Sign out</button>
         </div>
       </div>
       <button class="gh-auth-btn" id="oc-gh-login-btn" onclick="startGHLogin()" style="display:none;font-size:0.75rem;padding:3px 10px">Sign in</button>
@@ -9395,10 +9396,11 @@ function burnAreaChart() {
           document.getElementById('oc-gh-menu-user').textContent = username;
           const roleEl = document.getElementById('oc-gh-menu-role');
           if (roleEl && role) {
-            const colors = {owner:'#3fb950', 'read-write':'#58a6ff', read:'#8b949e'};
             roleEl.style.display = '';
-            roleEl.innerHTML = '<span style="color:' + (colors[role] || '#8b949e') + '">' + role + '</span>';
+            roleEl.textContent = role;
           }
+          const dlEl = document.getElementById('oc-gh-menu-download');
+          if (dlEl) dlEl.style.display = role === 'owner' ? 'block' : 'none';
         }
       } else {
         banner.style.display = 'flex';

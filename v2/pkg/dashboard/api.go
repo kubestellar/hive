@@ -26,6 +26,7 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 
 	s.mux.HandleFunc("GET /api/version", s.handleVersion)
 	s.mux.HandleFunc("GET /api/config", s.handleConfig)
+	s.mux.HandleFunc("GET /api/config/download", s.handleConfigDownload)
 	s.mux.HandleFunc("GET /api/history", s.handleHistory)
 	s.mux.HandleFunc("GET /api/trends", s.handleTrends)
 	s.mux.HandleFunc("GET /api/timeline", s.handleTimeline)
@@ -368,6 +369,29 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"eval_interval_s":  cfg.Governor.EvalIntervalS,
 		"primaryRepo":      primaryRepo,
 	})
+}
+
+func (s *Server) handleConfigDownload(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("X-Hive-Role")
+	if role == "" {
+		role = "owner"
+	}
+	if role != "owner" {
+		http.Error(w, "owner access required", http.StatusForbidden)
+		return
+	}
+	configPath := "/etc/hive/hive.yaml"
+	if envCfg := os.Getenv("HIVE_CONFIG"); envCfg != "" {
+		configPath = envCfg
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		http.Error(w, "config file not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-yaml")
+	w.Header().Set("Content-Disposition", "attachment; filename=hive.yaml")
+	w.Write(data)
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {

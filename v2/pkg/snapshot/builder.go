@@ -97,7 +97,7 @@ func (b *Builder) Cleanup(maxAge time.Duration) error {
 }
 
 func (b *Builder) buildIndexHTML(path string, status *dashboard.StatusPayload, ts string) error {
-	html := fmt.Sprintf(`<!DOCTYPE html>
+	page := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -146,7 +146,7 @@ func (b *Builder) buildIndexHTML(path string, status *dashboard.StatusPayload, t
 
 	for _, agent := range status.Agents {
 		stateClass := "state-" + html.EscapeString(agent.State)
-		html += fmt.Sprintf(`
+		page += fmt.Sprintf(`
   <div class="agent">
     <span>%s</span>
     <span class="%s">%s</span>
@@ -155,7 +155,7 @@ func (b *Builder) buildIndexHTML(path string, status *dashboard.StatusPayload, t
 			html.EscapeString(agent.CLI), html.EscapeString(agent.Model))
 	}
 
-	html += `
+	page += `
 </div>
 
 <h2>Raw Status</h2>
@@ -168,5 +168,5 @@ func (b *Builder) buildIndexHTML(path string, status *dashboard.StatusPayload, t
 </body>
 </html>`
 
-	return os.WriteFile(path, []byte(html), 0644)
+	return os.WriteFile(path, []byte(page), 0644)
 }

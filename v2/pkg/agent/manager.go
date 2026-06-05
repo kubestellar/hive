@@ -2102,10 +2102,10 @@ func (m *Manager) SetBootstrapOverride(name, prompt string) error {
 // restart, which would consume the override with a standard boot.
 func (m *Manager) RestartWithBootstrap(ctx context.Context, name, prompt string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	agent, ok := m.agents[name]
 	if !ok {
+		m.mu.Unlock()
 		return fmt.Errorf("agent %s not found", name)
 	}
 
@@ -2126,13 +2126,20 @@ func (m *Manager) RestartWithBootstrap(ctx context.Context, name, prompt string)
 	agent.forceRelaunch = true
 
 	if err := m.ensureTmuxSession(agent); err != nil {
+		m.mu.Unlock()
 		return err
 	}
+	m.mu.Unlock()
+
 	// Wait for the new shell to initialize before sending the launch command.
 	// Without this, $(cat /tmp/.hive-bootstrap-*.txt) can fail because the
 	// shell isn't ready to process command substitution yet.
+	// Released the lock before sleeping so other manager operations aren't blocked.
 	const sessionReadyDelay = 2 * time.Second
 	time.Sleep(sessionReadyDelay)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.launchInTmux(ctx, agent)
 }
 

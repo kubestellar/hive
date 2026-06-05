@@ -8,16 +8,18 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	gh "github.com/google/go-github/v72/github"
 )
 
 type Client struct {
-	client *gh.Client
-	org    string
-	repos  []string
-	logger *slog.Logger
+	client  *gh.Client
+	org     string
+	reposMu sync.RWMutex
+	repos   []string
+	logger  *slog.Logger
 }
 
 type Issue struct {
@@ -122,7 +124,17 @@ func NewClientForTest(serverURL string, org string, repos []string, logger *slog
 }
 
 func (c *Client) SetRepos(repos []string) {
+	c.reposMu.Lock()
+	defer c.reposMu.Unlock()
 	c.repos = repos
+}
+
+func (c *Client) getRepos() []string {
+	c.reposMu.RLock()
+	defer c.reposMu.RUnlock()
+	result := make([]string, len(c.repos))
+	copy(result, c.repos)
+	return result
 }
 
 func (c *Client) EnumerateActionable(ctx context.Context) (*ActionableResult, error) {
@@ -136,7 +148,7 @@ func (c *Client) EnumerateActionable(ctx context.Context) (*ActionableResult, er
 	var holdItems []HoldItem
 	totalByRepo := make(map[string]RepoCounts)
 
-	for _, repo := range c.repos {
+	for _, repo := range c.getRepos() {
 		issues, held, issueTotal, err := c.fetchIssues(ctx, repo, now)
 		if err != nil {
 			c.logger.Warn("failed to fetch issues", "repo", repo, "error", err)

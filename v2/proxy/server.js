@@ -168,6 +168,12 @@ const leaderboardProxy = createProxyMiddleware({
 app.get('/leaderboard', leaderboardProxy);
 app.get('/leaderboard/', leaderboardProxy);
 
+const snapshotProxy = createProxyMiddleware({
+  target: GO_API_URL,
+  changeOrigin: true,
+});
+app.get('/snapshot', snapshotProxy);
+
 app.get('/', serveIndex);
 app.get('/{*splat}', serveIndex);
 

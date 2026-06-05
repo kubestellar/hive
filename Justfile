@@ -225,7 +225,7 @@ contribute-hive backend="" mode="docker":
 
     if [[ "$_MODE" == "local" ]]; then
       # ── Local mode: tmux session + relay (same as container, but on host) ──
-      TMUX_SESSION="hive-contributor"
+      TMUX_SESSION="hive-${BACKEND}-$(head -c 2 /dev/urandom | od -An -tx1 | tr -d ' ')"
       SCRIPT_DIR="$(pwd)/bin"
       RELAY="${SCRIPT_DIR}/contributor-relay.sh"
 

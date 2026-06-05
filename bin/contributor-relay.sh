@@ -109,6 +109,10 @@ function waitForCLI() {
       if (state === 'ready') {
         console.log('CLI ready — accepting tasks');
         resolve();
+      } else if (state === 'onboarding') {
+        console.log('Auto-dismissing trust/onboarding dialog...');
+        try { execSync(`tmux send-keys -t ${TMUX_SESSION} Enter`, { timeout: 5000 }); } catch (_) {}
+        setTimeout(check, CLI_READY_POLL_MS);
       } else if (state === 'needs-login' && !loginMessageShown) {
         loginMessageShown = true;
         console.log('');

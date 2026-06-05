@@ -335,17 +335,22 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
 <label style="font-size:.9rem;color:#8b949e">Choose your CLI:</label>
 <select id="cli-select" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.9rem;cursor:pointer">
-<option value="claude" data-install="npm i -g @anthropic-ai/claude-code" data-host-install="npm i -g @anthropic-ai/claude-code">Claude Code</option>
-<option value="copilot" data-install="" data-host-install="">GitHub Copilot</option>
-<option value="bob" data-install="" data-host-install="npm i -g bobshell">Bob</option>
-<option value="goose" data-install="" data-host-install="# Install Goose: https://github.com/block/goose/releases\n# Install Ollama: https://ollama.com/download\nollama pull llama3.2:3b\nexport GOOSE_PROVIDER=ollama GOOSE_MODEL=llama3.2:3b">Goose</option>
-<option value="pi" data-install="" data-host-install="curl -fsSL https://pi.dev/install.sh | sh">Pi</option>
+<option value="claude" data-install="npm i -g @anthropic-ai/claude-code" data-host-install="npm i -g @anthropic-ai/claude-code" data-model-flag="--model" data-default-model="">Claude Code</option>
+<option value="copilot" data-install="" data-host-install="" data-model-flag="--model" data-default-model="">GitHub Copilot</option>
+<option value="pi" data-install="" data-host-install="curl -fsSL https://pi.dev/install.sh | sh" data-model-flag="--model" data-default-model="">Pi</option>
+<option value="goose" data-install="" data-host-install="# Install Goose: https://github.com/block/goose/releases\n# Install Ollama: https://ollama.com/download\nollama pull llama3.2:3b\nexport GOOSE_PROVIDER=ollama GOOSE_MODEL=llama3.2:3b" data-model-flag="" data-default-model="">Goose</option>
+<option value="bob" data-install="" data-host-install="npm i -g bobshell" data-model-flag="" data-default-model="">Bob</option>
+<option value="other" data-install="" data-host-install="# Install your CLI tool" data-model-flag="" data-default-model="">Other (host only)</option>
 </select>
 <label style="font-size:.9rem;color:#8b949e">Mode:</label>
 <select id="mode-select" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.9rem;cursor:pointer">
 <option value="containerized">Containerized (recommended)</option>
 <option value="host">Host (non-containerized)</option>
 </select>
+</div>
+<div id="model-row" style="margin-bottom:12px;display:none;align-items:center;gap:8px">
+<label style="font-size:.9rem;color:#8b949e">Model (optional):</label>
+<input id="model-input" type="text" placeholder="e.g. claude-sonnet-4-6, gpt-4o" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:.85rem;flex:1;max-width:300px" oninput="updateCmds()">
 </div>
 <p style="color:#8b949e;margin-bottom:8px">Copy and paste these commands to get started:</p>
 <div style="margin-top:16px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;position:relative">
@@ -364,21 +369,34 @@ var cmds=document.getElementById('copy-cmds');
 var hubURL='%s';
 var containerTpl='brew install just gh\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive';
 var hostTpl='brew install just gh\nINSTALL\ngit clone -b v2 https://github.com/kubestellar/hive && cd hive\nexport HIVE_HUB='+hubURL+'\njust contribute-setup CLI\njust contribute-hive CLI local';
+var modelRow=document.getElementById('model-row');
+var modelInput=document.getElementById('model-input');
+function updateCmds(){update();}
 function update(){
 var cli=sel.value;
 var opt=sel.options[sel.selectedIndex];
 var mode=modeSel.value;
+var modelFlag=opt.getAttribute('data-model-flag')||'';
+var model=(modelInput.value||'').trim();
+if(cli==='other')mode='host';
+if(mode==='containerized'&&cli==='other'){modeSel.value='host';mode='host';}
+modelRow.style.display=(modelFlag||cli==='goose')?'flex':'none';
+var modelLine='';
+if(model){
+if(cli==='goose'){modelLine='\nexport GOOSE_MODEL='+model;}
+else if(modelFlag){modelLine='\nexport AGENT_MODEL='+model;}
+}
 var tpl,install;
 if(mode==='host'){
 tpl=hostTpl;
 install=opt.getAttribute('data-host-install');
 if(!install)install='# '+cli+' uses your existing gh auth';
-cmds.textContent=tpl.replace('INSTALL',install.replace(/\\n/g,'\n')).replace(/CLI/g,cli);
+cmds.textContent=tpl.replace('INSTALL',install.replace(/\\n/g,'\n')).replace(/CLI/g,cli)+modelLine;
 }else{
-cmds.textContent=containerTpl.replace(/CLI/g,cli);
+cmds.textContent=containerTpl.replace(/CLI/g,cli)+modelLine;
 }
 }
-sel.addEventListener('change',update);
+sel.addEventListener('change',function(){modelInput.value='';update();});
 modeSel.addEventListener('change',update);
 document.getElementById('copy-btn').addEventListener('click',function(){
 var el=document.getElementById('copy-cmds');
@@ -398,6 +416,7 @@ setTimeout(function(){btn.textContent='Copy';btn.style.background='#238636'},200
 })();
 </script>
 </div>
+<p style="color:#6e7681;font-size:.78rem;margin-top:8px">Don't see your CLI? <a href="https://github.com/kubestellar/hive/issues/new?title=CLI+request:+&labels=contribute,enhancement" target="_blank" style="color:#58a6ff">Open an issue</a> and we'll add support for it.</p>
 <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">
 <a href="/leaderboard" style="display:inline-block;padding:8px 20px;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#58a6ff;text-decoration:none;font-size:.9rem">🏆 View Leaderboard</a>
 </div>

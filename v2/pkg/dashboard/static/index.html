@@ -8346,10 +8346,18 @@ function burnAreaChart() {
         </div>
 
         <div class="config-field">
-          <label>Tier Access <span class="config-info">i<span class="config-tooltip">Restrict which tiers can pick up work. All tiers enabled by default.</span></span></label>
-          <div style="display:flex;flex-direction:column;gap:4px">${tiers.map(function(t) {
+          <label>Tier Access &amp; Rate Limits <span class="config-info">i<span class="config-tooltip">Toggle tiers on/off and set tasks/hour, tasks/day, max concurrent per tier. 0 = unlimited.</span></span></label>
+          <div style="display:flex;flex-direction:column;gap:6px">${tiers.map(function(t) {
             const enabled = !(hub.disabled_tiers || []).includes(t);
-            return '<div class="config-toggle" style="padding:2px 0"><div class="config-toggle-switch ' + (enabled ? 'on' : '') + '" onclick="toggleContribTier(this,\'' + t + '\')"></div><span style="font-size:0.78rem">' + t + '</span></div>';
+            const limits = (hub.tier_limits || {})[t] || {};
+            const mph = limits.max_per_hour != null ? limits.max_per_hour : '';
+            const mpd = limits.max_per_day != null ? limits.max_per_day : '';
+            const mc = limits.max_concurrent != null ? limits.max_concurrent : '';
+            return '<div style="display:flex;align-items:center;gap:8px;padding:2px 0"><div class="config-toggle-switch ' + (enabled ? 'on' : '') + '" onclick="toggleContribTier(this,\'' + t + '\')" style="flex-shrink:0"></div><span style="font-size:0.78rem;width:80px">' + t + '</span>' +
+              '<input type="number" min="0" placeholder="/hr" value="' + mph + '" style="width:50px;padding:2px 4px;font-size:0.72rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="setTierLimit(\'' + t + '\',\'max_per_hour\',+this.value)">' +
+              '<input type="number" min="0" placeholder="/day" value="' + mpd + '" style="width:50px;padding:2px 4px;font-size:0.72rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="setTierLimit(\'' + t + '\',\'max_per_day\',+this.value)">' +
+              '<input type="number" min="0" placeholder="max" value="' + mc + '" style="width:50px;padding:2px 4px;font-size:0.72rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)" onchange="setTierLimit(\'' + t + '\',\'max_concurrent\',+this.value)">' +
+              '<span style="font-size:0.65rem;color:var(--muted)">/hr · /day · max</span></div>';
           }).join('')}</div>
         </div>`;
     }
@@ -8419,6 +8427,14 @@ function burnAreaChart() {
       _configState.data.hub[key] = _configState.data.hub[key].filter(function(v) { return v !== val; });
       markDirty('hub', key, _configState.data.hub[key]);
       renderConfigTab('Hub');
+    }
+
+    function setTierLimit(tier, key, val) {
+      if (!_configState.data.hub) _configState.data.hub = {};
+      if (!_configState.data.hub.tier_limits) _configState.data.hub.tier_limits = {};
+      if (!_configState.data.hub.tier_limits[tier]) _configState.data.hub.tier_limits[tier] = {};
+      _configState.data.hub.tier_limits[tier][key] = val;
+      markDirty('hub', 'tier_limits', _configState.data.hub.tier_limits);
     }
 
     function toggleContribRepo(el, repoName) {

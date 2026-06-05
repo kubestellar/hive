@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -111,6 +112,9 @@ func sendHeartbeat(ctx context.Context, hubURL string, collect StatusCollector, 
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if secret := os.Getenv("HIVE_HUB_SECRET"); secret != "" {
+		req.Header.Set("Authorization", "Bearer "+secret)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -163,6 +167,9 @@ func StartTaskStatusPush(ctx context.Context, hubURL string, collect TaskStatusC
 				continue
 			}
 			req.Header.Set("Content-Type", "application/json")
+			if secret := os.Getenv("HIVE_HUB_SECRET"); secret != "" {
+				req.Header.Set("Authorization", "Bearer "+secret)
+			}
 			resp, err := http.DefaultClient.Do(req)
 			cancel()
 			if err == nil {

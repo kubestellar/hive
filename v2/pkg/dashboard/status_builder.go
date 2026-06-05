@@ -706,14 +706,21 @@ func BuildBeadsFromConfig(stores map[string]*beads.Store, cfg *config.Config) Fr
 	return fb
 }
 
+func copyHealthMap(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
 func buildHealth(ghClient *github.Client, ctx context.Context) map[string]any {
 	if ghClient == nil || ctx == nil {
 		cachedHealthMu.RLock()
+		defer cachedHealthMu.RUnlock()
 		if cachedHealth != nil {
-			defer cachedHealthMu.RUnlock()
-			return cachedHealth
+			return copyHealthMap(cachedHealth)
 		}
-		cachedHealthMu.RUnlock()
 		return map[string]any{"ci": 100}
 	}
 
@@ -723,7 +730,7 @@ func buildHealth(ghClient *github.Client, ctx context.Context) map[string]any {
 	cachedHealth = health
 	cachedHealthMu.Unlock()
 
-	return health
+	return copyHealthMap(health)
 }
 
 func buildBudget(gov *governor.Governor, tokenCollector *tokens.Collector) FrontendBudget {

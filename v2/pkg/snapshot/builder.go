@@ -7,10 +7,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/dashboard"
 )
+
+var safeClassRe = regexp.MustCompile(`[^a-zA-Z0-9-]`)
 
 type Builder struct {
 	outputDir string
@@ -84,7 +87,10 @@ func (b *Builder) Cleanup(maxAge time.Duration) error {
 		}
 
 		if info.ModTime().Before(cutoff) {
-			os.Remove(filepath.Join(b.outputDir, name))
+			if err := os.Remove(filepath.Join(b.outputDir, name)); err != nil {
+				b.logger.Warn("snapshot cleanup: remove failed", "file", name, "error", err)
+				continue
+			}
 			removed++
 		}
 	}
@@ -145,7 +151,7 @@ func (b *Builder) buildIndexHTML(path string, status *dashboard.StatusPayload, t
 	)
 
 	for _, agent := range status.Agents {
-		stateClass := "state-" + html.EscapeString(agent.State)
+		stateClass := "state-" + safeClassRe.ReplaceAllString(agent.State, "")
 		page += fmt.Sprintf(`
   <div class="agent">
     <span>%s</span>

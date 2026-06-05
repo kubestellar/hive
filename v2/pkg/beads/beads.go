@@ -105,6 +105,8 @@ func (b *Bead) Meta(key string) string {
 	return ""
 }
 
+const maxBeadCount = 5000
+
 type Store struct {
 	dir    string
 	hiveID string
@@ -163,7 +165,29 @@ func (s *Store) Create(title string, beadType BeadType, priority Priority, actor
 	}
 
 	s.beads[b.ID] = b
+	s.evictOldClosed()
 	return b, s.persist(b)
+}
+
+func (s *Store) evictOldClosed() {
+	if len(s.beads) <= maxBeadCount {
+		return
+	}
+	var closedIDs []string
+	for id, b := range s.beads {
+		if b.Status == StatusClosed || b.Status == StatusDone {
+			closedIDs = append(closedIDs, id)
+		}
+	}
+	sort.Slice(closedIDs, func(i, j int) bool {
+		return s.beads[closedIDs[i]].UpdatedAt.Before(s.beads[closedIDs[j]].UpdatedAt.Time)
+	})
+	for _, id := range closedIDs {
+		if len(s.beads) <= maxBeadCount {
+			break
+		}
+		delete(s.beads, id)
+	}
 }
 
 func (s *Store) Update(id string, fn func(b *Bead)) error {

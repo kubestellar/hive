@@ -74,6 +74,7 @@ func (w *Watcher) Start(ctx context.Context) {
 
 		case event, ok := <-fsw.Events:
 			if !ok {
+				w.logger.Warn("config watcher: events channel closed")
 				return
 			}
 			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename) == 0 {
@@ -83,6 +84,7 @@ func (w *Watcher) Start(ctx context.Context) {
 
 		case err, ok := <-fsw.Errors:
 			if !ok {
+				w.logger.Warn("config watcher: errors channel closed")
 				return
 			}
 			w.logger.Warn("config watcher error", "error", err)

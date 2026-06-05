@@ -224,7 +224,13 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		ID:                 payload.HiveID,
 		Name:               safeOrg + "/" + safePrimary,
 		Org:                safeOrg,
-		Repos:              payload.Repos,
+		Repos: func() []string {
+			safe := make([]string, len(payload.Repos))
+			for i, r := range payload.Repos {
+				safe[i] = sanitizeHeartbeatField(r)
+			}
+			return safe
+		}(),
 		PrimaryRepo:        safePrimary,
 		DashboardURL:       payload.DashboardURL,
 		SnapshotURL:        payload.SnapshotURL,

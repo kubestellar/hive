@@ -590,9 +590,10 @@ func (s *HubServer) saveLoop() {
 func (s *HubServer) findContributeHive() *RegistryEntry {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for i, h := range s.registry.Hives {
+	for _, h := range s.registry.Hives {
 		if h.Online && h.IsPublic && h.DashboardURL != "" && !isPrivateURL(h.DashboardURL) {
-			return &s.registry.Hives[i]
+			copy := h
+			return &copy
 		}
 	}
 	return nil

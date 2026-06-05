@@ -191,16 +191,8 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "dashboard_url must start with http:// or https://", http.StatusBadRequest)
 		return
 	}
-	if payload.DashboardURL != "" && isPrivateURL(payload.DashboardURL) {
-		http.Error(w, "dashboard_url must not target private/internal addresses", http.StatusBadRequest)
-		return
-	}
 	if payload.SnapshotURL != "" && !strings.HasPrefix(payload.SnapshotURL, "http://") && !strings.HasPrefix(payload.SnapshotURL, "https://") {
 		http.Error(w, "snapshot_url must start with http:// or https://", http.StatusBadRequest)
-		return
-	}
-	if payload.SnapshotURL != "" && isPrivateURL(payload.SnapshotURL) {
-		http.Error(w, "snapshot_url must not target private/internal addresses", http.StatusBadRequest)
 		return
 	}
 

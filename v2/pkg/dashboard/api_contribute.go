@@ -338,7 +338,7 @@ code{background:#0d1117;padding:2px 8px;border-radius:4px;font-size:.9rem}
 <option value="claude" data-install="npm i -g @anthropic-ai/claude-code" data-host-install="npm i -g @anthropic-ai/claude-code">Claude Code</option>
 <option value="copilot" data-install="" data-host-install="">GitHub Copilot</option>
 <option value="bob" data-install="" data-host-install="npm i -g bobshell">Bob</option>
-<option value="goose" data-install="" data-host-install="# Install: https://github.com/block/goose/releases\n# Configure provider: goose configure\nexport GOOSE_PROVIDER=ollama GOOSE_MODEL=phi4">Goose</option>
+<option value="goose" data-install="" data-host-install="# Install Goose: https://github.com/block/goose/releases\n# Install Ollama: https://ollama.com/download\nollama pull llama3.2:3b\nexport GOOSE_PROVIDER=ollama GOOSE_MODEL=llama3.2:3b">Goose</option>
 <option value="pi" data-install="" data-host-install="curl -fsSL https://pi.dev/install.sh | sh">Pi</option>
 </select>
 <label style="font-size:.9rem;color:#8b949e">Mode:</label>
@@ -373,7 +373,7 @@ if(mode==='host'){
 tpl=hostTpl;
 install=opt.getAttribute('data-host-install');
 if(!install)install='# '+cli+' uses your existing gh auth';
-cmds.textContent=tpl.replace('INSTALL',install).replace(/CLI/g,cli);
+cmds.textContent=tpl.replace('INSTALL',install.replace(/\\n/g,'\n')).replace(/CLI/g,cli);
 }else{
 cmds.textContent=containerTpl.replace(/CLI/g,cli);
 }

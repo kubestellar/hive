@@ -1857,10 +1857,15 @@
   <div id="audit-section" style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">📋 Audit Log</h2>
     <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
-      <input id="audit-search" type="text" placeholder="Search audit log... (supports /regex/)" oninput="filterAuditLog()" style="flex:1;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.82rem">
+      <div style="flex:1;position:relative">
+        <input id="audit-search" list="audit-saved-searches" type="text" placeholder="Search audit log... (supports /regex/)" oninput="filterAuditLog()" onkeydown="if(event.key==='Enter')saveAuditSearch()" style="width:100%;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.82rem">
+        <datalist id="audit-saved-searches"></datalist>
+      </div>
+      <button onclick="saveAuditSearch()" title="Save this search" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:0.75rem;white-space:nowrap">💾 Save</button>
+      <button onclick="clearAuditSearches()" title="Clear saved searches" style="padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:0.75rem">✕</button>
       <span id="audit-match-count" style="font-size:0.7rem;color:var(--muted);white-space:nowrap"></span>
     </div>
-    <div id="audit-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:500px;overflow-y:auto">
+    <div id="audit-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:320px;overflow-y:auto">
       <div class="loading">Loading audit log...</div>
     </div>
   </div>
@@ -6007,6 +6012,34 @@ function burnAreaChart() {
       renderAuditTable(filtered);
       if (countEl) countEl.textContent = filtered.length + ' / ' + _auditEntries.length;
     }
+
+    var AUDIT_SEARCHES_KEY = 'hive-audit-saved-searches';
+    function loadAuditSearches() {
+      try { return JSON.parse(localStorage.getItem(AUDIT_SEARCHES_KEY) || '[]'); } catch(e) { return []; }
+    }
+    function renderAuditSearchDatalist() {
+      var dl = document.getElementById('audit-saved-searches');
+      if (!dl) return;
+      dl.innerHTML = loadAuditSearches().map(function(s) { return '<option value="' + s.replace(/"/g, '&quot;') + '">'; }).join('');
+    }
+    function saveAuditSearch() {
+      var q = (document.getElementById('audit-search').value || '').trim();
+      if (!q) return;
+      var saved = loadAuditSearches();
+      if (saved.indexOf(q) !== -1) { hiveToast('Search already saved', 'info'); return; }
+      saved.unshift(q);
+      var MAX_SAVED_SEARCHES = 20;
+      if (saved.length > MAX_SAVED_SEARCHES) saved = saved.slice(0, MAX_SAVED_SEARCHES);
+      localStorage.setItem(AUDIT_SEARCHES_KEY, JSON.stringify(saved));
+      renderAuditSearchDatalist();
+      hiveToast('Search saved', 'success');
+    }
+    function clearAuditSearches() {
+      localStorage.removeItem(AUDIT_SEARCHES_KEY);
+      renderAuditSearchDatalist();
+      hiveToast('Saved searches cleared', 'info');
+    }
+    renderAuditSearchDatalist();
 
     async function fetchAuditLog() {
       try {

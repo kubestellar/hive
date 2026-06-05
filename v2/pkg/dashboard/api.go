@@ -296,6 +296,17 @@ func sanitizeString(s string) string {
 
 var envVarEscapePattern = regexp.MustCompile(`\$\{[^}]*\}`)
 
+var tokenRedactor = regexp.MustCompile(`(ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_]{10,}`)
+
+func redactTokensInLine(s string) string {
+	return tokenRedactor.ReplaceAllStringFunc(s, func(m string) string {
+		if len(m) > 7 {
+			return m[:7] + "***REDACTED***"
+		}
+		return "***REDACTED***"
+	})
+}
+
 func sanitizeFilenameComponent(s string) string {
 	return strings.Map(func(r rune) rune {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
@@ -696,6 +707,10 @@ func (s *Server) handlePane(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return
+	}
+
+	for i, line := range output {
+		output[i] = redactTokensInLine(line)
 	}
 
 	jsonResponse(w, map[string]interface{}{

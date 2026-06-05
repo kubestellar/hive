@@ -8228,6 +8228,7 @@ function burnAreaChart() {
         body.innerHTML = renderAgentTab(tabId);
       } else {
         body.innerHTML = renderGovernorTab(tabId);
+        if (tabId === 'Hub') fetchQueueCount();
       }
     }
 
@@ -8364,12 +8365,15 @@ function burnAreaChart() {
         </div>`;
     }
 
-    (function fetchQueueCount() {
+    function fetchQueueCount() {
       fetch('/api/contribute/status').then(function(r) { return r.json(); }).then(function(d) {
         var el = document.getElementById('hub-queue-count');
         if (el) el.textContent = (d.actionable_items || 0) + ' items in queue';
-      }).catch(function() {});
-    })();
+      }).catch(function() {
+        var el = document.getElementById('hub-queue-count');
+        if (el) el.textContent = '—';
+      });
+    }
 
     function toggleAutoSnapshot(el) {
       el.classList.toggle('on');

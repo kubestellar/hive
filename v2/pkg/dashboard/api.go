@@ -3201,8 +3201,11 @@ func (s *Server) handleHiveIDSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Persist the new ID to disk so it survives restarts
-	if err := os.WriteFile(hiveIDFilePath, []byte(body.ID+"\n"), 0o644); err != nil {
+	tmpHiveID := hiveIDFilePath + ".tmp"
+	if err := os.WriteFile(tmpHiveID, []byte(body.ID+"\n"), 0o644); err != nil {
 		s.logger.Warn("failed to persist hive ID", "error", err)
+	} else if err := os.Rename(tmpHiveID, hiveIDFilePath); err != nil {
+		s.logger.Warn("failed to rename hive ID file", "error", err)
 	}
 
 	s.refreshAndPersist()

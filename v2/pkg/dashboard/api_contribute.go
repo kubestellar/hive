@@ -810,14 +810,15 @@ func (s *Server) handleHivesHeartbeat(w http.ResponseWriter, r *http.Request) {
 		ActiveAgents       int `json:"active_agents"`
 		ActionableItems    int `json:"actionable_items"`
 	}
+	const maxFedCount = 10000
 	if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-		if req.ActiveContributors >= 0 {
+		if req.ActiveContributors >= 0 && req.ActiveContributors <= maxFedCount {
 			found.ActiveContributors = req.ActiveContributors
 		}
-		if req.ActiveAgents >= 0 {
+		if req.ActiveAgents >= 0 && req.ActiveAgents <= maxFedCount {
 			found.ActiveAgents = req.ActiveAgents
 		}
-		if req.ActionableItems >= 0 {
+		if req.ActionableItems >= 0 && req.ActionableItems <= maxFedCount {
 			found.ActionableItems = req.ActionableItems
 		}
 	}

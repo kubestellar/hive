@@ -1833,6 +1833,13 @@ func (s *Server) handleGovernorConfigGet(w http.ResponseWriter, r *http.Request)
 			"compress":   cfg.Governor.Logging.Compress,
 			"level":      cfg.Governor.Logging.Level,
 		},
+		"hub": map[string]interface{}{
+			"enabled":       cfg.Hub.Enabled,
+			"url":           cfg.Hub.URL,
+			"dashboard_url": cfg.Hub.DashboardURL,
+			"snapshot_url":  cfg.Hub.SnapshotURL,
+			"is_public":     cfg.Hub.IsPublic,
+		},
 	})
 }
 

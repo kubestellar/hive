@@ -7862,7 +7862,7 @@ function burnAreaChart() {
 
     const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Pipeline', 'Hooks', 'Restrictions', 'Stats', 'Prompt Template', 'Last Prompt'];
     const AGENT_CREATE_TABS = ['General', 'Cadences'];
-    const GOVERNOR_CONFIG_TABS = ['General', 'Agents', 'Thresholds', 'Labels', 'Repos', 'Budget', 'Notifications', 'Health', 'Sensing', 'Logging'];
+    const GOVERNOR_CONFIG_TABS = ['General', 'Agents', 'Thresholds', 'Labels', 'Repos', 'Budget', 'Notifications', 'Health', 'Sensing', 'Logging', 'Hub'];
     const PIPELINE_STAGES = ['resolve-beads', 'track-prs', 'stale-check', 'repo-scan', 'coverage-gate', 'prompt-compose', 'budget-check', 'api-collect', 'final-compose'];
     const PIPELINE_STAGE_TIPS = {
       'resolve-beads': 'Fetch and inject knowledge beads (facts, patterns, gotchas) relevant to the agent\'s current task context.',
@@ -8255,8 +8255,19 @@ function burnAreaChart() {
         case 'Health': return renderGovHealth(d.health || {});
         case 'Sensing': return renderGovSensing(d.sensing || {});
         case 'Logging': return renderGovLogging(d.logging || {});
+        case 'Hub': return renderGovHub(d.hub || {});
         default: return '';
       }
+    }
+
+    function renderGovHub(hub) {
+      return `<div class="config-section">
+        ${configField('Hub Enabled', 'checkbox', hub.enabled, 'hub.enabled', 'Register this hive with the central hub')}
+        ${configField('Hub URL', 'text', hub.url || '', 'hub.url', 'URL of the Hive Hub (e.g. https://hive.kubestellar.io)')}
+        ${configField('Dashboard URL', 'text', hub.dashboard_url || '', 'hub.dashboard_url', 'Public URL of this hive dashboard')}
+        ${configField('Snapshot URL', 'text', hub.snapshot_url || '', 'hub.snapshot_url', 'URL to a published snapshot of this hive')}
+        ${configField('Public', 'checkbox', hub.is_public, 'hub.is_public', 'Show this hive on the public hub registry')}
+      </div>`;
     }
 
     // ── Agent Tab Renderers ──

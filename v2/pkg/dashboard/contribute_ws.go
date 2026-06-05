@@ -461,7 +461,7 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			profiles := listContributorProfiles()
 			var profile *ContributorProfile
 			for i := range profiles {
-				if profiles[i].RegistrationToken == tokenHash {
+				if secureCompare(profiles[i].RegistrationToken, tokenHash) {
 					profile = &profiles[i]
 					break
 				}

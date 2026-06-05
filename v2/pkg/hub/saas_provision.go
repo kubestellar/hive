@@ -206,6 +206,10 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 
 	cmd := exec.Command("kubectl", "apply", "-f", manifestPath)
 	out, err := cmd.CombinedOutput()
+
+	// Remove manifest immediately — it contains GitHub tokens in plaintext
+	os.Remove(manifestPath)
+
 	if err != nil {
 		logger.Warn("kubectl apply failed", "hive", h.ID, "output", string(out), "error", err)
 		return fmt.Errorf("kubectl apply: %s", string(out))

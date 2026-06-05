@@ -190,6 +190,10 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "dashboard_url must start with http:// or https://", http.StatusBadRequest)
 		return
 	}
+	if payload.DashboardURL != "" && isPrivateURL(payload.DashboardURL) {
+		http.Error(w, "dashboard_url must not target private/internal addresses", http.StatusBadRequest)
+		return
+	}
 	if payload.SnapshotURL != "" && !strings.HasPrefix(payload.SnapshotURL, "http://") && !strings.HasPrefix(payload.SnapshotURL, "https://") {
 		http.Error(w, "snapshot_url must start with http:// or https://", http.StatusBadRequest)
 		return
@@ -213,13 +217,15 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		payload.Leaderboard[i].GitHubUsername = sanitizeField(lb.GitHubUsername)
 		payload.Leaderboard[i].HiveName = sanitizeField(lb.HiveName)
 	}
+	safeOrg := payload.Org
+	safePrimary := payload.PrimaryRepo
 
 	entry := RegistryEntry{
 		ID:                 payload.HiveID,
-		Name:               payload.Org + "/" + payload.PrimaryRepo,
-		Org:                payload.Org,
+		Name:               safeOrg + "/" + safePrimary,
+		Org:                safeOrg,
 		Repos:              payload.Repos,
-		PrimaryRepo:        payload.PrimaryRepo,
+		PrimaryRepo:        safePrimary,
 		DashboardURL:       payload.DashboardURL,
 		SnapshotURL:        payload.SnapshotURL,
 		ACMMLevel:          payload.ACMMLevel,
@@ -632,4 +638,34 @@ func (s *HubServer) handleContributeWSProxy(w http.ResponseWriter, r *http.Reque
 	r.Host = target.Host
 	s.logger.Info("proxying contribute WS", "hive", hive.ID, "target", target.String())
 	proxy.ServeHTTP(w, r)
+}
+
+func isPrivateURL(rawURL string) bool {
+	for _, scheme := range []string{"https://", "http://", "wss://", "ws://"} {
+		rawURL = strings.TrimPrefix(rawURL, scheme)
+	}
+	host := rawURL
+	if idx := strings.IndexAny(host, ":/"); idx >= 0 {
+		host = host[:idx]
+	}
+	host = strings.ToLower(host)
+	blocked := []string{"localhost", "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
+		"172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
+		"172.28.", "172.29.", "172.30.", "172.31.", "192.168.", "169.254.", "[::1]", "0.0.0.0"}
+	for _, p := range blocked {
+		if strings.HasPrefix(host, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func sanitizeHeartbeatField(s string) string {
+	var b strings.Builder
+	for _, c := range s {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '/' {
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
 }

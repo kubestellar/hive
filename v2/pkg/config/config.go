@@ -333,6 +333,7 @@ type HubConfig struct {
 	SnapshotURL            string   `yaml:"snapshot_url"`
 	DashboardURL           string   `yaml:"dashboard_url"`
 	AutoSnapshot           bool     `yaml:"auto_snapshot"`
+	ContributeSuspended    bool     `yaml:"contribute_suspended"`
 	ContributeAllowLabels  []string `yaml:"contribute_allow_labels"`
 	ContributeDenyLabels   []string `yaml:"contribute_deny_labels"`
 	ContributeDenyTitles   []string `yaml:"contribute_deny_titles"`

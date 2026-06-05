@@ -51,6 +51,8 @@ type Server struct {
 	deviceFlowMu    sync.Mutex
 	deviceFlowState *github.DeviceFlowState
 
+	audit *AuditLog
+
 	versionMu       sync.RWMutex
 	cachedLatestHash string
 	cachedLatestAt   time.Time
@@ -255,6 +257,7 @@ func NewServer(port int, logger *slog.Logger) *Server {
 		mux:            http.NewServeMux(),
 		agentPipelines: make(map[string]map[string]bool),
 		agentHooks:     make(map[string]map[string][]any),
+		audit:          newAuditLog(),
 	}
 	s.registerCoreRoutes()
 	return s
@@ -269,6 +272,7 @@ func NewServerWithAuth(port int, authToken string, logger *slog.Logger) *Server 
 		mux:            http.NewServeMux(),
 		agentPipelines: make(map[string]map[string]bool),
 		agentHooks:     make(map[string]map[string][]any),
+		audit:          newAuditLog(),
 	}
 	s.registerCoreRoutes()
 	return s

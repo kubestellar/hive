@@ -27,6 +27,7 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("GET /api/version", s.handleVersion)
 	s.mux.HandleFunc("GET /api/config", s.handleConfig)
 	s.mux.HandleFunc("GET /api/config/download", s.handleConfigDownload)
+	s.mux.HandleFunc("GET /api/audit", s.handleAuditLog)
 	s.mux.HandleFunc("GET /api/history", s.handleHistory)
 	s.mux.HandleFunc("GET /api/trends", s.handleTrends)
 	s.mux.HandleFunc("GET /api/timeline", s.handleTimeline)
@@ -610,6 +611,7 @@ func (s *Server) handleKick(w http.ResponseWriter, r *http.Request) {
 
 	s.deps.Governor.RecordKick(name)
 	s.deps.Logger.Info("audit: agent kicked", "agent", name, "trigger", "dashboard-api")
+	s.auditFromRequest(r, "kick", "", name)
 	s.refreshAfterMutation()
 	okResponse(w, map[string]string{"status": "kicked", "agent": name})
 }
@@ -624,6 +626,7 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.deps.Logger.Info("audit: backend switched", "agent", name, "backend", backend, "trigger", "dashboard-api")
+	s.auditFromRequest(r, "switch_backend", auditDetail("backend", backend), name)
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "switched", "agent": name, "backend": backend})
 }
@@ -638,6 +641,7 @@ func (s *Server) handleModelSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.deps.Logger.Info("audit: model set", "agent", name, "model", model, "trigger", "dashboard-api")
+	s.auditFromRequest(r, "set_model", auditDetail("model", model), name)
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "model_set", "agent": name, "model": model})
 }
@@ -650,6 +654,7 @@ func (s *Server) handlePause(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.auditFromRequest(r, "pause", "", name)
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "paused", "agent": name})
 }
@@ -662,6 +667,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.auditFromRequest(r, "resume", "", name)
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "resumed", "agent": name})
 }
@@ -714,6 +720,7 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.deps.Logger.Info("audit: agent pinned", "agent", name, "dimension", dimension, "value", body.Value, "trigger", "dashboard-api")
+	s.auditFromRequest(r, "pin", auditDetail("dimension", dimension, "value", body.Value), name)
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "pinned", "agent": name, "dimension": dimension, "value": body.Value})
 }
@@ -739,6 +746,7 @@ func (s *Server) handleUnpin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.deps.Logger.Info("audit: agent unpinned", "agent", name, "dimension", dimension, "trigger", "dashboard-api")
+	s.auditFromRequest(r, "unpin", auditDetail("dimension", dimension), name)
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "unpinned", "agent": name, "dimension": dimension})
 }
@@ -757,6 +765,7 @@ func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.deps.Logger.Info("audit: agent restarted", "agent", name, "trigger", "dashboard-api")
+	s.auditFromRequest(r, "restart", "", name)
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "restarted", "agent": name})
 }

@@ -3,6 +3,7 @@ package snapshot
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -137,20 +138,21 @@ func (b *Builder) buildIndexHTML(path string, status *dashboard.StatusPayload, t
 
 <h2>Agents</h2>
 <div class="card">`,
-		ts, ts,
-		status.Governor.Mode,
+		html.EscapeString(ts), html.EscapeString(ts),
+		html.EscapeString(string(status.Governor.Mode)),
 		status.Governor.Issues,
 		status.Governor.PRs,
 	)
 
 	for _, agent := range status.Agents {
-		stateClass := "state-" + agent.State
+		stateClass := "state-" + html.EscapeString(agent.State)
 		html += fmt.Sprintf(`
   <div class="agent">
     <span>%s</span>
     <span class="%s">%s</span>
     <span class="label">%s / %s</span>
-  </div>`, agent.Name, stateClass, agent.State, agent.CLI, agent.Model)
+  </div>`, html.EscapeString(agent.Name), stateClass, html.EscapeString(agent.State),
+			html.EscapeString(agent.CLI), html.EscapeString(agent.Model))
 	}
 
 	html += `

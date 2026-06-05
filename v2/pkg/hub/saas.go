@@ -645,10 +645,11 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 
 	os.RemoveAll(filepath.Join(saasHivesDir, id))
 
-	user := loadSaaSUser(username)
-	if user != nil {
-		delete(user.Hives, id)
-		saveSaaSUser(user)
+	for _, u := range listAllSaaSUsers() {
+		if _, ok := u.Hives[id]; ok {
+			delete(u.Hives, id)
+			saveSaaSUser(&u)
+		}
 	}
 
 	s.logger.Info("audit: hosted hive deleted", "hive_id", id, "by", username)

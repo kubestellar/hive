@@ -17,6 +17,47 @@ default:
 contribute-setup backend="claude":
     #!/usr/bin/env bash
     set -euo pipefail
+    if [[ "{{hive_hub}}" == "wss://hive.kubestellar.io/contribute" ]]; then
+      echo "HIVE_HUB not set — fetching available hives..."
+      echo ""
+      HIVES_JSON=$(curl -sf "https://hive.kubestellar.io/api/registry" 2>/dev/null) || {
+        echo "ERROR: Could not reach hive.kubestellar.io"
+        echo "Set HIVE_HUB manually: export HIVE_HUB=wss://<hive>/contribute"
+        exit 1
+      }
+      HIVE_LIST=$(echo "$HIVES_JSON" | jq -r '.hives[] | select(.online==true) | "\(.id)|\(.name)"' 2>/dev/null)
+      if [[ -z "$HIVE_LIST" ]]; then
+        echo "No hives available. Check https://hive.kubestellar.io"
+        exit 1
+      fi
+      echo "Available hives:"
+      echo ""
+      i=1
+      declare -a HIVE_IDS
+      while IFS='|' read -r hid hname; do
+        HIVE_IDS+=("$hid")
+        printf "  %d) %s (%s)\n" "$i" "$hname" "$hid"
+        i=$((i+1))
+      done <<< "$HIVE_LIST"
+      echo ""
+      read -p "Select a hive [1-$((i-1))]: " CHOICE
+      if [[ -z "$CHOICE" || "$CHOICE" -lt 1 || "$CHOICE" -gt $((i-1)) ]] 2>/dev/null; then
+        echo "Invalid selection."
+        exit 1
+      fi
+      SELECTED="${HIVE_IDS[$((CHOICE-1))]}"
+      if [[ "$SELECTED" == hosted-* ]]; then
+        export HIVE_HUB="wss://${SELECTED}.hive.kubestellar.io/contribute"
+      else
+        DASH_URL=$(echo "$HIVES_JSON" | jq -r --arg id "$SELECTED" '.hives[] | select(.id==$id) | .dashboardUrl' 2>/dev/null)
+        DASH_URL=$(echo "$DASH_URL" | sed 's|^http://|ws://|;s|^https://|wss://|')
+        export HIVE_HUB="${DASH_URL}/contribute"
+      fi
+      echo ""
+      echo "Selected: ${HIVE_HUB}"
+      echo "TIP: Next time, run: export HIVE_HUB=${HIVE_HUB}"
+      echo ""
+    fi
     mkdir -p "{{config_dir}}"
     echo "=== Hive Contributor Setup ==="
     echo ""

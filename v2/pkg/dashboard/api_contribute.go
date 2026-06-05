@@ -731,6 +731,14 @@ func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "dashboard_url must start with http://, https://, ws://, or wss://", http.StatusBadRequest)
 		return
 	}
+	if isPrivateURL(req.HubURL) {
+		jsonError(w, "hub_url must not target private/internal addresses", http.StatusBadRequest)
+		return
+	}
+	if req.DashboardURL != "" && isPrivateURL(req.DashboardURL) {
+		jsonError(w, "dashboard_url must not target private/internal addresses", http.StatusBadRequest)
+		return
+	}
 
 	reg := loadFederationRegistry()
 	hiveID := fmt.Sprintf("hive-%s-%s", strings.ToLower(req.Org), strings.ToLower(req.ProjectName))
@@ -1387,6 +1395,29 @@ func isValidUsername(s string) bool {
 		}
 	}
 	return true
+}
+
+func isPrivateURL(rawURL string) bool {
+	for _, scheme := range []string{"https://", "http://", "wss://", "ws://"} {
+		if strings.HasPrefix(rawURL, scheme) {
+			rawURL = strings.TrimPrefix(rawURL, scheme)
+			break
+		}
+	}
+	host := rawURL
+	if idx := strings.IndexAny(host, ":/"); idx >= 0 {
+		host = host[:idx]
+	}
+	host = strings.ToLower(host)
+	blocked := []string{"localhost", "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
+		"172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
+		"172.28.", "172.29.", "172.30.", "172.31.", "192.168.", "169.254.", "[::1]", "0.0.0.0"}
+	for _, p := range blocked {
+		if strings.HasPrefix(host, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // validateGitHubToken checks a GitHub personal access token against the GitHub API

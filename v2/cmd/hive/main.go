@@ -644,9 +644,10 @@ func main() {
 	inceptionEngine := knowledge.NewInceptionEngine("/data", knowledgeAPI, logger)
 	sched.SetInception(inceptionEngine)
 
-	// Brainstorm is on-demand only. If inception is active (state on disk),
-	// resume and send inception kick via SendKick. Otherwise start paused.
-	if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
+	// Brainstorm is on-demand only. Only restart with bootstrap during
+	// capture phase — structure/scaffold phases don't need a fresh kick
+	// and restarting would revert the phase back to capture.
+	if state := inceptionEngine.GetState(); state != nil && state.Phase == knowledge.PhaseCapture {
 		msg := sched.BuildAgentMessage("brainstorm", nil, nil)
 		if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
 			logger.Warn("failed to resume brainstorm for active inception", "error", err)
@@ -1000,7 +1001,7 @@ func main() {
 			// agent's output even if bd create doesn't execute.
 			for _, name := range restarted {
 				if name == "brainstorm" && inceptionEngine != nil {
-					if state := inceptionEngine.GetState(); state != nil && state.Phase != knowledge.PhaseComplete {
+					if state := inceptionEngine.GetState(); state != nil && state.Phase == knowledge.PhaseCapture {
 						msg := sched.BuildAgentMessage("brainstorm", nil, sched.GetLastActionable())
 						if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
 							logger.Warn("inception re-kick after crash failed", "error", err)

@@ -74,6 +74,8 @@ func StartHeartbeat(ctx context.Context, hubURL string, collect StatusCollector,
 
 	logger.Info("hub heartbeat enabled", "url", hubURL, "interval", interval)
 
+	waitForReady(ctx, logger)
+
 	sendHeartbeat(ctx, hubURL, collect, logger)
 
 	ticker := time.NewTicker(interval)
@@ -86,6 +88,39 @@ func StartHeartbeat(ctx context.Context, hubURL string, collect StatusCollector,
 			return
 		case <-ticker.C:
 			sendHeartbeat(ctx, hubURL, collect, logger)
+		}
+	}
+}
+
+func waitForReady(ctx context.Context, logger *slog.Logger) {
+	const healthURL = "http://localhost:3001/api/health"
+	const pollInterval = 5 * time.Second
+	const maxWait = 3 * time.Minute
+	deadline := time.After(maxWait)
+	logger.Info("heartbeat waiting for dashboard readiness")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-deadline:
+			logger.Warn("heartbeat readiness wait timed out, starting anyway")
+			return
+		default:
+			reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, healthURL, nil)
+			if err == nil {
+				resp, err := http.DefaultClient.Do(req)
+				if err == nil {
+					resp.Body.Close()
+					if resp.StatusCode == 200 {
+						cancel()
+						logger.Info("dashboard ready, starting heartbeats")
+						return
+					}
+				}
+			}
+			cancel()
+			time.Sleep(pollInterval)
 		}
 	}
 }

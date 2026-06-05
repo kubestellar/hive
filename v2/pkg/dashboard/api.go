@@ -1605,7 +1605,7 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 			s.logger.Error("failed to persist agent overlay after update", "agent", name, "error", err)
 		}
 	}
-	s.refreshAndPersistSync()
+	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated", "agent": name})
 }
 

@@ -107,7 +107,7 @@ else:
       mergeable=$(echo "$pr_info" | python3 -c "import json,sys; print(json.load(sys.stdin).get('mergeable','UNKNOWN'))" 2>/dev/null || echo "UNKNOWN")
       review=$(echo "$pr_info" | python3 -c "import json,sys; print(json.load(sys.stdin).get('reviewDecision',''))" 2>/dev/null || echo "")
 
-      echo "{\"repo\":\"$repo\",\"number\":$num,\"status\":\"$status\",\"author\":\"$author\",\"title\":$(python3 -c "import json; print(json.dumps('$title'[:100]))" 2>/dev/null || echo '""'),\"mergeable\":\"$mergeable\",\"reviewDecision\":\"$review\"}" > "$checks_tmp/${repo//\//_}_${num}.json"
+      echo "{\"repo\":\"$repo\",\"number\":$num,\"status\":\"$status\",\"author\":\"$author\",\"title\":$(python3 -c "import json,sys; print(json.dumps(sys.argv[1][:100]))" "$title" 2>/dev/null || echo '""'),\"mergeable\":\"$mergeable\",\"reviewDecision\":\"$review\"}" > "$checks_tmp/${repo//\//_}_${num}.json"
     fi
   ) &
 done

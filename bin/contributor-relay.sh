@@ -24,7 +24,9 @@ const REG_TOKEN = process.env.HIVE_REGISTRATION_TOKEN;
 const BACKEND = process.env.AGENT_BACKEND || 'claude';
 const MODEL = process.env.AGENT_MODEL || '';
 const TMUX_SESSION = process.env.HIVE_AGENT_SESSION || 'contributor';
-const GH_TOKEN_CACHE = '/var/run/hive-metrics/gh-app-token.cache';
+const GH_TOKEN_CACHE = fs.existsSync('/var/run/hive-metrics')
+  ? '/var/run/hive-metrics/gh-app-token.cache'
+  : '/tmp/hive-gh-token.cache';
 const TASK_FILE = '/tmp/contributor-task.json';
 
 const TMUX_TAIL_LINES = 15;
@@ -86,7 +88,7 @@ function getCLIState() {
       if (/not authenticated|login required/i.test(text)) return 'needs-login';
       if (/>\s*$|❯/.test(text)) return 'ready';
     } else if (BACKEND === 'goose') {
-      if (/>\s*$|goose>|G\s*>/.test(text)) return 'ready';
+      if (/goose is ready|> Enter to send|>\s*$|goose>|G\s*>/.test(text)) return 'ready';
     } else if (BACKEND === 'bob') {
       if (/bob>|>\s*$|Bob-Shell/.test(text)) return 'ready';
     } else if (BACKEND === 'codex') {
@@ -271,9 +273,9 @@ function checkTmuxIdle() {
       hasCompletionMarker = /completed|Done|finished/i.test(text);
       isWorking = /Thinking|Running|Searching/i.test(text);
     } else if (BACKEND === 'goose') {
-      hasIdlePrompt = />\s*$|goose>|G\s*>/.test(text);
+      hasIdlePrompt = /goose is ready|> Enter to send|>\s*$|goose>|G\s*>/.test(text);
       hasCompletionMarker = true;
-      isWorking = /working|running|executing/i.test(text);
+      isWorking = /working|running|executing|calling/i.test(text);
     } else if (BACKEND === 'bob') {
       hasIdlePrompt = /bob>|>\s*$/.test(text);
       hasCompletionMarker = /completed|done|finished|✓/i.test(text);

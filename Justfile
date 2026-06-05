@@ -190,8 +190,10 @@ contribute-hive backend="" mode="docker":
       echo "Not set up yet. Run: just contribute-setup <cli>"
       exit 1
     fi
+    set -a
     source "{{config_dir}}/gh-auth.env"
     source "{{config_dir}}/contributor.env"
+    set +a
     # Handle "just contribute-hive local" (backward compat)
     _BACKEND="{{backend}}"
     _MODE="{{mode}}"
@@ -204,6 +206,7 @@ contribute-hive backend="" mode="docker":
     else
       BACKEND="${AGENT_BACKEND:-claude}"
     fi
+    export AGENT_BACKEND="$BACKEND"
     echo "=== Hive Contributor Agent ==="
     echo "Backend:  ${BACKEND}"
     echo "Hub:      {{hive_hub}}"
@@ -211,30 +214,62 @@ contribute-hive backend="" mode="docker":
     echo ""
 
     if [[ "$_MODE" == "local" ]]; then
-      # ── Local mode: start node relay in background + launch CLI directly ──
-      HUB="${HIVE_HUB:-{{hive_hub}}}"
-      WS_URL=$(echo "$HUB" | sed 's|/contribute/*$|/api/contribute/ws|')
-      echo "Starting local relay..."
-      echo "WebSocket: ${WS_URL}"
-      RELAY_PID=""
-      if [[ -f "v2/proxy/relay.js" ]]; then
-        HIVE_WS_URL="${WS_URL}" node v2/proxy/relay.js &
-        RELAY_PID=$!
-        trap "kill ${RELAY_PID} 2>/dev/null || true" EXIT
-        sleep 1
+      # ── Local mode: tmux session + relay (same as container, but on host) ──
+      TMUX_SESSION="hive-contributor"
+      SCRIPT_DIR="$(pwd)/bin"
+      RELAY="${SCRIPT_DIR}/contributor-relay.sh"
+
+      if [[ ! -f "$RELAY" ]]; then
+        echo "ERROR: Run from the hive repo root (need bin/contributor-relay.sh)"
+        exit 1
       fi
-      echo "Launching ${BACKEND} CLI (interactive)..."
-      case "${BACKEND}" in
-        claude)  claude --dangerously-skip-permissions ;;
-        copilot) copilot --allow-all ;;
-        bob)     bob --accept-license --approval-mode yolo --prompt-interactive "ready" ;;
-        goose)   goose session ;;
-        codex)   codex --dangerously-bypass-approvals-and-sandbox ;;
-        *)
-          echo "ERROR: Unknown backend '${BACKEND}'"
-          exit 1
-          ;;
-      esac
+
+      # Ensure ws module is available
+      if ! node -e "require('ws')" 2>/dev/null; then
+        echo "Installing ws module..."
+        npm install ws 2>/dev/null || { echo "ERROR: npm install ws failed"; exit 1; }
+      fi
+
+      # Get CLI binary and permission flags from backends.conf
+      source "${SCRIPT_DIR}/../config/backends.conf" 2>/dev/null || true
+      CMD=$(backend_binary "$BACKEND" 2>/dev/null || echo "$BACKEND")
+      PERM_FLAG=$(backend_perm_flag "$BACKEND" 2>/dev/null || echo "")
+
+      if ! command -v "$CMD" &>/dev/null; then
+        echo "ERROR: ${BACKEND} CLI not found. Install it first."
+        exit 1
+      fi
+
+      # Create tmux session with the CLI
+      tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+      tmux new-session -d -s "$TMUX_SESSION" -x 200 -y 50
+      tmux send-keys -t "$TMUX_SESSION" "$CMD $PERM_FLAG" Enter
+
+      # Start the relay
+      export HIVE_AGENT_SESSION="$TMUX_SESSION"
+      export HIVE_CONTRIBUTOR_MODE=true
+      export HIVE_CONTRIBUTOR_CLI="$BACKEND"
+      export NODE_PATH="${NODE_PATH:-$(pwd)/node_modules}"
+      echo "Starting relay + ${BACKEND} in tmux session '${TMUX_SESSION}'..."
+
+      cleanup() {
+        echo "Shutting down..."
+        kill "$RELAY_PID" 2>/dev/null || true
+        tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+        exit 0
+      }
+      trap cleanup SIGTERM SIGINT EXIT
+
+      node "$RELAY" &
+      RELAY_PID=$!
+      echo ""
+      echo "✓ Contributor running in local mode."
+      echo "  CLI:    $CMD (tmux session: $TMUX_SESSION)"
+      echo "  Relay:  PID $RELAY_PID"
+      echo "  Attach: tmux attach -t $TMUX_SESSION"
+      echo ""
+      echo "Relay logs:"
+      wait "$RELAY_PID"
     else
       # ── Docker mode: stop existing, start fresh ──
       if [[ "${HIVE_SKIP_PULL:-}" != "true" ]]; then

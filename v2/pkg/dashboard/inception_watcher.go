@@ -351,54 +351,74 @@ func (w *InceptionWatcher) runPSTSubscriber(ctx context.Context) {
 // handlePSTEvent reacts to pub-sub-tmux events from the brainstorm session.
 func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 	state := w.inception.GetState()
-	if state == nil || state.Phase != knowledge.PhaseCapture {
+	if state == nil {
 		return
 	}
 
 	switch event.Type {
 	case "state_change":
-		// Agent went idle — if we're in capture and no questions yet, re-kick
-		if event.Data["state"] == "idle" {
+		if event.Data["state"] == "idle" && w.kickRetryCount < maxKickRetries {
 			elapsed := time.Since(state.StartedAt)
-			if elapsed > kickRetryGracePeriodS && w.kickRetryCount < maxKickRetries {
-				w.logger.Info("pub-sub-tmux: agent idle during capture — re-kicking",
-					"elapsed", elapsed.Round(time.Second),
-				)
-				w.kickRetryCount++
-				w.lastKickRetry = time.Now()
-				msg := w.scheduler.BuildAgentMessage("brainstorm", nil, w.scheduler.GetLastActionable())
-				go func() {
-					if err := w.agentMgr.SendKick("brainstorm", msg); err != nil {
-						w.logger.Warn("pub-sub-tmux: re-kick failed", "error", err)
-					}
-				}()
+			if elapsed > kickRetryGracePeriodS {
+				phase := state.Phase
+				if phase == knowledge.PhaseCapture || phase == knowledge.PhaseStructure {
+					w.logger.Info("pub-sub-tmux: agent idle during inception — re-kicking",
+						"phase", phase,
+						"elapsed", elapsed.Round(time.Second),
+					)
+					w.kickRetryCount++
+					w.lastKickRetry = time.Now()
+					msg := w.buildInceptionKickMessage(state)
+					go func() {
+						if err := w.agentMgr.SendKick("brainstorm", msg); err != nil {
+							w.logger.Warn("pub-sub-tmux: re-kick failed", "error", err)
+						}
+					}()
+				}
 			}
 		}
 
 	case "rate_limit":
 		w.logger.Warn("pub-sub-tmux: brainstorm hit rate limit during inception",
+			"phase", state.Phase,
 			"message", event.Data["message"],
 		)
 
 	case "error":
 		w.logger.Warn("pub-sub-tmux: brainstorm error during inception",
+			"phase", state.Phase,
 			"message", event.Data["message"],
 		)
 
+	case "tool_call_completed":
+		// bd create/update completed — trigger immediate poll to check for new beads
+		if state.Phase == knowledge.PhaseCapture || state.Phase == knowledge.PhaseStructure {
+			go w.poll(context.Background())
+		}
+
 	case "raw_output":
-		// Parse questions from raw output in real-time (no 5s poll delay)
 		line := event.Data["message"]
 		if line == "" {
 			return
 		}
-		// Check for category keywords in table rows
-		if strings.Contains(line, "│") {
-			for kw := range categoryKeywords {
-				if strings.Contains(strings.ToLower(line), kw) {
-					// Table row with category — trigger a poll to parse the full table
-					go w.poll(context.Background())
-					return
+		lower := strings.ToLower(line)
+
+		switch state.Phase {
+		case knowledge.PhaseCapture:
+			if strings.Contains(line, "│") {
+				for kw := range categoryKeywords {
+					if strings.Contains(lower, kw) {
+						go w.poll(context.Background())
+						return
+					}
 				}
+			}
+		case knowledge.PhaseStructure:
+			// Detect fact bead creation in real-time
+			if strings.Contains(lower, "bd create") || strings.Contains(lower, "bd update") ||
+				strings.Contains(lower, "fact_type") || strings.Contains(lower, "fact_body") {
+				go w.poll(context.Background())
+				return
 			}
 		}
 	}
@@ -475,18 +495,18 @@ func (w *InceptionWatcher) buildInceptionKickMessage(state *knowledge.InceptionS
 	case knowledge.PhaseStructure:
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("INCEPTION TASK: Structure phase for idea: %q\n", state.IdeaText))
-		sb.WriteString("The user has answered your clarification questions. Extract structured facts from these answers.\n\n")
+		sb.WriteString("The user answered your clarification questions. Create fact beads NOW.\n\n")
 		for _, q := range state.Questions {
 			ans := state.Answers[q.ID]
 			if ans != "" {
 				sb.WriteString(fmt.Sprintf("Q: %s\nA: %s\n\n", q.Text, ans))
 			}
 		}
-		sb.WriteString("Create fact beads using `bd create` with:\n")
-		sb.WriteString("  - external_ref starting with 'inception/'\n")
-		sb.WriteString("  - meta field 'fact_type' set to one of: requirement, constraint, decision, assumption, dependency, goal\n")
-		sb.WriteString("  - meta field 'fact_body' with the extracted fact detail\n")
-		sb.WriteString("Create at least 3 fact beads from these answers.")
+		sb.WriteString("Create at least 3 fact beads. For EACH fact, run:\n\n")
+		sb.WriteString(fmt.Sprintf("bd create --title \"<fact title>\" --type advisory --priority 1 --actor brainstorm --external-ref \"inception/%s\"\n", state.IdeaSlug))
+		sb.WriteString("bd update <bead-id> --set-metadata fact_type=\"<vision|constitution|requirement|constraint|stakeholder|acceptance>\"\n")
+		sb.WriteString("bd update <bead-id> --set-metadata fact_body=\"<detailed fact content>\"\n\n")
+		sb.WriteString("Required facts: 1 vision, 1 constitution, 2+ requirements. Start creating beads IMMEDIATELY.")
 		return sb.String()
 	default:
 		return w.scheduler.BuildAgentMessage("brainstorm", nil, w.scheduler.GetLastActionable())

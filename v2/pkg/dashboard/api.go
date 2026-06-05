@@ -409,8 +409,10 @@ func (s *Server) handleConfigDownload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSnapshotAPI(w http.ResponseWriter, r *http.Request) {
-	if s.deps != nil && s.deps.Config != nil && !s.deps.Config.Hub.AutoSnapshot {
-		http.Error(w, "snapshots not enabled", http.StatusNotFound)
+	if s.deps == nil || s.deps.Config == nil || !s.deps.Config.Hub.AutoSnapshot {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"snapshots not enabled"}`))
 		return
 	}
 	s.statusMu.RLock()
@@ -426,8 +428,17 @@ func (s *Server) handleSnapshotAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
-	if s.deps != nil && s.deps.Config != nil && !s.deps.Config.Hub.AutoSnapshot {
-		http.Error(w, "snapshots not enabled", http.StatusNotFound)
+	if s.deps == nil || s.deps.Config == nil || !s.deps.Config.Hub.AutoSnapshot {
+		hubURL := "https://hive.kubestellar.io"
+		if s.deps != nil && s.deps.Config != nil && s.deps.Config.Hub.URL != "" {
+			hubURL = s.deps.Config.Hub.URL
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3;url=%s"><title>Hive</title>
+<style>body{font-family:system-ui,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
+.card{text-align:center;max-width:480px;padding:40px}.bee{font-size:3rem;margin-bottom:16px}h1{color:#f59e0b;margin:0 0 8px}p{color:#8b949e;line-height:1.6}a{color:#58a6ff}</style>
+</head><body><div class="card"><div class="bee">🐝</div><h1>Hive</h1><p>AI Agent Orchestration for GitHub</p><p>Snapshot is not currently published for this hive.</p><p>Redirecting to <a href="%s">%s</a>...</p></div></body></html>`,
+			hubURL, hubURL, hubURL)
 		return
 	}
 	data, err := staticFS.ReadFile("static/index.html")
@@ -436,7 +447,35 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	html := strings.Replace(string(data), "</head>",
-		`<script>window.HIVE_SNAPSHOT_MODE=true;</script></head>`, 1)
+		`<script>
+window.HIVE_SNAPSHOT_MODE=true;
+(function(){
+  var origFetch=window.fetch;
+  window.fetch=function(url,opts){
+    var method=(opts&&opts.method||'GET').toUpperCase();
+    if(method!=='GET'&&method!=='HEAD'){
+      console.warn('[snapshot] blocked '+method+' '+url);
+      return Promise.resolve(new Response('{"error":"read-only snapshot"}',{status:403,headers:{'Content-Type':'application/json'}}));
+    }
+    return origFetch.apply(this,arguments);
+  };
+})();
+</script>
+<style>
+  .config-gear, .restart-btn, .btn-toggle, [data-action="openConfigDialog"],
+  [data-action="kickAgent"], [data-action="restartAgent"],
+  [onclick*="kick"], [onclick*="pause"], [onclick*="resume"],
+  [onclick*="openConfig"], [onclick*="deleteAgent"],
+  .oc-nav-actions, .gh-auth-btn, #gh-auth-banner, #gh-auth-alert,
+  .gh-auth-alert, button[onclick*="Revoke"], button[onclick*="updateUser"],
+  select[onchange*="changeContributorTier"], #btn-add-hive,
+  button[onclick*="openConvert"], button[onclick*="deleteHive"],
+  button[onclick*="upgradeHive"], button[onclick*="openAccessModal"],
+  .system-gauges { display: none !important; }
+  body::before { content: "📸 Read-only snapshot"; display: block; text-align: center;
+    padding: 6px; background: #1a1a2e; color: #f59e0b; font-size: 0.8rem; font-weight: 600;
+    border-bottom: 2px solid #f59e0b; position: sticky; top: 0; z-index: 10000; }
+</style></head>`, 1)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	w.Write([]byte(html))

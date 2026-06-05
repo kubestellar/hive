@@ -352,7 +352,11 @@ func (b *Bot) cmdAgentAction(action, args string) (string, error) {
 func (b *Bot) dashboardKick(agent, prompt string) (string, error) {
 	var body []byte
 	if prompt != "" {
-		body, _ = json.Marshal(map[string]string{"prompt": prompt})
+		var err error
+		body, err = json.Marshal(map[string]string{"prompt": prompt})
+		if err != nil {
+			return fmt.Sprintf("❌ Failed to marshal kick payload: %s", err), nil
+		}
 	}
 	err := b.dashboardPost(fmt.Sprintf("/api/kick/%s", agent), body)
 	if err != nil {
@@ -571,7 +575,10 @@ func (b *Bot) updateTopic(snap *statusSnapshot) {
 }
 
 func (b *Bot) setChannelTopic(topic string) error {
-	payload, _ := json.Marshal(map[string]string{"topic": topic})
+	payload, err := json.Marshal(map[string]string{"topic": topic})
+	if err != nil {
+		return fmt.Errorf("marshal topic payload: %w", err)
+	}
 	url := fmt.Sprintf("%s/channels/%s", discordAPIBase, b.channelID)
 
 	req, err := http.NewRequest(http.MethodPatch, url, bytes.NewReader(payload))

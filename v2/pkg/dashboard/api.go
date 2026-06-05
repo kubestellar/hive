@@ -547,9 +547,16 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		var seed []json.RawMessage
 		if json.Unmarshal(seedData, &seed) == nil && len(seed) > 0 {
-			liveData, _ := json.Marshal(history)
+			liveData, err := json.Marshal(history)
+			if err != nil {
+				jsonResponse(w, history)
+				return
+			}
 			var liveEntries []json.RawMessage
-			_ = json.Unmarshal(liveData, &liveEntries)
+			if json.Unmarshal(liveData, &liveEntries) != nil {
+				jsonResponse(w, history)
+				return
+			}
 			combined := append(seed, liveEntries...)
 			jsonResponse(w, combined)
 			return
@@ -1783,8 +1790,10 @@ func (s *Server) handleAgentConfigRestrictions(w http.ResponseWriter, r *http.Re
 		lines = append(lines, line)
 	}
 	tmpRest := restFile + ".tmp"
-	if os.WriteFile(tmpRest, []byte(strings.Join(lines, "\n")+"\n"), 0o644) == nil {
-		_ = os.Rename(tmpRest, restFile)
+	if err := os.WriteFile(tmpRest, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		s.logger.Warn("rest file write failed", "error", err)
+	} else if err := os.Rename(tmpRest, restFile); err != nil {
+		s.logger.Warn("rest file rename failed", "error", err)
 	}
 
 	s.refreshAndPersist()
@@ -1812,8 +1821,10 @@ func (s *Server) handleAgentConfigStats(w http.ResponseWriter, r *http.Request) 
 	data, err := json.Marshal(body)
 	if err == nil {
 		tmpStats := statsFile + ".tmp"
-		if os.WriteFile(tmpStats, data, 0o644) == nil {
-			_ = os.Rename(tmpStats, statsFile)
+		if err := os.WriteFile(tmpStats, data, 0o644); err != nil {
+			s.logger.Warn("stats file write failed", "error", err)
+		} else if err := os.Rename(tmpStats, statsFile); err != nil {
+			s.logger.Warn("stats file rename failed", "error", err)
 		}
 	}
 

@@ -148,12 +148,16 @@ func (s *HubServer) handleAuthUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isAdmin := cookie.Value == hubAdminUsername
-	data, _ := json.Marshal(map[string]any{
+	data, err := json.Marshal(map[string]any{
 		"authenticated": true,
 		"login":         cookie.Value,
 		"avatar_url":    fmt.Sprintf("https://github.com/%s.png", cookie.Value),
 		"hub_admin":     isAdmin,
 	})
+	if err != nil {
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }

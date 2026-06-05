@@ -42,6 +42,7 @@ type InceptionWatcher struct {
 	lastSlug          string
 	lastKickRetry     time.Time
 	kickRetryCount    int
+	ctx               context.Context
 }
 
 // NewInceptionWatcher creates a watcher that polls the brainstorm bead store.
@@ -65,6 +66,7 @@ func NewInceptionWatcher(
 
 // Run starts the polling loop and event subscriber. Blocks until ctx is cancelled.
 func (w *InceptionWatcher) Run(ctx context.Context) {
+	w.ctx = ctx
 	w.logger.Info("inception watcher started")
 	ticker := time.NewTicker(inceptionWatchIntervalS)
 	defer ticker.Stop()
@@ -402,7 +404,7 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 	case "tool_call_completed":
 		// bd create/update completed — trigger immediate poll to check for new beads
 		if state.Phase == knowledge.PhaseCapture || state.Phase == knowledge.PhaseStructure {
-			go w.poll(context.Background())
+			go w.poll(w.ctx)
 		}
 
 	case "raw_output":
@@ -417,7 +419,7 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 			if strings.Contains(line, "│") {
 				for kw := range categoryKeywords {
 					if strings.Contains(lower, kw) {
-						go w.poll(context.Background())
+						go w.poll(w.ctx)
 						return
 					}
 				}
@@ -426,7 +428,7 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 			// Detect fact bead creation in real-time
 			if strings.Contains(lower, "bd create") || strings.Contains(lower, "bd update") ||
 				strings.Contains(lower, "fact_type") || strings.Contains(lower, "fact_body") {
-				go w.poll(context.Background())
+				go w.poll(w.ctx)
 				return
 			}
 		}

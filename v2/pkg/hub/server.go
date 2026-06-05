@@ -101,7 +101,9 @@ func NewHubServer(port int, logger *slog.Logger, gitHash string) *HubServer {
 		cryptoRand.Read(b)
 		secret = fmt.Sprintf("%x", b)
 		os.MkdirAll("/data/saas", 0o755)
-		os.WriteFile("/data/saas/hub-secret.key", []byte(secret), 0o600)
+		if err := os.WriteFile("/data/saas/hub-secret.key", []byte(secret), 0o600); err != nil {
+			logger.Error("failed to write hub secret", "error", err)
+		}
 		logger.Info("generated hub secret", "path", "/data/saas/hub-secret.key")
 	}
 	s := &HubServer{

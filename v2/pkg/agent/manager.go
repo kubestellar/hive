@@ -1830,7 +1830,9 @@ func (m *Manager) SyncModeFiles(level int) {
 			}
 		}
 		modeFile := fmt.Sprintf("/tmp/.hive-mode-%s", name)
-		_ = os.WriteFile(modeFile, []byte(mode.String()), 0o644)
+		if err := os.WriteFile(modeFile, []byte(mode.String()), 0o644); err != nil {
+			m.logger.Warn("SyncModeFiles: write failed", "file", modeFile, "error", err)
+		}
 	}
 }
 
@@ -1977,7 +1979,9 @@ func (m *Manager) agentEnvPairs(agent *AgentProcess) []agentEnvPair {
 	mode := m.agentMode(agent)
 	vars = append(vars, agentEnvPair{"HIVE_AGENT_MODE", mode.String(), false})
 	modeFile := fmt.Sprintf("/tmp/.hive-mode-%s", agent.Name)
-	_ = os.WriteFile(modeFile, []byte(mode.String()), 0o644)
+	if err := os.WriteFile(modeFile, []byte(mode.String()), 0o644); err != nil {
+		m.logger.Warn("agentBootstrapEnv: mode file write failed", "file", modeFile, "error", err)
+	}
 	proxyURL := fmt.Sprintf("http://%s@127.0.0.1:%d", agent.Name, proxyListenPort)
 	vars = append(vars, agentEnvPair{"HTTPS_PROXY", proxyURL, false})
 	vars = append(vars, agentEnvPair{"HTTP_PROXY", proxyURL, false})

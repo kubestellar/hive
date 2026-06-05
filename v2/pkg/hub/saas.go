@@ -44,7 +44,9 @@ func loadOrCreateHMACKey() ([]byte, error) {
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		return nil, err
 	}
-	os.WriteFile(hmacKeyPath, key, 0o600)
+	if err := os.WriteFile(hmacKeyPath, key, 0o600); err != nil {
+		return nil, fmt.Errorf("write HMAC key: %w", err)
+	}
 	return key, nil
 }
 
@@ -281,7 +283,9 @@ func ensureSaaSUser(username string) *SaaSUser {
 	u := loadSaaSUser(username)
 	if u != nil {
 		u.LastLogin = now
-		saveSaaSUser(u)
+		if err := saveSaaSUser(u); err != nil {
+			slog.Warn("ensureSaaSUser: save failed", "user", username, "error", err)
+		}
 		return u
 	}
 	quota := 0
@@ -871,11 +875,19 @@ func loadAccessRequests(hiveID string) []AccessRequest {
 func saveAccessRequests(hiveID string, reqs []AccessRequest) {
 	dir := filepath.Join(saasHivesDir, hiveID)
 	os.MkdirAll(dir, 0o755)
-	data, _ := json.MarshalIndent(reqs, "", "  ")
+	data, err := json.MarshalIndent(reqs, "", "  ")
+	if err != nil {
+		slog.Warn("saveAccessRequests: marshal failed", "hiveID", hiveID, "error", err)
+		return
+	}
 	path := filepath.Join(dir, "requests.json")
 	tmpPath := path + ".tmp"
-	if os.WriteFile(tmpPath, data, 0o644) == nil {
-		os.Rename(tmpPath, path)
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		slog.Warn("saveAccessRequests: write failed", "error", err)
+		return
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		slog.Warn("saveAccessRequests: rename failed", "error", err)
 	}
 }
 

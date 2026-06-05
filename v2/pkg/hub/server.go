@@ -244,7 +244,7 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		ActionablePRs:      payload.Governor.PRs,
 		ContributorCount:   payload.Contributors.Registered,
 		ActiveContributors: payload.Contributors.Active,
-		Owner:              payload.Owner,
+		Owner:              sanitizeHeartbeatField(payload.Owner),
 		HiveType: func() string {
 			if strings.HasPrefix(payload.HiveID, "hosted-") || strings.HasPrefix(payload.HiveID, "saas-") {
 				return "hosted"
@@ -254,14 +254,22 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		IsPublic: payload.IsPublic,
 		LastHeartbeat:      time.Now().UTC().Format(time.RFC3339),
 		Health:             payload.Health,
-		Version:            payload.Version,
-		GitHash:            payload.GitHash,
-		GitBranch:          payload.GitBranch,
-		Agents:             payload.Agents,
+		Version:            sanitizeHeartbeatField(payload.Version),
+		GitHash:            sanitizeHeartbeatField(payload.GitHash),
+		GitBranch:          sanitizeHeartbeatField(payload.GitBranch),
+		Agents: func() []AgentSummary {
+			for i := range payload.Agents {
+				payload.Agents[i].Name = sanitizeHeartbeatField(payload.Agents[i].Name)
+				payload.Agents[i].State = sanitizeHeartbeatField(payload.Agents[i].State)
+			}
+			return payload.Agents
+		}(),
 		Leaderboard: func() []LeaderboardEntry {
-			hiveName := payload.Org + "/" + payload.PrimaryRepo
+			hiveName := safeOrg + "/" + safePrimary
 			for i := range payload.Leaderboard {
 				payload.Leaderboard[i].HiveName = hiveName
+				payload.Leaderboard[i].GitHubUsername = sanitizeHeartbeatField(payload.Leaderboard[i].GitHubUsername)
+				payload.Leaderboard[i].CurrentTask = sanitizeHeartbeatField(payload.Leaderboard[i].CurrentTask)
 			}
 			return payload.Leaderboard
 		}(),

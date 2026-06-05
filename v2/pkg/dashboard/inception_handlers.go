@@ -423,12 +423,11 @@ func (s *Server) kickBrainstorm() {
 	}()
 }
 
-// sendKickBrainstorm sends the inception prompt to a RUNNING brainstorm agent
-// via SendKick (no restart). Used for the structure-phase kick after answers
-// are submitted — the agent is already running from the capture kick and
-// restarting it would kill its context and revert the phase.
+// sendKickBrainstorm sends an inception-specific prompt to the RUNNING
+// brainstorm agent via SendKick (no restart). Includes the user's Q&A
+// so the agent knows to extract facts and create fact beads.
 func (s *Server) sendKickBrainstorm() {
-	if s.deps.AgentMgr == nil || s.deps.Scheduler == nil {
+	if s.deps.AgentMgr == nil || s.deps.Inception == nil {
 		return
 	}
 	go func() {
@@ -438,7 +437,12 @@ func (s *Server) sendKickBrainstorm() {
 			}
 		}()
 
-		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
+		state := s.deps.Inception.GetState()
+		if state == nil {
+			return
+		}
+
+		msg := s.buildStructureKickMessage(state)
 		if err := s.deps.AgentMgr.SendKick("brainstorm", msg); err != nil {
 			s.logger.Warn("sendKick for structure phase failed, trying pst-send", "error", err)
 			if err2 := pstSendKick("brainstorm", msg); err2 != nil {
@@ -450,6 +454,24 @@ func (s *Server) sendKickBrainstorm() {
 			s.deps.Governor.RecordKick("brainstorm")
 		}
 	}()
+}
+
+func (s *Server) buildStructureKickMessage(state *knowledge.InceptionState) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("INCEPTION TASK: Structure phase for idea: %q\n", state.IdeaText))
+	sb.WriteString("The user has answered your clarification questions. Extract structured facts from these answers.\n\n")
+	for _, q := range state.Questions {
+		ans := state.Answers[q.ID]
+		if ans != "" {
+			sb.WriteString(fmt.Sprintf("Q: %s\nA: %s\n\n", q.Text, ans))
+		}
+	}
+	sb.WriteString("Create fact beads using `bd create` with:\n")
+	sb.WriteString("  - external_ref starting with 'inception/'\n")
+	sb.WriteString("  - meta field 'fact_type' set to one of: requirement, constraint, decision, assumption, dependency, goal\n")
+	sb.WriteString("  - meta field 'fact_body' with the extracted fact detail\n")
+	sb.WriteString("Create at least 3 fact beads from these answers.")
+	return sb.String()
 }
 
 // pstSendKick sends the inception prompt via pub-sub-tmux's pst-send command.

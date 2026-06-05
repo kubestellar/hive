@@ -429,7 +429,9 @@ func (w *InceptionWatcher) retryKickIfStale(state *knowledge.InceptionState) {
 			isReaping = true
 		}
 		if strings.Contains(lower, "inception") || strings.Contains(lower, "clarif") ||
-			strings.Contains(lower, "bd create") || strings.Contains(l, "Clarification:") {
+			strings.Contains(lower, "bd create") || strings.Contains(l, "Clarification:") ||
+			strings.Contains(lower, "fact") || strings.Contains(lower, "structur") ||
+			strings.Contains(lower, "extract") || strings.Contains(lower, "requirement") {
 			hasInceptionWork = true
 		}
 	}
@@ -441,11 +443,11 @@ func (w *InceptionWatcher) retryKickIfStale(state *knowledge.InceptionState) {
 		return
 	}
 
-	// Agent is reaping or idle — re-kick with inception prompt
+	// Agent is reaping or idle — re-kick with inception-specific prompt
 	w.kickRetryCount++
 	w.lastKickRetry = time.Now()
 
-	msg := w.scheduler.BuildAgentMessage("brainstorm", nil, w.scheduler.GetLastActionable())
+	msg := w.buildInceptionKickMessage(state)
 	if err := w.agentMgr.SendKick("brainstorm", msg); err != nil {
 		w.logger.Warn("inception retry kick failed",
 			"attempt", w.kickRetryCount,
@@ -456,6 +458,38 @@ func (w *InceptionWatcher) retryKickIfStale(state *knowledge.InceptionState) {
 			"attempt", w.kickRetryCount,
 			"isReaping", isReaping,
 		)
+	}
+}
+
+func (w *InceptionWatcher) buildInceptionKickMessage(state *knowledge.InceptionState) string {
+	switch state.Phase {
+	case knowledge.PhaseCapture:
+		return fmt.Sprintf(
+			"INCEPTION TASK: You are in the capture phase for idea: %q\n"+
+				"Generate at least %d clarification questions using `bd create`.\n"+
+				"Each question bead must have external_ref starting with 'inception/'.\n"+
+				"DO NOT close any beads with inception/ prefix.\n"+
+				"DO NOT run spec-kit during capture phase.",
+			state.IdeaText, minQuestionsForAdvance,
+		)
+	case knowledge.PhaseStructure:
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("INCEPTION TASK: Structure phase for idea: %q\n", state.IdeaText))
+		sb.WriteString("The user has answered your clarification questions. Extract structured facts from these answers.\n\n")
+		for _, q := range state.Questions {
+			ans := state.Answers[q.ID]
+			if ans != "" {
+				sb.WriteString(fmt.Sprintf("Q: %s\nA: %s\n\n", q.Text, ans))
+			}
+		}
+		sb.WriteString("Create fact beads using `bd create` with:\n")
+		sb.WriteString("  - external_ref starting with 'inception/'\n")
+		sb.WriteString("  - meta field 'fact_type' set to one of: requirement, constraint, decision, assumption, dependency, goal\n")
+		sb.WriteString("  - meta field 'fact_body' with the extracted fact detail\n")
+		sb.WriteString("Create at least 3 fact beads from these answers.")
+		return sb.String()
+	default:
+		return w.scheduler.BuildAgentMessage("brainstorm", nil, w.scheduler.GetLastActionable())
 	}
 }
 

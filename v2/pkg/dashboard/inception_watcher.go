@@ -819,6 +819,8 @@ func (w *InceptionWatcher) autoGenerateFacts(ctx context.Context, state *knowled
 		return
 	}
 
+	w.inception.IncrementAutoFactCount(len(facts))
+
 	w.logger.Info("inception watcher: auto-generated facts from Q&A (agent timeout fallback)",
 		"count", len(facts),
 		"timeout", autoFactFallbackTimeout,

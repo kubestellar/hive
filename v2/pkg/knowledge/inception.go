@@ -673,6 +673,15 @@ func (e *InceptionEngine) SetWikiName(name string) {
 	}
 }
 
+func (e *InceptionEngine) IncrementAutoFactCount(count int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.state != nil {
+		e.state.AutoFactCount += count
+		_ = e.saveState()
+	}
+}
+
 // HasWikiFiles returns true if the inception wiki has any files from a previous run.
 func (e *InceptionEngine) HasWikiFiles() bool {
 	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)

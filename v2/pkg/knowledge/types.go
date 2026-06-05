@@ -233,6 +233,7 @@ type InceptionState struct {
 	StartedAt      time.Time         `json:"started_at"`
 	PhaseChangedAt *time.Time        `json:"phase_changed_at,omitempty"`
 	WikiName       string            `json:"wiki_name,omitempty"`
+	AutoFactCount  int               `json:"auto_fact_count,omitempty"`
 }
 
 // ScaffoldFile is a single generated file in the scaffold output.

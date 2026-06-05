@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -27,13 +28,22 @@ const defaultLookbackHours = 24
 // SetProxyViolationsProvider registers a function that returns per-agent
 // proxy violation counts, called during status builds.
 func SetProxyViolationsProvider(fn func() map[string]int) {
+	proxyViolationsMu.Lock()
+	defer proxyViolationsMu.Unlock()
 	proxyViolationsFn = fn
+}
+
+func getProxyViolationsFn() func() map[string]int {
+	proxyViolationsMu.RLock()
+	defer proxyViolationsMu.RUnlock()
+	return proxyViolationsFn
 }
 
 var (
 	cachedHealth   map[string]any
 	cachedHealthMu sync.RWMutex
 
+	proxyViolationsMu sync.RWMutex
 	proxyViolationsFn func() map[string]int
 )
 
@@ -162,7 +172,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 		const summaryLines = 20
 		var liveSummary string
 		if pane := proc.PaneLines(summaryLines); len(pane) > 0 {
-			liveSummary = strings.Join(pane, "\n")
+			liveSummary = redactTokens(strings.Join(pane, "\n"))
 		}
 		var detailSummary string
 		const maxDetailLines = 50
@@ -171,12 +181,12 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			if len(lines) > maxDetailLines {
 				lines = lines[len(lines)-maxDetailLines:]
 			}
-			detailSummary = strings.Join(lines, "\n")
+			detailSummary = redactTokens(strings.Join(lines, "\n"))
 		} else if pane := proc.FilteredPaneLines(0); len(pane) > 0 {
 			if len(pane) > maxDetailLines {
 				pane = pane[len(pane)-maxDetailLines:]
 			}
-			detailSummary = strings.Join(pane, "\n")
+			detailSummary = redactTokens(strings.Join(pane, "\n"))
 		}
 
 		agentID := proc.ID
@@ -239,8 +249,8 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 		a.IsCustomMode = mode != defaultMode
 		a.NeedsRestart = proc.HasLaunched && proc.LaunchedMode != mode
 		a.OnDemand = agentCfg.OnDemand || onDemandSet[name]
-		if proxyViolationsFn != nil {
-			a.ProxyViolations = proxyViolationsFn()[name]
+		if pvFn := getProxyViolationsFn(); pvFn != nil {
+			a.ProxyViolations = pvFn()[name]
 		}
 
 		agents = append(agents, a)
@@ -1111,4 +1121,15 @@ func readCgroupCPUUsageUsec(path string) int64 {
 func roundTo(f float64, decimals int) float64 {
 	shift := math.Pow10(decimals)
 	return math.Round(f*shift) / shift
+}
+
+var statusTokenRedactor = regexp.MustCompile(`(ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_]{10,}`)
+
+func redactTokens(s string) string {
+	return statusTokenRedactor.ReplaceAllStringFunc(s, func(m string) string {
+		if len(m) > 7 {
+			return m[:7] + "***"
+		}
+		return "***"
+	})
 }

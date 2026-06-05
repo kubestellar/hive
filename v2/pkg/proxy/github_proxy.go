@@ -543,10 +543,14 @@ func (p *GitHubProxy) tunnelDirect(conn net.Conn, r *http.Request) {
 		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\n\r\ndial %s: %v\n", r.Host, err)
 		return
 	}
+	defer upstream.Close()
 
 	fmt.Fprintf(conn, "HTTP/1.1 200 Connection established\r\n\r\n")
 
-	go transfer(upstream, conn)
+	go func() {
+		io.Copy(upstream, conn)
+		upstream.Close()
+	}()
 	io.Copy(conn, upstream)
 }
 
@@ -557,8 +561,13 @@ func transfer(dst, src net.Conn) {
 }
 
 // forwardPlainDirect handles non-CONNECT (plain HTTP) requests on a raw connection.
+var plainHTTPClient = &http.Client{
+	Transport: http.DefaultTransport,
+	Timeout:   httpWriteTimeout,
+}
+
 func (p *GitHubProxy) forwardPlainDirect(conn net.Conn, r *http.Request) {
-	resp, err := http.DefaultTransport.RoundTrip(r)
+	resp, err := plainHTTPClient.Transport.RoundTrip(r)
 	if err != nil {
 		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\n\r\n%s\n", err.Error())
 		return

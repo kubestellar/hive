@@ -5969,12 +5969,13 @@ function burnAreaChart() {
     function renderAuditRow(e) {
       var t = e.ts ? new Date(e.ts) : null;
       var timeStr = t ? t.toLocaleString() : '—';
+      var user = esc(e.user||'ghost');
       return '<tr style="border-bottom:1px solid var(--border)">' +
         '<td style="padding:4px 8px;white-space:nowrap;color:var(--muted)">' + timeStr + '</td>' +
-        '<td style="padding:4px 8px"><img src="https://github.com/' + (e.user||'ghost') + '.png?s=32" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px">' + (e.user||'—') + '</td>' +
-        '<td style="padding:4px 8px;font-weight:600">' + (e.action||'—') + '</td>' +
-        '<td style="padding:4px 8px">' + (e.agent||'—') + '</td>' +
-        '<td style="padding:4px 8px;color:var(--muted)">' + (e.detail||'') + '</td>' +
+        '<td style="padding:4px 8px"><img src="https://github.com/' + user + '.png?s=32" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px">' + esc(e.user||'—') + '</td>' +
+        '<td style="padding:4px 8px;font-weight:600">' + esc(e.action||'—') + '</td>' +
+        '<td style="padding:4px 8px">' + esc(e.agent||'—') + '</td>' +
+        '<td style="padding:4px 8px;color:var(--muted)">' + esc(e.detail||'') + '</td>' +
         '</tr>';
     }
 
@@ -6025,7 +6026,7 @@ function burnAreaChart() {
     function renderAuditSearchDatalist() {
       var dl = document.getElementById('audit-saved-searches');
       if (!dl) return;
-      dl.innerHTML = loadAuditSearches().map(function(s) { return '<option value="' + s.replace(/"/g, '&quot;') + '">'; }).join('');
+      dl.innerHTML = loadAuditSearches().map(function(s) { return '<option value="' + esc(s) + '">'; }).join('');
     }
     function saveAuditSearch() {
       var q = (document.getElementById('audit-search').value || '').trim();

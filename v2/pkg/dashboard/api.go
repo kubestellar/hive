@@ -296,6 +296,25 @@ func sanitizeString(s string) string {
 
 var envVarEscapePattern = regexp.MustCompile(`\$\{[^}]*\}`)
 
+var tokenRedactor = regexp.MustCompile(`(ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_]{10,}`)
+
+func redactTokensInLine(s string) string {
+	return tokenRedactor.ReplaceAllStringFunc(s, func(m string) string {
+		if len(m) > 7 {
+			return m[:7] + "***REDACTED***"
+		}
+		return "***REDACTED***"
+	})
+}
+
+func sanitizeFilenameComponent(s string) string {
+	return strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			return r
+		}
+		return '-'
+	}, s)
+}
 
 // --- Core status endpoints ---
 
@@ -405,9 +424,11 @@ func (s *Server) handleConfigDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	timestamp := time.Now().Format("2006-01-02_150405")
-	filename := fmt.Sprintf("hive-%s-%s-%s.yaml", org, repo, timestamp)
+	safeOrg := sanitizeFilenameComponent(org)
+	safeRepo := sanitizeFilenameComponent(repo)
+	filename := fmt.Sprintf("hive-%s-%s-%s.yaml", safeOrg, safeRepo, timestamp)
 	w.Header().Set("Content-Type", "application/x-yaml")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	w.Write(data)
 }
 
@@ -690,6 +711,10 @@ func (s *Server) handlePane(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for i, line := range output {
+		output[i] = redactTokensInLine(line)
+	}
+
 	jsonResponse(w, map[string]interface{}{
 		"agent":  name,
 		"lines":  output,
@@ -732,7 +757,7 @@ func (s *Server) handleKick(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 	name := s.resolveAgentParam(r.PathValue("agent"))
-	backend := r.PathValue("backend")
+	backend := sanitizeString(r.PathValue("backend"))
 
 	if err := s.deps.AgentMgr.SetBackendOverride(name, backend); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
@@ -747,7 +772,7 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleModelSet(w http.ResponseWriter, r *http.Request) {
 	name := s.resolveAgentParam(r.PathValue("agent"))
-	model := r.PathValue("model")
+	model := sanitizeString(r.PathValue("model"))
 
 	if err := s.deps.AgentMgr.SetModelOverride(name, model); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
@@ -1030,8 +1055,13 @@ func (s *Server) handleGHUserAuthPoll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := os.WriteFile(userTokenPath, []byte(token), 0o600); err != nil {
+	tmpTokenPath := userTokenPath + ".tmp"
+	if err := os.WriteFile(tmpTokenPath, []byte(token), 0o600); err != nil {
 		jsonError(w, "failed to save token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.Rename(tmpTokenPath, userTokenPath); err != nil {
+		jsonError(w, "failed to persist token: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -1597,7 +1627,7 @@ func (s *Server) handleAgentConfigGeneral(w http.ResponseWriter, r *http.Request
 			s.logger.Error("failed to persist agent overlay after update", "agent", name, "error", err)
 		}
 	}
-	s.refreshAndPersistSync()
+	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated", "agent": name})
 }
 
@@ -1658,7 +1688,7 @@ func (s *Server) handleAgentConfigModels(w http.ResponseWriter, r *http.Request)
 		agentCfg.Backend = sanitizeString(body.Backend)
 	}
 	if body.Model != "" {
-		agentCfg.Model = body.Model
+		agentCfg.Model = sanitizeString(body.Model)
 	}
 	s.deps.Config.Agents[name] = agentCfg
 
@@ -1752,7 +1782,10 @@ func (s *Server) handleAgentConfigRestrictions(w http.ResponseWriter, r *http.Re
 		}
 		lines = append(lines, line)
 	}
-	_ = os.WriteFile(restFile, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	tmpRest := restFile + ".tmp"
+	if os.WriteFile(tmpRest, []byte(strings.Join(lines, "\n")+"\n"), 0o644) == nil {
+		_ = os.Rename(tmpRest, restFile)
+	}
 
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated", "agent": name})
@@ -1778,7 +1811,10 @@ func (s *Server) handleAgentConfigStats(w http.ResponseWriter, r *http.Request) 
 
 	data, err := json.Marshal(body)
 	if err == nil {
-		_ = os.WriteFile(statsFile, data, 0o644)
+		tmpStats := statsFile + ".tmp"
+		if os.WriteFile(tmpStats, data, 0o644) == nil {
+			_ = os.Rename(tmpStats, statsFile)
+		}
 	}
 
 	s.refreshAndPersist()
@@ -1987,9 +2023,21 @@ func (s *Server) handleGovernorSensing(w http.ResponseWriter, r *http.Request) {
 		s.deps.Config.Governor.EvalIntervalS = body.EvalIntervalS
 	}
 	if body.GHRatePatterns != nil {
+		for _, p := range body.GHRatePatterns {
+			if _, err := regexp.Compile(p); err != nil {
+				jsonError(w, fmt.Sprintf("invalid ghRatePattern regex %q: %v", p, err), http.StatusBadRequest)
+				return
+			}
+		}
 		s.deps.Config.Governor.Sensing.GHRatePatterns = body.GHRatePatterns
 	}
 	if body.CLIExcludePatterns != nil {
+		for _, p := range body.CLIExcludePatterns {
+			if _, err := regexp.Compile(p); err != nil {
+				jsonError(w, fmt.Sprintf("invalid cliExcludePattern regex %q: %v", p, err), http.StatusBadRequest)
+				return
+			}
+		}
 		s.deps.Config.Governor.Sensing.CLIExcludePatterns = body.CLIExcludePatterns
 	}
 	if body.LoginPatterns != nil {
@@ -2159,9 +2207,9 @@ func (s *Server) handleGovernorNotifications(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) handleGovernorHealth(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		HealthcheckInterval int  `json:"healthcheckInterval"`
-		RestartCooldown     int  `json:"restartCooldown"`
-		ModelLock           bool `json:"modelLock"`
+		HealthcheckInterval int   `json:"healthcheckInterval"`
+		RestartCooldown     int   `json:"restartCooldown"`
+		ModelLock           *bool `json:"modelLock"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body", http.StatusBadRequest)
@@ -2178,7 +2226,9 @@ func (s *Server) handleGovernorHealth(w http.ResponseWriter, r *http.Request) {
 	if body.RestartCooldown > 0 {
 		s.deps.Config.Governor.Health.RestartCooldown = body.RestartCooldown
 	}
-	s.deps.Config.Governor.Health.ModelLock = body.ModelLock
+	if body.ModelLock != nil {
+		s.deps.Config.Governor.Health.ModelLock = *body.ModelLock
+	}
 	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config after health update", "error", err) }
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})
@@ -2353,6 +2403,11 @@ func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(body.Repos) == 0 {
+		jsonError(w, "repos list must not be empty", http.StatusBadRequest)
+		return
+	}
+
 	org := s.deps.Config.Project.Org
 	stripped := make([]string, 0, len(body.Repos))
 	for _, repo := range body.Repos {
@@ -2427,7 +2482,10 @@ func (s *Server) saveSidebarToDisk(sb interface{}) {
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(sidebarFile, data, 0o644)
+	tmpSidebar := sidebarFile + ".tmp"
+	if os.WriteFile(tmpSidebar, data, 0o644) == nil {
+		_ = os.Rename(tmpSidebar, sidebarFile)
+	}
 }
 
 func (s *Server) handleBackends(w http.ResponseWriter, r *http.Request) {
@@ -3180,8 +3238,11 @@ func (s *Server) handleHiveIDSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Persist the new ID to disk so it survives restarts
-	if err := os.WriteFile(hiveIDFilePath, []byte(body.ID+"\n"), 0o644); err != nil {
+	tmpHiveID := hiveIDFilePath + ".tmp"
+	if err := os.WriteFile(tmpHiveID, []byte(body.ID+"\n"), 0o644); err != nil {
 		s.logger.Warn("failed to persist hive ID", "error", err)
+	} else if err := os.Rename(tmpHiveID, hiveIDFilePath); err != nil {
+		s.logger.Warn("failed to rename hive ID file", "error", err)
 	}
 
 	s.refreshAndPersist()
@@ -3223,19 +3284,33 @@ func (s *Server) handleNousStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleNousLedger(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Nous == nil || s.deps.Nous.Ledger == nil {
+	if s.deps.Nous == nil {
 		jsonResponse(w, []interface{}{})
 		return
 	}
-	jsonResponse(w, s.deps.Nous.Ledger)
+	s.deps.Nous.Mu.Lock()
+	ledger := s.deps.Nous.Ledger
+	s.deps.Nous.Mu.Unlock()
+	if ledger == nil {
+		jsonResponse(w, []interface{}{})
+		return
+	}
+	jsonResponse(w, ledger)
 }
 
 func (s *Server) handleNousPrinciples(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Nous == nil || s.deps.Nous.Principles == nil {
+	if s.deps.Nous == nil {
 		jsonResponse(w, []interface{}{})
 		return
 	}
-	jsonResponse(w, s.deps.Nous.Principles)
+	s.deps.Nous.Mu.Lock()
+	principles := s.deps.Nous.Principles
+	s.deps.Nous.Mu.Unlock()
+	if principles == nil {
+		jsonResponse(w, []interface{}{})
+		return
+	}
+	jsonResponse(w, principles)
 }
 
 func (s *Server) handleNousApprove(w http.ResponseWriter, r *http.Request) {
@@ -3366,7 +3441,10 @@ func (s *Server) handleNousConfigGet(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]interface{}{})
 		return
 	}
-	jsonResponse(w, s.deps.Nous.Config)
+	s.deps.Nous.Mu.Lock()
+	cfg := s.deps.Nous.Config
+	s.deps.Nous.Mu.Unlock()
+	jsonResponse(w, cfg)
 }
 
 func (s *Server) handleNousConfigGoals(w http.ResponseWriter, r *http.Request) {
@@ -3404,6 +3482,7 @@ func (s *Server) handleNousDeletePrinciple(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	s.deps.Nous.Mu.Lock()
 	filtered := make([]NousPrinciple, 0, len(s.deps.Nous.Principles))
 	for _, p := range s.deps.Nous.Principles {
 		if p.ID != id {
@@ -3411,6 +3490,7 @@ func (s *Server) handleNousDeletePrinciple(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	s.deps.Nous.Principles = filtered
+	s.deps.Nous.Mu.Unlock()
 
 	okResponse(w, map[string]string{"status": "deleted", "id": id})
 }
@@ -3427,10 +3507,12 @@ func (s *Server) handleNousConfigSection(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	s.deps.Nous.Mu.Lock()
 	if s.deps.Nous.Config == nil {
 		s.deps.Nous.Config = make(map[string]interface{})
 	}
 	s.deps.Nous.Config[section] = body
+	s.deps.Nous.Mu.Unlock()
 
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated", "section": section})
@@ -3627,13 +3709,16 @@ func (s *Server) handleBeadsCreate(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
+	body.Title = sanitizeString(body.Title)
 	if body.Title == "" {
 		jsonError(w, "title is required", http.StatusBadRequest)
 		return
 	}
+	body.Type = sanitizeString(body.Type)
 	if body.Type == "" {
 		body.Type = "advisory"
 	}
+	body.ExternalRef = sanitizeString(body.ExternalRef)
 	if body.Priority < 0 || body.Priority > maxBeadPriority {
 		jsonError(w, "priority must be 0-4", http.StatusBadRequest)
 		return

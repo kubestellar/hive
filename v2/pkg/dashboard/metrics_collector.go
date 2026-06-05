@@ -315,7 +315,10 @@ func (mc *MetricsCollector) saveToDisk(metrics map[string]any) {
 		return
 	}
 	_ = os.MkdirAll("/data/metrics", 0o755)
-	_ = os.WriteFile(metricsCacheFile, data, 0o644)
+	tmpPath := metricsCacheFile + ".tmp"
+	if os.WriteFile(tmpPath, data, 0o644) == nil {
+		_ = os.Rename(tmpPath, metricsCacheFile)
+	}
 }
 
 func (mc *MetricsCollector) loadMTTRFromDisk() {
@@ -339,5 +342,8 @@ func (mc *MetricsCollector) saveMTTRToDisk(result *ghpkg.MTTRResult) {
 		return
 	}
 	_ = os.MkdirAll("/data/metrics", 0o755)
-	_ = os.WriteFile(mttrCacheFile, data, 0o644)
+	tmpPath := mttrCacheFile + ".tmp"
+	if os.WriteFile(tmpPath, data, 0o644) == nil {
+		_ = os.Rename(tmpPath, mttrCacheFile)
+	}
 }

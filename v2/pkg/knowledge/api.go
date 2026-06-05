@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -16,6 +17,7 @@ const localKnowledgeDir = "/data/knowledge"
 // KnowledgeAPI provides a unified interface for dashboard endpoints to query
 // across all configured wiki layers.
 type KnowledgeAPI struct {
+	mu            sync.RWMutex
 	layers        []layerClient
 	config        KnowledgeConfig
 	promoter      *Promoter
@@ -346,6 +348,9 @@ func (k *KnowledgeAPI) Subscriptions() []Subscription {
 
 // AddSubscription adds a new wiki endpoint and connects a client for it.
 func (k *KnowledgeAPI) AddSubscription(sub Subscription) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	for _, existing := range k.subscriptions {
 		if existing.URL == sub.URL {
 			return fmt.Errorf("subscription already exists: %s", sub.URL)
@@ -366,6 +371,9 @@ func (k *KnowledgeAPI) AddSubscription(sub Subscription) error {
 
 // RemoveSubscription disconnects a wiki endpoint by URL.
 func (k *KnowledgeAPI) RemoveSubscription(url string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	found := false
 	newSubs := make([]Subscription, 0, len(k.subscriptions))
 	for _, s := range k.subscriptions {
@@ -405,6 +413,9 @@ type VaultInfo struct {
 // ConnectVault adds a file-based vault (Obsidian, MindStudio export, or any
 // directory of markdown files) as a knowledge source.
 func (k *KnowledgeAPI) ConnectVault(rootDir string, name string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	for _, v := range k.vaults {
 		if v.RootDir() == rootDir {
 			return fmt.Errorf("vault already connected: %s", rootDir)
@@ -423,6 +434,9 @@ func (k *KnowledgeAPI) ConnectVault(rootDir string, name string) error {
 
 // DisconnectVault removes a file-based vault by root directory.
 func (k *KnowledgeAPI) DisconnectVault(rootDir string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	found := false
 	newVaults := make([]*FileStore, 0, len(k.vaults))
 	for _, v := range k.vaults {
@@ -480,9 +494,14 @@ func (k *KnowledgeAPI) ReindexVault(rootDir string) error {
 
 // SearchAllWithVaults queries wiki layers, file-based vaults, and git sources.
 func (k *KnowledgeAPI) SearchAllWithVaults(ctx context.Context, query string, typeFilter string, limit int) []Fact {
+	k.mu.RLock()
+	vaults := k.vaults
+	sources := k.gitSources
+	k.mu.RUnlock()
+
 	results := k.SearchAll(ctx, query, typeFilter, limit)
 
-	for _, v := range k.vaults {
+	for _, v := range vaults {
 		if query == "" {
 			results = append(results, v.ListPages(typeFilter)...)
 		} else {
@@ -490,7 +509,7 @@ func (k *KnowledgeAPI) SearchAllWithVaults(ctx context.Context, query string, ty
 		}
 	}
 
-	for _, gs := range k.gitSources {
+	for _, gs := range sources {
 		if !gs.Ready() {
 			continue
 		}
@@ -548,18 +567,23 @@ func (k *KnowledgeAPI) Layers() []LayerType {
 // repo (sparse if subpath is set), indexes the markdown files, and starts a
 // periodic sync loop. Any layer level can have git sources.
 func (k *KnowledgeAPI) ConnectGitSource(ctx context.Context, config GitSourceConfig) error {
+	k.mu.RLock()
 	for _, gs := range k.gitSources {
 		if gs.Config().URL == config.URL && gs.Config().Subpath == config.Subpath {
+			k.mu.RUnlock()
 			return fmt.Errorf("git source already connected: %s (subpath: %s)", config.URL, config.Subpath)
 		}
 	}
+	k.mu.RUnlock()
 
 	gs := NewGitSource(config, localKnowledgeDir, k.logger)
 	if err := gs.Init(ctx); err != nil {
 		return err
 	}
 
+	k.mu.Lock()
 	k.gitSources = append(k.gitSources, gs)
+	k.mu.Unlock()
 
 	go gs.StartSyncLoop(ctx)
 
@@ -578,6 +602,9 @@ func (k *KnowledgeAPI) GetGitSourceStore(name string) *FileStore {
 
 // DisconnectGitSource removes a git source by URL and subpath.
 func (k *KnowledgeAPI) DisconnectGitSource(url, subpath string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	found := false
 	newSources := make([]*GitSource, 0, len(k.gitSources))
 	for _, gs := range k.gitSources {
@@ -678,11 +705,12 @@ const defaultObsidianConfidence = 0.7
 
 // ObsidianSync accepts a Post Webhook payload and upserts it as a knowledge fact.
 func (k *KnowledgeAPI) ObsidianSync(ctx context.Context, req ObsidianSyncRequest) (*ObsidianSyncResult, error) {
-	// Derive slug from filename (strip .md extension)
 	slug := strings.TrimSuffix(req.Filename, ".md")
 	slug = strings.TrimSuffix(slug, ".markdown")
-	// Normalize path separators to forward slashes for consistency
 	slug = strings.ReplaceAll(slug, "\\", "/")
+	if strings.Contains(slug, "..") {
+		return nil, fmt.Errorf("filename must not contain path traversal sequences")
+	}
 
 	// Extract metadata from frontmatter with defaults
 	title := extractFrontmatterString(req.Frontmatter, "title", "")
@@ -780,8 +808,11 @@ func (k *KnowledgeAPI) obsidianSyncToFile(slug, title, factType, layer string, c
 		action = "updated"
 	}
 
-	if err := os.WriteFile(path, []byte(buf.String()), 0o644); err != nil {
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(buf.String()), 0o644); err != nil {
 		k.logger.Warn("obsidian file sync failed", "path", path, "error", err)
+	} else if err := os.Rename(tmpPath, path); err != nil {
+		k.logger.Warn("obsidian file rename failed", "path", path, "error", err)
 	}
 
 	k.triggerVaultReindex(dir)

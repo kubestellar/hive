@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -153,7 +154,12 @@ func saveContributorProfile(p *ContributorProfile) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(getContributorsDir(), p.GitHubUsername+".json"), data, 0o644)
+	path := filepath.Join(getContributorsDir(), p.GitHubUsername+".json")
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func listContributorProfiles() []ContributorProfile {
@@ -225,6 +231,7 @@ func (s *Server) handleContributeLanding(w http.ResponseWriter, r *http.Request)
 	if s.deps != nil && s.deps.Config != nil {
 		projectName = s.deps.Config.Project.Name
 	}
+	projectName = html.EscapeString(projectName)
 	if projectName == "" {
 		projectName = "Hive"
 	}
@@ -509,6 +516,12 @@ func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	const maxContributors = 500
+	if len(listContributorProfiles()) >= maxContributors {
+		jsonError(w, "contributor registration full — contact the hive administrator", http.StatusServiceUnavailable)
+		return
+	}
+
 	existing, _ := loadContributorProfile(username)
 	if existing != nil {
 		if existing.TrustTier == "revoked" {
@@ -690,12 +703,17 @@ func loadFederationRegistry() *FederationRegistry {
 }
 
 func saveFederationRegistry(reg *FederationRegistry) error {
-	ensureDir(filepath.Dir(getFederationRegistryPath()))
+	path := getFederationRegistryPath()
+	ensureDir(filepath.Dir(path))
 	data, err := json.MarshalIndent(reg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(getFederationRegistryPath(), data, 0o644)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func (s *Server) handleHivesList(w http.ResponseWriter, r *http.Request) {
@@ -731,8 +749,17 @@ func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "dashboard_url must start with http://, https://, ws://, or wss://", http.StatusBadRequest)
 		return
 	}
+	if isPrivateURL(req.HubURL) {
+		jsonError(w, "hub_url must not target private/internal addresses", http.StatusBadRequest)
+		return
+	}
+	if req.DashboardURL != "" && isPrivateURL(req.DashboardURL) {
+		jsonError(w, "dashboard_url must not target private/internal addresses", http.StatusBadRequest)
+		return
+	}
 
 	reg := loadFederationRegistry()
+	const maxFederationHives = 100
 	hiveID := fmt.Sprintf("hive-%s-%s", strings.ToLower(req.Org), strings.ToLower(req.ProjectName))
 	for i := range reg.Hives {
 		if reg.Hives[i].ID == hiveID {
@@ -742,6 +769,11 @@ func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
 			jsonResponse(w, map[string]any{"ok": true, "id": hiveID, "updated": true})
 			return
 		}
+	}
+
+	if len(reg.Hives) >= maxFederationHives {
+		jsonError(w, "federation registry full", http.StatusServiceUnavailable)
+		return
 	}
 
 	reg.Hives = append(reg.Hives, FederationHive{
@@ -778,14 +810,15 @@ func (s *Server) handleHivesHeartbeat(w http.ResponseWriter, r *http.Request) {
 		ActiveAgents       int `json:"active_agents"`
 		ActionableItems    int `json:"actionable_items"`
 	}
+	const maxFedCount = 10000
 	if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-		if req.ActiveContributors >= 0 {
+		if req.ActiveContributors >= 0 && req.ActiveContributors <= maxFedCount {
 			found.ActiveContributors = req.ActiveContributors
 		}
-		if req.ActiveAgents >= 0 {
+		if req.ActiveAgents >= 0 && req.ActiveAgents <= maxFedCount {
 			found.ActiveAgents = req.ActiveAgents
 		}
-		if req.ActionableItems >= 0 {
+		if req.ActionableItems >= 0 && req.ActionableItems <= maxFedCount {
 			found.ActionableItems = req.ActionableItems
 		}
 	}
@@ -974,6 +1007,7 @@ func (s *Server) handleLeaderboardPage(w http.ResponseWriter, _ *http.Request) {
 	if s.deps != nil && s.deps.Config != nil {
 		projectName = s.deps.Config.Project.Name
 	}
+	projectName = html.EscapeString(projectName)
 	if projectName == "" {
 		projectName = "Hive"
 	}
@@ -1387,6 +1421,29 @@ func isValidUsername(s string) bool {
 		}
 	}
 	return true
+}
+
+func isPrivateURL(rawURL string) bool {
+	for _, scheme := range []string{"https://", "http://", "wss://", "ws://"} {
+		if strings.HasPrefix(rawURL, scheme) {
+			rawURL = strings.TrimPrefix(rawURL, scheme)
+			break
+		}
+	}
+	host := rawURL
+	if idx := strings.IndexAny(host, ":/"); idx >= 0 {
+		host = host[:idx]
+	}
+	host = strings.ToLower(host)
+	blocked := []string{"localhost", "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
+		"172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
+		"172.28.", "172.29.", "172.30.", "172.31.", "192.168.", "169.254.", "[::1]", "0.0.0.0"}
+	for _, p := range blocked {
+		if strings.HasPrefix(host, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // validateGitHubToken checks a GitHub personal access token against the GitHub API

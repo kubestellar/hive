@@ -59,6 +59,10 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 	if rawIdea == "" {
 		return nil, fmt.Errorf("idea text is required")
 	}
+	const maxIdeaLen = 4000
+	if len(rawIdea) > maxIdeaLen {
+		return nil, fmt.Errorf("idea text must be at most %d characters", maxIdeaLen)
+	}
 
 	if e.state != nil && e.state.Phase != PhaseComplete {
 		return nil, fmt.Errorf("inception already in progress (phase: %s) — reset first", e.state.Phase)
@@ -363,9 +367,13 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 		content.WriteString(f.Body)
 
 		path := filepath.Join(vaultDir, filename)
-		if err := os.WriteFile(path, []byte(content.String()), 0o644); err != nil {
+		tmpWiki := path + ".tmp"
+		if err := os.WriteFile(tmpWiki, []byte(content.String()), 0o644); err != nil {
 			e.logger.Warn("failed to write inception fact file", "path", path, "error", err)
 			continue
+		}
+		if err := os.Rename(tmpWiki, path); err != nil {
+			e.logger.Warn("failed to rename inception fact file", "path", path, "error", err)
 		}
 	}
 
@@ -752,7 +760,11 @@ func (e *InceptionEngine) saveState() error {
 		return fmt.Errorf("marshaling state: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return fmt.Errorf("writing state: %w", err)
+	}
+	return os.Rename(tmpPath, path)
 }
 
 // --- fact helpers ---

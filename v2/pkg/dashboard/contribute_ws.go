@@ -30,7 +30,13 @@ var wsUpgrader = websocket.Upgrader{
 		if origin == "" {
 			return true
 		}
-		return strings.Contains(origin, r.Host)
+		// Extract host from origin URL (e.g. "https://example.com" → "example.com")
+		host := origin
+		if idx := strings.Index(host, "://"); idx >= 0 {
+			host = host[idx+3:]
+		}
+		host = strings.TrimRight(host, "/")
+		return host == r.Host
 	},
 }
 
@@ -215,7 +221,10 @@ func (h *ContributeWSHub) saveCompletedTasks() {
 	h.completedMu.Unlock()
 	data, _ := json.Marshal(saved)
 	os.MkdirAll("/data/contributors", 0o755)
-	os.WriteFile(completedTasksFile, data, 0o644)
+	tmpPath := completedTasksFile + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err == nil {
+		os.Rename(tmpPath, completedTasksFile)
+	}
 }
 
 func (h *ContributeWSHub) markTaskCompleted(repo string, number int) {
@@ -351,7 +360,17 @@ func (h *ContributeWSHub) ActiveConnections() []ContributorConnection {
 	return out
 }
 
+const maxWSConnections = 50
+
 func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
+	h.mu.RLock()
+	count := len(h.connections)
+	h.mu.RUnlock()
+	if count >= maxWSConnections {
+		http.Error(w, "too many WebSocket connections", http.StatusServiceUnavailable)
+		return
+	}
+
 	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Warn("ws upgrade failed", "error", err)
@@ -771,11 +790,9 @@ func (h *ContributeWSHub) selectTask(c *ContributorConnection) *WSMessage {
 				if tok, err := h.server.deps.GHAppAuth.ScopedToken(ctx, c.profile.TrustTier); err == nil {
 					ghToken = tok
 				} else {
-					h.logger.Warn("[contribute-ws] failed to mint scoped token, falling back to cache",
+					h.logger.Warn("[contribute-ws] failed to mint scoped token — skipping task",
 						"tier", c.profile.TrustTier, "error", err)
-					if tokenBytes, err := os.ReadFile("/var/run/hive-metrics/gh-app-token.cache"); err == nil {
-						ghToken = string(tokenBytes)
-					}
+					return nil
 				}
 			} else if tokenBytes, err := os.ReadFile("/var/run/hive-metrics/gh-app-token.cache"); err == nil {
 				ghToken = string(tokenBytes)

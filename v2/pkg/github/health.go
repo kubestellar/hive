@@ -45,8 +45,9 @@ func (c *Client) FetchWorkflowHealth(ctx context.Context) map[string]any {
 }
 
 func (c *Client) primaryRepo() string {
-	if len(c.repos) > 0 {
-		return c.repos[0]
+	repos := c.getRepos()
+	if len(repos) > 0 {
+		return repos[0]
 	}
 	return "console"
 }
@@ -111,7 +112,7 @@ func (c *Client) checkWorkflow(ctx context.Context, repo, workflowName string) i
 func (c *Client) brewCheck(ctx context.Context, primaryRepo string) int {
 	brewTap := "homebrew-tap"
 	hasTap := false
-	for _, r := range c.repos {
+	for _, r := range c.getRepos() {
 		if r == brewTap {
 			hasTap = true
 			break

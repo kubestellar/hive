@@ -312,7 +312,6 @@ func parseSessionFile(path string, agentDetector func(string) string) (*SessionS
 
 		if entry.Role == "user" || entry.Role == "assistant" {
 			summary.Messages++
-			lastTimestamp = time.Now().UnixMilli()
 		}
 	}
 
@@ -374,26 +373,28 @@ func (c *Collector) saveSnapshot(agg *AggregateSummary) {
 	}
 }
 
-// configuredDetectKeywords holds config-driven agent detection keywords.
-// Set via SetDetectKeywords at startup; DefaultAgentDetector falls back to built-in if empty.
+var detectMu sync.RWMutex
 var configuredDetectKeywords map[string][]string
+var configuredAgentNames []string
 
 // SetDetectKeywords sets the agent detection keyword map from config.
 func SetDetectKeywords(keywords map[string][]string) {
+	detectMu.Lock()
+	defer detectMu.Unlock()
 	configuredDetectKeywords = keywords
 }
 
-// configuredAgentNames holds the list of known agent names for session path detection.
-var configuredAgentNames []string
-
 // SetAgentNames sets the list of known agent names from config.
 func SetAgentNames(names []string) {
+	detectMu.Lock()
+	defer detectMu.Unlock()
 	configuredAgentNames = names
 }
 
 // ConfiguredAgentNames returns the list of configured agent names.
-// Falls back to a default list if not configured.
 func ConfiguredAgentNames() []string {
+	detectMu.RLock()
+	defer detectMu.RUnlock()
 	if len(configuredAgentNames) > 0 {
 		return configuredAgentNames
 	}
@@ -412,7 +413,9 @@ var defaultDetectKeywords = map[string][]string{
 func DefaultAgentDetector(firstMsg string) string {
 	lower := strings.ToLower(firstMsg)
 
+	detectMu.RLock()
 	agents := configuredDetectKeywords
+	detectMu.RUnlock()
 	if len(agents) == 0 {
 		agents = defaultDetectKeywords
 	}

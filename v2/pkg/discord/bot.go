@@ -32,15 +32,13 @@ type AgentIdentity struct {
 	Color int
 }
 
-// agentIdentities maps agent names to their Discord display identity.
-// Populated from config via SetAgentIdentities; defaults used if not called.
+var discordMu sync.RWMutex
+
 var agentIdentities = map[string]AgentIdentity{
 	"governor": {Emoji: "🚦", Color: 0xf1c40f},
 	"pipeline": {Emoji: "⚙️", Color: 0x95a5a6},
 }
 
-// aliases maps shortcodes to full command/agent names.
-// Includes built-in defaults; overridable via SetAgentAliases from config.
 var aliases = map[string]string{
 	"s": "status", "st": "status",
 	"g": "governor", "gov": "governor",
@@ -51,7 +49,6 @@ var aliases = map[string]string{
 	"sg": "strategist", "te": "quality", "qa": "quality",
 }
 
-// SetAgentIdentities rebuilds agentIdentities from config at startup.
 func SetAgentIdentities(identities map[string]AgentIdentity) {
 	merged := map[string]AgentIdentity{
 		"governor": {Emoji: "🚦", Color: 0xf1c40f},
@@ -60,12 +57,14 @@ func SetAgentIdentities(identities map[string]AgentIdentity) {
 	for k, v := range identities {
 		merged[k] = v
 	}
+	discordMu.Lock()
 	agentIdentities = merged
+	discordMu.Unlock()
 }
 
-// SetAgentAliases replaces agent aliases in the aliases map with config-driven values.
-// Command aliases (status, governor, help, kick, pause, resume) are always preserved.
 func SetAgentAliases(agentAliases map[string]string) {
+	discordMu.Lock()
+	defer discordMu.Unlock()
 	for k, v := range agentAliases {
 		aliases[k] = v
 	}
@@ -798,6 +797,8 @@ func (b *Bot) dashboardPost(path string, body []byte) error {
 }
 
 func resolveAlias(s string) string {
+	discordMu.RLock()
+	defer discordMu.RUnlock()
 	if v, ok := aliases[s]; ok {
 		return v
 	}
@@ -805,6 +806,8 @@ func resolveAlias(s string) string {
 }
 
 func getIdentity(name string) AgentIdentity {
+	discordMu.RLock()
+	defer discordMu.RUnlock()
 	if id, ok := agentIdentities[name]; ok {
 		return id
 	}

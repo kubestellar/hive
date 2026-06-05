@@ -75,8 +75,12 @@ func SaveAgentFile(dir, name string, agent AgentConfig) error {
 	}
 
 	path := filepath.Join(dir, name+".yaml")
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("writing agent file %s: %w", path, err)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return fmt.Errorf("writing agent file %s: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("renaming agent file %s: %w", path, err)
 	}
 	return nil
 }

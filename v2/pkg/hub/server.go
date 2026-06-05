@@ -164,6 +164,7 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	payload.HiveID = sanitizeHeartbeatField(payload.HiveID)
 	if payload.HiveID == "" {
 		http.Error(w, "hive_id required", http.StatusBadRequest)
 		return
@@ -190,8 +191,16 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "dashboard_url must start with http:// or https://", http.StatusBadRequest)
 		return
 	}
+	if payload.DashboardURL != "" && isPrivateURL(payload.DashboardURL) {
+		http.Error(w, "dashboard_url must not target private/internal addresses", http.StatusBadRequest)
+		return
+	}
 	if payload.SnapshotURL != "" && !strings.HasPrefix(payload.SnapshotURL, "http://") && !strings.HasPrefix(payload.SnapshotURL, "https://") {
 		http.Error(w, "snapshot_url must start with http:// or https://", http.StatusBadRequest)
+		return
+	}
+	if payload.SnapshotURL != "" && isPrivateURL(payload.SnapshotURL) {
+		http.Error(w, "snapshot_url must not target private/internal addresses", http.StatusBadRequest)
 		return
 	}
 
@@ -213,16 +222,24 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		payload.Leaderboard[i].GitHubUsername = sanitizeField(lb.GitHubUsername)
 		payload.Leaderboard[i].HiveName = sanitizeField(lb.HiveName)
 	}
+	safeOrg := payload.Org
+	safePrimary := payload.PrimaryRepo
 
 	entry := RegistryEntry{
 		ID:                 payload.HiveID,
-		Name:               payload.Org + "/" + payload.PrimaryRepo,
-		Org:                payload.Org,
-		Repos:              payload.Repos,
-		PrimaryRepo:        payload.PrimaryRepo,
+		Name:               safeOrg + "/" + safePrimary,
+		Org:                safeOrg,
+		Repos: func() []string {
+			safe := make([]string, len(payload.Repos))
+			for i, r := range payload.Repos {
+				safe[i] = sanitizeHeartbeatField(r)
+			}
+			return safe
+		}(),
+		PrimaryRepo:        safePrimary,
 		DashboardURL:       payload.DashboardURL,
 		SnapshotURL:        payload.SnapshotURL,
-		ACMMLevel:          payload.ACMMLevel,
+		ACMMLevel:          clampInt(payload.ACMMLevel, 0, 6),
 		AgentCount: func() int {
 			count := 0
 			for _, a := range payload.Agents {
@@ -232,13 +249,13 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 			}
 			return count
 		}(),
-		GovernorMode:       payload.Governor.Mode,
-		TotalTokens24h:     payload.Tokens24h,
-		ActionableIssues:   payload.Governor.Issues,
-		ActionablePRs:      payload.Governor.PRs,
-		ContributorCount:   payload.Contributors.Registered,
-		ActiveContributors: payload.Contributors.Active,
-		Owner:              payload.Owner,
+		GovernorMode:       sanitizeHeartbeatField(payload.Governor.Mode),
+		TotalTokens24h:     clampInt64(payload.Tokens24h, 0, 100_000_000),
+		ActionableIssues:   clampInt(payload.Governor.Issues, 0, 10_000),
+		ActionablePRs:      clampInt(payload.Governor.PRs, 0, 10_000),
+		ContributorCount:   clampInt(payload.Contributors.Registered, 0, 10_000),
+		ActiveContributors: clampInt(payload.Contributors.Active, 0, 10_000),
+		Owner:              sanitizeHeartbeatField(payload.Owner),
 		HiveType: func() string {
 			if strings.HasPrefix(payload.HiveID, "hosted-") || strings.HasPrefix(payload.HiveID, "saas-") {
 				return "hosted"
@@ -248,14 +265,26 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		IsPublic: payload.IsPublic,
 		LastHeartbeat:      time.Now().UTC().Format(time.RFC3339),
 		Health:             payload.Health,
-		Version:            payload.Version,
-		GitHash:            payload.GitHash,
-		GitBranch:          payload.GitBranch,
-		Agents:             payload.Agents,
+		Version:            sanitizeHeartbeatField(payload.Version),
+		GitHash:            sanitizeHeartbeatField(payload.GitHash),
+		GitBranch:          sanitizeHeartbeatField(payload.GitBranch),
+		Agents: func() []AgentSummary {
+			for i := range payload.Agents {
+				payload.Agents[i].Name = sanitizeHeartbeatField(payload.Agents[i].Name)
+				payload.Agents[i].State = sanitizeHeartbeatField(payload.Agents[i].State)
+			}
+			const maxAgents = 50
+			if len(payload.Agents) > maxAgents {
+				payload.Agents = payload.Agents[:maxAgents]
+			}
+			return payload.Agents
+		}(),
 		Leaderboard: func() []LeaderboardEntry {
-			hiveName := payload.Org + "/" + payload.PrimaryRepo
+			hiveName := safeOrg + "/" + safePrimary
 			for i := range payload.Leaderboard {
 				payload.Leaderboard[i].HiveName = hiveName
+				payload.Leaderboard[i].GitHubUsername = sanitizeHeartbeatField(payload.Leaderboard[i].GitHubUsername)
+				payload.Leaderboard[i].CurrentTask = sanitizeHeartbeatField(payload.Leaderboard[i].CurrentTask)
 			}
 			return payload.Leaderboard
 		}(),
@@ -275,7 +304,18 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	const maxRegistryEntries = 200
 	if !found {
+		if strings.HasPrefix(payload.HiveID, "hosted-") || strings.HasPrefix(payload.HiveID, "saas-") {
+			s.mu.Unlock()
+			http.Error(w, "hosted/saas hive IDs can only be created via provisioning", http.StatusForbidden)
+			return
+		}
+		if len(s.registry.Hives) >= maxRegistryEntries {
+			s.mu.Unlock()
+			http.Error(w, "registry full", http.StatusServiceUnavailable)
+			return
+		}
 		entry.RegisteredAt = time.Now().UTC().Format(time.RFC3339)
 		s.registry.Hives = append(s.registry.Hives, entry)
 	}
@@ -352,7 +392,12 @@ func (s *HubServer) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
 		Leaderboard []LeaderboardEntry `json:"leaderboard"`
 		Contributors ContributorSummary `json:"contributors"`
 	}
-	if err := json.Unmarshal(body, &payload); err != nil || payload.HiveID == "" {
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	payload.HiveID = sanitizeHeartbeatField(payload.HiveID)
+	if payload.HiveID == "" {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
@@ -364,6 +409,11 @@ func (s *HubServer) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	for i, h := range s.registry.Hives {
 		if h.ID == payload.HiveID {
+			if !h.Online {
+				s.mu.Unlock()
+				http.Error(w, "hive is offline — heartbeat first", http.StatusForbidden)
+				return
+			}
 			hiveName = h.Name
 			s.registry.Hives[i].ContributorCount = payload.Contributors.Registered
 			s.registry.Hives[i].ActiveContributors = payload.Contributors.Active
@@ -387,10 +437,12 @@ func (s *HubServer) handleStats(w http.ResponseWriter, r *http.Request) {
 	totalIssues := 0
 	totalPRs := 0
 	onlineCount := 0
+	publicCount := 0
 	for _, h := range s.registry.Hives {
 		if !h.IsPublic {
 			continue
 		}
+		publicCount++
 		totalAgents += h.AgentCount
 		totalContributors += h.ActiveContributors
 		totalIssues += h.ActionableIssues
@@ -402,7 +454,7 @@ func (s *HubServer) handleStats(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	data, _ := json.Marshal(map[string]any{
-		"hives":        len(s.registry.Hives),
+		"hives":        publicCount,
 		"online":       onlineCount,
 		"agents":       totalAgents,
 		"contributors": totalContributors,
@@ -554,8 +606,13 @@ func (s *HubServer) saveLoop() {
 			s.logger.Warn("hub registry marshal failed", "error", err)
 			continue
 		}
-		if err := os.WriteFile(registryPath, data, 0o644); err != nil {
-			s.logger.Warn("hub registry save failed", "error", err)
+		tmpPath := registryPath + ".tmp"
+		if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+			s.logger.Warn("hub registry save failed", "path", tmpPath, "error", err)
+			continue
+		}
+		if err := os.Rename(tmpPath, registryPath); err != nil {
+			s.logger.Warn("hub registry rename failed", "error", err)
 		}
 	}
 }
@@ -563,9 +620,10 @@ func (s *HubServer) saveLoop() {
 func (s *HubServer) findContributeHive() *RegistryEntry {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for i, h := range s.registry.Hives {
-		if h.Online && h.IsPublic && h.DashboardURL != "" {
-			return &s.registry.Hives[i]
+	for _, h := range s.registry.Hives {
+		if h.Online && h.IsPublic && h.DashboardURL != "" && !isPrivateURL(h.DashboardURL) && h.Owner != "" {
+			cp := h
+			return &cp
 		}
 	}
 	return nil
@@ -625,4 +683,46 @@ func (s *HubServer) handleContributeWSProxy(w http.ResponseWriter, r *http.Reque
 	r.Host = target.Host
 	s.logger.Info("proxying contribute WS", "hive", hive.ID, "target", target.String())
 	proxy.ServeHTTP(w, r)
+}
+
+func isPrivateURL(rawURL string) bool {
+	for _, scheme := range []string{"https://", "http://", "wss://", "ws://"} {
+		rawURL = strings.TrimPrefix(rawURL, scheme)
+	}
+	host := rawURL
+	if idx := strings.IndexAny(host, ":/"); idx >= 0 {
+		host = host[:idx]
+	}
+	host = strings.ToLower(host)
+	blocked := []string{"localhost", "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.",
+		"172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.",
+		"172.28.", "172.29.", "172.30.", "172.31.", "192.168.", "169.254.", "[::1]", "0.0.0.0"}
+	for _, p := range blocked {
+		if strings.HasPrefix(host, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func clampInt(v, min, max int) int {
+	if v < min { return min }
+	if v > max { return max }
+	return v
+}
+
+func clampInt64(v, min, max int64) int64 {
+	if v < min { return min }
+	if v > max { return max }
+	return v
+}
+
+func sanitizeHeartbeatField(s string) string {
+	var b strings.Builder
+	for _, c := range s {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '/' {
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
 }

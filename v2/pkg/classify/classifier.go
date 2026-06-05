@@ -2,6 +2,7 @@ package classify
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/kubestellar/hive/v2/pkg/github"
 )
@@ -62,17 +63,19 @@ var defaultLanes = []LaneConfig{
 	{Name: "quality", Keywords: []string{"test-gap", "test-strategy", "test-coverage", "test-scaffold", "untested", "missing-tests"}},
 }
 
-// configuredLanes holds the active lane configuration. Set via SetLanes().
+var lanesMu sync.RWMutex
 var configuredLanes []LaneConfig
 
 // SetLanes replaces the lane configuration used by the classifier.
-// Called at startup with lanes built from agent config LaneKeywords fields.
 func SetLanes(lanes []LaneConfig) {
+	lanesMu.Lock()
+	defer lanesMu.Unlock()
 	configuredLanes = lanes
 }
 
-// activeLanes returns the current effective lane config.
 func activeLanes() []LaneConfig {
+	lanesMu.RLock()
+	defer lanesMu.RUnlock()
 	if len(configuredLanes) > 0 {
 		return configuredLanes
 	}

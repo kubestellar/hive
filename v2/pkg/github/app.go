@@ -119,8 +119,11 @@ func (a *AppAuth) Token(ctx context.Context) (string, error) {
 		"installation_id", a.installationID,
 	)
 
-	if err := os.WriteFile(a.cachePath, []byte(a.cachedToken), tokenCachePerms); err != nil {
+	tmpCache := a.cachePath + ".tmp"
+	if err := os.WriteFile(tmpCache, []byte(a.cachedToken), tokenCachePerms); err != nil {
 		a.logger.Warn("failed to write token cache", "path", a.cachePath, "error", err)
+	} else if err := os.Rename(tmpCache, a.cachePath); err != nil {
+		a.logger.Warn("failed to rename token cache", "error", err)
 	}
 
 	return a.cachedToken, nil

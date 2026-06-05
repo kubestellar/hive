@@ -256,6 +256,9 @@ func loadSaaSUser(username string) *SaaSUser {
 	if json.Unmarshal(data, &u) != nil {
 		return nil
 	}
+	if u.Hives == nil {
+		u.Hives = make(map[string]string)
+	}
 	return &u
 }
 
@@ -265,7 +268,12 @@ func saveSaaSUser(u *SaaSUser) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(saasUsersDir, u.GitHubUsername+".json"), data, 0o644)
+	path := filepath.Join(saasUsersDir, u.GitHubUsername+".json")
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func ensureSaaSUser(username string) *SaaSUser {
@@ -603,7 +611,11 @@ func (s *HubServer) handleHiveStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user := loadSaaSUser(username)
-	if user == nil || (h.Owner != username && username != hubAdminUsername) {
+	if user == nil {
+		http.Error(w, `{"error":"access denied"}`, http.StatusForbidden)
+		return
+	}
+	if h.Owner != username && username != hubAdminUsername {
 		if _, hasAccess := user.Hives[id]; !hasAccess {
 			http.Error(w, `{"error":"access denied"}`, http.StatusForbidden)
 			return
@@ -640,10 +652,11 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 
 	os.RemoveAll(filepath.Join(saasHivesDir, id))
 
-	user := loadSaaSUser(username)
-	if user != nil {
-		delete(user.Hives, id)
-		saveSaaSUser(user)
+	for _, u := range listAllSaaSUsers() {
+		if _, ok := u.Hives[id]; ok {
+			delete(u.Hives, id)
+			saveSaaSUser(&u)
+		}
 	}
 
 	s.logger.Info("audit: hosted hive deleted", "hive_id", id, "by", username)
@@ -835,7 +848,11 @@ func saveAccessRequests(hiveID string, reqs []AccessRequest) {
 	dir := filepath.Join(saasHivesDir, hiveID)
 	os.MkdirAll(dir, 0o755)
 	data, _ := json.MarshalIndent(reqs, "", "  ")
-	os.WriteFile(filepath.Join(dir, "requests.json"), data, 0o644)
+	path := filepath.Join(dir, "requests.json")
+	tmpPath := path + ".tmp"
+	if os.WriteFile(tmpPath, data, 0o644) == nil {
+		os.Rename(tmpPath, path)
+	}
 }
 
 func (s *HubServer) handleRequestAccess(w http.ResponseWriter, r *http.Request) {
@@ -940,8 +957,8 @@ func (s *HubServer) handleApproveRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	roleRank := map[string]int{"read": 1, "read-write": 2, "owner": 3}
-	if approver != hubAdminUsername && roleRank[body.Role] > roleRank[approverRole] {
-		http.Error(w, `{"error":"cannot grant a role higher than your own"}`, http.StatusForbidden)
+	if approver != hubAdminUsername && roleRank[body.Role] >= roleRank[approverRole] {
+		http.Error(w, `{"error":"cannot grant a role equal to or higher than your own"}`, http.StatusForbidden)
 		return
 	}
 
@@ -1113,7 +1130,7 @@ func (s *HubServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HubServer) handleAccessDenied(w http.ResponseWriter, r *http.Request) {
-	hiveID := r.URL.Query().Get("hive")
+	hiveID := sanitize(r.URL.Query().Get("hive"))
 
 	ownerLink := ""
 	s.mu.RLock()

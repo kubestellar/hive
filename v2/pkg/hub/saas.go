@@ -949,8 +949,8 @@ func (s *HubServer) handleApproveRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	roleRank := map[string]int{"read": 1, "read-write": 2, "owner": 3}
-	if approver != hubAdminUsername && roleRank[body.Role] > roleRank[approverRole] {
-		http.Error(w, `{"error":"cannot grant a role higher than your own"}`, http.StatusForbidden)
+	if approver != hubAdminUsername && roleRank[body.Role] >= roleRank[approverRole] {
+		http.Error(w, `{"error":"cannot grant a role equal to or higher than your own"}`, http.StatusForbidden)
 		return
 	}
 

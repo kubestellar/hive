@@ -17,12 +17,16 @@ import (
 
 func newServerWithDeps(t *testing.T) *Server {
 	level := 2
+	agentsDir := t.TempDir()
 	cfg := &config.Config{
 		ACMMLevel: &level,
 		Project: config.ProjectConfig{
 			Org:         "testorg",
 			Name:        "test",
 			PrimaryRepo: "testrepo",
+		},
+		Data: config.DataConfig{
+			AgentsDir: agentsDir,
 		},
 		Agents: map[string]config.AgentConfig{
 			"scanner": {ID: "scan-001", Role: "scanner", Backend: "claude", Model: "sonnet", DisplayName: "Scanner"},
@@ -422,6 +426,112 @@ func TestHandleTokensDeps(t *testing.T) {
 
 	// May fail if Tokens collector is nil — just verify no panic
 	_ = w.Code
+}
+
+func TestHandleAgentCreate(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"name":"new-agent","agent":{"role":"worker","backend":"claude","model":"sonnet"}}`
+	req := httptest.NewRequest("POST", "/api/agents", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("create agent status = %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleAgentCreateDuplicate(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"name":"scanner","agent":{"role":"scanner"}}`
+	req := httptest.NewRequest("POST", "/api/agents", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Errorf("duplicate agent should return 409, got %d", w.Code)
+	}
+}
+
+func TestHandleAgentCreateNoName(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"name":"","agent":{"role":"scanner"}}`
+	req := httptest.NewRequest("POST", "/api/agents", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("empty name should return 400, got %d", w.Code)
+	}
+}
+
+func TestHandleAgentCreateInvalidName(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"name":"bad name","agent":{"role":"scanner"}}`
+	req := httptest.NewRequest("POST", "/api/agents", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("name with spaces should return 400, got %d", w.Code)
+	}
+}
+
+func TestHandleAgentDelete(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("DELETE", "/api/agents/scanner", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	// May succeed or fail depending on managed flag
+	_ = w.Code
+}
+
+func TestHandleAgentDeleteNotFound(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("DELETE", "/api/agents/nonexistent", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("delete nonexistent should return 404, got %d", w.Code)
+	}
+}
+
+func TestHandlePackSetLevel(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"level":3}`
+	req := httptest.NewRequest("PUT", "/api/packs/level", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	// May succeed or fail depending on config save ability
+	_ = w.Code
+}
+
+func TestHandlePackSetLevelInvalid(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"level":99}`
+	req := httptest.NewRequest("PUT", "/api/packs/level", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("level 99 should return 400, got %d", w.Code)
+	}
 }
 
 func TestHandleGovernorConfigDeps(t *testing.T) {

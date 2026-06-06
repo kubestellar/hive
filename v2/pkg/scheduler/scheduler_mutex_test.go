@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kubestellar/hive/v2/pkg/config"
@@ -167,5 +168,28 @@ func TestKeywordSample(t *testing.T) {
 	sample := keywordSample([]string{"a", "b", "c", "d", "e", "f"})
 	if sample == "" {
 		t.Error("keywordSample should return non-empty")
+	}
+
+	long := make([]string, 15)
+	for i := range long {
+		long[i] = "kw"
+	}
+	truncated := keywordSample(long)
+	if strings.Count(truncated, "kw") != 8 {
+		t.Errorf("should truncate to 8, got %q", truncated)
+	}
+
+	empty := keywordSample(nil)
+	if empty != "" {
+		t.Errorf("nil should return empty, got %q", empty)
+	}
+}
+
+func TestIsNoiseLabelExtended(t *testing.T) {
+	if !isNoiseLabel("kind/bug") {
+		t.Error("kind/bug is noise")
+	}
+	if isNoiseLabel("priority/high") {
+		t.Error("priority/high is not noise")
 	}
 }

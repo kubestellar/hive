@@ -57,6 +57,21 @@ func TestSendDiscordWebhookSuccess(t *testing.T) {
 	n.sendDiscordWebhook("test title", "test message")
 }
 
+func TestSendAllChannelsWithHiveID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	n := New(config.NotificationsConfig{
+		Ntfy:    &config.NtfyConfig{Server: srv.URL, Topic: "topic"},
+		Slack:   &config.SlackConfig{Webhook: srv.URL},
+		Discord: &config.DiscordConfig{Webhook: srv.URL},
+	}, slog.Default())
+	n.SetHiveID("my-hive")
+	n.Send("title", "body", PriorityDefault)
+}
+
 func TestSendSlackInvalidScheme(t *testing.T) {
 	n := &Notifier{
 		cfg:    config.NotificationsConfig{Slack: &config.SlackConfig{Webhook: "ftp://invalid"}},

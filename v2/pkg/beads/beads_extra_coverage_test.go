@@ -76,6 +76,23 @@ func TestFlexTimeUnmarshalFormats(t *testing.T) {
 	}
 }
 
+func TestFlexTimeUnmarshalEmpty(t *testing.T) {
+	var ft flexTime
+	if err := json.Unmarshal([]byte(`""`), &ft); err != nil {
+		t.Errorf("empty string should not error: %v", err)
+	}
+	if !ft.IsZero() {
+		t.Error("empty string should produce zero time")
+	}
+}
+
+func TestFlexTimeUnmarshalNotString(t *testing.T) {
+	var ft flexTime
+	if err := json.Unmarshal([]byte(`123`), &ft); err == nil {
+		t.Error("non-string should error")
+	}
+}
+
 func TestFlexTimeUnmarshalInvalid(t *testing.T) {
 	var ft flexTime
 	err := json.Unmarshal([]byte(`"not-a-date"`), &ft)

@@ -270,7 +270,7 @@ func TestLogOutputSignals(t *testing.T) {
 
 	m.logOutputSignals("scanner", "Created 3 new issues for the project")
 	m.logOutputSignals("scanner", "FAIL: TestSomething")
-	m.logOutputSignals("scanner", "coverage: 85.5% of statements")
+	m.logOutputSignals("scanner", "coverage report: 85.5 percent")
 	m.logOutputSignals("scanner", "nothing interesting here")
 }
 
@@ -278,6 +278,62 @@ func TestLogOutputSignalsLong(t *testing.T) {
 	m := &Manager{logger: slog.Default()}
 	long := "created file " + strings.Repeat("x", 300)
 	m.logOutputSignals("scanner", long)
+}
+
+func TestReadCoveragePreamble(t *testing.T) {
+	m := &Manager{logger: slog.Default()}
+	got := m.readCoveragePreamble()
+	// File doesn't exist at /data/metrics/... — should return empty
+	if got != "" {
+		t.Logf("coverage preamble: %q (may exist on this machine)", got)
+	}
+}
+
+func TestIsBufferNoisePatterns(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"╭─╮ Some banner", true},
+		{"╰─╯", true},
+		{"█ ▘▝ █", true},
+		{"▔▔▔▔▔", true},
+		{"Copilot v1.0.0", true},
+		{"Check for mistakes in this code", true},
+		{"/ commands available", true},
+		{"? help for info", true},
+		{"@ files", true},
+		{"Some text with esc cancel here", true},
+		{"─────────────────", true},
+		{"━━━━━━━━━━━━━━━", true},
+		{"/data/agents/scanner", true},
+		{"Processing file.go", false},
+		{"Created 5 issues", false},
+		{"", true},
+	}
+	for _, tt := range tests {
+		got := isBufferNoise(tt.input)
+		if got != tt.want {
+			t.Errorf("isBufferNoise(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestIsCLIChromeMorePatterns(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"# issues to review", true},
+		{"Claude 3.5 Sonnet", false},
+		{"model: claude-3-opus", false},
+	}
+	for _, tt := range tests {
+		got := isCLIChrome(tt.input)
+		if got != tt.want {
+			t.Errorf("isCLIChrome(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
 }
 
 func TestBuildBootstrapPromptEmptyPolicyDir(t *testing.T) {

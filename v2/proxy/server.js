@@ -132,7 +132,23 @@ const ttydProxy = createProxyMiddleware({
     },
   },
 });
-app.use('/terminal', ttydProxy);
+app.use('/terminal', (req, res, next) => {
+  const cookies = (req.headers.cookie || '').split(';').reduce((acc, c) => {
+    const [k, ...v] = c.trim().split('=');
+    if (k) acc[k] = v.join('=');
+    return acc;
+  }, {});
+  const user = cookies['hive_hub_user'];
+  if (!user) {
+    if (req.headers.upgrade === 'websocket') {
+      req.socket.destroy();
+      return;
+    }
+    res.status(401).send('Terminal access requires authentication');
+    return;
+  }
+  next();
+}, ttydProxy);
 
 app.use(express.static(STATIC_DIR, { index: false }));
 

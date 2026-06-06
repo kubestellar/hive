@@ -503,4 +503,31 @@ spec:
   - hosts:
     - {{.ID}}.hive.kubestellar.io
     secretName: hive-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hive-terminal
+  namespace: {{.Namespace}}
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: {{.ID}}.hive.kubestellar.io
+    http:
+      paths:
+      - path: /terminal
+        pathType: Prefix
+        backend:
+          service:
+            name: hive
+            port:
+              number: 3001
+  tls:
+  - hosts:
+    - {{.ID}}.hive.kubestellar.io
+    secretName: hive-tls
 `

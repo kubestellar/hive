@@ -24,7 +24,7 @@ const (
 	minQuestionsForAdvance   = 5
 	minFactsForAdvance       = 3
 	autoFactFallbackTimeout      = 60 * time.Second
-	autoQuestionFallbackTimeout  = 90 * time.Second
+	autoQuestionFallbackTimeout  = 60 * time.Second
 )
 
 // InceptionWatcher polls brainstorm beads and bridges them into the inception

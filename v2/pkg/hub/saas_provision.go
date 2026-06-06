@@ -382,6 +382,10 @@ spec:
       - name: hive
         image: ghcr.io/kubestellar/hive:v2-latest
         imagePullPolicy: Always
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
         readinessProbe:
           httpGet:
             path: /api/health

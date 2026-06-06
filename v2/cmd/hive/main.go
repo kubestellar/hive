@@ -648,12 +648,26 @@ func main() {
 	// Brainstorm is on-demand only. Only restart with bootstrap during
 	// capture phase — structure/scaffold phases don't need a fresh kick
 	// and restarting would revert the phase back to capture.
+	// Skip stale inceptions (> 10 min old) — these are leftovers from
+	// previous runs that would interfere with new inceptions.
+	const staleInceptionThreshold = 10 * time.Minute
 	if state := inceptionEngine.GetState(); state != nil && state.Phase == knowledge.PhaseCapture {
-		msg := sched.BuildAgentMessage("brainstorm", nil, nil)
-		if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
-			logger.Warn("failed to resume brainstorm for active inception", "error", err)
+		if time.Since(state.StartedAt) < staleInceptionThreshold {
+			msg := sched.BuildAgentMessage("brainstorm", nil, nil)
+			if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {
+				logger.Warn("failed to resume brainstorm for active inception", "error", err)
+			} else {
+				logger.Info("brainstorm resumed for active inception", "phase", state.Phase)
+			}
 		} else {
-			logger.Info("brainstorm resumed for active inception", "phase", state.Phase)
+			logger.Info("skipping stale inception resume — resetting",
+				"phase", state.Phase,
+				"age", time.Since(state.StartedAt).Round(time.Second),
+			)
+			_ = inceptionEngine.Reset()
+			if err := agentMgr.Pause("brainstorm", "startup", "stale inception cleared — on-demand only"); err != nil {
+				logger.Debug("brainstorm pause on startup", "error", err)
+			}
 		}
 	} else {
 		if err := agentMgr.Pause("brainstorm", "startup", "on-demand agent — triggered by inception only"); err != nil {

@@ -449,6 +449,7 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 					entry.ProvError = sh.Error
 				}
 				result = append(result, entry)
+				seen[sh.ID] = true
 			}
 		}
 	}
@@ -1744,7 +1745,12 @@ const dashboardHTML = `<!DOCTYPE html>
       }
     }
 
+    var _createInProgress = false;
     async function createHive() {
+      if (_createInProgress) return;
+      _createInProgress = true;
+      document.getElementById('btn-go').disabled = true;
+      document.getElementById('btn-go').textContent = 'Provisioning...';
       var org = document.getElementById('f-org').value.trim();
       var repos = document.getElementById('f-repos').value.trim();
       var primary = document.getElementById('f-primary').value.trim();
@@ -1757,12 +1763,9 @@ const dashboardHTML = `<!DOCTYPE html>
       var appKey = (document.getElementById('f-app-key') || {}).value || '';
 
       gtag('event','hive_create_started',{org:org,primary_repo:primary,acmm_level:level});
-      if (!org || !repos) { hiveToast('Org and repos are required', 'error'); return; }
-      if (method === 'pat' && !token) { hiveToast('GitHub token is required', 'error'); return; }
-      if (method === 'app' && (!appId || !installId || !appKey)) { hiveToast('App ID, Installation ID, and Private Key are required', 'error'); return; }
-
-      document.getElementById('btn-go').disabled = true;
-      document.getElementById('btn-go').textContent = 'Provisioning...';
+      if (!org || !repos) { hiveToast('Org and repos are required', 'error'); _createInProgress = false; document.getElementById('btn-go').disabled = false; document.getElementById('btn-go').textContent = 'Go'; return; }
+      if (method === 'pat' && !token) { hiveToast('GitHub token is required', 'error'); _createInProgress = false; document.getElementById('btn-go').disabled = false; document.getElementById('btn-go').textContent = 'Go'; return; }
+      if (method === 'app' && (!appId || !installId || !appKey)) { hiveToast('App ID, Installation ID, and Private Key are required', 'error'); _createInProgress = false; document.getElementById('btn-go').disabled = false; document.getElementById('btn-go').textContent = 'Go'; return; }
 
       try {
         var body = {org: org, repos: repos, primary_repo: primary || repos.split(',')[0].trim(), project_name: name, acmm_level: level, auth_method: method};

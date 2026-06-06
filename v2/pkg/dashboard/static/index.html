@@ -5182,7 +5182,7 @@ function burnAreaChart() {
 
       // Action buttons
       html += '<div style="display:flex;gap:8px;margin-bottom:14px">';
-      html += '<button class="nous-btn" style="background:var(--accent);color:white" onclick="kbOpenCreate()" title="Create a new knowledge fact manually. Choose a layer (personal, project, org, community), type, and enter the fact content.">+ New Fact</button>';
+      html += '<button class="nous-btn" style="background:#2563eb;color:white" onclick="kbOpenCreate()" title="Create a new knowledge fact manually. Choose a layer (personal, project, org, community), type, and enter the fact content.">+ New Fact</button>';
       html += '<button class="nous-btn" style="background:var(--surface);color:var(--fg);border:1px solid var(--border)" onclick="kbOpenImport()" title="Import facts from a file or external knowledge base. Supports JSON and YAML formats.">📥 Import</button>';
       html += '<button class="nous-btn" style="background:var(--surface);color:var(--fg);border:1px solid var(--border)" onclick="kbOpenSubscriptions()" title="Manage git sources and wiki subscriptions that feed knowledge to agents.">🔗 Knowledge Sources</button>';
       html += '<button class="nous-btn" style="background:var(--surface);color:var(--fg);border:1px solid var(--border)" onclick="kbOpenVaults()" title="Manage knowledge vaults — collections of facts organized by topic or project. Vaults can be shared across hive instances.">📂 Vaults</button>';
@@ -5407,7 +5407,7 @@ function burnAreaChart() {
           </label>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
             <button class="nous-btn nous-config-btn-cancel" onclick="kbCloseModal()">Cancel</button>
-            <button class="nous-btn" style="background:var(--accent);color:white" onclick="kbSubmitCreate()">Create Fact</button>
+            <button class="nous-btn" style="background:#2563eb;color:white" onclick="kbSubmitCreate()">Create Fact</button>
           </div>
         </div>`;
       kbShowModal('New Fact', html);
@@ -5566,7 +5566,7 @@ function burnAreaChart() {
           </div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
             <button class="nous-btn nous-config-btn-cancel" onclick="kbCloseModal()">Cancel</button>
-            <button class="nous-btn" style="background:var(--accent);color:white" onclick="kbSubmitImport()">Import</button>
+            <button class="nous-btn" style="background:#2563eb;color:white" onclick="kbSubmitImport()">Import</button>
           </div>
         </div>`;
       kbShowModal('📥 Import Facts', html, { width: 'min(700px, 80vw)', maxHeight: '85vh' });
@@ -5679,7 +5679,7 @@ function burnAreaChart() {
         </select>`;
         html += '</div>';
         html += '<div style="display:flex;justify-content:flex-end">';
-        html += '<button class="nous-btn" style="background:var(--accent);color:white" onclick="kbAddGitSource()">Clone &amp; Index</button>';
+        html += '<button class="nous-btn" style="background:#2563eb;color:white;padding:8px 20px" onclick="kbAddGitSource()">Clone &amp; Index</button>';
         html += '</div></div></details>';
         html += '</div>';
 
@@ -5714,7 +5714,7 @@ function burnAreaChart() {
         </select>`;
         html += '</div>';
         html += '<div style="display:flex;justify-content:flex-end">';
-        html += '<button class="nous-btn" style="background:var(--accent);color:white" onclick="kbAddSub()">Add</button>';
+        html += '<button class="nous-btn" style="background:#2563eb;color:white" onclick="kbAddSub()">Add</button>';
         html += '</div></div></details>';
         html += '</div>';
 
@@ -5917,7 +5917,7 @@ function burnAreaChart() {
         html += '<input id="kb-vault-name" type="text" class="kb-search-box" placeholder="Display name">';
         html += '</div>';
         html += '<div style="display:flex;justify-content:flex-end">';
-        html += '<button class="nous-btn" style="background:var(--accent);color:white" onclick="kbConnectVault()">Connect</button>';
+        html += '<button class="nous-btn" style="background:#2563eb;color:white" onclick="kbConnectVault()">Connect</button>';
         html += '</div></div>';
 
         el.innerHTML = html;

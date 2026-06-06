@@ -1713,8 +1713,12 @@ const dashboardHTML = `<!DOCTYPE html>
             var cfg = parseHiveYaml(text);
             applyYamlConfig(cfg);
             hiveToast('Config loaded from local hive', 'success');
+          } else {
+            hiveToast('Could not auto-fetch config — drop your hive.yaml above to fill in GitHub App credentials', 'info');
           }
-        } catch(e) {}
+        } catch(e) {
+          hiveToast('Could not reach local hive — drop your hive.yaml above to fill in GitHub App credentials', 'info');
+        }
       }
     }
 

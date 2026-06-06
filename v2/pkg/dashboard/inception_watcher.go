@@ -858,17 +858,29 @@ func (w *InceptionWatcher) autoGenerateFacts(ctx context.Context, state *knowled
 // idea text when the brainstorm agent hasn't produced question beads
 // within the timeout. Agent gets first shot during the timeout window.
 func (w *InceptionWatcher) autoGenerateQuestions(state *knowledge.InceptionState) {
-	if len(state.Questions) > 0 {
+	if len(state.Questions) >= minQuestionsForAdvance {
 		return
 	}
 
-	questions := []knowledge.Question{
+	defaults := []knowledge.Question{
 		{ID: "language", Text: "What programming language or runtime should this use?", Category: "language", Default: "Go"},
 		{ID: "users", Text: "Who are the primary users and how will they interact with it?", Category: "users", Default: "Developers via CLI"},
 		{ID: "features", Text: "What are the 2-3 must-have features?", Category: "features", Default: "Core functionality as described"},
 		{ID: "constraints", Text: "What constraints or limitations should be respected?", Category: "constraints", Default: "Keep it simple and well-tested"},
 		{ID: "testing", Text: "How will you know it is working correctly?", Category: "testing", Default: "Unit tests and integration tests"},
 		{ID: "deployment", Text: "How and where will this be deployed?", Category: "deployment", Default: "Docker container"},
+	}
+
+	// Merge: keep agent-produced questions, fill remaining slots with defaults
+	existing := make(map[string]bool, len(state.Questions))
+	for _, q := range state.Questions {
+		existing[q.ID] = true
+	}
+	questions := append([]knowledge.Question{}, state.Questions...)
+	for _, d := range defaults {
+		if !existing[d.ID] && len(questions) < minQuestionsForAdvance+1 {
+			questions = append(questions, d)
+		}
 	}
 
 	if err := w.inception.SetQuestions(questions); err != nil {

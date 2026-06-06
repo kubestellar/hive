@@ -447,14 +447,7 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/auth-url: "https://hive.kubestellar.io/api/saas/auth-check?hive={{.ID}}"
     nginx.ingress.kubernetes.io/auth-signin: "https://hive.kubestellar.io/login?redirect=$scheme://$http_host$request_uri"
-    nginx.ingress.kubernetes.io/auth-response-headers: "X-Hive-User, X-Hive-Role"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header X-Hive-Internal "{{.DashboardToken}}";
-    nginx.ingress.kubernetes.io/server-snippet: |
-      error_page 403 = @denied;
-      location @denied {
-        return 302 https://hive.kubestellar.io/access-denied?hive={{.ID}}&redirect=$scheme://$http_host$request_uri;
-      }
+    nginx.ingress.kubernetes.io/auth-response-headers: "X-Hive-User,X-Hive-Role"
 spec:
   ingressClassName: nginx
   rules:

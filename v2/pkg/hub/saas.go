@@ -1546,7 +1546,7 @@ const dashboardHTML = `<!DOCTYPE html>
         var contributeCell = contributeUrl ? '<a href="' + contributeUrl + '" target="_blank" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;text-decoration:none">Contribute</a>' : '';
         var actions = '';
         if (canConvert) {
-          actions = '<button onclick="openConvert(this)" data-hive-id="' + esc(h.id) + '" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
+          actions = '<button onclick="openConvert(this)" data-hive-id="' + esc(h.id) + '" data-dash-url="' + esc(h.dashboardUrl||'') + '" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
         } else if (isHosted && (h.role === 'owner' || h.role === 'read-write')) {
           actions = '<button onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Access</button>';
           if (h.role === 'owner') {
@@ -1726,28 +1726,21 @@ const dashboardHTML = `<!DOCTYPE html>
       finally { btns.forEach(function(b) { b.disabled = false; b.textContent = 'Delete'; b.style.opacity = '1'; }); }
     }
 
-    async function openConvert(btn) {
+    function openConvert(btn) {
       document.getElementById('f-org').value = btn.dataset.org || '';
       document.getElementById('f-repos').value = btn.dataset.repos || '';
       document.getElementById('f-primary').value = btn.dataset.primary || '';
       document.getElementById('f-name').value = btn.dataset.name || '';
       document.getElementById('f-level').value = btn.dataset.level || '1';
       document.getElementById('create-modal').style.display = 'flex';
-      var hiveId = btn.dataset.hiveId || '';
-      if (hiveId) {
-        try {
-          var resp = await fetch('/api/saas/hive-config/' + encodeURIComponent(hiveId));
-          if (resp.ok) {
-            var text = await resp.text();
-            var cfg = parseHiveYaml(text);
-            applyYamlConfig(cfg);
-            hiveToast('Config loaded from local hive', 'success');
-          } else {
-            hiveToast('Could not fetch config from hive — drop your hive.yaml above to fill in GitHub App credentials', 'info');
-          }
-        } catch(e) {
-          hiveToast('Could not reach local hive — drop your hive.yaml above to fill in GitHub App credentials', 'info');
-        }
+      var dashUrl = (btn.dataset.dashUrl || '').replace(/\/$/, '');
+      var dlLink = document.getElementById('yaml-download-link');
+      var dlHref = document.getElementById('yaml-download-href');
+      if (dashUrl && dlLink && dlHref) {
+        dlHref.href = dashUrl + '/api/config/download';
+        dlLink.style.display = '';
+      } else if (dlLink) {
+        dlLink.style.display = 'none';
       }
     }
 
@@ -1870,7 +1863,8 @@ const dashboardHTML = `<!DOCTYPE html>
         ondrop="event.preventDefault();this.style.borderColor='var(--border)';var f=event.dataTransfer.files[0];if(f)readYamlFile(f)"
         onclick="document.getElementById('yaml-upload').click()">
         <div style="font-size:0.82rem;color:var(--muted)">Drop a <code>hive.yaml</code> here or <span style="color:var(--accent);text-decoration:underline">browse</span></div>
-        <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Auto-fills all fields from your config</div>
+        <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Auto-fills all fields including GitHub App credentials</div>
+        <div id="yaml-download-link" style="display:none;font-size:0.7rem;margin-top:6px"><a id="yaml-download-href" href="#" target="_blank" style="color:var(--accent)" onclick="event.stopPropagation()">⬇ Download hive.yaml from your local hive</a></div>
         <input type="file" id="yaml-upload" accept=".yaml,.yml" style="display:none" onchange="if(this.files[0])readYamlFile(this.files[0])">
       </div>
       <div style="margin-bottom:12px">

@@ -428,7 +428,7 @@ spec:
         - name: HIVE_HUB_SECRET
           value: "{{.HubSecret}}"
         ports:
-        - containerPort: 3002
+        - containerPort: 3001
         resources:
           requests:
             cpu: {{.CPURequest}}
@@ -472,8 +472,8 @@ spec:
     hive-id: {{.ID}}
   ports:
   - name: http
-    port: 3002
-    targetPort: 3002
+    port: 3001
+    targetPort: 3001
   type: ClusterIP
 ---
 apiVersion: networking.k8s.io/v1

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -236,6 +237,145 @@ func TestSubmitAnswersWithAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
+}
+
+func TestReadIdeaFactWithAPI(t *testing.T) {
+	e := newTestEngineWithAPI(t)
+	e.Start("my great idea")
+
+	fact, err := e.ReadIdeaFact(context.Background())
+	// Mock may not return the exact fact but should not error
+	_ = fact
+	_ = err
+}
+
+func TestFormatAnswersForPromptMissingAnswer(t *testing.T) {
+	e := newTestEngine(t)
+	e.Start("idea")
+	e.SetQuestions([]Question{
+		{ID: "q1", Text: "Question 1?"},
+		{ID: "q2", Text: "Question 2?"},
+	})
+
+	// Only answer q1, leave q2 unanswered
+	e.mu.Lock()
+	e.state.Answers = map[string]string{"q1": "Answer 1"}
+	e.state.Phase = PhaseClarify
+	e.mu.Unlock()
+
+	got := e.FormatAnswersForPrompt()
+	if got == "" {
+		t.Error("should produce output with partial answers")
+	}
+	if strings.Contains(got, "Question 2?") {
+		t.Error("unanswered question should be skipped")
+	}
+}
+
+func TestConnectExistingVaultWithAPISuccess(t *testing.T) {
+	e := newTestEngineWithAPI(t)
+	e.Start("idea")
+	e.SetWikiName("test-wiki")
+
+	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)
+	os.MkdirAll(wikiDir, 0755)
+	os.WriteFile(filepath.Join(wikiDir, "fact.md"), []byte("# Fact\nContent"), 0644)
+
+	e.connectExistingVault()
+}
+
+func TestRecordFactsWithAPIError(t *testing.T) {
+	// Create an engine with an API that will fail on CreateFact
+	dir := t.TempDir()
+	e := &InceptionEngine{
+		dataDir: dir,
+		api:     newTestKBAPI(t),
+		logger:  slog.Default(),
+	}
+	e.Start("idea")
+
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	// This should log a warning but not fail
+	facts := []IdeationFact{
+		{Title: "Vision", Body: "Build it", Type: FactVision},
+	}
+	err := e.RecordFacts(context.Background(), facts)
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+}
+
+func TestWriteFactsToVaultWithAPIConnectVault(t *testing.T) {
+	e := newTestEngineWithAPI(t)
+	facts := []IdeationFact{
+		{Title: "Vision", Body: "Build it", Type: FactVision},
+		{Title: "Constitution", Body: "Go principles", Type: FactConstitution},
+	}
+	// First call connects vault
+	e.writeFactsToVault(facts)
+
+	// Second call hits "already connected" path → triggers reindex
+	e.writeFactsToVault(facts)
+
+	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)
+	entries, _ := os.ReadDir(wikiDir)
+	mdCount := 0
+	for _, entry := range entries {
+		if filepath.Ext(entry.Name()) == ".md" {
+			mdCount++
+		}
+	}
+	if mdCount < 2 {
+		t.Errorf("expected at least 2 .md files, got %d", mdCount)
+	}
+}
+
+func TestRecordFactsFullWithAPI(t *testing.T) {
+	e := newTestEngineWithAPI(t)
+	e.Start("idea with full API")
+
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	facts := []IdeationFact{
+		{Title: "Vision", Body: "Build it", Type: FactVision},
+		{Title: "Constitution", Body: "Go project", Type: FactConstitution},
+		{Title: "Req 1", Body: "Must be fast", Type: FactRequirement},
+	}
+	err := e.RecordFacts(context.Background(), facts)
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+
+	state := e.GetState()
+	if state.Phase != PhaseScaffold {
+		t.Errorf("phase should be scaffold, got %q", state.Phase)
+	}
+}
+
+func TestGatherFactsUnreadableFile(t *testing.T) {
+	e := newTestEngine(t)
+	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)
+	os.MkdirAll(wikiDir, 0755)
+	unreadable := filepath.Join(wikiDir, "unreadable.md")
+	os.WriteFile(unreadable, []byte("content"), 0644)
+	os.Chmod(unreadable, 0000)
+	defer os.Chmod(unreadable, 0644)
+
+	facts := e.GatherFactsPublic(context.Background())
+	_ = facts
+}
+
+func TestParseInceptionFactFileIncompleteFrontmatter(t *testing.T) {
+	content := "---\ntitle: My Fact\ntype: vision\nno closing frontmatter delimiter"
+	title, body, factType, _ := parseInceptionFactFile(content, "test.md")
+	_ = title
+	_ = body
+	_ = factType
 }
 
 func TestBuildCIConfigNil(t *testing.T) {

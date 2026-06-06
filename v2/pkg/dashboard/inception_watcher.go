@@ -45,6 +45,9 @@ type InceptionWatcher struct {
 	kickRetryCount    int
 	rateLimitedUntil  time.Time
 	ctx               context.Context
+
+	pstFactLines      []string
+	pstIdleInStructure bool
 }
 
 // NewInceptionWatcher creates a watcher that polls the brainstorm bead store.
@@ -110,6 +113,8 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.kickRetryCount = 0
 		w.lastKickRetry = time.Time{}
 		w.rateLimitedUntil = time.Time{}
+		w.pstFactLines = nil
+		w.pstIdleInStructure = false
 		if w.lastSlug != "" {
 			w.reapOldInceptionBeads(state.StartedAt)
 		}
@@ -383,25 +388,37 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 
 	switch event.Type {
 	case "state_change":
-		if event.Data["state"] == "idle" && w.kickRetryCount < maxKickRetries {
-			elapsed := time.Since(state.StartedAt)
-			if elapsed > kickRetryGracePeriodS {
-				phase := state.Phase
-				if phase == knowledge.PhaseCapture || phase == knowledge.PhaseStructure {
-					w.logger.Info("pub-sub-tmux: agent idle during inception — re-kicking",
-						"phase", phase,
-						"elapsed", elapsed.Round(time.Second),
-					)
-					w.kickRetryCount++
-					w.lastKickRetry = time.Now()
-					msg := w.buildInceptionKickMessage(state)
-					go func() {
-						if err := w.agentMgr.SendKick("brainstorm", msg); err != nil {
-							w.logger.Warn("pub-sub-tmux: re-kick failed", "error", err)
-						}
-					}()
+		if event.Data["state"] == "idle" {
+			phase := state.Phase
+			// Agent went idle during structure — try to extract facts from
+			// buffered PST output before falling back to auto-generation.
+			if phase == knowledge.PhaseStructure && len(w.pstFactLines) > 0 {
+				w.pstIdleInStructure = true
+				w.tryExtractFactsFromPST(w.ctx, state)
+				return
+			}
+
+			if w.kickRetryCount < maxKickRetries {
+				elapsed := time.Since(state.StartedAt)
+				if elapsed > kickRetryGracePeriodS {
+					if phase == knowledge.PhaseCapture || phase == knowledge.PhaseStructure {
+						w.logger.Info("pub-sub-tmux: agent idle during inception — re-kicking",
+							"phase", phase,
+							"elapsed", elapsed.Round(time.Second),
+						)
+						w.kickRetryCount++
+						w.lastKickRetry = time.Now()
+						msg := w.buildInceptionKickMessage(state)
+						go func() {
+							if err := w.agentMgr.SendKick("brainstorm", msg); err != nil {
+								w.logger.Warn("pub-sub-tmux: re-kick failed", "error", err)
+							}
+						}()
+					}
 				}
 			}
+		} else if event.Data["state"] == "working" {
+			w.pstIdleInStructure = false
 		}
 
 	case "rate_limit":
@@ -448,6 +465,18 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 				strings.Contains(lower, "fact_type") || strings.Contains(lower, "fact_body") {
 				go w.poll(w.ctx)
 				return
+			}
+			// Buffer lines containing fact-like content for extraction
+			// when the agent goes idle without creating beads
+			const maxPSTFactLines = 200
+			if len(w.pstFactLines) < maxPSTFactLines {
+				if strings.Contains(lower, "vision") || strings.Contains(lower, "requirement") ||
+					strings.Contains(lower, "constraint") || strings.Contains(lower, "constitution") ||
+					strings.Contains(lower, "stakeholder") || strings.Contains(lower, "acceptance") ||
+					strings.Contains(lower, "architecture") || strings.Contains(lower, "testing") ||
+					strings.Contains(lower, "deployment") || strings.Contains(lower, "must") {
+					w.pstFactLines = append(w.pstFactLines, line)
+				}
 			}
 		}
 	}
@@ -906,4 +935,71 @@ func (w *InceptionWatcher) autoGenerateQuestions(state *knowledge.InceptionState
 		"count", len(questions),
 		"timeout", autoQuestionFallbackTimeout,
 	)
+}
+
+// tryExtractFactsFromPST attempts to extract structured facts from raw output
+// lines buffered by the PST subscriber. Called when the agent goes idle during
+// structure phase — the agent produced text about facts but didn't create
+// beads. This is a PST-driven alternative to the 60s auto-fact fallback:
+// it fires immediately on idle detection instead of waiting for a timeout.
+func (w *InceptionWatcher) tryExtractFactsFromPST(ctx context.Context, state *knowledge.InceptionState) {
+	if len(w.pstFactLines) == 0 || len(state.Answers) == 0 {
+		return
+	}
+
+	var facts []knowledge.IdeationFact
+
+	// Scan buffered lines for fact-type keywords and extract content
+	factTypeKeywords := map[string]knowledge.FactType{
+		"vision":       knowledge.FactVision,
+		"constitution": knowledge.FactConstitution,
+		"requirement":  knowledge.FactRequirement,
+		"constraint":   knowledge.FactConstraint,
+		"stakeholder":  knowledge.FactStakeholder,
+		"acceptance":   knowledge.FactAcceptance,
+	}
+
+	seen := make(map[string]bool)
+	for _, line := range w.pstFactLines {
+		lower := strings.ToLower(line)
+		for keyword, factType := range factTypeKeywords {
+			if strings.Contains(lower, keyword) && !seen[keyword] {
+				seen[keyword] = true
+				body := strings.TrimSpace(line)
+				if len(body) > 20 {
+					facts = append(facts, knowledge.IdeationFact{
+						Title: strings.ToUpper(keyword[:1]) + keyword[1:] + " (from agent output)",
+						Body:  body,
+						Type:  factType,
+						Tags:  []string{"pst-extracted"},
+					})
+				}
+				break
+			}
+		}
+	}
+
+	if len(facts) < minFactsForAdvance {
+		// Not enough facts from PST output — fall back to Q&A auto-generation
+		// but do it immediately instead of waiting for the 60s timeout
+		w.logger.Info("pub-sub-tmux: insufficient facts from output, using Q&A fallback",
+			"pst_facts", len(facts),
+			"needed", minFactsForAdvance,
+		)
+		w.autoGenerateFacts(ctx, state)
+		return
+	}
+
+	if err := w.inception.RecordFacts(ctx, facts); err != nil {
+		w.logger.Warn("pub-sub-tmux: PST fact extraction failed", "error", err, "count", len(facts))
+		return
+	}
+
+	w.inception.IncrementAutoFactCount(len(facts))
+
+	w.logger.Info("pub-sub-tmux: extracted facts from agent output (no bead creation needed)",
+		"count", len(facts),
+		"source", "pst-raw-output",
+	)
+	w.pstFactLines = nil
 }

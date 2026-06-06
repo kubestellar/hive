@@ -9,8 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kubestellar/hive/v2/pkg/agent"
 	"github.com/kubestellar/hive/v2/pkg/beads"
 	"github.com/kubestellar/hive/v2/pkg/config"
+	"github.com/kubestellar/hive/v2/pkg/governor"
 )
 
 func newServerWithDeps(t *testing.T) *Server {
@@ -33,14 +35,25 @@ func newServerWithDeps(t *testing.T) *Server {
 	scannerStore, _ := beads.NewStore(dir + "/scanner")
 	qualityStore, _ := beads.NewStore(dir + "/quality")
 
-	srv := NewServer(0, slog.Default())
+	logger := slog.Default()
+	gov := governor.New(cfg.Governor, cfg.Agents, logger)
+	mgr := agent.NewManager(cfg.Agents, logger, agent.ProjectContext{
+		Org:        "testorg",
+		Repos:      []string{"testrepo"},
+		ACMMLevel:  *cfg.ACMMLevel,
+		PRsAllowed: true,
+	})
+
+	srv := NewServer(0, logger)
 	srv.deps = &Dependencies{
-		Config: cfg,
+		Config:   cfg,
+		AgentMgr: mgr,
+		Governor: gov,
 		BeadStores: map[string]*beads.Store{
 			"scanner": scannerStore,
 			"quality": qualityStore,
 		},
-		Logger:      slog.Default(),
+		Logger:      logger,
 		Ctx:         context.Background(),
 		RefreshFunc: func() {},
 		PersistFunc: func() {},
@@ -271,6 +284,153 @@ func TestHandleHealthWithDeps(t *testing.T) {
 	srv.Handler().ServeHTTP(w, req)
 
 	// MarkReady sets ready but status is nil — still returns 503
+	_ = w.Code
+}
+
+func TestHandleHistoryDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/history", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestHandleTrendsDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/trends?range=24h", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestHandleTimelineDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/timeline", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestHandleWidgetDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/widget?type=agents", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestHandleKickNoAgent(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/kick/nonexistent", nil)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code == http.StatusOK {
+		t.Log("kick nonexistent may succeed or fail depending on validation")
+	}
+}
+
+func TestHandlePauseDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/pause/scanner", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	// May succeed or fail — just verify no panic
+	_ = w.Code
+}
+
+func TestHandleResumeDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/resume/scanner", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleSwitchDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/switch/scanner/claude", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleModelSetDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/model/scanner/sonnet", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleAgentConfigGetDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/config/agent/scanner", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleAgentConfigGetUnknown(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/config/agent/nonexistent", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("unknown agent should return 404, got %d", w.Code)
+	}
+}
+
+func TestHandleTokensDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/tokens", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	// May fail if Tokens collector is nil — just verify no panic
+	_ = w.Code
+}
+
+func TestHandleGovernorConfigDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/governor", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
 	_ = w.Code
 }
 

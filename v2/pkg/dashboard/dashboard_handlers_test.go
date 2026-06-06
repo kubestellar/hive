@@ -754,6 +754,31 @@ func TestHandleGovernorNotificationsDeps(t *testing.T) {
 	_ = w.Code
 }
 
+func TestAppendTokenSparklineOverflow(t *testing.T) {
+	srv := newServerWithDeps(t)
+	status := &StatusPayload{
+		Tokens: FrontendTokens{
+			Totals: FrontendTokenTotals{Input: 100, Output: 50},
+			ByAgent: map[string]FrontendTokenBucket{
+				"scanner": {Input: 50, Output: 25},
+			},
+			ByModel: map[string]FrontendTokenBucket{
+				"sonnet": {Input: 100, Output: 50},
+			},
+		},
+	}
+
+	// Add enough to trigger overflow trimming
+	for i := 0; i < 1500; i++ {
+		srv.AppendTokenSparkline(status)
+	}
+
+	history := srv.TokenSparklineHistory()
+	if len(history) > 1440 {
+		t.Errorf("history should be capped, got %d", len(history))
+	}
+}
+
 func TestHandleGovernorConfigDeps(t *testing.T) {
 	srv := newServerWithDeps(t)
 

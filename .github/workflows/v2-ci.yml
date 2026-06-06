@@ -31,6 +31,12 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Proxy Tests
+        run: cd proxy && npm ci && npm test
   create-issue-on-failure:
     if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/v2'
     runs-on: ubuntu-latest

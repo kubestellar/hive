@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/kubestellar/hive/v2/pkg/config"
@@ -105,5 +107,65 @@ func TestBuildAgentMessageFallback(t *testing.T) {
 	msg := s.BuildAgentMessage("scanner", nil, nil)
 	if msg == "" {
 		t.Error("BuildAgentMessage should return non-empty fallback")
+	}
+}
+
+func TestLoadNamedTemplate(t *testing.T) {
+	dir := t.TempDir()
+	agentDir := filepath.Join(dir, "examples", "kubestellar", "agents")
+	os.MkdirAll(agentDir, 0o755)
+	os.WriteFile(filepath.Join(agentDir, "test-agent.md"), []byte("hello ${AGENT_NAME}"), 0o644)
+
+	cfg := &config.Config{
+		Policies: config.PoliciesConfig{LocalDir: dir},
+	}
+	s := New(cfg, slog.Default())
+	tmpl := s.loadNamedTemplate("test-agent.md")
+	if tmpl != "hello ${AGENT_NAME}" {
+		t.Errorf("loadNamedTemplate = %q", tmpl)
+	}
+
+	empty := s.loadNamedTemplate("nonexistent.md")
+	if empty != "" {
+		t.Errorf("nonexistent should return empty, got %q", empty)
+	}
+}
+
+func TestBuildAgentMessageAllTypes(t *testing.T) {
+	cfg := &config.Config{
+		Project: config.ProjectConfig{
+			Org: "org", Repos: []string{"repo"}, PrimaryRepo: "repo", AIAuthor: "bot",
+		},
+		Agents: map[string]config.AgentConfig{
+			"scanner": {}, "quality": {}, "ci-maintainer": {},
+			"architect": {}, "outreach": {}, "guide": {},
+			"supervisor": {}, "sec-check": {}, "strategist": {},
+		},
+	}
+	s := New(cfg, slog.Default())
+	actionable := &github.ActionableResult{
+		Issues: github.IssueResult{Count: 3, Items: []github.Issue{
+			{Number: 1, Title: "bug", Labels: []string{"kind/bug"}},
+		}},
+		PRs: github.PRResult{Count: 1},
+	}
+
+	for name := range cfg.Agents {
+		msg := s.BuildAgentMessage(name, nil, actionable)
+		if msg == "" {
+			t.Errorf("BuildAgentMessage(%q) empty", name)
+		}
+	}
+
+	unknown := s.BuildAgentMessage("unknown-agent", nil, actionable)
+	if unknown == "" {
+		t.Error("unknown agent should get generic message")
+	}
+}
+
+func TestKeywordSample(t *testing.T) {
+	sample := keywordSample([]string{"a", "b", "c", "d", "e", "f"})
+	if sample == "" {
+		t.Error("keywordSample should return non-empty")
 	}
 }

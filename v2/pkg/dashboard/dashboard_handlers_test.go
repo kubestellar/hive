@@ -65,6 +65,7 @@ func newServerWithDeps(t *testing.T) *Server {
 		SkipReloadFunc: func() {},
 	}
 	srv.RegisterAPI(srv.deps)
+	srv.contributeHub = NewContributeWSHub(logger, srv)
 	return srv
 }
 
@@ -823,6 +824,58 @@ func TestHandleAgentConfigModelsUpdate(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	_ = w.Code
+}
+
+func TestHandleContributeActivityWithHub(t *testing.T) {
+	srv := newServerWithDeps(t)
+	srv.contributeHub.addActivity("testuser", "joined", "newcomer", "claude", "sonnet", "")
+
+	req := httptest.NewRequest("GET", "/api/contribute/activity", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestHandleContributorsListWithHub(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/contributors", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestHandleLeaderboardWithHub(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/leaderboard", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestContributorSummaryWithHub(t *testing.T) {
+	srv := newServerWithDeps(t)
+	registered, active := srv.ContributorSummary()
+	_ = registered
+	_ = active
+}
+
+func TestLeaderboardForHubWithHub(t *testing.T) {
+	srv := newServerWithDeps(t)
+	lb := srv.LeaderboardForHub()
+	if lb == nil {
+		t.Error("should return non-nil")
+	}
 }
 
 func TestHandleGovernorConfigDeps(t *testing.T) {

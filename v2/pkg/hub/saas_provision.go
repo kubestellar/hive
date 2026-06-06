@@ -366,22 +366,43 @@ spec:
         hive-id: {{.ID}}
     spec:
       initContainers:
-      - name: config-seed
-        image: busybox
-        command: ["sh", "-c", "test -f /data/hive.yaml || cp /etc/hive/hive.yaml /data/hive.yaml"]
+      - name: copy-config
+        image: ghcr.io/kubestellar/hive:v2-latest
+        imagePullPolicy: Always
+        command: ["sh", "-c", "if [ -f /data/hive.yaml.bak ]; then cp /data/hive.yaml.bak /etc/hive/hive.yaml; echo override-used; else cp /etc/hive-seed/hive.yaml /etc/hive/hive.yaml; echo seed-copied; fi"]
         volumeMounts:
         - name: config
-          mountPath: /etc/hive
+          mountPath: /etc/hive-seed
           readOnly: true
+        - name: config-writable
+          mountPath: /etc/hive
         - name: data
           mountPath: /data
       containers:
       - name: hive
         image: ghcr.io/kubestellar/hive:v2-latest
         imagePullPolicy: Always
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3001
+          periodSeconds: 30
+          failureThreshold: 3
         env:
-        - name: HIVE_CONFIG
-          value: /data/hive.yaml
 {{- if not .UseApp}}
         - name: HIVE_GITHUB_TOKEN
           valueFrom:
@@ -412,7 +433,7 @@ spec:
             cpu: {{.CPULimit}}
             memory: {{.MemLimit}}
         volumeMounts:
-        - name: config
+        - name: config-writable
           mountPath: /etc/hive
         - name: data
           mountPath: /data
@@ -425,6 +446,8 @@ spec:
       - name: config
         configMap:
           name: hive-config
+      - name: config-writable
+        emptyDir: {}
       - name: data
         persistentVolumeClaim:
           claimName: hive-data

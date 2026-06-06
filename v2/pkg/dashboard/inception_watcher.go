@@ -273,8 +273,8 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 
 const (
 	outputParseLineCount   = 100
-	kickRetryDelayS        = 30 * time.Second
-	kickRetryGracePeriodS  = 30 * time.Second
+	kickRetryDelayS        = 20 * time.Second
+	kickRetryGracePeriodS  = 15 * time.Second
 	maxKickRetries         = 5
 )
 

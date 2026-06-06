@@ -736,19 +736,20 @@ func main() {
 			}
 		}
 	} else {
-		// Determine the ACMM level from env var, config, or saved state
+		// Config file is authoritative on restarts; HIVE_LEVEL env var is
+		// only a fallback for initial provisioning when no level is persisted.
 		const maxACMMLevel = 6
 		level := 0
-		if levelStr := os.Getenv("HIVE_LEVEL"); levelStr != "" {
+		if cfg.ACMMLevel != nil && *cfg.ACMMLevel >= 1 && *cfg.ACMMLevel <= maxACMMLevel {
+			level = *cfg.ACMMLevel
+		} else if saved.ACMMLevel != nil && *saved.ACMMLevel >= 1 && *saved.ACMMLevel <= maxACMMLevel {
+			level = *saved.ACMMLevel
+		} else if levelStr := os.Getenv("HIVE_LEVEL"); levelStr != "" {
 			if parsed, err := strconv.Atoi(levelStr); err == nil && parsed >= 1 && parsed <= maxACMMLevel {
 				level = parsed
 			} else {
 				logger.Warn("invalid HIVE_LEVEL, skipping auto-apply", "value", levelStr)
 			}
-		} else if cfg.ACMMLevel != nil && *cfg.ACMMLevel >= 1 && *cfg.ACMMLevel <= maxACMMLevel {
-			level = *cfg.ACMMLevel
-		} else if saved.ACMMLevel != nil && *saved.ACMMLevel >= 1 && *saved.ACMMLevel <= maxACMMLevel {
-			level = *saved.ACMMLevel
 		}
 		if level > 0 {
 			action := "merging pack updates"

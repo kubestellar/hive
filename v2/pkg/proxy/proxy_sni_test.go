@@ -229,6 +229,85 @@ func TestHandleConnectDirectWriteError(t *testing.T) {
 	proxyConn.Close()
 }
 
+func TestExtractSNITruncatedSessionID(t *testing.T) {
+	// Build a ClientHello that truncates after random (no session ID length)
+	hello := buildTLSClientHello("test.com")
+	// Truncate after TLS record header(5) + handshake header(4) + version(2) + random(32) = 43
+	if len(hello) > 43 {
+		sni := extractSNI(hello[:43])
+		if sni != "" {
+			t.Errorf("truncated at session ID should return empty, got %q", sni)
+		}
+	}
+}
+
+func TestExtractSNICipherSuiteTruncated(t *testing.T) {
+	hello := buildTLSClientHello("test.com")
+	// Truncate after session ID but before cipher suites complete
+	// header(5) + hs_header(4) + version(2) + random(32) + sessID_len(1) + sessID(0) = 44
+	if len(hello) > 45 {
+		sni := extractSNI(hello[:45])
+		if sni != "" {
+			t.Logf("truncated cipher suites: %q", sni)
+		}
+	}
+}
+
+func TestExtractSNICompressionTruncated(t *testing.T) {
+	hello := buildTLSClientHello("test.com")
+	// After cipher suites but before compression methods
+	// Need to find the right offset — just truncate at various points
+	for truncLen := 44; truncLen < len(hello)-5 && truncLen < 60; truncLen++ {
+		sni := extractSNI(hello[:truncLen])
+		_ = sni
+	}
+}
+
+func TestExtractSNIExtensionsTruncated(t *testing.T) {
+	hello := buildTLSClientHello("test.com")
+	// Truncate in the extensions area
+	if len(hello) > 55 {
+		for truncLen := 50; truncLen < len(hello)-1; truncLen++ {
+			sni := extractSNI(hello[:truncLen])
+			_ = sni
+		}
+	}
+}
+
+func TestExtractSNINonSNIExtension(t *testing.T) {
+	// Build a ClientHello with a non-SNI extension before SNI
+	var ch []byte
+	ch = append(ch, 0x03, 0x03)           // version
+	ch = append(ch, make([]byte, 32)...)   // random
+	ch = append(ch, 0x00)                  // session ID len = 0
+	ch = append(ch, 0x00, 0x02, 0x00, 0xFF) // cipher suites
+	ch = append(ch, 0x01, 0x00)            // compression
+
+	// Extensions: first a non-SNI ext (type 0x0005 = status_request), then SNI
+	sniExt := buildSNIExtension("github.com")
+	statusReqExt := []byte{0x00, 0x05, 0x00, 0x02, 0x01, 0x00} // type=5, len=2, data
+
+	extensions := append(statusReqExt, sniExt...)
+	extLen := len(extensions)
+	ch = append(ch, byte(extLen>>8), byte(extLen))
+	ch = append(ch, extensions...)
+
+	hsLen := len(ch)
+	var hs []byte
+	hs = append(hs, 0x01, byte(hsLen>>16), byte(hsLen>>8), byte(hsLen))
+	hs = append(hs, ch...)
+
+	recordLen := len(hs)
+	var record []byte
+	record = append(record, 0x16, 0x03, 0x01, byte(recordLen>>8), byte(recordLen))
+	record = append(record, hs...)
+
+	sni := extractSNI(record)
+	if sni != "github.com" {
+		t.Errorf("SNI after non-SNI ext = %q, want 'github.com'", sni)
+	}
+}
+
 func TestIdentifyAgentFromReqWithUIDMapActive(t *testing.T) {
 	uidMap := agent.NewUIDMap()
 	uidMap.IptablesActive = true

@@ -216,3 +216,58 @@ func TestACMMPackByLevelAllLevels(t *testing.T) {
 		t.Error("expected error for invalid level")
 	}
 }
+
+func TestApplyBootstrapEnv(t *testing.T) {
+	t.Setenv("HIVE_REPO", "testorg/testrepo")
+	cfg := &Config{}
+	cfg.applyBootstrapEnv()
+	if cfg.Project.Org != "testorg" {
+		t.Errorf("Org = %q, want testorg", cfg.Project.Org)
+	}
+	if len(cfg.Project.Repos) != 1 || cfg.Project.Repos[0] != "testrepo" {
+		t.Errorf("Repos = %v", cfg.Project.Repos)
+	}
+	if cfg.Project.PrimaryRepo != "testrepo" {
+		t.Errorf("PrimaryRepo = %q", cfg.Project.PrimaryRepo)
+	}
+}
+
+func TestApplyBootstrapEnvNoOverwrite(t *testing.T) {
+	t.Setenv("HIVE_REPO", "neworg/newrepo")
+	cfg := &Config{Project: ProjectConfig{Org: "existing", Repos: []string{"existing"}, PrimaryRepo: "existing"}}
+	cfg.applyBootstrapEnv()
+	if cfg.Project.Org != "existing" {
+		t.Errorf("should not overwrite existing Org")
+	}
+}
+
+func TestApplyBootstrapEnvEmpty(t *testing.T) {
+	t.Setenv("HIVE_REPO", "")
+	cfg := &Config{}
+	cfg.applyBootstrapEnv()
+	if cfg.Project.Org != "" {
+		t.Error("empty env should not set Org")
+	}
+}
+
+func TestApplyBootstrapEnvInvalid(t *testing.T) {
+	t.Setenv("HIVE_REPO", "noslash")
+	cfg := &Config{}
+	cfg.applyBootstrapEnv()
+	if cfg.Project.Org != "" {
+		t.Error("invalid format should not set Org")
+	}
+}
+
+func TestExpandEnvVars(t *testing.T) {
+	t.Setenv("TEST_VAR", "hello")
+	got := expandEnvVars("${TEST_VAR} world")
+	if got != "hello world" {
+		t.Errorf("expandEnvVars = %q", got)
+	}
+
+	got2 := expandEnvVars("${NONEXISTENT_VAR}")
+	if got2 != "${NONEXISTENT_VAR}" {
+		t.Errorf("missing var should stay: %q", got2)
+	}
+}

@@ -122,14 +122,23 @@ func TestHandleTransparentTLSGitHub(t *testing.T) {
 
 	clientConn, proxyConn := net.Pipe()
 
-	hello := buildTLSClientHello("api.github.com")
-	peeked := hello[:1]
-	rest := hello[1:]
+	peeked := []byte{0x16}
 
 	go func() {
-		clientConn.Write(rest)
-		time.Sleep(200 * time.Millisecond)
-		clientConn.Close()
+		defer clientConn.Close()
+		// The proxy will read more bytes, then try to forge a cert and TLS handshake.
+		// We act as a TLS client connecting to "api.github.com"
+		tlsConn := tls.Client(clientConn, &tls.Config{
+			InsecureSkipVerify: true,
+			ServerName:         "api.github.com",
+		})
+		tlsConn.SetDeadline(time.Now().Add(3 * time.Second))
+		err := tlsConn.Handshake()
+		if err != nil {
+			// Expected — we can't complete the full MITM without upstream
+			return
+		}
+		tlsConn.Close()
 	}()
 
 	p.handleTransparentTLS(proxyConn, peeked)

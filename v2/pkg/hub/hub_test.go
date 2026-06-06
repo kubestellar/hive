@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -184,5 +185,70 @@ func TestHandleHeartbeatNoAuth(t *testing.T) {
 	srv.mux.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", w.Code)
+	}
+}
+
+func TestDecryptTokenInvalid(t *testing.T) {
+	_, err := decryptToken("not-valid-base64-encrypted")
+	if err == nil {
+		t.Error("expected error for invalid token")
+	}
+}
+
+func TestHandleRegistryJSON(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	req := httptest.NewRequest("GET", "/api/registry", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "hives") {
+		t.Error("response should contain hives key")
+	}
+}
+
+func TestHandleHeartbeatBadJSON(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	req := httptest.NewRequest("POST", "/api/heartbeat", strings.NewReader("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest && w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 400 or 401", w.Code)
+	}
+}
+
+func TestHandleHubVersion(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "abc123")
+	req := httptest.NewRequest("GET", "/api/hub/version", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "abc123") {
+		t.Errorf("version should contain git hash")
+	}
+}
+
+func TestHandleLeaderboard(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	req := httptest.NewRequest("GET", "/api/hub/leaderboard", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d", w.Code)
+	}
+}
+
+func TestHandleStats(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	req := httptest.NewRequest("GET", "/api/hub/stats", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d", w.Code)
 	}
 }

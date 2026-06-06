@@ -324,6 +324,11 @@ func sanitizeFilenameComponent(s string) string {
 func (s *Server) handleRole(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("X-Hive-Role")
 	user := r.Header.Get("X-Hive-User")
+	if user == "" {
+		if cookie, err := r.Cookie("hive_hub_user"); err == nil && cookie.Value != "" {
+			user = cookie.Value
+		}
+	}
 	if role == "" {
 		role = "owner"
 	}

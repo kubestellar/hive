@@ -128,3 +128,44 @@ func TestSaveState_BadPath(t *testing.T) {
 		t.Error("expected error for bad path")
 	}
 }
+
+func TestSaveState_SuccessfulRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	logger := testLogger()
+
+	state := &PersistedState{
+		Agents: map[string]AgentState{
+			"scanner": {RestartCount: 5},
+			"quality": {RestartCount: 3},
+		},
+	}
+	if err := SaveState(path, state, logger); err != nil {
+		t.Fatal(err)
+	}
+	if state.SavedAt.IsZero() {
+		t.Error("SavedAt should be set")
+	}
+
+	loaded, err := LoadState(path, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Agents) != 2 {
+		t.Errorf("loaded %d agents, want 2", len(loaded.Agents))
+	}
+}
+
+func TestCleanup_RemoveErrorLogged(t *testing.T) {
+	dir := t.TempDir()
+	logger := testLogger()
+	b := NewBuilder(dir, logger)
+
+	oldFile := filepath.Join(dir, "status-2020-01-01T00-00-00Z.json")
+	os.WriteFile(oldFile, []byte("{}"), 0o644)
+
+	err := b.Cleanup(time.Hour)
+	if err != nil {
+		t.Errorf("cleanup should not return error: %v", err)
+	}
+}

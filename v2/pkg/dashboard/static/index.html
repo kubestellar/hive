@@ -7753,17 +7753,8 @@ function burnAreaChart() {
     // SSE connection
     async function selfUpgrade() {
       try {
-        var cfgResp = await fetch('/api/config');
-        var cfg = await cfgResp.json();
-        var hubUrl = cfg.hubUrl || cfg.hub_url || '';
-        var hiveId = cfg.hiveId || cfg.hive_id || '';
-        if (!hubUrl || !hiveId) { showToast('Hub URL or Hive ID not configured', 'error'); return; }
         showToast('Upgrading to latest...', 'info');
-        var resp = await fetch(hubUrl + '/api/saas/hives/' + encodeURIComponent(hiveId) + '/upgrade', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
-        });
+        var resp = await fetch('/api/self-upgrade', { method: 'POST' });
         if (!resp.ok) {
           var err = await resp.json().catch(function() { return {}; });
           showToast('Upgrade failed: ' + (err.error || resp.statusText), 'error');

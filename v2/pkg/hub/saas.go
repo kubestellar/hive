@@ -107,7 +107,6 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/upgrade", s.requireAuth(s.handleUpgradeHive))
-	s.mux.HandleFunc("OPTIONS /api/saas/hives/{id}/upgrade", s.handleUpgradeHive)
 	s.mux.HandleFunc("GET /api/saas/latest-sha", s.handleLatestSHA)
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
 	s.mux.HandleFunc("POST /api/saas/user-token", s.requireAuth(s.handleUserToken))
@@ -670,17 +669,6 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
-	origin := r.Header.Get("Origin")
-	if strings.HasSuffix(origin, ".hive.kubestellar.io") || origin == "https://hive.kubestellar.io" {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	}
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
 	id := r.PathValue("id")
 	username := s.getAuthUser(r)
 	h := loadSaaSHive(id)

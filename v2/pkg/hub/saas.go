@@ -1565,15 +1565,16 @@ const dashboardHTML = `<!DOCTYPE html>
         var snapUrl = snapshotLink(h);
         var apiUrl = apiLink(h);
         var menuItems = [];
-        if (contributeUrl) menuItems.push('<a href="' + contributeUrl + '" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">🤝 Contribute</a>');
-        if (h.snapshotUrl) menuItems.push('<a href="' + esc(h.snapshotUrl) + '" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">📸 Preview</a>');
+        var mi = 'display:block;padding:7px 14px;color:#c9d1d9;text-decoration:none;font-size:0.78rem;cursor:pointer';
+        if (contributeUrl) menuItems.push('<a href="' + contributeUrl + '" target="_blank" style="' + mi + '">Contribute</a>');
+        if (h.snapshotUrl) menuItems.push('<a href="' + esc(h.snapshotUrl) + '" target="_blank" style="' + mi + '">Preview</a>');
         var apiBase = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? esc(h.dashboardUrl) : '');
-        if (apiBase) menuItems.push('<a href="' + apiBase + '/api/docs" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">📘 API Docs</a>');
-        if (menuItems.length > 0) menuItems.push('<div style="border-top:1px solid var(--border);margin:2px 0"></div>');
-        if (canConvert) menuItems.push('<div onclick="openConvert(this)" data-hive-id="' + esc(h.id) + '" data-dash-url="' + esc(h.dashboardUrl||'') + '" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:6px 12px;color:var(--accent);cursor:pointer;font-size:0.78rem">⬆ Convert to Hosted</div>');
-        if (isHosted && (h.role === 'owner' || h.role === 'read-write')) menuItems.push('<div onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:6px 12px;color:var(--blue);cursor:pointer;font-size:0.78rem">🔑 Access</div>');
-        if (isLocal && h.role === 'owner') menuItems.push('<div onclick="removeLocalHive(\'' + esc(h.id) + '\')" style="padding:6px 12px;color:var(--muted);cursor:pointer;font-size:0.78rem">✕ Remove</div>');
-        if (isHosted && h.role === 'owner') menuItems.push('<div onclick="deleteHive(\'' + esc(h.id) + '\')" style="padding:6px 12px;color:var(--red);cursor:pointer;font-size:0.78rem">🗑 Delete</div>');
+        if (apiBase) menuItems.push('<a href="' + apiBase + '/api/docs" target="_blank" style="' + mi + '">API Docs</a>');
+        if (menuItems.length > 0 && (canConvert || isHosted || isLocal)) menuItems.push('<div style="border-top:1px solid #30363d;margin:4px 0"></div>');
+        if (canConvert) menuItems.push('<div onclick="openConvert(this)" data-hive-id="' + esc(h.id) + '" data-dash-url="' + esc(h.dashboardUrl||'') + '" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="' + mi + '">Convert to Hosted</div>');
+        if (isHosted && (h.role === 'owner' || h.role === 'read-write')) menuItems.push('<div onclick="openAccessModal(\'' + esc(h.id) + '\')" style="' + mi + '">Access</div>');
+        if (isLocal && h.role === 'owner') menuItems.push('<div onclick="removeLocalHive(\'' + esc(h.id) + '\')" style="' + mi + '">Remove</div>');
+        if (isHosted && h.role === 'owner') menuItems.push('<div style="border-top:1px solid #30363d;margin:4px 0"></div><div onclick="deleteHive(\'' + esc(h.id) + '\')" style="' + mi + ';color:#f85149">Delete</div>');
         var sha = h.gitHash || '';
         var versionCell = '';
         if (sha) {
@@ -1585,7 +1586,7 @@ const dashboardHTML = `<!DOCTYPE html>
           versionCell = branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
         } else { versionCell = '<span style="color:var(--muted)">—</span>'; }
         return '<tr>' +
-          '<td class="hive-menu-cell" style="position:relative;width:30px;text-align:center;overflow:visible"><span style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div class="hive-menu-dropdown" style="display:none;position:absolute;left:0;bottom:auto;background:#1c2128;border:1px solid #444c56;border-radius:8px;min-width:180px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.05)">' + menuItems.join('') + '</div></td>' +
+          '<td class="hive-menu-cell" style="position:relative;width:30px;text-align:center;overflow:visible"><span style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div class="hive-menu-dropdown" style="display:none;position:absolute;left:0;bottom:auto;background:#1c2128;border:1px solid #30363d;border-radius:8px;min-width:160px;padding:4px 0;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,0.5)">' + menuItems.join('') + '</div></td>' +
           '<td style="text-align:left">' + dot + (function() { var dh = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? esc(h.dashboardUrl) : ''); return dh ? '<a href="' + dh + '" target="_blank" class="hive-name" style="color:inherit;text-decoration:none">' + esc(h.name || h.id) + '</a>' : '<span class="hive-name">' + esc(h.name || h.id) + '</span>'; })() + (function() { var rp = h.org && h.primaryRepo ? h.org + '/' + h.primaryRepo : ''; return rp ? ' <a href="https://github.com/' + esc(rp) + '" target="_blank" style="opacity:0.5;margin-left:4px;vertical-align:middle" title="' + esc(rp) + '"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>' : ''; })() + '<br>' + roleBadge(h.role) + '</td>' +
           '<td>' + typeBadge + '</td>' +
           '<td style="font-size:0.7rem;white-space:nowrap">' + versionCell + '</td>' +

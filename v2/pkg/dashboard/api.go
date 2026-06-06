@@ -3,6 +3,7 @@ package dashboard
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -29,6 +30,7 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("GET /api/config", s.handleConfig)
 	s.mux.HandleFunc("GET /api/config/download", s.handleConfigDownload)
 	s.mux.HandleFunc("GET /api/audit", s.handleAuditLog)
+	s.mux.HandleFunc("POST /api/self-upgrade", s.handleSelfUpgrade)
 	s.mux.HandleFunc("GET /api/snapshot", s.handleSnapshotAPI)
 	s.mux.HandleFunc("GET /snapshot", s.handleSnapshotPage)
 	s.mux.HandleFunc("GET /api/history", s.handleHistory)
@@ -430,6 +432,52 @@ func (s *Server) handleConfigDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-yaml")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	w.Write(data)
+}
+
+func (s *Server) handleSelfUpgrade(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("X-Hive-Role")
+	if role == "" {
+		role = "owner"
+	}
+	if role != "owner" {
+		jsonError(w, "owner access required", http.StatusForbidden)
+		return
+	}
+	if s.deps == nil || s.deps.Config == nil {
+		jsonError(w, "config not loaded", http.StatusInternalServerError)
+		return
+	}
+	hubURL := s.deps.Config.Hub.URL
+	hiveID := s.deps.Config.HiveID
+	if hubURL == "" || hiveID == "" {
+		jsonError(w, "hub URL or hive ID not configured", http.StatusBadRequest)
+		return
+	}
+	upgradeURL := hubURL + "/api/saas/hives/" + hiveID + "/upgrade"
+
+	cookie, _ := r.Cookie("hive_hub_user")
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest("POST", upgradeURL, nil)
+	if err != nil {
+		jsonError(w, "failed to create request", http.StatusInternalServerError)
+		return
+	}
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://hive.kubestellar.io")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		jsonError(w, "hub unreachable: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
 }
 
 func (s *Server) handleSnapshotAPI(w http.ResponseWriter, r *http.Request) {

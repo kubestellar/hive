@@ -1909,8 +1909,9 @@ const dashboardHTML = `<!DOCTYPE html>
   </script>
 
   <div id="create-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:640px;width:90%;max-height:90vh;overflow-y:auto">
-      <h2 style="font-size:1.3rem;margin-bottom:16px;color:var(--accent)">Create Hosted Hive</h2>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:640px;width:90%;max-height:90vh;display:flex;flex-direction:column">
+      <h2 style="font-size:1.3rem;padding:32px 32px 16px;margin:0;color:var(--accent);flex-shrink:0">Create Hosted Hive</h2>
+      <div style="flex:1;overflow-y:auto;padding:0 32px">
       <div id="yaml-drop" style="margin-bottom:16px;border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:border-color 0.2s"
         ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
         ondragleave="this.style.borderColor='var(--border)'"
@@ -1982,7 +1983,8 @@ const dashboardHTML = `<!DOCTYPE html>
           <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">Download from your <a href="https://github.com/settings/apps" target="_blank">GitHub App settings</a> → Private keys.</div>
         </div>
       </div>
-      <div style="display:flex;gap:12px;justify-content:flex-end">
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;padding:16px 32px;border-top:1px solid var(--border);flex-shrink:0">
         <button onclick="document.getElementById('create-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Cancel</button>
         <button id="btn-go" onclick="createHive()" class="btn-primary">Go</button>
       </div>
@@ -1990,8 +1992,9 @@ const dashboardHTML = `<!DOCTYPE html>
   </div>
 
   <div id="access-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto">
-      <h2 style="font-size:1.3rem;margin-bottom:16px;color:var(--accent)">Manage Access</h2>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:500px;width:90%;max-height:80vh;display:flex;flex-direction:column">
+      <h2 style="font-size:1.3rem;padding:32px 32px 16px;margin:0;color:var(--accent);flex-shrink:0">Manage Access</h2>
+      <div style="flex:1;overflow-y:auto;padding:0 32px 32px">
       <p style="font-size:0.8rem;color:var(--muted);margin-bottom:16px" id="access-hive-label"></p>
       <div id="access-list"><div class="loading">Loading...</div></div>
       <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
@@ -2010,7 +2013,8 @@ const dashboardHTML = `<!DOCTYPE html>
           <button onclick="addAccess()" class="btn-primary" style="padding:8px 16px;font-size:0.8rem">Add</button>
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      </div>
+      <div style="display:flex;justify-content:flex-end;padding:16px 32px;border-top:1px solid var(--border);flex-shrink:0">
         <button onclick="document.getElementById('access-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Close</button>
       </div>
     </div>

@@ -319,6 +319,25 @@ func TestIsBufferNoisePatterns(t *testing.T) {
 	}
 }
 
+func TestIsBufferNoiseAllPatterns(t *testing.T) {
+	noiseInputs := []string{
+		"● Tip: Use /help for commands",
+		"└ scanning files...",
+		"↑/↓ to navigate history",
+		"copilot-instructions.md found during /init",
+		"Do you trust the files in this folder?",
+		"› Yes, I trust the authors",
+		"› No (Esc)",
+		"● Folder /data/agents/scanner is now trusted",
+		"✗ Model gpt-5 not available, using fallback",
+	}
+	for _, input := range noiseInputs {
+		if !isBufferNoise(input) {
+			t.Errorf("isBufferNoise(%q) = false, want true", input)
+		}
+	}
+}
+
 func TestIsCLIChromeMorePatterns(t *testing.T) {
 	tests := []struct {
 		input string
@@ -359,6 +378,31 @@ func TestBuildBootstrapPromptEmptyPolicyDir(t *testing.T) {
 func TestConfigHasTokensFile(t *testing.T) {
 	got := configHasTokens()
 	_ = got
+}
+
+func TestSyncModeFilesWithPausedAgent(t *testing.T) {
+	m := &Manager{
+		agents: map[string]*AgentProcess{
+			"scanner": {Name: "scanner", State: StateRunning, Config: config.AgentConfig{Role: "scanner"}},
+			"quality": {Name: "quality", State: StatePaused, Paused: true, Config: config.AgentConfig{Role: "quality"}},
+		},
+		logger:  slog.Default(),
+		project: ProjectContext{ACMMLevel: 3},
+	}
+
+	m.SyncModeFiles(3)
+}
+
+func TestSyncModeFilesWithModeOverride(t *testing.T) {
+	m := &Manager{
+		agents: map[string]*AgentProcess{
+			"scanner": {Name: "scanner", State: StateRunning, Config: config.AgentConfig{Role: "scanner", Mode: "ISSUES_AND_PRS"}},
+		},
+		logger:  slog.Default(),
+		project: ProjectContext{ACMMLevel: 2},
+	}
+
+	m.SyncModeFiles(2)
 }
 
 func TestSyncModeFilesLevel3(t *testing.T) {

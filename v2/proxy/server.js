@@ -121,7 +121,8 @@ app.use('/api', apiProxy);
 const ttydProxy = createProxyMiddleware({
   target: TTYD_URL,
   changeOrigin: true,
-  pathRewrite: (p) => '/terminal' + p,
+  ws: true,
+  pathRewrite: (p) => p.replace(/^\/terminal/, '') || '/',
   on: {
     error(err, req, res) {
       console.error(`[ttyd-proxy] ${req.method} ${req.url} → ${err.message}`);

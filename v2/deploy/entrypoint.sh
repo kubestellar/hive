@@ -309,7 +309,7 @@ TTYD_RESPAWN_DELAY_SECS=5
 (
   trap '' HUP
   while true; do
-    ttyd -W -a -p "${TTYD_PORT}" -b /terminal -t fontSize=14 -t disableLeaveAlert=true /usr/local/bin/ttyd-tmux.sh
+    ttyd -W -a -p "${TTYD_PORT}" -t fontSize=14 -t disableLeaveAlert=true /usr/local/bin/ttyd-tmux.sh
     echo "[entrypoint] ttyd exited (rc=$?), respawning in ${TTYD_RESPAWN_DELAY_SECS}s..."
     sleep "$TTYD_RESPAWN_DELAY_SECS"
   done

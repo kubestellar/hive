@@ -324,13 +324,7 @@ TTYD_PID=$!
 
 cleanup() {
   echo "[entrypoint] Shutting down..."
-  # Backup config before exit so it survives container recreation.
-  # The Go binary may overwrite the bind-mounted file with empty state
-  # during shutdown, so we capture it while it's still valid.
-  if [ -f "$HIVE_CONFIG_PATH" ] && [ -s "$HIVE_CONFIG_PATH" ]; then
-    cp "$HIVE_CONFIG_PATH" "$HIVE_CONFIG_BACKUP"
-    echo "[entrypoint] Config backed up on shutdown: $HIVE_CONFIG_PATH -> $HIVE_CONFIG_BACKUP"
-  fi
+  # PVC backup is managed by Save() — no shutdown backup needed
   kill "$TTYD_PID" 2>/dev/null || true
   kill "$PROXY_PID" 2>/dev/null || true
   kill "$HIVE_PID" 2>/dev/null || true

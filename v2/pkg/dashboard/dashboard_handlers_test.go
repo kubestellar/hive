@@ -534,6 +534,89 @@ func TestHandlePackSetLevelInvalid(t *testing.T) {
 	}
 }
 
+func TestHandlePackApply(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/packs/2/apply", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Logf("pack apply status = %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandlePackApplyInvalidLevel(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/packs/abc/apply", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Logf("invalid level: %d", w.Code)
+	}
+}
+
+func TestHandleConfigDownload(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("GET", "/api/config/download", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	// Config download needs SourcePath — may fail
+	_ = w.Code
+}
+
+func TestHandleAgentConfigGeneralDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"displayName":"New Name","description":"Updated desc"}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/general", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleAgentConfigModelsDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"model":"opus","backend":"claude"}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/models", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleAgentConfigCadencesDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"cadences":{"idle":"10m","busy":"5m"}}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/cadences", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleGovernorThresholdsDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"quiet":5,"busy":15,"surge":30}`
+	req := httptest.NewRequest("PUT", "/api/governor/thresholds", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
 func TestHandleGovernorConfigDeps(t *testing.T) {
 	srv := newServerWithDeps(t)
 

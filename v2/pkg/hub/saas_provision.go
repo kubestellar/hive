@@ -355,6 +355,11 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: hive

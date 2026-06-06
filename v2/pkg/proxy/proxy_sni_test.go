@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"crypto/tls"
+	"fmt"
 	"log/slog"
 	"net"
 	"testing"
@@ -175,6 +176,57 @@ func TestHandleConnectDirectGitHubWithTLS(t *testing.T) {
 		tlsConn.Close()
 	}
 	clientConn.Close()
+}
+
+func TestProxyHTTPUpstreamWriteError(t *testing.T) {
+	p := newTestProxy()
+
+	clientConn, proxyClient := net.Pipe()
+	_, proxyUpstream := net.Pipe()
+
+	// Close upstream immediately so write fails
+	proxyUpstream.Close()
+
+	go p.proxyHTTP(proxyClient, proxyUpstream, "scanner", agent.ModeAdvisory)
+
+	go func() {
+		fmt.Fprintf(clientConn, "GET /repos/org/repo HTTP/1.1\r\nHost: api.github.com\r\n\r\n")
+		time.Sleep(100 * time.Millisecond)
+		clientConn.Close()
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+}
+
+func TestProxyHTTPGraphQLBodyReadError(t *testing.T) {
+	p := newTestProxy()
+
+	clientConn, proxyClient := net.Pipe()
+	_, proxyUpstream := net.Pipe()
+	defer proxyUpstream.Close()
+
+	go p.proxyHTTP(proxyClient, proxyUpstream, "scanner", agent.ModeAdvisory)
+
+	go func() {
+		// Send GraphQL POST with content-length but close before body
+		fmt.Fprintf(clientConn, "POST /graphql HTTP/1.1\r\nHost: api.github.com\r\nContent-Length: 1000\r\n\r\n")
+		time.Sleep(50 * time.Millisecond)
+		clientConn.Close()
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+}
+
+func TestHandleConnectDirectWriteError(t *testing.T) {
+	p := newTestProxy()
+
+	// Create a connection that immediately closes (write will fail)
+	clientConn, proxyConn := net.Pipe()
+	clientConn.Close()
+
+	req := makeHTTPReq("CONNECT", "api.github.com:443")
+	p.handleConnectDirect(proxyConn, req)
+	proxyConn.Close()
 }
 
 func TestIdentifyAgentFromReqWithUIDMapActive(t *testing.T) {

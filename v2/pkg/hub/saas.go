@@ -1490,6 +1490,7 @@ const dashboardHTML = `<!DOCTYPE html>
         _userQuota = data.saas_quota || 0;
         _userUsed = data.saas_used || 0;
         _allDashHives = data.hives || [];
+        _hiveRegistry = data.hives || [];
         _latestSHA = data.latest_sha || _latestSHA;
         var hubHash = data.hub_git_hash || '';
         if (hubHash) {
@@ -1584,7 +1585,7 @@ const dashboardHTML = `<!DOCTYPE html>
           versionCell = branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
         } else { versionCell = '<span style="color:var(--muted)">—</span>'; }
         return '<tr>' +
-          '<td class="hive-menu-cell" style="position:relative;width:30px;text-align:center;overflow:visible"><span style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div class="hive-menu-dropdown" style="display:none;position:absolute;left:0;bottom:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px;min-width:180px;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,0.4)">' + menuItems.join('') + '</div></td>' +
+          '<td class="hive-menu-cell" style="position:relative;width:30px;text-align:center;overflow:visible"><span style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div class="hive-menu-dropdown" style="display:none;position:absolute;left:0;bottom:auto;background:#1c2128;border:1px solid #444c56;border-radius:8px;min-width:180px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.05)">' + menuItems.join('') + '</div></td>' +
           '<td style="text-align:left">' + dot + (function() { var dh = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? esc(h.dashboardUrl) : ''); return dh ? '<a href="' + dh + '" target="_blank" class="hive-name" style="color:inherit;text-decoration:none">' + esc(h.name || h.id) + '</a>' : '<span class="hive-name">' + esc(h.name || h.id) + '</span>'; })() + (function() { var rp = h.org && h.primaryRepo ? h.org + '/' + h.primaryRepo : ''; return rp ? ' <a href="https://github.com/' + esc(rp) + '" target="_blank" style="opacity:0.5;margin-left:4px;vertical-align:middle" title="' + esc(rp) + '"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>' : ''; })() + '<br>' + roleBadge(h.role) + '</td>' +
           '<td>' + typeBadge + '</td>' +
           '<td style="font-size:0.7rem;white-space:nowrap">' + versionCell + '</td>' +
@@ -1643,6 +1644,14 @@ const dashboardHTML = `<!DOCTYPE html>
 
     var _allUsers = [];
     var _adminLoaded = false;
+    var _adminExpandedUsers = {};
+    var _hiveRegistry = [];
+
+    function toggleAdminExpand(username) {
+      _adminExpandedUsers[username] = !_adminExpandedUsers[username];
+      var el = document.getElementById('expand-' + username);
+      if (el) el.style.display = _adminExpandedUsers[username] ? '' : 'none';
+    }
     var _adminLoading = false;
     async function loadAdminUsers() {
       if (_adminLoading) return;
@@ -1681,20 +1690,24 @@ const dashboardHTML = `<!DOCTYPE html>
         var avatar = '<img src="https://github.com/' + esc(u.github_username) + '.png" style="width:24px;height:24px;border-radius:50%;vertical-align:middle;margin-right:6px">';
         var isAdmin = u.github_username === 'clubanderson';
         var hivesObj = u.hives || {};
-        var hiveIds = Object.keys(hivesObj);
+        var registryIds = new Set((_hiveRegistry || []).map(function(h) { return h.id; }));
+        var hiveIds = Object.keys(hivesObj).filter(function(hid) { return registryIds.has(hid); });
         var hiveCount = hiveIds.length;
         var expandId = 'expand-' + esc(u.github_username);
+        var isExpanded = _adminExpandedUsers && _adminExpandedUsers[u.github_username];
 
         var hiveRows = '';
         if (hiveCount > 0) {
-          hiveRows = '<tr id="' + expandId + '" style="display:none"><td colspan="7"><div style="padding:8px 12px 8px 40px;font-size:0.75rem">';
-          hiveRows += '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:var(--muted);font-size:0.7rem"><th style="text-align:left;padding:4px 8px">Hive ID</th><th>Role</th><th>Type</th><th>Link</th></tr></thead><tbody>';
+          hiveRows = '<tr id="' + expandId + '" style="display:' + (isExpanded ? '' : 'none') + '"><td colspan="7"><div style="padding:8px 12px 8px 40px;font-size:0.75rem">';
+          hiveRows += '<table style="width:100%;border-collapse:collapse"><thead><tr style="color:var(--muted);font-size:0.7rem"><th style="text-align:left;padding:4px 8px">Hive</th><th>Role</th><th>Type</th><th>Link</th></tr></thead><tbody>';
           hiveIds.forEach(function(hid) {
             var role = hivesObj[hid];
             var isHosted = hid.startsWith('hosted-') || hid.startsWith('saas-');
+            var regEntry = (_hiveRegistry || []).find(function(h) { return h.id === hid; });
+            var hiveName = regEntry ? (regEntry.name || hid) : hid;
             var link = isHosted ? '<a href="https://' + esc(hid) + '.hive.kubestellar.io" target="_blank" class="dash-link">' + esc(hid) + '.hive.kubestellar.io</a>' : '<span style="color:var(--muted)">local</span>';
             var typeBadge = isHosted ? '<span style="color:#60a5fa">hosted</span>' : '<span style="color:#9ca3af">local</span>';
-            hiveRows += '<tr><td style="padding:4px 8px">' + esc(hid) + '</td><td style="text-align:center">' + esc(role) + '</td><td style="text-align:center">' + typeBadge + '</td><td>' + link + '</td></tr>';
+            hiveRows += '<tr><td style="padding:4px 8px">' + esc(hiveName) + '</td><td style="text-align:center">' + esc(role) + '</td><td style="text-align:center">' + typeBadge + '</td><td>' + link + '</td></tr>';
           });
           hiveRows += '</tbody></table></div></td></tr>';
         }
@@ -1705,7 +1718,7 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td style="font-size:0.75rem;color:var(--muted)">' + esc((u.last_login || '').substring(0, 10)) + '</td>' +
           '<td>' + blocked + '</td>' +
           '<td><input type="number" min="0" max="10" value="' + (u.saas_quota || 0) + '" style="width:50px;padding:4px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);text-align:center" onchange="updateUser(\'' + esc(u.github_username) + '\',{saas_quota:parseInt(this.value)||0})"></td>' +
-          '<td>' + (hiveCount > 0 ? '<a href="#" onclick="var e=document.getElementById(\'' + expandId + '\');e.style.display=e.style.display===\'none\'?\'\':\'none\';return false" style="color:var(--blue);font-size:0.8rem">' + hiveCount + ' hive' + (hiveCount > 1 ? 's' : '') + '</a>' : '<span style="color:var(--muted)">0</span>') + '</td>' +
+          '<td>' + (hiveCount > 0 ? '<a href="#" onclick="toggleAdminExpand(\'' + esc(u.github_username) + '\');return false" style="color:var(--blue);font-size:0.8rem">' + hiveCount + ' hive' + (hiveCount > 1 ? 's' : '') + '</a>' : '<span style="color:var(--muted)">0</span>') + '</td>' +
           '<td>' + (isAdmin ? '' : '<button onclick="updateUser(\'' + esc(u.github_username) + '\',{blocked:' + (!u.blocked) + '})" style="padding:3px 10px;background:' + (u.blocked ? 'var(--green)' : 'var(--red)') + ';color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem">' + (u.blocked ? 'Unblock' : 'Block') + '</button>') + '</td>' +
           '</tr>' + hiveRows;
       }).join('');

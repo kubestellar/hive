@@ -313,7 +313,7 @@ data:
       token: "${HIVE_GITHUB_TOKEN}"
 {{- end}}
     dashboard:
-      port: 3002
+      port: 3001
     hub:
       enabled: true
       url: https://hive.kubestellar.io
@@ -494,7 +494,7 @@ spec:
           service:
             name: hive
             port:
-              number: 3002
+              number: 3001
   tls:
   - hosts:
     - {{.ID}}.hive.kubestellar.io
@@ -521,7 +521,7 @@ spec:
           service:
             name: hive
             port:
-              number: 3002
+              number: 3001
   tls:
   - hosts:
     - {{.ID}}.hive.kubestellar.io

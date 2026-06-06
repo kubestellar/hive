@@ -99,3 +99,61 @@ func TestPullNoChanges(t *testing.T) {
 
 	w.pull()
 }
+
+func TestPullWithNewCommit(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not found")
+	}
+
+	repoDir := t.TempDir()
+	exec.Command("git", "init", repoDir).Run()
+	exec.Command("git", "-C", repoDir, "config", "user.email", "test@test.com").Run()
+	exec.Command("git", "-C", repoDir, "config", "user.name", "test").Run()
+	os.WriteFile(filepath.Join(repoDir, "scanner.md"), []byte("v1"), 0o644)
+	exec.Command("git", "-C", repoDir, "add", ".").Run()
+	exec.Command("git", "-C", repoDir, "commit", "-m", "init").Run()
+
+	localDir := t.TempDir()
+	w := NewWatcher(repoDir, "master", "", localDir, time.Minute, slog.Default())
+	w.initialClone()
+	w.loadPolicies()
+
+	os.WriteFile(filepath.Join(repoDir, "scanner.md"), []byte("v2"), 0o644)
+	exec.Command("git", "-C", repoDir, "add", ".").Run()
+	exec.Command("git", "-C", repoDir, "commit", "-m", "update").Run()
+
+	w.pull()
+
+	data, ok := w.GetPolicy("scanner")
+	if !ok {
+		t.Error("scanner should exist after pull")
+	}
+	if string(data) != "v2" {
+		t.Errorf("policy = %q, want v2", string(data))
+	}
+}
+
+func TestStartLoadPoliciesError(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not found")
+	}
+
+	repoDir := t.TempDir()
+	exec.Command("git", "init", repoDir).Run()
+	exec.Command("git", "-C", repoDir, "config", "user.email", "test@test.com").Run()
+	exec.Command("git", "-C", repoDir, "config", "user.name", "test").Run()
+	os.WriteFile(filepath.Join(repoDir, "test.md"), []byte("hello"), 0o644)
+	exec.Command("git", "-C", repoDir, "add", ".").Run()
+	exec.Command("git", "-C", repoDir, "commit", "-m", "init").Run()
+
+	localDir := t.TempDir()
+	w := NewWatcher(repoDir, "master", "nonexistent-subpath", localDir, time.Minute, slog.Default())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := w.Start(ctx)
+	if err == nil {
+		t.Error("expected error for nonexistent subpath")
+	}
+}

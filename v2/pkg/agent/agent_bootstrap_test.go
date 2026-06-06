@@ -355,6 +355,78 @@ func TestIsCLIChromeMorePatterns(t *testing.T) {
 	}
 }
 
+func TestAgentEnvPairsWithEnvVars(t *testing.T) {
+	t.Setenv("HIVE_SHA", "abc123")
+	t.Setenv("HIVE_ADVISORY_ISSUE", "42")
+
+	m := testManager(2)
+	m.copilotAuthToken = "ghp_copilot_test"
+
+	agent := &AgentProcess{
+		Name:   "scanner",
+		UID:    1001,
+		Config: config.AgentConfig{Role: "scanner", Backend: "claude", Model: "sonnet", BeadsDir: "/data/beads/scanner"},
+	}
+
+	pairs := m.agentEnvPairs(agent)
+
+	foundSHA := false
+	foundAdvisory := false
+	foundCopilot := false
+	foundHome := false
+	foundBD := false
+	for _, p := range pairs {
+		switch p.Key {
+		case "HIVE_SHA":
+			foundSHA = true
+			if p.Value != "abc123" {
+				t.Errorf("HIVE_SHA = %q", p.Value)
+			}
+		case "HIVE_ADVISORY_ISSUE":
+			foundAdvisory = true
+		case "COPILOT_GITHUB_TOKEN":
+			foundCopilot = true
+			if !p.Secret {
+				t.Error("COPILOT_GITHUB_TOKEN should be secret")
+			}
+		case "HOME":
+			foundHome = true
+		case "BD_DIR":
+			foundBD = true
+		}
+	}
+	if !foundSHA {
+		t.Error("should include HIVE_SHA")
+	}
+	if !foundAdvisory {
+		t.Error("should include HIVE_ADVISORY_ISSUE")
+	}
+	if !foundCopilot {
+		t.Error("should include COPILOT_GITHUB_TOKEN")
+	}
+	if !foundHome {
+		t.Error("UID > 0 should include HOME")
+	}
+	if !foundBD {
+		t.Error("should include BD_DIR")
+	}
+}
+
+func TestBuildEnvPrefixSkipsSecrets(t *testing.T) {
+	m := testManager(2)
+	m.copilotAuthToken = "ghp_secret"
+
+	agent := &AgentProcess{
+		Name:   "scanner",
+		Config: config.AgentConfig{Role: "scanner", Backend: "claude", Model: "sonnet"},
+	}
+
+	got := m.buildEnvPrefix(agent)
+	if containsBoot(got, "ghp_secret") {
+		t.Error("buildEnvPrefix should NOT include secret env vars")
+	}
+}
+
 func TestBuildBootstrapPromptEmptyPolicyDir(t *testing.T) {
 	m := &Manager{
 		agents:   make(map[string]*AgentProcess),

@@ -983,6 +983,8 @@ func main() {
 		logger.Info("fast agent status enabled", "interval_seconds", cfg.Dashboard.AgentPollIntervalS)
 	}
 
+	dashSrv.MarkReady()
+
 	const cliStartupDelay = 10 * time.Second
 	logger.Info("waiting for CLI startup before first eval", "delay", cliStartupDelay)
 	select {
@@ -993,7 +995,6 @@ func main() {
 
 	runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, nil, logger)
 	persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
-	dashSrv.MarkReady()
 
 	agentTickCh := func() <-chan time.Time {
 		if agentTicker != nil {

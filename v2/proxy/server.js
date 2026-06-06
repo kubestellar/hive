@@ -73,16 +73,15 @@ const apiProxy = createProxyMiddleware({
   ws: true,
   pathRewrite: (path) => `/api${path}`,
   on: {
-    proxyReq(proxyReq) {
-      try {
-        proxyReq.removeHeader('X-Hive-User');
-        proxyReq.removeHeader('X-Hive-Role');
-        if (DASHBOARD_TOKEN) {
-          proxyReq.setHeader('X-Hive-Internal', DASHBOARD_TOKEN);
-        } else {
-          proxyReq.removeHeader('X-Hive-Internal');
-        }
-      } catch (_) {}
+    proxyReq(proxyReq, req) {
+      if (req.headers.upgrade) return;
+      proxyReq.removeHeader('X-Hive-User');
+      proxyReq.removeHeader('X-Hive-Role');
+      if (DASHBOARD_TOKEN) {
+        proxyReq.setHeader('X-Hive-Internal', DASHBOARD_TOKEN);
+      } else {
+        proxyReq.removeHeader('X-Hive-Internal');
+      }
     },
     error(err, req, res) {
       console.error(`[proxy] ${req.method} ${req.url} → ${err.message}`);
@@ -181,11 +180,11 @@ const contributeProxy = createProxyMiddleware({
   changeOrigin: true,
   on: {
     proxyReq(proxyReq, req) {
-      try {
+      if (!req.headers.upgrade) {
         proxyReq.removeHeader('X-Hive-Internal');
         proxyReq.removeHeader('X-Hive-User');
         proxyReq.removeHeader('X-Hive-Role');
-      } catch (_) {}
+      }
       proxyReq.setHeader('X-Forwarded-Host', req.headers.host || '');
     },
   },

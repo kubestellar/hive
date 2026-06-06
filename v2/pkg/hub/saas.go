@@ -108,7 +108,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/upgrade", s.requireAuth(s.handleUpgradeHive))
-	s.mux.HandleFunc("OPTIONS /api/saas/hives/{id}/upgrade", s.handleUpgradeHive)
+	s.mux.HandleFunc("GET /api/saas/hive-config/{hiveID}", s.requireAuth(s.handleProxyHiveConfig))
 	s.mux.HandleFunc("GET /api/saas/latest-sha", s.handleLatestSHA)
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
 	s.mux.HandleFunc("POST /api/saas/user-token", s.requireAuth(s.handleUserToken))
@@ -760,6 +760,34 @@ func fetchSHA(logger *slog.Logger) {
 		latestSHAMu.Unlock()
 		logger.Debug("latest SHA updated", "sha", sha[:7])
 	}
+}
+
+func (s *HubServer) handleProxyHiveConfig(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("hiveID")
+	s.mu.RLock()
+	var dashURL string
+	for _, h := range s.registry.Hives {
+		if h.ID == hiveID && h.DashboardURL != "" {
+			dashURL = h.DashboardURL
+			break
+		}
+	}
+	s.mu.RUnlock()
+	if dashURL == "" {
+		http.Error(w, `{"error":"hive not found or no dashboard URL"}`, http.StatusNotFound)
+		return
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(strings.TrimRight(dashURL, "/") + "/api/config/download")
+	if err != nil {
+		http.Error(w, `{"error":"could not reach hive: `+err.Error()+`"}`, http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	w.Header().Set("Content-Type", "application/x-yaml")
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
 }
 
 func (s *HubServer) handleLatestSHA(w http.ResponseWriter, r *http.Request) {
@@ -1515,7 +1543,7 @@ const dashboardHTML = `<!DOCTYPE html>
         var contributeCell = contributeUrl ? '<a href="' + contributeUrl + '" target="_blank" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;text-decoration:none">Contribute</a>' : '';
         var actions = '';
         if (canConvert) {
-          actions = '<button onclick="openConvert(this)" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
+          actions = '<button onclick="openConvert(this)" data-hive-id="' + esc(h.id) + '" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
         } else if (isHosted && (h.role === 'owner' || h.role === 'read-write')) {
           actions = '<button onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Access</button>';
           if (h.role === 'owner') {
@@ -1702,19 +1730,17 @@ const dashboardHTML = `<!DOCTYPE html>
       document.getElementById('f-name').value = btn.dataset.name || '';
       document.getElementById('f-level').value = btn.dataset.level || '1';
       document.getElementById('create-modal').style.display = 'flex';
-      var dashUrl = btn.closest('tr').querySelector('a[href*="hive.kubestellar.io"], a[href*="192.168"]');
-      if (!dashUrl) dashUrl = btn.closest('tr').querySelector('a.dash-link');
-      var base = dashUrl ? dashUrl.href.replace(/\/$/, '') : '';
-      if (base) {
+      var hiveId = btn.dataset.hiveId || '';
+      if (hiveId) {
         try {
-          var resp = await fetch(base + '/api/config/download');
+          var resp = await fetch('/api/saas/hive-config/' + encodeURIComponent(hiveId));
           if (resp.ok) {
             var text = await resp.text();
             var cfg = parseHiveYaml(text);
             applyYamlConfig(cfg);
             hiveToast('Config loaded from local hive', 'success');
           } else {
-            hiveToast('Could not auto-fetch config — drop your hive.yaml above to fill in GitHub App credentials', 'info');
+            hiveToast('Could not fetch config from hive — drop your hive.yaml above to fill in GitHub App credentials', 'info');
           }
         } catch(e) {
           hiveToast('Could not reach local hive — drop your hive.yaml above to fill in GitHub App credentials', 'info');

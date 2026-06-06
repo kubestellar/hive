@@ -346,6 +346,30 @@ func TestHandleContributeWSProxySuccess(t *testing.T) {
 	_ = w.Code
 }
 
+func TestHandleHeartbeatRegistryFull(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	srv.mu.Lock()
+	for i := 0; i < 200; i++ {
+		srv.registry.Hives = append(srv.registry.Hives, RegistryEntry{
+			ID: "hive-" + strings.Repeat("x", 3) + string(rune('a'+i%26)) + string(rune('a'+i/26)),
+		})
+	}
+	srv.mu.Unlock()
+
+	payload := HeartbeatPayload{HiveID: "new-hive-overflow", Org: "org", PrimaryRepo: "repo"}
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest("POST", "/api/heartbeat", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("full registry should return 503, got %d", w.Code)
+	}
+}
+
 func TestGetLatestSHA(t *testing.T) {
 	sha := getLatestSHA()
 	_ = sha // may be empty if poller hasn't run

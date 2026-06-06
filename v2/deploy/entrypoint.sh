@@ -285,6 +285,7 @@ sleep 1
 
 # Install the MITM proxy CA into the system trust store so that
 # agent sub-processes (git, curl) trust the forged certificates.
+# Also set NODE_EXTRA_CA_CERTS for Node.js (Copilot, etc.).
 if [ -f /data/proxy-ca.pem ]; then
   if command -v gosu >/dev/null 2>&1; then
     gosu root sh -c 'cp /data/proxy-ca.pem /usr/local/share/ca-certificates/hive-proxy-ca.crt && update-ca-certificates' 2>/dev/null \
@@ -295,6 +296,8 @@ if [ -f /data/proxy-ca.pem ]; then
   else
     echo "[entrypoint] WARN: could not install proxy CA to system store (non-root)"
   fi
+  export NODE_EXTRA_CA_CERTS=/data/proxy-ca.pem
+  echo "[entrypoint] NODE_EXTRA_CA_CERTS set for Node.js agents"
 fi
 
 echo "[entrypoint] Starting Node.js proxy on :${HIVE_PROXY_PORT} → :${HIVE_API_PORT}"

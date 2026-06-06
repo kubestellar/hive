@@ -71,7 +71,7 @@ RUN ARCH=$(uname -m) && \
     chmod +x /opt/hive/bin/gh-real
 
 # --- Layer 3: GitHub Copilot CLI (frequent updates) ---
-ARG COPILOT_VERSION=latest
+ARG COPILOT_VERSION=1.0.59
 RUN npm install -g @github/copilot@${COPILOT_VERSION} && npm cache clean --force || \
     echo "WARN: GitHub Copilot CLI install failed — skipping"
 

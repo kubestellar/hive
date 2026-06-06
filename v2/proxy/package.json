@@ -6,10 +6,14 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node server.test.js"
   },
   "dependencies": {
     "express": "^5.2.0",
     "http-proxy-middleware": "^4.0.0"
+  },
+  "devDependencies": {
+    "ws": "^8.18.0"
   }
 }

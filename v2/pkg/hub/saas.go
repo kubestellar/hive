@@ -108,6 +108,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/upgrade", s.requireAuth(s.handleUpgradeHive))
+	s.mux.HandleFunc("OPTIONS /api/saas/hives/{id}/upgrade", s.handleUpgradeHive)
 	s.mux.HandleFunc("GET /api/saas/latest-sha", s.handleLatestSHA)
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
 	s.mux.HandleFunc("POST /api/saas/user-token", s.requireAuth(s.handleUserToken))
@@ -682,6 +683,17 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	if strings.HasSuffix(origin, ".hive.kubestellar.io") || origin == "https://hive.kubestellar.io" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	}
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	id := r.PathValue("id")
 	username := s.getAuthUser(r)
 	h := loadSaaSHive(id)
@@ -1520,7 +1532,7 @@ const dashboardHTML = `<!DOCTYPE html>
             var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
             var isCurrent = _latestSHA && sha === _latestSHA;
             var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
-            var upgradeIcon = (!isCurrent && isHosted && h.role === 'owner') ? ' <button onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:1px 5px;background:var(--green);color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:0.6rem;margin-left:3px">⟳</button>' : '';
+            var upgradeIcon = (!isCurrent && isHosted && h.role === 'owner') ? ' <button onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">⟳ Upgrade</button>' : '';
             return branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
           })() + '</td>' +
           '<td>' + repoLink + '</td>' +

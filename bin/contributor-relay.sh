@@ -485,6 +485,8 @@ function handleMessage(data) {
 }
 
 function connect() {
+  cleanup();
+  if (ws) { try { ws.terminate(); } catch (_) {} }
   console.log(`Connecting to ${HUB_URL}...`);
   ws = new WebSocket(HUB_URL);
 

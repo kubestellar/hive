@@ -8319,7 +8319,7 @@ function burnAreaChart() {
     }
 
     function renderGovHub(hub) {
-      const dashUrl = hub.dashboard_url || '';
+      const dashUrl = hub.dashboard_url || window.location.origin || '';
       const snapUrl = hub.snapshot_url || (hub.auto_snapshot && dashUrl ? dashUrl.replace(/\/$/, '') + '/snapshot' : '');
       const repos = (_configState.data.repos || []).map(function(r) {
         const name = r.split('/').pop();
@@ -8438,7 +8438,7 @@ function burnAreaChart() {
         urlInput.style.opacity = isOn ? '0.5' : '1';
         urlInput.placeholder = isOn ? '' : 'https://your-site.com/dashboard-preview';
         if (isOn) {
-          var dashUrl = (_configState.data.hub || {}).dashboard_url || '';
+          var dashUrl = (_configState.data.hub || {}).dashboard_url || window.location.origin || '';
           if (dashUrl) {
             var snapUrl = dashUrl.replace(/\/$/, '') + '/snapshot';
             urlInput.value = snapUrl;

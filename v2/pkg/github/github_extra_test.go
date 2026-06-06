@@ -3,6 +3,8 @@ package github
 import (
 	"log/slog"
 	"testing"
+
+	gh "github.com/google/go-github/v72/github"
 )
 
 func TestSetRepos(t *testing.T) {
@@ -52,6 +54,38 @@ func TestGetReposCopy(t *testing.T) {
 	original := c.getRepos()
 	if original[0] != "a" {
 		t.Error("getRepos should return a copy")
+	}
+}
+
+func TestSafeGetLogin(t *testing.T) {
+	if got := safeGetLogin(nil); got != "" {
+		t.Errorf("nil user = %q, want empty", got)
+	}
+	login := "testuser"
+	u := &gh.User{Login: &login}
+	if got := safeGetLogin(u); got != "testuser" {
+		t.Errorf("got %q, want testuser", got)
+	}
+}
+
+func TestIsInternalAuthorExtended(t *testing.T) {
+	if !isInternalAuthor("github-actions[bot]", nil) {
+		t.Error("bot should be internal")
+	}
+	if !isInternalAuthor("clubanderson", []string{"clubanderson"}) {
+		t.Error("listed author should be internal")
+	}
+	if isInternalAuthor("external-user", []string{"clubanderson"}) {
+		t.Error("external user should not be internal")
+	}
+}
+
+func TestIsHeldExtended(t *testing.T) {
+	if !isHeld([]string{"hold", "kind/bug"}) {
+		t.Error("hold label should be held")
+	}
+	if isHeld([]string{"kind/bug"}) {
+		t.Error("no hold should not be held")
 	}
 }
 

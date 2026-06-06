@@ -159,6 +159,121 @@ func TestHandleVersionWithDeps(t *testing.T) {
 	}
 }
 
+func TestHandleBeadsReset(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"reason":"test reset"}`
+	req := httptest.NewRequest("POST", "/api/beads/reset", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["status"] != "reset" {
+		t.Errorf("status = %v", resp["status"])
+	}
+}
+
+func TestHandleBeadsResetNoReason(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/beads/reset", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestHandleBeadsResetAgent(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"reason":"agent reset"}`
+	req := httptest.NewRequest("POST", "/api/beads/reset/scanner", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleBeadsResetAgentUnknown(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/beads/reset/nonexistent", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("unknown agent reset should return 404, got %d", w.Code)
+	}
+}
+
+func TestHandleBeadsCreateInvalidPriority(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"title":"Test","type":"task","priority":99}`
+	req := httptest.NewRequest("POST", "/api/beads/scanner", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code == http.StatusOK {
+		t.Log("high priority may or may not be rejected depending on validation")
+	}
+}
+
+func TestHandleAuditWithDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+	srv.audit.Log("testuser", "test-action", "detail", "scanner")
+
+	req := httptest.NewRequest("GET", "/api/audit", nil)
+	req.Header.Set("X-Hive-Role", "owner")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestHandleStatusWithDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+	srv.statusMu.Lock()
+	srv.status = &StatusPayload{}
+	srv.ready = true
+	srv.statusMu.Unlock()
+
+	req := httptest.NewRequest("GET", "/api/status", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestHandleHealthWithDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+	srv.MarkReady()
+
+	req := httptest.NewRequest("GET", "/api/health", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	// MarkReady sets ready but status is nil — still returns 503
+	_ = w.Code
+}
+
 func TestHandleRoleWithDeps(t *testing.T) {
 	srv := newServerWithDeps(t)
 

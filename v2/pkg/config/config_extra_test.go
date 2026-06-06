@@ -353,3 +353,81 @@ func TestApplyConfigEnvDashboardTokenFallback(t *testing.T) {
 		t.Errorf("AuthToken = %q, want fallback-token", cfg.Dashboard.AuthToken)
 	}
 }
+
+func TestACMMPacks(t *testing.T) {
+	packs := ACMMPacks()
+	if len(packs) == 0 {
+		t.Fatal("ACMMPacks returned empty")
+	}
+	if len(packs) < 6 {
+		t.Errorf("expected at least 6 packs, got %d", len(packs))
+	}
+	for i := 1; i < len(packs); i++ {
+		if packs[i].Level < packs[i-1].Level {
+			t.Errorf("packs not sorted: level %d before %d", packs[i-1].Level, packs[i].Level)
+		}
+	}
+	for _, p := range packs {
+		if len(p.Agents) == 0 {
+			t.Errorf("pack level %d has no agents", p.Level)
+		}
+	}
+}
+
+func TestSaveAgentFileRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	agent := AgentConfig{
+		Backend:     "claude",
+		Model:       "claude-sonnet-4-6",
+		Enabled:     true,
+		DisplayName: "Test Agent",
+		Role:        "worker",
+	}
+	if err := SaveAgentFile(dir, "myagent", agent); err != nil {
+		t.Fatal(err)
+	}
+
+	overrides, err := LoadAgentOverrides(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, ok := overrides["myagent"]
+	if !ok {
+		t.Fatal("myagent not found")
+	}
+	if loaded.Backend != "claude" {
+		t.Errorf("Backend = %q", loaded.Backend)
+	}
+	if loaded.DisplayName != "Test Agent" {
+		t.Errorf("DisplayName = %q", loaded.DisplayName)
+	}
+	if !loaded.Managed {
+		t.Error("loaded agent should be Managed")
+	}
+}
+
+func TestLoadWithOverridesFromFile(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "hive.yaml")
+	os.WriteFile(cfgFile, []byte(`project:
+  org: testorg
+  repos: [testrepo]
+  primary_repo: testrepo
+github:
+  token: ghp_testtoken123
+agents:
+  scanner:
+    backend: claude
+`), 0o644)
+
+	cfg, err := LoadWithOverrides(cfgFile, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Project.Org != "testorg" {
+		t.Errorf("Org = %q", cfg.Project.Org)
+	}
+	if _, ok := cfg.Agents["scanner"]; !ok {
+		t.Error("scanner agent missing")
+	}
+}

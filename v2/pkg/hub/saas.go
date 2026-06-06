@@ -777,14 +777,17 @@ func (s *HubServer) handleProxyHiveConfig(w http.ResponseWriter, r *http.Request
 		http.Error(w, `{"error":"hive not found or no dashboard URL"}`, http.StatusNotFound)
 		return
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
+	const proxyConfigTimeout = 10 * time.Second
+	const maxConfigResponseBytes = 1 << 20
+	client := &http.Client{Timeout: proxyConfigTimeout}
 	resp, err := client.Get(strings.TrimRight(dashURL, "/") + "/api/config/download")
 	if err != nil {
-		http.Error(w, `{"error":"could not reach hive: `+err.Error()+`"}`, http.StatusBadGateway)
+		slog.Warn("hive config proxy failed", "hiveID", hiveID, "error", err)
+		http.Error(w, `{"error":"could not reach hive"}`, http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxConfigResponseBytes))
 	w.Header().Set("Content-Type", "application/x-yaml")
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)

@@ -213,6 +213,11 @@ const server = app.listen(PROXY_PORT, () => {
 });
 
 server.on('upgrade', (req, socket, head) => {
+  if (req.url.startsWith('/api/contribute/ws')) {
+    req.url = req.url.replace(/^\/api/, '');
+    apiProxy.upgrade(req, socket, head);
+    return;
+  }
   if (req.url.startsWith('/terminal')) {
     const host = req.headers.host || '';
     const isHosted = host.endsWith('.hive.kubestellar.io');
@@ -226,23 +231,7 @@ server.on('upgrade', (req, socket, head) => {
         socket.destroy();
         return;
       }
-    }
-    req.url = req.url.replace(/^\/terminal/, '') || '/';
-    ttydProxy.upgrade(req, socket, head);
-  }
-});
-
-server.on('upgrade', (req, socket, head) => {
-  if (req.url.startsWith('/api/contribute/ws')) {
-    // Strip the /api prefix so pathRewrite produces /api/contribute/ws
-    // (not /api/api/contribute/ws). Express middleware strips the mount
-    // path for HTTP requests, but the upgrade handler receives the full URL.
-    req.url = req.url.replace(/^\/api/, '');
-    apiProxy.upgrade(req, socket, head);
-    return;
-  }
-  if (req.url.startsWith('/terminal')) {
-    if (DASHBOARD_TOKEN) {
+    } else if (DASHBOARD_TOKEN) {
       const params = new URL(req.url, `http://${req.headers.host}`).searchParams;
       const token = params.get('token') || '';
       const supplied = Buffer.from(token);

@@ -22,11 +22,11 @@ const (
 	maxSaaSHivesTotal     = 5
 	provisionPollInterval = 30 * time.Second
 	provisionTimeout      = 5 * time.Minute
-	cpuRequest            = "200m"
-	cpuLimit              = "500m"
-	memRequest            = "256Mi"
-	memLimit              = "512Mi"
-	pvcSize               = "1Gi"
+	cpuRequest            = "500m"
+	cpuLimit              = "2000m"
+	memRequest            = "1Gi"
+	memLimit              = "4Gi"
+	pvcSize               = "10Gi"
 )
 
 type SaaSHive struct {

@@ -32,7 +32,8 @@ func newServerWithDeps(t *testing.T) *Server {
 			"scanner": {ID: "scan-001", Role: "scanner", Backend: "claude", Model: "sonnet", DisplayName: "Scanner"},
 			"quality": {ID: "qual-002", Role: "quality", Backend: "claude", Model: "opus", DisplayName: "Quality"},
 		},
-		GitHub: config.GitHubConfig{Token: "ghp_test123456789"},
+		GitHub:     config.GitHubConfig{Token: "ghp_test123456789"},
+		SourcePath: t.TempDir() + "/hive.yaml",
 	}
 
 	dir := t.TempDir()
@@ -59,8 +60,9 @@ func newServerWithDeps(t *testing.T) *Server {
 		},
 		Logger:      logger,
 		Ctx:         context.Background(),
-		RefreshFunc: func() {},
-		PersistFunc: func() {},
+		RefreshFunc:    func() {},
+		PersistFunc:    func() {},
+		SkipReloadFunc: func() {},
 	}
 	srv.RegisterAPI(srv.deps)
 	return srv
@@ -727,6 +729,28 @@ func TestHandleResetRestartsDeps(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
+	_ = w.Code
+}
+
+func TestHandleGovernorLogging(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"dir":"/data/logs","maxSizeMB":10,"maxAgeDays":30}`
+	req := httptest.NewRequest("PUT", "/api/governor/logging", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	_ = w.Code
+}
+
+func TestHandleGovernorNotificationsDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"ntfy_topic":"test","discord_webhook":""}`
+	req := httptest.NewRequest("PUT", "/api/governor/notifications", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
 	_ = w.Code
 }
 

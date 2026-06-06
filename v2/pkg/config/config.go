@@ -961,6 +961,11 @@ func (c *Config) Save() error {
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("closing config: %w", err)
 	}
+
+	backupPath := "/data/hive.yaml.bak"
+	if err := os.WriteFile(backupPath, data, 0o644); err != nil {
+		log.Printf("[config] warning: failed to write PVC backup: %v", err)
+	}
 	return nil
 }
 

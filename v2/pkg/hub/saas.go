@@ -1548,6 +1548,9 @@ const dashboardHTML = `<!DOCTYPE html>
         var actions = '';
         if (canConvert) {
           actions = '<button onclick="openConvert(this)" data-hive-id="' + esc(h.id) + '" data-dash-url="' + esc(h.dashboardUrl||'') + '" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
+          if (h.role === 'owner') {
+            actions += ' <button onclick="removeLocalHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:0.65rem;white-space:nowrap" title="Remove from registry (does not delete the hive)">Remove</button>';
+          }
         } else if (isHosted && (h.role === 'owner' || h.role === 'read-write')) {
           actions = '<button onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap;margin-right:4px">Access</button>';
           if (h.role === 'owner') {
@@ -1725,6 +1728,16 @@ const dashboardHTML = `<!DOCTYPE html>
         loadHives();
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
       finally { btns.forEach(function(b) { b.disabled = false; b.textContent = 'Delete'; b.style.opacity = '1'; }); }
+    }
+
+    async function removeLocalHive(id) {
+      if (!await hiveConfirm('Remove ' + id + ' from the registry? The hive itself is not affected — it will reappear if it sends another heartbeat.')) return;
+      try {
+        var resp = await fetch('/api/hub/registry/' + encodeURIComponent(id), {method: 'DELETE'});
+        if (!resp.ok) { var d = await resp.json(); hiveToast(d.error || 'Remove failed', 'error'); return; }
+        hiveToast('Removed ' + id + ' from registry', 'success');
+        loadHives();
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
     function openConvert(btn) {

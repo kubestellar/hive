@@ -178,3 +178,41 @@ func TestMergeAgentOverridesNilMap(t *testing.T) {
 		t.Error("Agents map should be initialized")
 	}
 }
+
+func TestMatchesAny(t *testing.T) {
+	if !MatchesAny("hello world", []string{"hello*"}) {
+		t.Error("should match wildcard")
+	}
+	if MatchesAny("hello world", []string{"goodbye*"}) {
+		t.Error("should not match")
+	}
+	if MatchesAny("test", nil) {
+		t.Error("nil patterns should not match")
+	}
+	if !MatchesAny("test", []string{"*"}) {
+		t.Error("star should match everything")
+	}
+}
+
+func TestSaveAgentFileErrorPath(t *testing.T) {
+	err := SaveAgentFile("/nonexistent/dir/agents", "test", AgentConfig{})
+	if err == nil {
+		t.Error("expected error for bad dir")
+	}
+}
+
+func TestACMMPackByLevelAllLevels(t *testing.T) {
+	for level := 1; level <= 6; level++ {
+		pack, err := ACMMPackByLevel(level)
+		if err != nil {
+			t.Errorf("ACMMPackByLevel(%d) error: %v", level, err)
+		}
+		if len(pack.Agents) == 0 {
+			t.Errorf("ACMMPackByLevel(%d) returned empty agents", level)
+		}
+	}
+	_, err := ACMMPackByLevel(99)
+	if err == nil {
+		t.Error("expected error for invalid level")
+	}
+}

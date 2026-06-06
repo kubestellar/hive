@@ -170,3 +170,123 @@ func TestBuildCIConfigNil(t *testing.T) {
 		t.Error("nil constitution should produce default CI")
 	}
 }
+
+func TestProduceScaffoldWithAcceptanceFacts(t *testing.T) {
+	langs := []struct {
+		body     string
+		testFile string
+	}{
+		{"Go project", "main_test.go"},
+		{"Python FastAPI service", "tests/test_acceptance.py"},
+		{"TypeScript React app", "src/__tests__/acceptance.test.ts"},
+		{"Rust tokio service", "tests/acceptance.rs"},
+		{"Java Spring Boot", "src/test/java/AppTest.java"},
+		{"Shell automation", "test.sh"},
+		{"JavaScript Express app", "src/__tests__/acceptance.test.js"},
+	}
+
+	for _, tt := range langs {
+		e := newTestEngine(t)
+		e.Start("build a project")
+
+		wikiDir := e.dataDir + "/" + inceptionWikiDir
+		makeDir(wikiDir)
+		writeFile(wikiDir+"/const.md", "---\ntitle: Arch\ntype: constitution\n---\n"+tt.body)
+		writeFile(wikiDir+"/accept.md", "---\ntitle: Tests pass\ntype: acceptance\n---\nAll tests must pass")
+
+		e.mu.Lock()
+		e.state.Phase = PhaseScaffold
+		e.mu.Unlock()
+
+		result, err := e.ProduceScaffold(nil)
+		if err != nil {
+			t.Fatalf("%s: error: %v", tt.body, err)
+		}
+
+		found := false
+		for _, f := range result.Files {
+			if f.Path == tt.testFile {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: should produce %s", tt.body, tt.testFile)
+		}
+	}
+}
+
+func TestProduceScaffoldContainerProject(t *testing.T) {
+	e := newTestEngine(t)
+	e.Start("build a docker service")
+
+	wikiDir := e.dataDir + "/" + inceptionWikiDir
+	makeDir(wikiDir)
+	writeFile(wikiDir+"/const.md", "---\ntitle: Arch\ntype: constitution\n---\nDocker container service with deployment")
+
+	e.mu.Lock()
+	e.state.Phase = PhaseScaffold
+	e.mu.Unlock()
+
+	result, _ := e.ProduceScaffold(nil)
+	hasDockerfile := false
+	for _, f := range result.Files {
+		if f.Path == "Dockerfile" {
+			hasDockerfile = true
+		}
+	}
+	if !hasDockerfile {
+		t.Error("container project should include Dockerfile")
+	}
+}
+
+func TestCosineSimilarityZeroVectors(t *testing.T) {
+	sim := CosineSimilarity([]float64{0, 0, 0}, []float64{1, 2, 3})
+	if sim != 0 {
+		t.Errorf("zero vector should return 0, got %f", sim)
+	}
+}
+
+func TestCosineSimilarityMismatched(t *testing.T) {
+	sim := CosineSimilarity([]float64{1, 2}, []float64{1, 2, 3})
+	if sim != 0 {
+		t.Error("mismatched should return 0")
+	}
+}
+
+func TestCosineSimilarityEmpty(t *testing.T) {
+	sim := CosineSimilarity(nil, nil)
+	if sim != 0 {
+		t.Error("empty should return 0")
+	}
+}
+
+func TestFisherRaoDistanceZeroVectors(t *testing.T) {
+	ga := NewGaussianFromEmbedding([]float64{0, 0, 0}, 0.1)
+	gb := NewGaussianFromEmbedding([]float64{0, 0, 0}, 0.1)
+	dist := FisherRaoDistance(ga, gb)
+	_ = dist
+}
+
+func TestProduceScaffoldUIProject(t *testing.T) {
+	e := newTestEngine(t)
+	e.Start("build a dashboard")
+
+	wikiDir := e.dataDir + "/" + inceptionWikiDir
+	makeDir(wikiDir)
+	writeFile(wikiDir+"/const.md", "---\ntitle: Arch\ntype: constitution\n---\nReact dashboard with Vite and i18n")
+
+	e.mu.Lock()
+	e.state.Phase = PhaseScaffold
+	e.mu.Unlock()
+
+	result, _ := e.ProduceScaffold(nil)
+	hasI18n := false
+	for _, f := range result.Files {
+		if strings.Contains(f.Path, "i18n") {
+			hasI18n = true
+		}
+	}
+	if !hasI18n {
+		t.Error("UI project should include i18n files")
+	}
+}

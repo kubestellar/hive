@@ -617,6 +617,119 @@ func TestHandleGovernorThresholdsDeps(t *testing.T) {
 	_ = w.Code
 }
 
+func TestHandleGovernorSensingDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"gh_rate":["scanner"],"cli_exclude":["guide"]}`
+	req := httptest.NewRequest("PUT", "/api/governor/sensing", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleGovernorBudgetDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"totalTokens":1000000,"periodDays":30,"criticalPct":80}`
+	req := httptest.NewRequest("PUT", "/api/governor/budget", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleGovernorHealthDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"healthcheckInterval":120,"restartCooldown":60}`
+	req := httptest.NewRequest("PUT", "/api/governor/health", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleGovernorLabelsDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"labels":["kind/bug","priority/high"]}`
+	req := httptest.NewRequest("PUT", "/api/governor/labels", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleAgentConfigRestrictionsDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"restrictions":{"include_repos":["repo1"],"exclude_labels":["wontfix"]}}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/restrictions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleAgentConfigStatsDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	body := `{"stats":[{"key":"issues","label":"Issues","source":"status","field":"count","style":"number"}]}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/stats", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandlePinDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/pin/scanner/cli", strings.NewReader(`{"version":"claude-3.5"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleUnpinDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/unpin/scanner/cli", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleRestartDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/restart/scanner", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
+func TestHandleResetRestartsDeps(t *testing.T) {
+	srv := newServerWithDeps(t)
+
+	req := httptest.NewRequest("POST", "/api/reset-restarts/scanner", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	_ = w.Code
+}
+
 func TestHandleGovernorConfigDeps(t *testing.T) {
 	srv := newServerWithDeps(t)
 

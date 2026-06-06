@@ -126,13 +126,13 @@ RUN pip3 install --no-cache-dir --break-system-packages pyyaml 2>/dev/null || \
 RUN pip3 install --no-cache-dir --break-system-packages specify-cli 2>/dev/null || \
     pip3 install --no-cache-dir specify-cli 2>/dev/null || \
     echo "WARN: spec-kit (specify-cli) install failed — inception will generate facts without it"
-# pub-sub-tmux: structured event streaming for AI agent tmux sessions
-RUN git clone --depth 1 https://github.com/kubestellar/pub-sub-tmux.git /tmp/pst && \
-    bash /tmp/pst/install.sh /usr/local && \
-    rm -rf /tmp/pst && \
-    mkdir -p /var/run/pub-sub-tmux/logs /var/run/pub-sub-tmux/commands && \
-    chmod 1777 /var/run/pub-sub-tmux/logs /var/run/pub-sub-tmux/commands || \
-    echo "WARN: pub-sub-tmux install failed — inception will use RestartWithBootstrap fallback"
+# pluk: structured event streaming for AI agent tmux sessions
+RUN git clone --depth 1 https://github.com/kubestellar/pluk.git /tmp/pst && \
+    bash /tmp/pluk/install.sh /usr/local && \
+    rm -rf /tmp/pluk && \
+    mkdir -p /var/run/pluk/logs /var/run/pluk/commands && \
+    chmod 1777 /var/run/pluk/logs /var/run/pluk/commands || \
+    echo "WARN: pluk install failed — inception will use RestartWithBootstrap fallback"
 RUN (which git && git clone -b feat/cli-agent-mode https://github.com/clubanderson/agentic-strategy-evolution /opt/nous && \
     python3 -m venv /opt/nous/venv && \
     /opt/nous/venv/bin/pip install --no-cache-dir -e /opt/nous 2>&1) || \

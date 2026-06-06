@@ -431,15 +431,15 @@ func (s *Server) kickBrainstorm() {
 
 		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
 
-		// Try pst-send first (pub-sub-tmux) — reliable, structured delivery.
-		// Falls back to RestartWithBootstrap if pst-send is not installed.
-		if err := pstSendKick("brainstorm", msg); err != nil {
-			s.logger.Debug("pst-send not available, using RestartWithBootstrap", "error", err)
+		// Try pluk-send first (pluk) — reliable, structured delivery.
+		// Falls back to RestartWithBootstrap if pluk-send is not installed.
+		if err := plukSendKick("brainstorm", msg); err != nil {
+			s.logger.Debug("pluk-send not available, using RestartWithBootstrap", "error", err)
 			if err2 := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err2 != nil {
 				s.logger.Warn("failed to restart brainstorm for inception", "error", err2)
 			}
 		} else {
-			s.logger.Info("inception kick sent via pst-send")
+			s.logger.Info("inception kick sent via pluk-send")
 		}
 
 		if s.deps.Governor != nil {
@@ -469,9 +469,9 @@ func (s *Server) sendKickBrainstorm() {
 
 		msg := s.buildStructureKickMessage(state)
 		if err := s.deps.AgentMgr.SendKick("brainstorm", msg); err != nil {
-			s.logger.Warn("sendKick for structure phase failed, trying pst-send", "error", err)
-			if err2 := pstSendKick("brainstorm", msg); err2 != nil {
-				s.logger.Warn("pst-send also failed", "error", err2)
+			s.logger.Warn("sendKick for structure phase failed, trying pluk-send", "error", err)
+			if err2 := plukSendKick("brainstorm", msg); err2 != nil {
+				s.logger.Warn("pluk-send also failed", "error", err2)
 			}
 		}
 
@@ -499,23 +499,23 @@ func (s *Server) buildStructureKickMessage(state *knowledge.InceptionState) stri
 	return sb.String()
 }
 
-// pstSendKick sends the inception prompt via pub-sub-tmux's pst-send command.
-// This is more reliable than tmux send-keys + $(cat file) because pst-send
+// plukSendKick sends the inception prompt via pluk's pluk-send command.
+// This is more reliable than tmux send-keys + $(cat file) because pluk-send
 // writes to a named FIFO and confirms delivery via a command_received event.
-// Returns error if pst-send is not installed or the send fails.
-func pstSendKick(session, message string) error {
-	pstPath, err := exec.LookPath("pst-send")
+// Returns error if pluk-send is not installed or the send fails.
+func plukSendKick(session, message string) error {
+	plukPath, err := exec.LookPath("pluk-send")
 	if err != nil {
-		return fmt.Errorf("pst-send not found: %w", err)
+		return fmt.Errorf("pluk-send not found: %w", err)
 	}
 
-	cmd := exec.Command(pstPath,
+	cmd := exec.Command(plukPath,
 		"--session", "hive-"+session,
 		"--text", message,
 		"--enter",
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("pst-send failed: %w (output: %s)", err, string(out))
+		return fmt.Errorf("pluk-send failed: %w (output: %s)", err, string(out))
 	}
 
 	return nil

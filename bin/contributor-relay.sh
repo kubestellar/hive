@@ -484,17 +484,25 @@ function handleMessage(data) {
   }
 }
 
+let connectGeneration = 0;
+let reconnectTimer = null;
+
 function connect() {
   cleanup();
-  if (ws) { try { ws.terminate(); } catch (_) {} }
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  if (ws) { try { ws.removeAllListeners(); ws.terminate(); } catch (_) {} }
+  const gen = ++connectGeneration;
   console.log(`Connecting to ${HUB_URL}...`);
   ws = new WebSocket(HUB_URL);
 
   ws.on('open', () => {
+    if (gen !== connectGeneration) return;
     console.log('Connected to hub');
+    reconnectDelay = BASE_RECONNECT_DELAY_MS;
     lastPong = Date.now();
 
     heartbeatInterval = setInterval(() => {
+      if (gen !== connectGeneration) { clearInterval(heartbeatInterval); return; }
       if (Date.now() - lastPong > HEARTBEAT_TIMEOUT_MS) {
         console.error('Heartbeat timeout — reconnecting');
         ws.terminate();
@@ -504,16 +512,21 @@ function connect() {
     }, HEARTBEAT_INTERVAL_MS);
   });
 
-  ws.on('message', (data) => handleMessage(data.toString()));
+  ws.on('message', (data) => {
+    if (gen !== connectGeneration) return;
+    handleMessage(data.toString());
+  });
 
   ws.on('close', () => {
+    if (gen !== connectGeneration) return;
     console.log(`Connection closed. Reconnecting in ${reconnectDelay}ms...`);
     cleanup();
-    setTimeout(connect, reconnectDelay);
+    reconnectTimer = setTimeout(connect, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
   });
 
   ws.on('error', (err) => {
+    if (gen !== connectGeneration) return;
     console.error('WebSocket error:', err.message);
   });
 }

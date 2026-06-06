@@ -70,7 +70,6 @@ app.use((req, res, next) => {
 const apiProxy = createProxyMiddleware({
   target: GO_API_URL,
   changeOrigin: true,
-  ws: true,
   pathRewrite: (path) => `/api${path}`,
   on: {
     proxyReq(proxyReq, req) {
@@ -123,7 +122,6 @@ app.use('/api', apiProxy);
 const ttydProxy = createProxyMiddleware({
   target: TTYD_URL,
   changeOrigin: true,
-  ws: true,
   pathRewrite: (p) => p.replace(/^\/terminal/, '') || '/',
   on: {
     error(err, req, res) {

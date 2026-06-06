@@ -1285,7 +1285,9 @@ const dashboardHTML = `<!DOCTYPE html>
     .content { max-width: 1600px; margin: 0 auto; padding: 80px 24px 48px; }
     h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .subtitle { color: var(--muted); margin-bottom: 32px; }
-    .table-wrap { overflow-x: auto; margin: 0 auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .table-wrap { overflow-x: auto; overflow-y: visible; margin: 0 auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .hive-menu-cell:hover .hive-menu-dropdown { display: block !important; }
+    .hive-menu-dropdown a:hover, .hive-menu-dropdown div:hover { background: var(--border); }
     .table-wrap::-webkit-scrollbar { height: 10px; display: block; }
     .table-wrap::-webkit-scrollbar-track { background: var(--surface); border-radius: 4px; }
     .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; min-width: 40px; }
@@ -1562,7 +1564,6 @@ const dashboardHTML = `<!DOCTYPE html>
         var snapUrl = snapshotLink(h);
         var apiUrl = apiLink(h);
         var menuItems = [];
-        if (dashUrl) menuItems.push('<a href="' + (isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : esc(h.dashboardUrl||'')) + '" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">📊 Dashboard</a>');
         if (contributeUrl) menuItems.push('<a href="' + contributeUrl + '" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">🤝 Contribute</a>');
         if (h.snapshotUrl) menuItems.push('<a href="' + esc(h.snapshotUrl) + '" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">📸 Preview</a>');
         var apiBase = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? esc(h.dashboardUrl) : '');
@@ -1583,11 +1584,10 @@ const dashboardHTML = `<!DOCTYPE html>
           versionCell = branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
         } else { versionCell = '<span style="color:var(--muted)">—</span>'; }
         return '<tr>' +
-          '<td style="position:relative;width:30px;text-align:center"><span onclick="toggleHiveMenu(\'' + menuId + '\')" style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div id="' + menuId + '" style="display:none;position:absolute;left:0;top:28px;background:var(--surface);border:1px solid var(--border);border-radius:8px;min-width:180px;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.4)">' + menuItems.join('') + '</div></td>' +
-          '<td style="text-align:left">' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br>' + roleBadge(h.role) + '</td>' +
+          '<td class="hive-menu-cell" style="position:relative;width:30px;text-align:center;overflow:visible"><span style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div class="hive-menu-dropdown" style="display:none;position:absolute;left:0;bottom:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px;min-width:180px;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,0.4)">' + menuItems.join('') + '</div></td>' +
+          '<td style="text-align:left">' + dot + '<a href="https://github.com/' + esc(h.org) + '" target="_blank" style="margin-right:4px;vertical-align:middle;opacity:0.6"><img src="https://github.com/' + esc(h.org) + '.png" style="width:18px;height:18px;border-radius:4px;vertical-align:middle" onerror="this.style.display=\'none\'"></a>' + (function() { var dh = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? esc(h.dashboardUrl) : ''); return dh ? '<a href="' + dh + '" target="_blank" class="hive-name" style="color:inherit;text-decoration:none">' + esc(h.name || h.id) + '</a>' : '<span class="hive-name">' + esc(h.name || h.id) + '</span>'; })() + '<br>' + roleBadge(h.role) + '</td>' +
           '<td>' + typeBadge + '</td>' +
           '<td style="font-size:0.7rem;white-space:nowrap">' + versionCell + '</td>' +
-          '<td>' + repoLink + '</td>' +
           '<td>' + repoCount + '</td>' +
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
           '<td>' + (h.agentCount || 0) + '</td>' +
@@ -1599,7 +1599,7 @@ const dashboardHTML = `<!DOCTYPE html>
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<div class="table-wrap"><table class="hive-table"><thead><tr>' +
-        '<th></th><th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repo</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th>' +
+        '<th></th><th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table></div>';
       setTimeout(function() {
         var tw = document.querySelector('.table-wrap');

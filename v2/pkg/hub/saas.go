@@ -1802,6 +1802,7 @@ const dashboardHTML = `<!DOCTYPE html>
       } catch(e) {
         hiveToast('Error: ' + e.message, 'error');
       } finally {
+        _createInProgress = false;
         document.getElementById('btn-go').disabled = false;
         document.getElementById('btn-go').textContent = 'Go';
       }
@@ -1830,7 +1831,7 @@ const dashboardHTML = `<!DOCTYPE html>
           var m;
           if ((m = trimmed.match(/^\s+token:\s*(.+)/))) cfg.token = m[1].trim().replace(/^["']|["']$/g, '');
           if ((m = trimmed.match(/^\s+app_id:\s*(\d+)/))) cfg.appId = m[1];
-          if ((m = trimmed.match(/^\s+installation_id:\s*(\d+)/))) cfg.installId = m[1];
+          if ((m = trimmed.match(/^\s+installation_id:\s*(\d+)/)) && !trimmed.match(/docs_installation_id/)) cfg.installId = m[1];
         }
         if (section === 'governor') {
           var m;

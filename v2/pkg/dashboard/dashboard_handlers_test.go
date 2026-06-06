@@ -779,6 +779,52 @@ func TestAppendTokenSparklineOverflow(t *testing.T) {
 	}
 }
 
+func TestHandlePaneLargeLines(t *testing.T) {
+	srv := newServerWithDeps(t)
+	req := httptest.NewRequest("GET", "/api/pane/scanner?lines=9999", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	_ = w.Code
+}
+
+func TestHandlePaneBuffer(t *testing.T) {
+	srv := newServerWithDeps(t)
+	req := httptest.NewRequest("GET", "/api/pane/scanner?source=buffer", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	_ = w.Code
+}
+
+func TestHandleKickAgent(t *testing.T) {
+	srv := newServerWithDeps(t)
+	body := `{"message":"test kick"}`
+	req := httptest.NewRequest("POST", "/api/kick/scanner", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	_ = w.Code
+}
+
+func TestHandleAgentConfigGeneralUpdate(t *testing.T) {
+	srv := newServerWithDeps(t)
+	body := `{"displayName":"Updated Scanner","emoji":"🔍","color":"#FF5733","role":"scanner","sortOrder":1}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/general", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	_ = w.Code
+}
+
+func TestHandleAgentConfigModelsUpdate(t *testing.T) {
+	srv := newServerWithDeps(t)
+	body := `{"model":"opus","backend":"claude"}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/models", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	_ = w.Code
+}
+
 func TestHandleGovernorConfigDeps(t *testing.T) {
 	srv := newServerWithDeps(t)
 

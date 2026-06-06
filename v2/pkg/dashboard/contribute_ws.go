@@ -127,6 +127,7 @@ func NewContributeWSHub(logger *slog.Logger, server *Server) *ContributeWSHub {
 	}
 	hub.loadCompletedTasks()
 	hub.loadActivity()
+	go hub.cleanupLoop()
 	return hub
 }
 
@@ -703,6 +704,29 @@ func (h *ContributeWSHub) heartbeatLoop(c *ContributorConnection) {
 			c.ws.Close()
 			return
 		}
+	}
+}
+
+func (h *ContributeWSHub) cleanupLoop() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		h.mu.Lock()
+		for id, c := range h.connections {
+			c.mu.Lock()
+			stale := time.Since(c.lastPong) > wsHeartbeatTimeout
+			username := ""
+			if c.profile != nil {
+				username = c.profile.GitHubUsername
+			}
+			c.mu.Unlock()
+			if stale {
+				h.logger.Info("[contribute-ws] cleanup: removing stale connection", "username", username, "conn", id)
+				c.ws.Close()
+				delete(h.connections, id)
+			}
+		}
+		h.mu.Unlock()
 	}
 }
 

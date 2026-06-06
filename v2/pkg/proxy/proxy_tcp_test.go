@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -28,12 +29,10 @@ func TestHandleTransparentTLSWithTCPConn(t *testing.T) {
 		if err != nil {
 			return
 		}
-		// This is the proxy side
 		peeked := []byte{0x16}
 		p.handleTransparentTLS(conn, peeked)
 	}()
 
-	// Client side — connect and do TLS
 	clientConn, err := net.DialTimeout("tcp", listener.Addr().String(), 2*time.Second)
 	if err != nil {
 		t.Fatal(err)
@@ -47,6 +46,109 @@ func TestHandleTransparentTLSWithTCPConn(t *testing.T) {
 	tlsConn.SetDeadline(time.Now().Add(2 * time.Second))
 	tlsConn.Handshake()
 	tlsConn.Close()
+}
+
+func TestHandleTransparentTLSNonGitHubTCPTunnel(t *testing.T) {
+	// Start a simple server to tunnel to
+	upstream, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer upstream.Close()
+
+	go func() {
+		conn, err := upstream.Accept()
+		if err != nil {
+			return
+		}
+		conn.Write([]byte("hello"))
+		conn.Close()
+	}()
+
+	p := newTestProxy()
+
+	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer proxyListener.Close()
+
+	go func() {
+		conn, err := proxyListener.Accept()
+		if err != nil {
+			return
+		}
+		// Build a ClientHello for non-GitHub host
+		hello := buildTLSClientHello("example.com")
+		p.handleTransparentTLS(conn, hello[:1])
+	}()
+
+	clientConn, err := net.DialTimeout("tcp", proxyListener.Addr().String(), 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientConn.Close()
+
+	// Send rest of ClientHello
+	hello := buildTLSClientHello("example.com")
+	clientConn.Write(hello[1:])
+	time.Sleep(200 * time.Millisecond)
+}
+
+func TestHandleConnHTTPReadError(t *testing.T) {
+	p := newTestProxy()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		p.handleConn(conn)
+	}()
+
+	clientConn, err := net.DialTimeout("tcp", listener.Addr().String(), 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Write partial HTTP that will fail parsing
+	clientConn.Write([]byte("BADMETHOD"))
+	time.Sleep(50 * time.Millisecond)
+	clientConn.Close()
+}
+
+func TestForgeCertErrorRecovery(t *testing.T) {
+	caCert, caX509, _ := generateCA()
+	p := &GitHubProxy{
+		caCert:    caCert,
+		caX509:    caX509,
+		logger:    slog.Default(),
+		certCache: make(map[string]cachedCert),
+	}
+
+	// Normal cert generation
+	cert1, err := p.forgeCert("test1.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = cert1
+
+	// Test with nil certCache (should init)
+	p.certMu.Lock()
+	p.certCache = nil
+	p.certMu.Unlock()
+
+	cert2, err := p.forgeCert("test2.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = cert2
 }
 
 func TestHandleConnDirectWithTCPUpstreamDialFail(t *testing.T) {

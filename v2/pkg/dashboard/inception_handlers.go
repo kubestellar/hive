@@ -24,11 +24,19 @@ func (s *Server) handleInceptionStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Idea string `json:"idea"`
+		Idea  string `json:"idea"`
+		Force bool   `json:"force,omitempty"`
 	}
 	if err := readJSON(r, &req); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	if req.Force {
+		_ = s.deps.Inception.Reset()
+		if s.deps.AgentMgr != nil {
+			_ = s.deps.AgentMgr.Pause("brainstorm", "inception-force-reset", "forced reset before new inception")
+		}
 	}
 
 	state, err := s.deps.Inception.Start(req.Idea)

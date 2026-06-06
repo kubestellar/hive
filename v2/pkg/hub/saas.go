@@ -1288,6 +1288,7 @@ const dashboardHTML = `<!DOCTYPE html>
     .hive-toast.success { background: rgba(22,163,74,0.9); color: #fff; }
     .hive-toast.error { background: rgba(239,68,68,0.9); color: #fff; }
     .hive-toast.info { background: rgba(59,130,246,0.9); color: #fff; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     .hive-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 150; display: flex; align-items: center; justify-content: center; }
     .hive-confirm { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; }
@@ -1532,7 +1533,7 @@ const dashboardHTML = `<!DOCTYPE html>
             var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
             var isCurrent = _latestSHA && sha === _latestSHA;
             var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
-            var upgradeIcon = (!isCurrent && isHosted && h.role === 'owner') ? ' <button onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">⟳ Upgrade</button>' : '';
+            var upgradeIcon = (!isCurrent && isHosted && h.role === 'owner') ? ' <button onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>' : '';
             return branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
           })() + '</td>' +
           '<td>' + repoLink + '</td>' +
@@ -1563,7 +1564,7 @@ const dashboardHTML = `<!DOCTYPE html>
     async function upgradeHive(id) {
       if (!await hiveConfirm('Upgrade ' + id + ' to latest?')) return;
       var btns = document.querySelectorAll('button[onclick*="upgradeHive"]');
-      btns.forEach(function(b) { b.disabled = true; b.textContent = '⟳ Upgrading...'; b.style.opacity = '0.6'; });
+      btns.forEach(function(b) { b.disabled = true; b.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading'; b.style.opacity = '0.6'; });
       try {
         hiveToast('Upgrading ' + id + '...', 'info');
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id) + '/upgrade', {method: 'POST'});

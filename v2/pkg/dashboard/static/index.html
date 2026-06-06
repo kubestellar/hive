@@ -7743,7 +7743,7 @@ function burnAreaChart() {
         if (v.dirty) html += ' <span class="git-dirty">*</span>';
         if (v.behind) {
           html += ` <span class="git-behind" title="Latest: ${escapeHtml(v.latestShort || '?')}">⬆ behind</span>`;
-          html += ` <button onclick="selfUpgrade()" style="padding:3px 10px;font-size:0.7rem;background:#238636;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:6px;white-space:nowrap" title="Upgrade to latest">⟳ Upgrade</button>`;
+          html += ` <button onclick="selfUpgrade()" style="padding:3px 10px;font-size:0.7rem;background:#238636;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:6px;white-space:nowrap" title="Upgrade to latest">Upgrade</button>`;
         } else if (v.latestHash) {
           html += ' <span style="color:#22c55e" title="Up to date with remote">✓</span>';
         }

@@ -192,6 +192,15 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 			}
 			return hex.EncodeToString(b)
 		}(),
+		"HubSecret": func() string {
+			if s := os.Getenv("HIVE_HUB_SECRET"); s != "" {
+				return s
+			}
+			if data, err := os.ReadFile("/data/saas/hub-secret.key"); err == nil {
+				return strings.TrimSpace(string(data))
+			}
+			return ""
+		}(),
 	}
 
 	tmpl, err := template.New("manifests").Parse(k8sManifestTemplate)
@@ -391,6 +400,8 @@ spec:
           value: "{{.ACMMLevel}}"
         - name: HIVE_HUB_URL
           value: https://hive.kubestellar.io
+        - name: HIVE_HUB_SECRET
+          value: "{{.HubSecret}}"
         ports:
         - containerPort: 3002
         resources:

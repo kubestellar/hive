@@ -276,8 +276,8 @@ func (m *Manager) ensureTmuxSession(agent *AgentProcess) error {
 	// Attach pub-sub-tmux publisher if available — streams structured events
 	// from the agent's tmux output to a JSONL log for subscribers.
 	if pstPath, err := exec.LookPath("pst-publish"); err == nil {
-		_ = os.MkdirAll("/var/run/pub-sub-tmux/logs", 0o755)
-		_ = os.MkdirAll("/var/run/pub-sub-tmux/commands", 0o755)
+		_ = os.MkdirAll("/var/run/pub-sub-tmux/logs", 0o1777)
+		_ = os.MkdirAll("/var/run/pub-sub-tmux/commands", 0o1777)
 		backend := agent.Config.Backend
 		if backend == "" {
 			backend = "claude"

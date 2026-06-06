@@ -46,8 +46,8 @@ type InceptionWatcher struct {
 	rateLimitedUntil  time.Time
 	ctx               context.Context
 
-	pstFactLines      []string
-	pstIdleInStructure bool
+	plukFactLines      []string
+	plukIdleInStructure bool
 }
 
 // NewInceptionWatcher creates a watcher that polls the brainstorm bead store.
@@ -76,8 +76,8 @@ func (w *InceptionWatcher) Run(ctx context.Context) {
 	ticker := time.NewTicker(inceptionWatchIntervalS)
 	defer ticker.Stop()
 
-	// Start pub-sub-tmux event subscriber for brainstorm session
-	go w.runPSTSubscriber(ctx)
+	// Start pluk event subscriber for brainstorm session
+	go w.runPlukSubscriber(ctx)
 
 	for {
 		select {
@@ -113,8 +113,8 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.kickRetryCount = 0
 		w.lastKickRetry = time.Time{}
 		w.rateLimitedUntil = time.Time{}
-		w.pstFactLines = nil
-		w.pstIdleInStructure = false
+		w.plukFactLines = nil
+		w.plukIdleInStructure = false
 		if w.lastSlug != "" {
 			w.reapOldInceptionBeads(state.StartedAt)
 		}
@@ -306,20 +306,20 @@ const (
 // initial RestartWithBootstrap didn't deliver. Detects stale state by
 // checking if the agent is reaping (default mode) instead of processing
 // the inception idea.
-// pstEvent represents a parsed pub-sub-tmux event from the JSONL stream.
-type pstEvent struct {
+// plukEvent represents a parsed pluk event from the JSONL stream.
+type plukEvent struct {
 	Type    string            `json:"type"`
 	Session string            `json:"session"`
 	Data    map[string]string `json:"data"`
 }
 
-const pstLogDir = "/var/run/pub-sub-tmux/logs"
+const plukLogDir = "/var/run/pluk/logs"
 
-// runPSTSubscriber tails the brainstorm session's pub-sub-tmux JSONL event
+// runPlukSubscriber tails the brainstorm session's pluk JSONL event
 // stream and takes immediate action on relevant events. This replaces 5s
 // polling with real-time event-driven reactions.
-func (w *InceptionWatcher) runPSTSubscriber(ctx context.Context) {
-	logFile := fmt.Sprintf("%s/hive-brainstorm.jsonl", pstLogDir)
+func (w *InceptionWatcher) runPlukSubscriber(ctx context.Context) {
+	logFile := fmt.Sprintf("%s/hive-brainstorm.jsonl", plukLogDir)
 
 	// Wait for the log file to exist
 	for {
@@ -334,19 +334,19 @@ func (w *InceptionWatcher) runPSTSubscriber(ctx context.Context) {
 		}
 	}
 
-	w.logger.Info("pub-sub-tmux subscriber started", "logFile", logFile)
+	w.logger.Info("pluk subscriber started", "logFile", logFile)
 
 	// Open file and seek to end (only new events)
 	f, err := os.Open(logFile)
 	if err != nil {
-		w.logger.Warn("pub-sub-tmux subscriber: cannot open log", "error", err)
+		w.logger.Warn("pluk subscriber: cannot open log", "error", err)
 		return
 	}
 	defer f.Close()
 
 	// Seek to end — we only care about new events
 	if _, err := f.Seek(0, 2); err != nil {
-		w.logger.Warn("pub-sub-tmux subscriber: cannot seek to end", "error", err)
+		w.logger.Warn("pluk subscriber: cannot seek to end", "error", err)
 	}
 
 	scanner := bufio.NewScanner(f)
@@ -365,26 +365,26 @@ func (w *InceptionWatcher) runPSTSubscriber(ctx context.Context) {
 				continue
 			}
 
-			var event pstEvent
+			var event plukEvent
 			if err := json.Unmarshal([]byte(line), &event); err != nil {
 				continue
 			}
 
-			w.handlePSTEvent(event)
+			w.handlePlukEvent(event)
 		} else {
 			// No new data — wait briefly then retry (tail -f behavior)
 			time.Sleep(pollInterval)
 			// Check if file was rotated
 			if _, err := f.Stat(); err != nil {
-				w.logger.Warn("pub-sub-tmux log disappeared, stopping subscriber")
+				w.logger.Warn("pluk log disappeared, stopping subscriber")
 				return
 			}
 		}
 	}
 }
 
-// handlePSTEvent reacts to pub-sub-tmux events from the brainstorm session.
-func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
+// handlePlukEvent reacts to pluk events from the brainstorm session.
+func (w *InceptionWatcher) handlePlukEvent(event plukEvent) {
 	state := w.inception.GetState()
 	if state == nil {
 		return
@@ -395,10 +395,10 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 		if event.Data["state"] == "idle" {
 			phase := state.Phase
 			// Agent went idle during structure — try to extract facts from
-			// buffered PST output before falling back to auto-generation.
-			if phase == knowledge.PhaseStructure && len(w.pstFactLines) > 0 {
-				w.pstIdleInStructure = true
-				w.tryExtractFactsFromPST(w.ctx, state)
+			// buffered Pluk output before falling back to auto-generation.
+			if phase == knowledge.PhaseStructure && len(w.plukFactLines) > 0 {
+				w.plukIdleInStructure = true
+				w.tryExtractFactsFromPluk(w.ctx, state)
 				return
 			}
 
@@ -406,7 +406,7 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 				elapsed := time.Since(state.StartedAt)
 				if elapsed > kickRetryGracePeriodS {
 					if phase == knowledge.PhaseCapture || phase == knowledge.PhaseStructure {
-						w.logger.Info("pub-sub-tmux: agent idle during inception — re-kicking",
+						w.logger.Info("pluk: agent idle during inception — re-kicking",
 							"phase", phase,
 							"elapsed", elapsed.Round(time.Second),
 						)
@@ -415,27 +415,27 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 						msg := w.buildInceptionKickMessage(state)
 						go func() {
 							if err := w.agentMgr.SendKick("brainstorm", msg); err != nil {
-								w.logger.Warn("pub-sub-tmux: re-kick failed", "error", err)
+								w.logger.Warn("pluk: re-kick failed", "error", err)
 							}
 						}()
 					}
 				}
 			}
 		} else if event.Data["state"] == "working" {
-			w.pstIdleInStructure = false
+			w.plukIdleInStructure = false
 		}
 
 	case "rate_limit":
 		const rateLimitCooldown = 3 * time.Minute
 		w.rateLimitedUntil = time.Now().Add(rateLimitCooldown)
-		w.logger.Warn("pub-sub-tmux: brainstorm hit rate limit — suppressing retries",
+		w.logger.Warn("pluk: brainstorm hit rate limit — suppressing retries",
 			"phase", state.Phase,
 			"cooldown", rateLimitCooldown,
 			"message", event.Data["message"],
 		)
 
 	case "error":
-		w.logger.Warn("pub-sub-tmux: brainstorm error during inception",
+		w.logger.Warn("pluk: brainstorm error during inception",
 			"phase", state.Phase,
 			"message", event.Data["message"],
 		)
@@ -477,14 +477,14 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 			}
 			// Buffer lines containing fact-like content for extraction
 			// when the agent goes idle without creating beads
-			const maxPSTFactLines = 200
-			if len(w.pstFactLines) < maxPSTFactLines {
+			const maxPlukFactLines = 200
+			if len(w.plukFactLines) < maxPlukFactLines {
 				if strings.Contains(lower, "vision") || strings.Contains(lower, "requirement") ||
 					strings.Contains(lower, "constraint") || strings.Contains(lower, "constitution") ||
 					strings.Contains(lower, "stakeholder") || strings.Contains(lower, "acceptance") ||
 					strings.Contains(lower, "architecture") || strings.Contains(lower, "testing") ||
 					strings.Contains(lower, "deployment") || strings.Contains(lower, "must") {
-					w.pstFactLines = append(w.pstFactLines, line)
+					w.plukFactLines = append(w.plukFactLines, line)
 				}
 			}
 		}
@@ -946,13 +946,13 @@ func (w *InceptionWatcher) autoGenerateQuestions(state *knowledge.InceptionState
 	)
 }
 
-// tryExtractFactsFromPST attempts to extract structured facts from raw output
-// lines buffered by the PST subscriber. Called when the agent goes idle during
+// tryExtractFactsFromPluk attempts to extract structured facts from raw output
+// lines buffered by the Pluk subscriber. Called when the agent goes idle during
 // structure phase — the agent produced text about facts but didn't create
-// beads. This is a PST-driven alternative to the 60s auto-fact fallback:
+// beads. This is a Pluk-driven alternative to the 60s auto-fact fallback:
 // it fires immediately on idle detection instead of waiting for a timeout.
-func (w *InceptionWatcher) tryExtractFactsFromPST(ctx context.Context, state *knowledge.InceptionState) {
-	if len(w.pstFactLines) == 0 || len(state.Answers) == 0 {
+func (w *InceptionWatcher) tryExtractFactsFromPluk(ctx context.Context, state *knowledge.InceptionState) {
+	if len(w.plukFactLines) == 0 || len(state.Answers) == 0 {
 		return
 	}
 
@@ -969,7 +969,7 @@ func (w *InceptionWatcher) tryExtractFactsFromPST(ctx context.Context, state *kn
 	}
 
 	seen := make(map[string]bool)
-	for _, line := range w.pstFactLines {
+	for _, line := range w.plukFactLines {
 		lower := strings.ToLower(line)
 		for keyword, factType := range factTypeKeywords {
 			if strings.Contains(lower, keyword) && !seen[keyword] {
@@ -980,7 +980,7 @@ func (w *InceptionWatcher) tryExtractFactsFromPST(ctx context.Context, state *kn
 						Title: strings.ToUpper(keyword[:1]) + keyword[1:] + " (from agent output)",
 						Body:  body,
 						Type:  factType,
-						Tags:  []string{"pst-extracted"},
+						Tags:  []string{"pluk-extracted"},
 					})
 				}
 				break
@@ -989,10 +989,10 @@ func (w *InceptionWatcher) tryExtractFactsFromPST(ctx context.Context, state *kn
 	}
 
 	if len(facts) < minFactsForAdvance {
-		// Not enough facts from PST output — fall back to Q&A auto-generation
+		// Not enough facts from Pluk output — fall back to Q&A auto-generation
 		// but do it immediately instead of waiting for the 60s timeout
-		w.logger.Info("pub-sub-tmux: insufficient facts from output, using Q&A fallback",
-			"pst_facts", len(facts),
+		w.logger.Info("pluk: insufficient facts from output, using Q&A fallback",
+			"pluk_facts", len(facts),
 			"needed", minFactsForAdvance,
 		)
 		w.autoGenerateFacts(ctx, state)
@@ -1000,15 +1000,15 @@ func (w *InceptionWatcher) tryExtractFactsFromPST(ctx context.Context, state *kn
 	}
 
 	if err := w.inception.RecordFacts(ctx, facts); err != nil {
-		w.logger.Warn("pub-sub-tmux: PST fact extraction failed", "error", err, "count", len(facts))
+		w.logger.Warn("pluk: Pluk fact extraction failed", "error", err, "count", len(facts))
 		return
 	}
 
 	w.inception.IncrementAutoFactCount(len(facts))
 
-	w.logger.Info("pub-sub-tmux: extracted facts from agent output (no bead creation needed)",
+	w.logger.Info("pluk: extracted facts from agent output (no bead creation needed)",
 		"count", len(facts),
-		"source", "pst-raw-output",
+		"source", "pluk-raw-output",
 	)
-	w.pstFactLines = nil
+	w.plukFactLines = nil
 }

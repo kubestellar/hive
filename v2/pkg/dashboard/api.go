@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -453,13 +454,14 @@ func (s *Server) handleSelfUpgrade(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "hub URL or hive ID not configured", http.StatusBadRequest)
 		return
 	}
-	upgradeURL := hubURL + "/api/saas/hives/" + hiveID + "/upgrade"
+	upgradeURL := hubURL + "/api/saas/hives/" + url.PathEscape(hiveID) + "/upgrade"
 
 	cookie, _ := r.Cookie("hive_hub_user")
-	client := &http.Client{Timeout: 30 * time.Second}
+	const upgradeTimeout = 30 * time.Second
+	client := &http.Client{Timeout: upgradeTimeout}
 	req, err := http.NewRequest("POST", upgradeURL, nil)
 	if err != nil {
-		jsonError(w, "failed to create request", http.StatusInternalServerError)
+		jsonError(w, "failed to create upgrade request", http.StatusInternalServerError)
 		return
 	}
 	if cookie != nil {
@@ -470,11 +472,13 @@ func (s *Server) handleSelfUpgrade(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		jsonError(w, "hub unreachable: "+err.Error(), http.StatusBadGateway)
+		s.logger.Warn("self-upgrade: hub request failed", "error", err)
+		jsonError(w, "hub unreachable", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	const maxUpgradeResponseBytes = 1 << 16
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxUpgradeResponseBytes))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)

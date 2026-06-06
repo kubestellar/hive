@@ -15,10 +15,13 @@ export HIVE_STATIC_DIR="${HIVE_STATIC_DIR:-/opt/hive/proxy/public}"
 HIVE_CONFIG_PATH="${HIVE_CONFIG:-/etc/hive/hive.yaml}"
 HIVE_CONFIG_BACKUP="/data/hive.yaml.bak"
 
-if [ -f "$HIVE_CONFIG_PATH" ] && [ -s "$HIVE_CONFIG_PATH" ]; then
-  # Config exists and is non-empty — back it up to the persistent volume
+if [ -f "$HIVE_CONFIG_PATH" ] && [ -s "$HIVE_CONFIG_PATH" ] && [ ! -f "$HIVE_CONFIG_BACKUP" ]; then
+  # First boot: config exists but no PVC backup yet — seed the backup
   cp "$HIVE_CONFIG_PATH" "$HIVE_CONFIG_BACKUP"
-  echo "[entrypoint] Config backed up: $HIVE_CONFIG_PATH -> $HIVE_CONFIG_BACKUP"
+  echo "[entrypoint] First boot — config seeded to PVC: $HIVE_CONFIG_BACKUP"
+elif [ -f "$HIVE_CONFIG_PATH" ] && [ -s "$HIVE_CONFIG_PATH" ] && [ -f "$HIVE_CONFIG_BACKUP" ] && [ -s "$HIVE_CONFIG_BACKUP" ]; then
+  # PVC backup exists — it is the source of truth (updated by Save())
+  echo "[entrypoint] PVC backup exists — config managed by Save()"
 elif [ -f "$HIVE_CONFIG_PATH" ] && [ ! -s "$HIVE_CONFIG_PATH" ] && [ -f "$HIVE_CONFIG_BACKUP" ] && [ -s "$HIVE_CONFIG_BACKUP" ]; then
   # Config was wiped to 0 bytes (Watchtower recreation) but backup exists — restore
   cp "$HIVE_CONFIG_BACKUP" "$HIVE_CONFIG_PATH"

@@ -1557,20 +1557,36 @@ const dashboardHTML = `<!DOCTYPE html>
             actions += '<button onclick="deleteHive(\'' + esc(h.id) + '\')" style="padding:3px 10px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Delete</button>';
           }
         }
+        var menuId = 'hive-menu-' + i;
+        var dashUrl = dashboardLink(h);
+        var snapUrl = snapshotLink(h);
+        var apiUrl = apiLink(h);
+        var menuItems = [];
+        if (dashUrl) menuItems.push('<a href="' + (isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : esc(h.dashboardUrl||'')) + '" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">📊 Dashboard</a>');
+        if (contributeUrl) menuItems.push('<a href="' + contributeUrl + '" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">🤝 Contribute</a>');
+        if (h.snapshotUrl) menuItems.push('<a href="' + esc(h.snapshotUrl) + '" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">📸 Preview</a>');
+        var apiBase = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? esc(h.dashboardUrl) : '');
+        if (apiBase) menuItems.push('<a href="' + apiBase + '/api/docs" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;font-size:0.78rem">📘 API Docs</a>');
+        if (menuItems.length > 0) menuItems.push('<div style="border-top:1px solid var(--border);margin:2px 0"></div>');
+        if (canConvert) menuItems.push('<div onclick="openConvert(this)" data-hive-id="' + esc(h.id) + '" data-dash-url="' + esc(h.dashboardUrl||'') + '" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:6px 12px;color:var(--accent);cursor:pointer;font-size:0.78rem">⬆ Convert to Hosted</div>');
+        if (isHosted && (h.role === 'owner' || h.role === 'read-write')) menuItems.push('<div onclick="openAccessModal(\'' + esc(h.id) + '\')" style="padding:6px 12px;color:var(--blue);cursor:pointer;font-size:0.78rem">🔑 Access</div>');
+        if (isLocal && h.role === 'owner') menuItems.push('<div onclick="removeLocalHive(\'' + esc(h.id) + '\')" style="padding:6px 12px;color:var(--muted);cursor:pointer;font-size:0.78rem">✕ Remove</div>');
+        if (isHosted && h.role === 'owner') menuItems.push('<div onclick="deleteHive(\'' + esc(h.id) + '\')" style="padding:6px 12px;color:var(--red);cursor:pointer;font-size:0.78rem">🗑 Delete</div>');
+        var sha = h.gitHash || '';
+        var versionCell = '';
+        if (sha) {
+          var branchName = h.gitBranch || 'v2';
+          var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
+          var isCurrent = _latestSHA && sha === _latestSHA;
+          var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
+          var upgradeIcon = (!isCurrent && isHosted && h.role === 'owner') ? ' <button onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>' : '';
+          versionCell = branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
+        } else { versionCell = '<span style="color:var(--muted)">—</span>'; }
         return '<tr>' +
-          
+          '<td style="position:relative;width:30px;text-align:center"><span onclick="toggleHiveMenu(\'' + menuId + '\')" style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div id="' + menuId + '" style="display:none;position:absolute;left:0;top:28px;background:var(--surface);border:1px solid var(--border);border-radius:8px;min-width:180px;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.4)">' + menuItems.join('') + '</div></td>' +
           '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span> ' + roleBadge(h.role) + '</td>' +
           '<td>' + typeBadge + '</td>' +
-          '<td style="font-size:0.7rem;white-space:nowrap">' + (function() {
-            var sha = h.gitHash || '';
-            if (!sha) return '<span style="color:var(--muted)">—</span>';
-            var branchName = h.gitBranch || 'v2';
-            var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
-            var isCurrent = _latestSHA && sha === _latestSHA;
-            var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
-            var upgradeIcon = (!isCurrent && isHosted && h.role === 'owner') ? ' <button onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>' : '';
-            return branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
-          })() + '</td>' +
+          '<td style="font-size:0.7rem;white-space:nowrap">' + versionCell + '</td>' +
           '<td>' + repoLink + '</td>' +
           '<td>' + repoCount + '</td>' +
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
@@ -1579,16 +1595,11 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + (h.actionableIssues || 0) + '</td>' +
           '<td>' + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
-          '<td>' + contributeCell + '</td>' +
-          '<td>' + dashboardLink(h) + '</td>' +
-          '<td>' + snapshotLink(h) + '</td>' +
-          '<td>' + apiLink(h) + '</td>' +
-          '<td>' + actions + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<div class="table-wrap"><table class="hive-table"><thead><tr>' +
-        '<th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repo</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th><th></th><th>Dashboard</th><th>Preview</th><th>API</th><th></th>' +
+        '<th></th><th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repo</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table></div>';
       setTimeout(function() {
         var tw = document.querySelector('.table-wrap');
@@ -1729,6 +1740,18 @@ const dashboardHTML = `<!DOCTYPE html>
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
       finally { btns.forEach(function(b) { b.disabled = false; b.textContent = 'Delete'; b.style.opacity = '1'; }); }
     }
+
+    function toggleHiveMenu(menuId) {
+      var menu = document.getElementById(menuId);
+      var wasOpen = menu.style.display !== 'none';
+      document.querySelectorAll('[id^="hive-menu-"]').forEach(function(m) { m.style.display = 'none'; });
+      if (!wasOpen) menu.style.display = 'block';
+    }
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('[id^="hive-menu-"]') && !e.target.closest('[onclick*="toggleHiveMenu"]')) {
+        document.querySelectorAll('[id^="hive-menu-"]').forEach(function(m) { m.style.display = 'none'; });
+      }
+    });
 
     async function removeLocalHive(id) {
       if (!await hiveConfirm('Remove ' + id + ' from the registry? The hive itself is not affected — it will reappear if it sends another heartbeat.')) return;

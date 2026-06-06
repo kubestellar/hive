@@ -3,6 +3,8 @@ package knowledge
 import (
 	"context"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -376,6 +378,113 @@ func TestParseInceptionFactFileIncompleteFrontmatter(t *testing.T) {
 	_ = title
 	_ = body
 	_ = factType
+}
+
+func TestFileStoreReindexLargeFile(t *testing.T) {
+	dir := t.TempDir()
+	fs, err := NewFileStore(dir, "test", slog.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a file > 512KB that should be skipped
+	bigFile := filepath.Join(dir, "huge.md")
+	bigContent := make([]byte, 600*1024)
+	for i := range bigContent {
+		bigContent[i] = 'a'
+	}
+	os.WriteFile(bigFile, bigContent, 0644)
+
+	// Create a normal file
+	os.WriteFile(filepath.Join(dir, "normal.md"), []byte("# Normal\nContent"), 0644)
+
+	fs.Reindex()
+
+	pages := fs.ListPages("")
+	for _, p := range pages {
+		if p.Slug == "huge" {
+			t.Error("huge file should be skipped during reindex")
+		}
+	}
+}
+
+func TestFileStoreReindexDotDir(t *testing.T) {
+	dir := t.TempDir()
+	fs, err := NewFileStore(dir, "test", slog.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a hidden directory that should be skipped
+	hiddenDir := filepath.Join(dir, ".hidden")
+	os.MkdirAll(hiddenDir, 0755)
+	os.WriteFile(filepath.Join(hiddenDir, "secret.md"), []byte("# Secret"), 0644)
+
+	os.WriteFile(filepath.Join(dir, "visible.md"), []byte("# Visible\nContent"), 0644)
+
+	fs.Reindex()
+
+	pages := fs.ListPages("")
+	for _, p := range pages {
+		if p.Slug == "secret" {
+			t.Error("files in hidden dirs should be skipped")
+		}
+	}
+}
+
+func TestFileStoreReindexNonMD(t *testing.T) {
+	dir := t.TempDir()
+	fs, err := NewFileStore(dir, "test", slog.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("text"), 0644)
+	os.WriteFile(filepath.Join(dir, "data.json"), []byte("{}"), 0644)
+	os.WriteFile(filepath.Join(dir, "fact.md"), []byte("# Fact\nContent"), 0644)
+
+	fs.Reindex()
+
+	pages := fs.ListPages("")
+	if len(pages) != 1 {
+		t.Errorf("should only index .md files, got %d pages", len(pages))
+	}
+}
+
+func TestCuratorIngestError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := NewCurator(nil, srv.URL, "testorg", []string{"repo"}, CuratorConfig{}, slog.Default())
+	facts := []ExtractedFact{
+		{Title: "Test", Body: "Content", Type: FactPattern},
+	}
+	err := c.Ingest(context.Background(), facts)
+	if err == nil {
+		t.Error("should error on 500")
+	}
+}
+
+func TestCuratorIngestEmpty(t *testing.T) {
+	c := NewCurator(nil, "http://localhost:1", "org", nil, CuratorConfig{}, slog.Default())
+	err := c.Ingest(context.Background(), nil)
+	if err != nil {
+		t.Error("empty facts should not error")
+	}
+}
+
+func TestStatsWithVault(t *testing.T) {
+	api := newTestKBAPI(t)
+	vaultDir := t.TempDir()
+	os.WriteFile(filepath.Join(vaultDir, "fact.md"), []byte("# Fact\nContent"), 0644)
+	api.ConnectVault(vaultDir, "test-vault")
+
+	stats := api.Stats(context.Background())
+	if stats == nil {
+		t.Fatal("stats should not be nil")
+	}
 }
 
 func TestBuildCIConfigNil(t *testing.T) {

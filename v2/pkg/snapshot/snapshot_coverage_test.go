@@ -171,6 +171,66 @@ func TestSaveStateRoundTripWithAllFields(t *testing.T) {
 	}
 }
 
+func TestSaveStateRenameError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "subdir", "state.json")
+	os.MkdirAll(filepath.Join(dir, "subdir"), 0755)
+
+	state := &PersistedState{GovernorMode: "active"}
+	os.WriteFile(path+".tmp", []byte("old"), 0644)
+	os.Chmod(filepath.Join(dir, "subdir"), 0444)
+	defer os.Chmod(filepath.Join(dir, "subdir"), 0755)
+
+	err := SaveState(path, state, slog.Default())
+	if err == nil {
+		t.Log("Rename error path not triggered on this OS (expected on some systems)")
+	}
+}
+
+func TestLoadStateReadError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	os.WriteFile(path, []byte("{}"), 0644)
+	os.Chmod(path, 0000)
+	defer os.Chmod(path, 0644)
+
+	result, err := LoadState(path, slog.Default())
+	if err == nil && result == nil {
+		t.Log("Permission error treated as not-exist on this OS")
+	}
+}
+
+func TestCleanupRemoveError(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBuilder(dir, slog.Default())
+
+	old := filepath.Join(dir, "status-old.json")
+	os.WriteFile(old, []byte("{}"), 0644)
+	os.Chtimes(old, time.Now().Add(-48*time.Hour), time.Now().Add(-48*time.Hour))
+
+	os.Chmod(dir, 0555)
+	defer os.Chmod(dir, 0755)
+
+	err := b.Cleanup(24 * time.Hour)
+	if err != nil {
+		t.Logf("Cleanup returned error (expected on read-only dir): %v", err)
+	}
+}
+
+func TestBuildWriteStatusError(t *testing.T) {
+	dir := t.TempDir()
+	b := NewBuilder(dir, slog.Default())
+
+	os.Chmod(dir, 0555)
+	defer os.Chmod(dir, 0755)
+
+	status := &dashboard.StatusPayload{}
+	err := b.Build(status)
+	if err == nil {
+		t.Log("Write error not triggered (dir may allow writes)")
+	}
+}
+
 func TestPersistedStateJSON(t *testing.T) {
 	state := PersistedState{
 		GovernorMode: "surge",

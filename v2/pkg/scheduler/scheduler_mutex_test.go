@@ -46,6 +46,49 @@ func TestGetSetLastActionable(t *testing.T) {
 	}
 }
 
+func TestBuildAgentMessageWithActionable(t *testing.T) {
+	cfg := &config.Config{
+		Project: config.ProjectConfig{
+			Org: "testorg", Repos: []string{"testrepo"}, PrimaryRepo: "testrepo", AIAuthor: "bot",
+		},
+		Agents: map[string]config.AgentConfig{
+			"scanner": {}, "quality": {}, "ci-maintainer": {}, "architect": {}, "outreach": {},
+		},
+	}
+	s := New(cfg, slog.Default())
+	actionable := &github.ActionableResult{
+		Issues: github.IssueResult{Count: 5, Items: []github.Issue{
+			{Number: 1, Title: "test issue", Labels: []string{"kind/bug"}},
+		}},
+		PRs: github.PRResult{Count: 2},
+	}
+
+	for _, agent := range []string{"scanner", "quality", "ci-maintainer", "architect", "outreach"} {
+		msg := s.BuildAgentMessage(agent, nil, actionable)
+		if msg == "" {
+			t.Errorf("BuildAgentMessage(%s) returned empty", agent)
+		}
+	}
+}
+
+func TestBuildKickMessagesMultiAgent(t *testing.T) {
+	cfg := &config.Config{
+		Project: config.ProjectConfig{
+			Org: "testorg", Repos: []string{"testrepo"}, PrimaryRepo: "testrepo", AIAuthor: "bot",
+		},
+		Agents: map[string]config.AgentConfig{
+			"scanner": {}, "quality": {},
+		},
+	}
+	s := New(cfg, slog.Default())
+	actionable := &github.ActionableResult{Issues: github.IssueResult{Count: 3}}
+
+	msgs := s.BuildKickMessages(actionable, []string{"scanner", "quality"})
+	if len(msgs) != 2 {
+		t.Errorf("got %d messages, want 2", len(msgs))
+	}
+}
+
 func TestBuildAgentMessageFallback(t *testing.T) {
 	cfg := &config.Config{
 		Project: config.ProjectConfig{

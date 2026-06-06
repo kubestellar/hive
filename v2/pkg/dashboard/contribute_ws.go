@@ -505,6 +505,13 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 
 			h.mu.Lock()
+			for oldID, oldConn := range h.connections {
+				if oldConn.profile != nil && oldConn.profile.GitHubUsername == profile.GitHubUsername && oldID != connID {
+					h.logger.Info("[contribute-ws] evicting stale session", "username", profile.GitHubUsername, "old_conn", oldID)
+					oldConn.ws.Close()
+					delete(h.connections, oldID)
+				}
+			}
 			h.connections[connID] = contributor
 			h.mu.Unlock()
 

@@ -43,6 +43,7 @@ type InceptionWatcher struct {
 	lastSlug          string
 	lastKickRetry     time.Time
 	kickRetryCount    int
+	rateLimitedUntil  time.Time
 	ctx               context.Context
 }
 
@@ -108,6 +109,7 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.lastFactCount = 0
 		w.kickRetryCount = 0
 		w.lastKickRetry = time.Time{}
+		w.rateLimitedUntil = time.Time{}
 		if w.lastSlug != "" {
 			w.reapOldInceptionBeads(state.StartedAt)
 		}
@@ -399,8 +401,11 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 		}
 
 	case "rate_limit":
-		w.logger.Warn("pub-sub-tmux: brainstorm hit rate limit during inception",
+		const rateLimitCooldown = 3 * time.Minute
+		w.rateLimitedUntil = time.Now().Add(rateLimitCooldown)
+		w.logger.Warn("pub-sub-tmux: brainstorm hit rate limit — suppressing retries",
 			"phase", state.Phase,
+			"cooldown", rateLimitCooldown,
 			"message", event.Data["message"],
 		)
 
@@ -446,6 +451,9 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 
 func (w *InceptionWatcher) retryKickIfStale(state *knowledge.InceptionState) {
 	if w.kickRetryCount >= maxKickRetries {
+		return
+	}
+	if time.Now().Before(w.rateLimitedUntil) {
 		return
 	}
 	if time.Since(state.StartedAt) < kickRetryGracePeriodS {

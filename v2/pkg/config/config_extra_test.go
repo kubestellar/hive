@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -269,5 +271,85 @@ func TestExpandEnvVars(t *testing.T) {
 	got2 := expandEnvVars("${NONEXISTENT_VAR}")
 	if got2 != "${NONEXISTENT_VAR}" {
 		t.Errorf("missing var should stay: %q", got2)
+	}
+}
+
+func TestApplyConfigEnv(t *testing.T) {
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "test.env")
+	os.WriteFile(envFile, []byte(`PROJECT_ORG=myorg
+PROJECT_REPOS=repo1 repo2
+PROJECT_AI_AUTHOR=bot
+PROJECT_PRIMARY_REPO=repo1
+PROJECT_OPEN_PRS=true
+DASHBOARD_PORT=9999
+DASHBOARD_AUTH_TOKEN=secret123
+`), 0o644)
+
+	cfg := &Config{Agents: map[string]AgentConfig{}}
+	if err := cfg.applyConfigEnv(envFile); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Project.Org != "myorg" {
+		t.Errorf("Org = %q", cfg.Project.Org)
+	}
+	if len(cfg.Project.Repos) != 2 {
+		t.Errorf("Repos = %v", cfg.Project.Repos)
+	}
+	if cfg.Project.AIAuthor != "bot" {
+		t.Errorf("AIAuthor = %q", cfg.Project.AIAuthor)
+	}
+	if cfg.Dashboard.Port != 9999 {
+		t.Errorf("Port = %d", cfg.Dashboard.Port)
+	}
+	if cfg.Dashboard.AuthToken != "secret123" {
+		t.Errorf("AuthToken = %q", cfg.Dashboard.AuthToken)
+	}
+	if cfg.Project.OpenPRs == nil || !*cfg.Project.OpenPRs {
+		t.Error("OpenPRs should be true")
+	}
+}
+
+func TestApplyConfigEnvBadFile(t *testing.T) {
+	cfg := &Config{}
+	err := cfg.applyConfigEnv("/nonexistent/env/file")
+	if err == nil {
+		t.Error("expected error for bad file")
+	}
+}
+
+func TestApplyConfigEnvAgentsEnabled(t *testing.T) {
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "test.env")
+	os.WriteFile(envFile, []byte("AGENTS_ENABLED=scanner quality\n"), 0o644)
+
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"scanner": {Enabled: false},
+			"quality": {Enabled: false},
+		},
+	}
+	if err := cfg.applyConfigEnv(envFile); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Agents["scanner"].Enabled {
+		t.Error("scanner should be enabled")
+	}
+	if !cfg.Agents["quality"].Enabled {
+		t.Error("quality should be enabled")
+	}
+}
+
+func TestApplyConfigEnvDashboardTokenFallback(t *testing.T) {
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "test.env")
+	os.WriteFile(envFile, []byte("HIVE_DASHBOARD_TOKEN=fallback-token\n"), 0o644)
+
+	cfg := &Config{}
+	if err := cfg.applyConfigEnv(envFile); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Dashboard.AuthToken != "fallback-token" {
+		t.Errorf("AuthToken = %q, want fallback-token", cfg.Dashboard.AuthToken)
 	}
 }

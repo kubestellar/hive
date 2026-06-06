@@ -684,7 +684,7 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 
 func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
 	origin := r.Header.Get("Origin")
-	if strings.HasSuffix(origin, ".hive.kubestellar.io") || origin == "https://hive.kubestellar.io" {
+	if isTrustedOrigin(origin) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")

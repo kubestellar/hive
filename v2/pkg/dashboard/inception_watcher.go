@@ -223,23 +223,27 @@ func (w *InceptionWatcher) findInceptionBeads() []*beads.Bead {
 		return nil
 	}
 
-	// List ALL brainstorm beads, not just open ones. The agent sometimes
-	// closes beads immediately after creating them (reaping behavior),
-	// and the 5-second poll window misses them if we only look at open.
-	actor := "brainstorm"
-	all := w.beadStore.List(beads.ListFilter{
-		Actor: &actor,
-	})
+	// List ALL beads from brainstorm OR inception actors. The agent
+	// sometimes uses --actor inception instead of --actor brainstorm,
+	// and may omit the inception/ external_ref prefix.
+	all := w.beadStore.List(beads.ListFilter{})
 
 	var inception []*beads.Bead
 	for _, b := range all {
-		if !strings.HasPrefix(b.ExternalRef, inceptionBeadRefPrefix) {
-			continue
-		}
 		if b.CreatedAt.Before(state.StartedAt) {
 			continue
 		}
-		inception = append(inception, b)
+		// Match by actor: brainstorm or inception
+		if b.Actor != "brainstorm" && b.Actor != "inception" {
+			continue
+		}
+		// Match by external_ref OR by title pattern (Clarification:, fact keywords)
+		hasInceptionRef := strings.HasPrefix(b.ExternalRef, inceptionBeadRefPrefix)
+		hasClarificationTitle := strings.HasPrefix(b.Title, "Clarification:") || strings.HasPrefix(b.Title, "clarification:")
+		hasQuestionType := b.Type == "question"
+		if hasInceptionRef || hasClarificationTitle || hasQuestionType {
+			inception = append(inception, b)
+		}
 	}
 	return inception
 }
@@ -451,6 +455,11 @@ func (w *InceptionWatcher) handlePSTEvent(event pstEvent) {
 
 		switch state.Phase {
 		case knowledge.PhaseCapture:
+			// Detect bd create commands with question titles
+			if strings.Contains(lower, "bd create") && strings.Contains(lower, "--title") {
+				go w.poll(w.ctx)
+				return
+			}
 			if strings.Contains(line, "│") {
 				for kw := range categoryKeywords {
 					if strings.Contains(lower, kw) {

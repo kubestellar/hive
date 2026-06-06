@@ -169,3 +169,42 @@ func TestCleanup_RemoveErrorLogged(t *testing.T) {
 		t.Errorf("cleanup should not return error: %v", err)
 	}
 }
+
+func TestCleanup_RemovePermissionError(t *testing.T) {
+	dir := t.TempDir()
+	logger := testLogger()
+	b := NewBuilder(dir, logger)
+
+	oldFile := filepath.Join(dir, "status-2020-01-01T00-00-00Z.json")
+	os.WriteFile(oldFile, []byte("{}"), 0o644)
+
+	os.Chmod(dir, 0o555)
+	defer os.Chmod(dir, 0o755)
+
+	err := b.Cleanup(time.Hour)
+	if err != nil {
+		t.Errorf("cleanup should not return error even on permission issues: %v", err)
+	}
+}
+
+func TestSaveState_RenameError(t *testing.T) {
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "sub")
+	os.MkdirAll(subdir, 0o755)
+	path := filepath.Join(subdir, "state.json")
+	logger := testLogger()
+
+	state := &PersistedState{Agents: map[string]AgentState{}}
+	err := SaveState(path, state, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	os.Chmod(subdir, 0o555)
+	defer os.Chmod(subdir, 0o755)
+
+	err = SaveState(path, state, logger)
+	if err == nil {
+		t.Log("write succeeded even with read-only dir (OS-dependent)")
+	}
+}

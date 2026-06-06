@@ -1,6 +1,8 @@
 package knowledge
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -161,6 +163,78 @@ func TestInferLanguageJavaScript(t *testing.T) {
 	got := inferLanguage(fact)
 	if got != "javascript" {
 		t.Errorf("got %q, want javascript", got)
+	}
+}
+
+func newTestEngineWithAPI(t *testing.T) *InceptionEngine {
+	dir := t.TempDir()
+	api := newTestKBAPI(t)
+	return &InceptionEngine{
+		dataDir: dir,
+		api:     api,
+		logger:  slog.Default(),
+	}
+}
+
+func TestStartWithAPI(t *testing.T) {
+	e := newTestEngineWithAPI(t)
+	state, err := e.Start("build a CLI tool with API backing")
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if state == nil {
+		t.Fatal("state should not be nil")
+	}
+}
+
+func TestStartBrownfieldWithAPI(t *testing.T) {
+	e := newTestEngineWithAPI(t)
+	state, err := e.StartBrownfield("https://github.com/org/repo")
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if state == nil {
+		t.Fatal("state should not be nil")
+	}
+}
+
+func TestRecordFactsWithAPI(t *testing.T) {
+	e := newTestEngineWithAPI(t)
+	e.Start("idea with API")
+
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	facts := []IdeationFact{
+		{Title: "Vision", Body: "Build it", Type: FactVision},
+		{Title: "Req", Body: "Must be fast", Type: FactRequirement},
+	}
+	err := e.RecordFacts(context.Background(), facts)
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+}
+
+func TestSetQuestionsWithAPI(t *testing.T) {
+	e := newTestEngineWithAPI(t)
+	e.Start("idea")
+	err := e.SetQuestions([]Question{
+		{ID: "lang", Text: "Language?"},
+		{ID: "users", Text: "Users?"},
+	})
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+}
+
+func TestSubmitAnswersWithAPI(t *testing.T) {
+	e := newTestEngineWithAPI(t)
+	e.Start("idea")
+	e.SetQuestions([]Question{{ID: "lang", Text: "Language?"}})
+	_, err := e.SubmitAnswers(map[string]string{"lang": "Go"})
+	if err != nil {
+		t.Fatalf("error: %v", err)
 	}
 }
 

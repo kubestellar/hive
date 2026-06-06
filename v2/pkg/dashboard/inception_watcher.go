@@ -154,8 +154,12 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		// Fallback: if the agent hasn't produced fact beads after the
 		// timeout, auto-generate facts from the user's Q&A so the
 		// lifecycle doesn't stall. Agent gets first shot.
-		if state.Phase == knowledge.PhaseStructure && state.PhaseChangedAt != nil {
-			if time.Since(*state.PhaseChangedAt) > autoFactFallbackTimeout {
+		if state.Phase == knowledge.PhaseStructure {
+			structureStart := state.StartedAt
+			if state.PhaseChangedAt != nil {
+				structureStart = *state.PhaseChangedAt
+			}
+			if time.Since(structureStart) > autoFactFallbackTimeout {
 				w.autoGenerateFacts(ctx, state)
 			}
 		}

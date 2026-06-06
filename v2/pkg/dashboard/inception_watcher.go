@@ -23,7 +23,8 @@ const (
 	inceptionBeadRefPrefix   = "inception/"
 	minQuestionsForAdvance   = 5
 	minFactsForAdvance       = 3
-	autoFactFallbackTimeout  = 60 * time.Second
+	autoFactFallbackTimeout      = 60 * time.Second
+	autoQuestionFallbackTimeout  = 90 * time.Second
 )
 
 // InceptionWatcher polls brainstorm beads and bridges them into the inception
@@ -128,6 +129,14 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		// re-send via SendKick. RestartWithBootstrap's $(cat file) fails ~70%.
 		if state.Phase == knowledge.PhaseCapture && w.agentMgr != nil {
 			w.retryKickIfStale(state)
+		}
+		// Fallback: if the agent hasn't produced questions after the timeout,
+		// auto-generate default questions from the idea text so the lifecycle
+		// doesn't stall. Agent gets first shot during the timeout window.
+		if state.Phase == knowledge.PhaseCapture {
+			if time.Since(state.StartedAt) > autoQuestionFallbackTimeout {
+				w.autoGenerateQuestions(state)
+			}
 		}
 	case knowledge.PhaseStructure:
 		// Check for fact beads — already filtered by StartedAt in
@@ -842,5 +851,35 @@ func (w *InceptionWatcher) autoGenerateFacts(ctx context.Context, state *knowled
 	w.logger.Info("inception watcher: auto-generated facts from Q&A (agent timeout fallback)",
 		"count", len(facts),
 		"timeout", autoFactFallbackTimeout,
+	)
+}
+
+// autoGenerateQuestions creates default clarification questions from the
+// idea text when the brainstorm agent hasn't produced question beads
+// within the timeout. Agent gets first shot during the timeout window.
+func (w *InceptionWatcher) autoGenerateQuestions(state *knowledge.InceptionState) {
+	if len(state.Questions) > 0 {
+		return
+	}
+
+	questions := []knowledge.Question{
+		{ID: "language", Text: "What programming language or runtime should this use?", Category: "language", Default: "Go"},
+		{ID: "users", Text: "Who are the primary users and how will they interact with it?", Category: "users", Default: "Developers via CLI"},
+		{ID: "features", Text: "What are the 2-3 must-have features?", Category: "features", Default: "Core functionality as described"},
+		{ID: "constraints", Text: "What constraints or limitations should be respected?", Category: "constraints", Default: "Keep it simple and well-tested"},
+		{ID: "testing", Text: "How will you know it is working correctly?", Category: "testing", Default: "Unit tests and integration tests"},
+		{ID: "deployment", Text: "How and where will this be deployed?", Category: "deployment", Default: "Docker container"},
+	}
+
+	if err := w.inception.SetQuestions(questions); err != nil {
+		w.logger.Warn("inception watcher: auto-question fallback failed", "error", err)
+		return
+	}
+
+	w.inception.IncrementAutoQuestionCount(len(questions))
+
+	w.logger.Info("inception watcher: auto-generated questions (agent timeout fallback)",
+		"count", len(questions),
+		"timeout", autoQuestionFallbackTimeout,
 	)
 }

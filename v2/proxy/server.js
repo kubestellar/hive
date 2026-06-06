@@ -214,6 +214,26 @@ const server = app.listen(PROXY_PORT, () => {
 });
 
 server.on('upgrade', (req, socket, head) => {
+  if (req.url.startsWith('/terminal')) {
+    const host = req.headers.host || '';
+    const isHosted = host.endsWith('.hive.kubestellar.io');
+    if (isHosted) {
+      const cookies = (req.headers.cookie || '').split(';').reduce((acc, c) => {
+        const [k, ...v] = c.trim().split('=');
+        if (k) acc[k] = v.join('=');
+        return acc;
+      }, {});
+      if (!cookies['hive_hub_user']) {
+        socket.destroy();
+        return;
+      }
+    }
+    req.url = req.url.replace(/^\/terminal/, '') || '/';
+    ttydProxy.upgrade(req, socket, head);
+  }
+});
+
+server.on('upgrade', (req, socket, head) => {
   if (req.url.startsWith('/api/contribute/ws')) {
     // Strip the /api prefix so pathRewrite produces /api/contribute/ws
     // (not /api/api/contribute/ws). Express middleware strips the mount

@@ -1584,7 +1584,7 @@ const dashboardHTML = `<!DOCTYPE html>
         } else { versionCell = '<span style="color:var(--muted)">—</span>'; }
         return '<tr>' +
           '<td style="position:relative;width:30px;text-align:center"><span onclick="toggleHiveMenu(\'' + menuId + '\')" style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div id="' + menuId + '" style="display:none;position:absolute;left:0;top:28px;background:var(--surface);border:1px solid var(--border);border-radius:8px;min-width:180px;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.4)">' + menuItems.join('') + '</div></td>' +
-          '<td>' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br><span class="hive-org">' + esc(h.org) + '</span> ' + roleBadge(h.role) + '</td>' +
+          '<td style="text-align:left">' + dot + '<span class="hive-name">' + esc(h.name || h.id) + '</span><br>' + roleBadge(h.role) + '</td>' +
           '<td>' + typeBadge + '</td>' +
           '<td style="font-size:0.7rem;white-space:nowrap">' + versionCell + '</td>' +
           '<td>' + repoLink + '</td>' +

@@ -890,6 +890,24 @@ func (w *InceptionWatcher) autoGenerateQuestions(state *knowledge.InceptionState
 
 	w.inception.IncrementAutoQuestionCount(len(questions))
 
+	// Auto-answer with defaults so the lifecycle doesn't stall in clarify
+	// waiting for user input that won't come.
+	answers := make(map[string]string, len(questions))
+	for _, q := range questions {
+		if q.Default != "" {
+			answers[q.ID] = q.Default
+		} else {
+			answers[q.ID] = "Yes, use best practices"
+		}
+	}
+	if _, err := w.inception.SubmitAnswers(answers); err != nil {
+		w.logger.Warn("inception watcher: auto-answer failed", "error", err)
+	} else {
+		w.logger.Info("inception watcher: auto-answered questions with defaults",
+			"count", len(answers),
+		)
+	}
+
 	w.logger.Info("inception watcher: auto-generated questions (agent timeout fallback)",
 		"count", len(questions),
 		"timeout", autoQuestionFallbackTimeout,

@@ -699,6 +699,8 @@ func (h *ContributeWSHub) heartbeatLoop(c *ContributorConnection) {
 		}
 
 		if err := sendJSON(c.ws, WSMessage{Type: "ping", Seq: h.nextSeq()}); err != nil {
+			h.logger.Info("[contribute-ws] heartbeat ping failed, closing", "username", c.profile.GitHubUsername)
+			c.ws.Close()
 			return
 		}
 	}

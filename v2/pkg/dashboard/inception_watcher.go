@@ -275,7 +275,7 @@ const (
 	outputParseLineCount   = 100
 	kickRetryDelayS        = 30 * time.Second
 	kickRetryGracePeriodS  = 30 * time.Second
-	maxKickRetries         = 3
+	maxKickRetries         = 5
 )
 
 // retryKickIfStale re-sends the inception prompt via SendKick when the
@@ -446,10 +446,13 @@ func (w *InceptionWatcher) retryKickIfStale(state *knowledge.InceptionState) {
 		return
 	}
 
-	// Check if agent is doing inception work or stuck in reaping
+	// Check if agent is doing inception work or stuck in reaping.
+	// If the tmux session doesn't exist (on-demand agent not started),
+	// GetBufferOutput fails — fall through to RestartWithBootstrap.
+	noSession := false
 	lines, err := w.agentMgr.GetBufferOutput("brainstorm", outputParseLineCount)
 	if err != nil || len(lines) == 0 {
-		return
+		noSession = true
 	}
 
 	isReaping := false
@@ -470,22 +473,35 @@ func (w *InceptionWatcher) retryKickIfStale(state *knowledge.InceptionState) {
 	if hasInceptionWork {
 		return
 	}
-	if !isReaping && time.Since(state.StartedAt) < 2*kickRetryGracePeriodS {
+	if !noSession && !isReaping && time.Since(state.StartedAt) < 2*kickRetryGracePeriodS {
 		return
 	}
 
-	// Agent is reaping or idle — re-kick with inception-specific prompt
 	w.kickRetryCount++
 	w.lastKickRetry = time.Now()
 
 	msg := w.buildInceptionKickMessage(state)
+
+	// Try SendKick first (agent already running). If it fails (no session),
+	// fall back to RestartWithBootstrap which creates the tmux session.
 	if err := w.agentMgr.SendKick("brainstorm", msg); err != nil {
-		w.logger.Warn("inception retry kick failed",
+		w.logger.Info("SendKick failed, trying RestartWithBootstrap",
 			"attempt", w.kickRetryCount,
 			"error", err,
 		)
+		if err2 := w.agentMgr.RestartWithBootstrap(context.Background(), "brainstorm", msg); err2 != nil {
+			w.logger.Warn("inception retry kick failed (both methods)",
+				"attempt", w.kickRetryCount,
+				"sendKickErr", err,
+				"bootstrapErr", err2,
+			)
+		} else {
+			w.logger.Info("inception retry via RestartWithBootstrap succeeded",
+				"attempt", w.kickRetryCount,
+			)
+		}
 	} else {
-		w.logger.Info("inception retry kick sent — agent was not processing inception",
+		w.logger.Info("inception retry kick sent",
 			"attempt", w.kickRetryCount,
 			"isReaping", isReaping,
 		)

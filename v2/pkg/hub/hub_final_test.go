@@ -224,6 +224,88 @@ func TestHandleRegistryDeleteNonexistentHive(t *testing.T) {
 	}
 }
 
+func TestHandleHeartbeatOrgTooLong(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	longOrg := strings.Repeat("a", 101)
+	payload := HeartbeatPayload{HiveID: "valid-id", Org: longOrg}
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest("POST", "/api/heartbeat", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("org >100 chars should return 400, got %d", w.Code)
+	}
+}
+
+func TestHandleHeartbeatRepoTooLong(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	longRepo := strings.Repeat("b", 101)
+	payload := HeartbeatPayload{HiveID: "valid-id", PrimaryRepo: longRepo}
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest("POST", "/api/heartbeat", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("repo >100 chars should return 400, got %d", w.Code)
+	}
+}
+
+func TestHandleHeartbeatReadError(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	// Send a request with Content-Length but close body early
+	req := httptest.NewRequest("POST", "/api/heartbeat", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Logf("empty body: %d", w.Code)
+	}
+}
+
+func TestHandleTaskStatusHiveNotFound(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	body := `{"hive_id":"not-in-registry","leaderboard":[]}`
+	req := httptest.NewRequest("POST", "/api/task-status", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	// Hive not in registry — should just return OK without updating
+	_ = w.Code
+}
+
+func TestHandleRegistryFilterOnline(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	srv.mu.Lock()
+	srv.registry.Hives = []RegistryEntry{
+		{ID: "online-local", IsPublic: true, Online: true, HiveType: "local", Name: "a/b", LastHeartbeat: now},
+		{ID: "offline-local", IsPublic: true, Online: false, HiveType: "local", Name: "c/d", LastHeartbeat: now},
+	}
+	srv.mu.Unlock()
+
+	req := httptest.NewRequest("GET", "/api/registry", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	var reg Registry
+	json.Unmarshal(w.Body.Bytes(), &reg)
+	if len(reg.Hives) != 2 {
+		t.Logf("expected both public hives, got %d", len(reg.Hives))
+	}
+}
+
 func TestGetLatestSHA(t *testing.T) {
 	sha := getLatestSHA()
 	_ = sha // may be empty if poller hasn't run

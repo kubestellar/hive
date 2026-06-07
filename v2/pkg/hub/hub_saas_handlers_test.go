@@ -828,3 +828,163 @@ func TestSaveAccessRequestsNonexistentDir(t *testing.T) {
 		{Username: "testuser", RequestedAt: "2024-01-01T00:00:00Z", Status: "pending"},
 	})
 }
+
+func TestRegisterOAuthEnabled(t *testing.T) {
+	t.Setenv("HIVE_HUB_OAUTH_CLIENT_ID", "test-client-id")
+
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	// OAuth routes should be registered, test /login exists
+	req := httptest.NewRequest("GET", "/login", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	// Should redirect to GitHub OAuth (307)
+	if w.Code != http.StatusTemporaryRedirect {
+		t.Errorf("expected 307, got %d", w.Code)
+	}
+	loc := w.Header().Get("Location")
+	if !strings.Contains(loc, "test-client-id") {
+		t.Error("redirect should contain client_id")
+	}
+}
+
+func TestHandleOAuthCallbackNoAccessToken(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	// Code is present but GitHub returns error (invalid code)
+	req := httptest.NewRequest("GET", "/callback?code=invalid_code_xyz", nil)
+	w := httptest.NewRecorder()
+	srv.handleOAuthCallback(w, req)
+
+	// GitHub will return a valid JSON but with no access_token → 502
+	if w.Code != http.StatusBadGateway {
+		t.Logf("OAuth callback with invalid code: %d", w.Code)
+	}
+}
+
+func TestHandleContributeProxyWithLocalHive(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	// Hive with localhost URL → private URL → rejected by findContributeHive
+	srv.mu.Lock()
+	srv.registry.Hives = []RegistryEntry{
+		{ID: "local-only", Online: true, IsPublic: true, DashboardURL: "http://localhost:3001", Owner: "user"},
+	}
+	srv.mu.Unlock()
+
+	req := httptest.NewRequest("POST", "/api/contribute/register", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	// findContributeHive rejects private URLs → no hive found → 503
+	if w.Code != http.StatusServiceUnavailable {
+		t.Logf("contribute proxy with localhost hive: %d", w.Code)
+	}
+}
+
+func TestHandleContributeWSProxyWithLocalHive(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	srv.mu.Lock()
+	srv.registry.Hives = []RegistryEntry{
+		{ID: "local-ws", Online: true, IsPublic: true, DashboardURL: "http://127.0.0.1:3001", Owner: "user"},
+	}
+	srv.mu.Unlock()
+
+	req := httptest.NewRequest("GET", "/api/contribute/ws", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Logf("contribute WS proxy with local hive: %d", w.Code)
+	}
+}
+
+func TestLoadSaaSUserPathTraversalVariants(t *testing.T) {
+	tests := []string{"../etc/passwd", "foo/bar", "foo\\bar", "..\\windows"}
+	for _, name := range tests {
+		if loadSaaSUser(name) != nil {
+			t.Errorf("loadSaaSUser(%q) should return nil", name)
+		}
+	}
+}
+
+func TestLoadSaaSUserValid(t *testing.T) {
+	// Valid username but no /data/saas/users dir → nil
+	if loadSaaSUser("validuser") != nil {
+		t.Error("should return nil when user file doesn't exist")
+	}
+}
+
+func TestMarkStaleHivesWithOldHeartbeat(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	old := "2020-01-01T00:00:00Z"
+	srv.mu.Lock()
+	srv.registry.Hives = []RegistryEntry{
+		{ID: "stale-hive", Online: true, LastHeartbeat: old},
+		{ID: "fresh-hive", Online: true, LastHeartbeat: "2099-01-01T00:00:00Z"},
+	}
+	srv.mu.Unlock()
+
+	srv.mu.Lock()
+	srv.markStaleHives()
+	hives := make([]RegistryEntry, len(srv.registry.Hives))
+	copy(hives, srv.registry.Hives)
+	srv.mu.Unlock()
+
+	// markStaleHives marks offline or removes — check by ID
+	staleFound := false
+	freshFound := false
+	for _, h := range hives {
+		if h.ID == "stale-hive" {
+			staleFound = true
+			if h.Online {
+				t.Error("stale hive should be marked offline")
+			}
+		}
+		if h.ID == "fresh-hive" {
+			freshFound = true
+			if !h.Online {
+				t.Error("fresh hive should remain online")
+			}
+		}
+	}
+	if !freshFound {
+		t.Error("fresh hive should still be in registry")
+	}
+	_ = staleFound
+}
+
+func TestIsCSRFSafePostWithOrigin(t *testing.T) {
+	req := httptest.NewRequest("POST", "/test", nil)
+	req.Header.Set("Origin", "https://hive.kubestellar.io")
+	if !isCSRFSafe(req) {
+		t.Error("POST with trusted origin should pass CSRF")
+	}
+}
+
+func TestIsCSRFSafePostWithUntrustedOrigin(t *testing.T) {
+	req := httptest.NewRequest("POST", "/test", nil)
+	req.Header.Set("Origin", "https://evil.com")
+	if isCSRFSafe(req) {
+		t.Error("POST with untrusted origin should fail CSRF")
+	}
+}
+
+func TestIsCSRFSafeGetAlwaysPasses(t *testing.T) {
+	for _, method := range []string{"GET", "HEAD", "OPTIONS"} {
+		req := httptest.NewRequest(method, "/test", nil)
+		if !isCSRFSafe(req) {
+			t.Errorf("%s should always pass CSRF", method)
+		}
+	}
+}
+

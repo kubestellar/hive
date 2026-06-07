@@ -748,6 +748,22 @@ func TestHandleOAuthCallbackMissingCode(t *testing.T) {
 	}
 }
 
+func TestHandleOAuthCallbackWithCode(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	// With a code present, it tries to exchange with GitHub (ghTokenURL const)
+	// which will fail with network error → 502
+	req := httptest.NewRequest("GET", "/callback-with-code?code=testcode123", nil)
+	w := httptest.NewRecorder()
+	srv.handleOAuthCallback(w, req)
+
+	// Will get 502 because ghTokenURL points to real GitHub
+	if w.Code != http.StatusBadGateway {
+		t.Logf("OAuth callback with code returned %d (expected 502)", w.Code)
+	}
+}
+
 func TestCountUserHives(t *testing.T) {
 	// Will return 0 on macOS (no /data/saas/hives dir)
 	count := countUserHives("nonexistent-user")

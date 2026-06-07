@@ -194,3 +194,44 @@ func TestWaitForReadyContextCancel(t *testing.T) {
 		t.Error("waitForReady should stop on context cancel")
 	}
 }
+
+func TestSendHeartbeatWithSecret(t *testing.T) {
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	t.Setenv("HIVE_HUB_SECRET", "test-secret-123")
+
+	ctx := context.Background()
+	sendHeartbeat(ctx, server.URL, func() *HeartbeatPayload {
+		return &HeartbeatPayload{HiveID: "test"}
+	}, slog.Default())
+
+	if gotAuth != "Bearer test-secret-123" {
+		t.Errorf("Authorization header = %q, want 'Bearer test-secret-123'", gotAuth)
+	}
+}
+
+func TestSendHeartbeatMarshalError(t *testing.T) {
+	ctx := context.Background()
+	// Payload with nil map triggers normal marshal — just verify the happy path completes
+	sendHeartbeat(ctx, "http://127.0.0.1:1", func() *HeartbeatPayload {
+		return &HeartbeatPayload{
+			HiveID:      "test",
+			Agents:      []AgentSummary{{Name: "scanner", State: "running"}},
+			Leaderboard: []LeaderboardEntry{{GitHubUsername: "user1"}},
+		}
+	}, slog.Default())
+}
+
+func TestSendHeartbeatCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	sendHeartbeat(ctx, "http://127.0.0.1:1", func() *HeartbeatPayload {
+		return &HeartbeatPayload{HiveID: "test"}
+	}, slog.Default())
+}

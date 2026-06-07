@@ -299,3 +299,183 @@ func TestHandleAPIv1WithQueryToken(t *testing.T) {
 		t.Logf("APIv1 with invalid query token: %d", w.Code)
 	}
 }
+
+func TestHandleGitSourcesConnectMissingName(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"url":"https://github.com/org/repo"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing name, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesConnectMissingURL(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"name":"my-source"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing url, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesConnectBadURLScheme(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"name":"my-source","url":"ftp://example.com"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad URL scheme, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesConnectPathTraversal(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"name":"../evil","url":"https://github.com/org/repo"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for path traversal, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesConnectBadBranch(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"name":"my-source","url":"https://github.com/org/repo","branch":"-evil"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad branch, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesConnectBadSubpath(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"name":"my-source","url":"https://github.com/org/repo","subpath":"../etc"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad subpath, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesConnectSubpathDash(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"name":"my-source","url":"https://github.com/org/repo","subpath":"-rf"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for subpath starting with dash, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesConnectNameWithSlash(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"name":"bad/name","url":"https://github.com/org/repo"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for name with slash, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesConnectGitAtURL(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"name":"my-source","url":"git@github.com:org/repo.git"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	// Valid URL format — will pass validation, then try to connect (may fail or succeed)
+	if w.Code == http.StatusBadRequest {
+		t.Error("git@ URLs should be accepted")
+	}
+}
+
+func TestHandleGitSourcesDisconnectMissingURL(t *testing.T) {
+	srv := newMinimalServer(t)
+	// Give it a knowledge instance
+	srv.ensureKnowledge()
+
+	body := `{}`
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources/disconnect", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesDisconnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing URL, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesDisconnectBadJSON(t *testing.T) {
+	srv := newMinimalServer(t)
+	srv.ensureKnowledge()
+
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources/disconnect", strings.NewReader(`{invalid`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesDisconnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad JSON, got %d", w.Code)
+	}
+}
+
+func TestHandleGitSourcesConnectBadJSON(t *testing.T) {
+	srv := newMinimalServer(t)
+	req := httptest.NewRequest("POST", "/api/knowledge/git-sources", strings.NewReader(`{invalid`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGitSourcesConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad JSON, got %d", w.Code)
+	}
+}
+
+func TestHandleConfigDownloadEnvVar(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "custom.yaml")
+	os.WriteFile(cfgPath, []byte("custom: true\n"), 0644)
+
+	t.Setenv("HIVE_CONFIG", cfgPath)
+
+	srv := newMinimalServer(t)
+	req := httptest.NewRequest("GET", "/api/config/download", nil)
+	w := httptest.NewRecorder()
+	srv.handleConfigDownload(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "custom: true") {
+		t.Error("should return custom config file contents")
+	}
+}

@@ -23,8 +23,7 @@ const (
 	acceptanceDefaultConf  = 0.6
 	brownfieldConfBoost = 0.15
 
-	maxDescriptionLen = 80
-	maxSlugLen        = 30
+	maxSlugLen = 30
 )
 
 // InceptionEngine manages the Level 1 ideation workflow — from raw idea to

@@ -933,7 +933,7 @@ func main() {
 					}
 					return ""
 				}(),
-				Health:       map[string]any{},
+				Health:       dashSrv.HealthSummary(),
 				DashboardURL: func() string {
 					if cfg.Hub.DashboardURL != "" {
 						return cfg.Hub.DashboardURL

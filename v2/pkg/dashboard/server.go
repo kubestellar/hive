@@ -787,3 +787,79 @@ func (s *Server) GetAdvisoryDigest() any {
 	defer s.advisoryMu.RUnlock()
 	return s.advisoryDigest
 }
+
+// HealthSummary returns a compact deep-health summary for embedding in heartbeats.
+func (s *Server) HealthSummary() map[string]any {
+	summary := map[string]any{"status": "ok", "fails": 0, "warns": 0}
+	fails := 0
+	warns := 0
+
+	s.statusMu.RLock()
+	ready := s.status != nil && s.ready
+	s.statusMu.RUnlock()
+	if !ready {
+		fails++
+	}
+
+	if s.deps != nil && s.deps.GHAppAuth != nil {
+		if _, err := s.deps.GHAppAuth.Token(s.deps.Ctx); err != nil {
+			fails++
+			summary["github_auth"] = "fail"
+		}
+	} else if s.deps == nil || s.deps.GHClient == nil {
+		fails++
+		summary["github_auth"] = "fail"
+	}
+
+	if s.deps != nil && s.deps.AgentMgr != nil {
+		stalled := 0
+		running := 0
+		const staleOutputThreshold = 30 * time.Minute
+		for _, proc := range s.deps.AgentMgr.AllStatuses() {
+			if proc.Paused {
+				continue
+			}
+			if proc.State == agent.StateRunning {
+				running++
+				if proc.LastKickMessage != "" {
+					for _, v := range []string{"${ISSUE_LIST}", "${PR_LIST}", "${HIVE_REPO}", "${KNOWLEDGE}"} {
+						if strings.Contains(proc.LastKickMessage, v) {
+							warns++
+							break
+						}
+					}
+				}
+				if proc.OutputBuffer != nil && proc.OutputBuffer.Count() == 0 && proc.LastKick != nil {
+					if time.Since(*proc.LastKick) > staleOutputThreshold {
+						stalled++
+					}
+				}
+			} else {
+				fails++
+			}
+		}
+		summary["agents_running"] = running
+		if stalled > 0 {
+			warns++
+			summary["stalled"] = stalled
+		}
+	}
+
+	if s.deps != nil && s.deps.Tokens != nil {
+		ts := s.deps.Tokens.Summary()
+		if ts != nil && ts.TotalTokens == 0 {
+			warns++
+		}
+	}
+
+	summary["fails"] = fails
+	summary["warns"] = warns
+	if fails > 2 {
+		summary["status"] = "critical"
+	} else if fails > 0 {
+		summary["status"] = "degraded"
+	} else if warns > 0 {
+		summary["status"] = "warning"
+	}
+	return summary
+}

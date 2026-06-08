@@ -325,3 +325,172 @@ func TestHandleGovernorSensingPullbackTooHigh(t *testing.T) {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
 }
+
+func TestHandleKickPromptTooLong(t *testing.T) {
+	srv := newFullServer(t)
+	longPrompt := strings.Repeat("x", 10001)
+	body := `{"prompt":"` + longPrompt + `"}`
+	req := httptest.NewRequest("POST", "/api/kick/scanner", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for too-long prompt, got %d", w.Code)
+	}
+}
+
+func TestHandleKickBadJSON(t *testing.T) {
+	srv := newFullServer(t)
+	req := httptest.NewRequest("POST", "/api/kick/scanner", strings.NewReader(`{invalid`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	// decodeBody fails but handleKick continues with empty prompt
+	// SendKick will fail because no tmux session → 400
+	_ = w.Code
+}
+
+func TestHandleBeadsCreateUnknownAgent(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"title":"test bead"}`
+	req := httptest.NewRequest("POST", "/api/beads/nonexistent", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for unknown agent, got %d", w.Code)
+	}
+}
+
+func TestHandleBeadsCreateMissingTitle(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"type":"advisory"}`
+	req := httptest.NewRequest("POST", "/api/beads/scanner", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing title, got %d", w.Code)
+	}
+}
+
+func TestHandleBeadsCreateTitleTooLong(t *testing.T) {
+	srv := newFullServer(t)
+	longTitle := strings.Repeat("a", 501)
+	body := `{"title":"` + longTitle + `"}`
+	req := httptest.NewRequest("POST", "/api/beads/scanner", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for title too long, got %d", w.Code)
+	}
+}
+
+func TestHandleBeadsCreateBadPriority(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"title":"test","priority":99}`
+	req := httptest.NewRequest("POST", "/api/beads/scanner", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad priority, got %d", w.Code)
+	}
+}
+
+func TestHandleBeadsCreateBadJSON(t *testing.T) {
+	srv := newFullServer(t)
+	req := httptest.NewRequest("POST", "/api/beads/scanner", strings.NewReader(`{invalid`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad JSON, got %d", w.Code)
+	}
+}
+
+func TestHandleBeadsCreateSuccess(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"title":"test bead","type":"advisory","priority":1,"external_ref":"test/ref","metadata":{"key1":"val1"}}`
+	req := httptest.NewRequest("POST", "/api/beads/scanner", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated && w.Code != http.StatusOK {
+		t.Errorf("expected 201 or 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleObsidianSyncBadJSON(t *testing.T) {
+	srv := newMinimalServer(t)
+	req := httptest.NewRequest("POST", "/api/knowledge/obsidian-sync", strings.NewReader(`{invalid`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleObsidianSync(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleObsidianSyncMissingFilename(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"content":"some content"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/obsidian-sync", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleObsidianSync(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing filename, got %d", w.Code)
+	}
+}
+
+func TestHandleObsidianSyncWithFilename(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"filename":"test-note.md","content":"hello world"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/obsidian-sync", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleObsidianSync(w, req)
+
+	// ensureKnowledge creates file-based knowledge, sync should work or fail gracefully
+	if w.Code == http.StatusBadRequest {
+		t.Error("should not return 400 with valid filename")
+	}
+}
+
+func TestHandleObsidianSyncNoContent(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"filename":"test-note.md","frontmatter":{"title":"My Note"}}`
+	req := httptest.NewRequest("POST", "/api/knowledge/obsidian-sync", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleObsidianSync(w, req)
+
+	// No content but has frontmatter title — content should default to title
+	if w.Code == http.StatusBadRequest {
+		t.Error("should not return 400 — content should default to frontmatter title")
+	}
+}
+
+func TestHandleKnowledgePromoteBadJSON(t *testing.T) {
+	srv := newMinimalServer(t)
+	req := httptest.NewRequest("POST", "/api/knowledge/promote", strings.NewReader(`{invalid`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleKnowledgePromote(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}

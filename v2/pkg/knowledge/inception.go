@@ -1714,14 +1714,15 @@ func inferProjectType(constitution *Fact, requirements []Fact, vision *Fact) str
 func buildDockerfile(lang, name string) string {
 	switch lang {
 	case "go":
-		return fmt.Sprintf(`FROM golang:1.22-alpine AS builder
+		return fmt.Sprintf(`FROM golang:1.23-alpine AS builder
 WORKDIR /app
-COPY go.mod go.sum ./
+COPY go.mod ./
+COPY go.sum* ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /bin/%s .
 
-FROM alpine:3.20
+FROM alpine:3.21
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /bin/%s /usr/local/bin/%s
 ENTRYPOINT ["%s"]
@@ -1735,9 +1736,10 @@ RUN pip install --no-cache-dir .
 ENTRYPOINT ["%s"]
 `, name)
 	case "rust":
-		return fmt.Sprintf(`FROM rust:1.78-slim AS builder
+		return fmt.Sprintf(`FROM rust:1.82-slim AS builder
 WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
+COPY Cargo.lock* ./
 COPY src/ src/
 RUN cargo build --release
 

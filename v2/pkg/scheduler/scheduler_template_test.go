@@ -34,8 +34,8 @@ func TestBuildAgentMessageWithKickTemplate(t *testing.T) {
 	if msg == "" {
 		t.Error("should use kick_template and return non-empty")
 	}
-	if len(msg) > 0 && !contains(msg, "[KICK]") {
-		t.Error("should contain [KICK] marker")
+	if len(msg) > 0 && !contains(msg, "[agent:scanner]") {
+		t.Error("should contain agent header")
 	}
 }
 

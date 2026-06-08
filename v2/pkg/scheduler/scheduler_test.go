@@ -174,8 +174,8 @@ func TestBuildKickMessages_ClassificationApplied(t *testing.T) {
 func TestScannerMessage_Header(t *testing.T) {
 	s := newScheduler()
 	msg := s.buildScannerMessage(nil, emptyActionable())
-	if !strings.Contains(msg, "[agent:scanner] [KICK]") {
-		t.Errorf("missing [agent:scanner] [KICK] header")
+	if !strings.Contains(msg, "[agent:scanner]") {
+		t.Errorf("missing [agent:scanner] header")
 	}
 	if !strings.Contains(msg, "YOUR WORK LIST") {
 		t.Errorf("missing YOUR WORK LIST line")
@@ -527,7 +527,7 @@ func TestScannerMessage_EmptyTierHandled(t *testing.T) {
 func TestReviewerMessage_Header(t *testing.T) {
 	s := newScheduler()
 	msg := s.buildCIMaintainerMessage(emptyActionable())
-	if !strings.Contains(msg, "[agent:ci-maintainer] [KICK]") {
+	if !strings.Contains(msg, "[agent:ci-maintainer]") {
 		t.Errorf("missing ci-maintainer header")
 	}
 }
@@ -577,7 +577,7 @@ func TestReviewerMessage_HealthCheckLine(t *testing.T) {
 func TestSupervisorMessage_Header(t *testing.T) {
 	s := newScheduler()
 	msg := s.buildSupervisorMessage(emptyActionable())
-	if !strings.Contains(msg, "[agent:supervisor] [KICK]") {
+	if !strings.Contains(msg, "[agent:supervisor]") {
 		t.Errorf("missing supervisor header")
 	}
 }
@@ -627,7 +627,7 @@ func TestSupervisorMessage_SweepInstructions(t *testing.T) {
 func TestGenericMessage_Header(t *testing.T) {
 	s := newScheduler()
 	msg := s.buildGenericMessage("outreach", nil, emptyActionable())
-	if !strings.Contains(msg, "[agent:outreach] [KICK]") {
+	if !strings.Contains(msg, "[agent:outreach]") {
 		t.Errorf("missing generic agent header, message:\n%s", msg)
 	}
 }

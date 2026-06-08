@@ -301,7 +301,8 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 }
 
 const (
-	outputParseLineCount   = 100
+	outputParseLineCount       = 100
+	interceptBufferLineCount   = 500
 	kickRetryDelayS        = 20 * time.Second
 	kickRetryGracePeriodS  = 15 * time.Second
 	maxKickRetries         = 5
@@ -1052,7 +1053,7 @@ func (w *InceptionWatcher) interceptFactsFromBuffer(ctx context.Context, state *
 		return
 	}
 
-	lines, err := w.agentMgr.GetBufferOutput("brainstorm", outputParseLineCount)
+	lines, err := w.agentMgr.GetBufferOutput("brainstorm", interceptBufferLineCount)
 	if err != nil || len(lines) == 0 {
 		return
 	}
@@ -1086,7 +1087,7 @@ func (w *InceptionWatcher) interceptQuestionsFromBuffer(state *knowledge.Incepti
 		return
 	}
 
-	lines, err := w.agentMgr.GetBufferOutput("brainstorm", outputParseLineCount)
+	lines, err := w.agentMgr.GetBufferOutput("brainstorm", interceptBufferLineCount)
 	if err != nil || len(lines) == 0 {
 		return
 	}

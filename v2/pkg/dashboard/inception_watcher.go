@@ -1080,8 +1080,8 @@ func (w *InceptionWatcher) interceptFactsFromBuffer(ctx context.Context, state *
 }
 
 // interceptQuestionsFromBuffer reads the tmux output buffer directly and
-// parses bd create commands to extract questions. This bypasses pipe-pane
-// entirely — works regardless of Pluk process state.
+// parses questions from multiple formats: bd create commands, tool call
+// previews, numbered lists, and question-mark lines with category keywords.
 func (w *InceptionWatcher) interceptQuestionsFromBuffer(state *knowledge.InceptionState) {
 	if len(state.Questions) >= minQuestionsForAdvance {
 		return
@@ -1094,19 +1094,48 @@ func (w *InceptionWatcher) interceptQuestionsFromBuffer(state *knowledge.Incepti
 
 	for _, line := range lines {
 		lower := strings.ToLower(line)
-		if strings.Contains(lower, "bd create") && strings.Contains(lower, "--title") {
-			if q := w.parseQuestionFromBdCreate(line); q != nil {
-				// Check for duplicates
-				found := false
-				for _, existing := range w.plukQuestions {
-					if existing.Text == q.Text {
-						found = true
-						break
+		var q *knowledge.Question
+
+		switch {
+		// bd create --title "..."
+		case strings.Contains(lower, "bd create") && strings.Contains(lower, "--title"):
+			q = w.parseQuestionFromBdCreate(line)
+
+		// Tool call preview: ● Create question bead (shell)
+		// followed by: └ bd create --title "..."
+		case strings.HasPrefix(strings.TrimSpace(line), "└") && strings.Contains(lower, "--title"):
+			q = w.parseQuestionFromBdCreate(line)
+
+		// Question lines ending with ? that contain category keywords
+		case strings.HasSuffix(strings.TrimSpace(line), "?") && len(line) > 20:
+			for kw := range categoryKeywords {
+				if strings.Contains(lower, kw) {
+					text := strings.TrimSpace(line)
+					// Remove numbered prefix like "1. " or "- "
+					if m := numberedQuestionRe.FindStringSubmatch(text); m != nil {
+						text = strings.TrimSpace(m[2])
 					}
+					q = &knowledge.Question{
+						ID:       kw + "-" + fmt.Sprintf("%d", len(w.plukQuestions)+1),
+						Text:     text,
+						Category: kw,
+						Default:  "Yes, use best practices",
+					}
+					break
 				}
-				if !found {
-					w.plukQuestions = append(w.plukQuestions, *q)
+			}
+		}
+
+		if q != nil {
+			found := false
+			for _, existing := range w.plukQuestions {
+				if existing.Text == q.Text {
+					found = true
+					break
 				}
+			}
+			if !found {
+				w.plukQuestions = append(w.plukQuestions, *q)
 			}
 		}
 	}

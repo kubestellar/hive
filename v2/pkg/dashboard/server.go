@@ -549,6 +549,79 @@ func (s *Server) handleHealthDeep(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 7. Token consumption (progress signal)
+	if s.deps != nil && s.deps.Tokens != nil {
+		summary := s.deps.Tokens.Summary()
+		if summary != nil {
+			tokenCheck := map[string]any{
+				"status":       "pass",
+				"total_tokens": summary.TotalTokens,
+				"sessions":     summary.TotalMessages,
+				"by_agent":     summary.ByAgent,
+			}
+			if summary.TotalTokens == 0 {
+				tokenCheck["status"] = "warn"
+				tokenCheck["detail"] = "zero tokens consumed — agents may not be working"
+			}
+			checks["tokens"] = tokenCheck
+		}
+	}
+
+	// 8. MTTR (progress signal)
+	if s.deps != nil && s.deps.MetricsCollector != nil {
+		mttr := s.deps.MetricsCollector.GetMTTR()
+		if mttr != nil && mttr.Count > 0 {
+			checks["mttr"] = map[string]any{
+				"status":         "pass",
+				"median_minutes": mttr.MedianMinutes,
+				"avg_minutes":    mttr.AvgMinutes,
+				"count":          mttr.Count,
+			}
+		}
+	}
+
+	// 9. Agent output freshness (stall detection)
+	if s.deps != nil && s.deps.AgentMgr != nil {
+		const staleOutputThreshold = 30 * time.Minute
+		stalled := []string{}
+		for name, proc := range s.deps.AgentMgr.AllStatuses() {
+			if proc.State != agent.StateRunning || proc.Paused {
+				continue
+			}
+			if proc.OutputBuffer != nil && proc.OutputBuffer.Count() == 0 && proc.LastKick != nil {
+				if time.Since(*proc.LastKick) > staleOutputThreshold {
+					stalled = append(stalled, name)
+				}
+			}
+		}
+		if len(stalled) > 0 {
+			checks["stall_detection"] = map[string]any{
+				"status":  "warn",
+				"detail":  "agents kicked but no output for 30+ min",
+				"agents":  stalled,
+			}
+			if overall == "ok" {
+				overall = "degraded"
+			}
+		} else {
+			checks["stall_detection"] = map[string]any{"status": "pass"}
+		}
+	}
+
+	// 10. Queue trend (is work being processed?)
+	s.statusMu.RLock()
+	if s.status != nil {
+		totalActionable := 0
+		for _, repo := range s.status.Repos {
+			totalActionable += len(repo.ActionableIssues)
+		}
+		checks["queue"] = map[string]any{
+			"status":     "pass",
+			"actionable": totalActionable,
+		}
+	}
+	s.statusMu.RUnlock()
+
 	if failCount > 2 {
 		overall = "critical"
 	}

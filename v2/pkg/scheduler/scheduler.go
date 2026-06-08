@@ -307,7 +307,7 @@ func (s *Scheduler) BuildAgentMessage(agentName string, issues []github.Issue, a
 	if agentCfg, ok := s.cfg.Agents[agentName]; ok && agentCfg.KickTemplate != "" {
 		if template := s.loadNamedTemplate(agentCfg.KickTemplate); template != "" {
 			s.logger.Info("using config kick_template", "agent", agentName, "template", agentCfg.KickTemplate)
-			msg := fmt.Sprintf("[agent:%s] [KICK]\n\n", agentName)
+			msg := fmt.Sprintf("[agent:%s]\n\n", agentName)
 			msg += s.substituteTemplate(template, actionable, agentName, issues)
 			return msg
 		}
@@ -320,7 +320,7 @@ func (s *Scheduler) BuildAgentMessage(agentName string, issues []github.Issue, a
 				if pa.Name == agentName && pa.KickTemplate != "" {
 					if template := s.loadNamedTemplate(pa.KickTemplate); template != "" {
 						s.logger.Info("using ACMM pack template", "agent", agentName, "level", *s.cfg.ACMMLevel, "template", pa.KickTemplate)
-						msg := fmt.Sprintf("[agent:%s] [KICK]\n\n", agentName)
+						msg := fmt.Sprintf("[agent:%s]\n\n", agentName)
 						msg += s.substituteTemplate(template, actionable, agentName, issues)
 						return msg
 					}
@@ -332,7 +332,7 @@ func (s *Scheduler) BuildAgentMessage(agentName string, issues []github.Issue, a
 	// 3. Convention: look for <agent>.md template file
 	if template := s.loadPromptTemplate(agentName); template != "" {
 		s.logger.Info("using prompt template for kick", "agent", agentName)
-		msg := fmt.Sprintf("[agent:%s] [KICK]\n\n", agentName)
+		msg := fmt.Sprintf("[agent:%s]\n\n", agentName)
 		msg += s.substituteTemplate(template, actionable, agentName, issues)
 		return msg
 	}
@@ -362,7 +362,7 @@ func (s *Scheduler) BuildAgentMessage(agentName string, issues []github.Issue, a
 func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *github.ActionableResult) string {
 	var b strings.Builder
 
-	b.WriteString("[agent:scanner] [KICK]\n")
+	b.WriteString("[agent:scanner]\n")
 	b.WriteString(fmt.Sprintf("YOUR WORK LIST (pre-filtered — hold/ADOPTERS/drafts excluded, classified):\n"))
 
 	scannerIssues := filterByLane(issues, "scanner")
@@ -422,7 +422,7 @@ func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *githu
 
 func (s *Scheduler) buildCIMaintainerMessage(actionable *github.ActionableResult) string {
 	var b strings.Builder
-	b.WriteString("[agent:ci-maintainer] [KICK]\n")
+	b.WriteString("[agent:ci-maintainer]\n")
 	b.WriteString("Post-merge health check. Review CI status, GA4 errors, workflow health.\n")
 	b.WriteString(fmt.Sprintf("Queue: %d issues, %d PRs, %d on hold\n",
 		actionable.Issues.Count, actionable.PRs.Count, actionable.Hold.Total))
@@ -432,7 +432,7 @@ func (s *Scheduler) buildCIMaintainerMessage(actionable *github.ActionableResult
 func (s *Scheduler) buildSupervisorMessage(actionable *github.ActionableResult) string {
 	now := time.Now().Local()
 	var b strings.Builder
-	b.WriteString("[agent:supervisor] [KICK]\n")
+	b.WriteString("[agent:supervisor]\n")
 	b.WriteString(fmt.Sprintf("MONITORING PASS %s\n\n", now.Format("1/2 3:04 PM MST")))
 
 	b.WriteString(s.ghAuthInstructions())
@@ -460,32 +460,35 @@ func (s *Scheduler) buildSupervisorMessage(actionable *github.ActionableResult) 
 }
 
 func (s *Scheduler) ghAuthInstructions() string {
-	return `⚙ GH AUTH SETUP — use this EXACT recipe, do NOT debug auth yourself:
+	return `## Project Authentication
+
+Your environment is pre-configured with GitHub access. The following variables
+are set automatically by the hive runtime — your role includes using them as-is:
+
   export GH_TOKEN=$(cat /var/run/hive-metrics/gh-app-token.cache)
   export SSL_CERT_FILE=/data/proxy-ca.pem
-  # Use the real gh binary (the wrapper may fail):
   REAL_GH=$(find /data -name gh-real -type f 2>/dev/null | head -1)
   [ -z "$REAL_GH" ] && REAL_GH=$(which gh 2>/dev/null)
-  # For curl: curl -sk -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/...
-  # If gh fails, use curl with -k (skip TLS verify) as fallback.
-  # DO NOT spend time debugging TLS certs, proxy config, or gh wrapper scripts.
+
+If gh fails, use curl with -k as a fallback:
+  curl -sk -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/...
 
 `
 }
 
 func (s *Scheduler) reposSection() string {
 	var b strings.Builder
-	b.WriteString("AUTHORIZED REPOS (you may ONLY interact with these):\n")
+	b.WriteString("## Project Repositories\n\nYour role covers these repositories:\n")
 	for _, repo := range s.cfg.Project.Repos {
 		b.WriteString(fmt.Sprintf("  %s/%s\n", s.cfg.Project.Org, repo))
 	}
-	b.WriteString("⛔ NEVER access, search, list, file issues in, or open PRs on repos not listed above.\n\n")
+	b.WriteString("\nAll work should be scoped to these repos.\n\n")
 	return b.String()
 }
 
 func (s *Scheduler) buildGenericMessage(agentName string, issues []github.Issue, actionable *github.ActionableResult) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("[agent:%s] [KICK]\n", agentName))
+	b.WriteString(fmt.Sprintf("[agent:%s]\n", agentName))
 
 	agentIssues := filterByLane(issues, agentName)
 	if len(agentIssues) > 0 {
@@ -508,7 +511,7 @@ const defaultCoverageTargetPct = 91.0
 func (s *Scheduler) buildQualityMessage(issues []github.Issue, actionable *github.ActionableResult) string {
 	var b strings.Builder
 
-	b.WriteString("[agent:quality] [KICK]\n")
+	b.WriteString("[agent:quality]\n")
 	b.WriteString("TEST STRATEGIST — build test coverage from current level toward target.\n\n")
 
 	b.WriteString(fmt.Sprintf("COVERAGE TARGET: %.0f%%\n", defaultCoverageTargetPct))
@@ -566,7 +569,7 @@ func (s *Scheduler) buildQualityMessage(issues []github.Issue, actionable *githu
 
 func (s *Scheduler) buildArchitectMessage(issues []github.Issue, actionable *github.ActionableResult) string {
 	var b strings.Builder
-	b.WriteString("[agent:architect] [KICK]\n")
+	b.WriteString("[agent:architect]\n")
 	b.WriteString("Full architect pass — refactor/perf scan across all repos.\n\n")
 
 	b.WriteString(s.ghAuthInstructions())
@@ -620,7 +623,7 @@ func (s *Scheduler) buildArchitectMessage(issues []github.Issue, actionable *git
 func (s *Scheduler) buildOutreachMessage(actionable *github.ActionableResult) string {
 	now := time.Now().Local()
 	var b strings.Builder
-	b.WriteString("[agent:outreach] [KICK]\n")
+	b.WriteString("[agent:outreach]\n")
 	b.WriteString(fmt.Sprintf("Full outreach pass. Time: %s\n\n", now.Format("1/2 3:04 PM MST")))
 
 	b.WriteString(s.ghAuthInstructions())
@@ -645,7 +648,7 @@ func (s *Scheduler) buildOutreachMessage(actionable *github.ActionableResult) st
 func (s *Scheduler) buildSecCheckMessage(actionable *github.ActionableResult) string {
 	now := time.Now().Local()
 	var b strings.Builder
-	b.WriteString("[agent:sec-check] [KICK]\n")
+	b.WriteString("[agent:sec-check]\n")
 	b.WriteString(fmt.Sprintf("Security review pass. Time: %s\n\n", now.Format("1/2 3:04 PM MST")))
 
 	b.WriteString(s.ghAuthInstructions())

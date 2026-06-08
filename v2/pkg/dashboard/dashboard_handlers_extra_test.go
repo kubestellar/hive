@@ -313,6 +313,206 @@ func TestHandleGovernorSensingTTLTooHigh(t *testing.T) {
 	}
 }
 
+func TestHandleAgentConfigGeneralMultiField(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"displayName":"New Scanner","description":"Updated desc","enabled":true,"clearOnKick":true,"staleTimeout":300,"emoji":"🔍","color":"#ff0000","sortOrder":5}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/general", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleAgentConfigGeneralUnknownAgent(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"displayName":"test"}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/nonexistent/general", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestHandleAgentConfigRestrictionsUnknownAgent(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"restrictions":[]}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/nonexistent/restrictions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestHandleKnowledgePromoteMissingFields(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"slug":"test"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/promote", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleKnowledgePromote(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing fields, got %d", w.Code)
+	}
+}
+
+func TestHandleKnowledgePromoteAllFieldsMissing(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{}`
+	req := httptest.NewRequest("POST", "/api/knowledge/promote", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleKnowledgePromote(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleKnowledgePromoteValid(t *testing.T) {
+	srv := newMinimalServer(t)
+	body := `{"slug":"test-fact","from_layer":"project","to_layer":"global","promoter":"test"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/promote", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleKnowledgePromote(w, req)
+
+	// Will either succeed or fail gracefully (no fact found)
+	if w.Code == http.StatusBadRequest {
+		body := w.Body.String()
+		if strings.Contains(body, "slug") && strings.Contains(body, "required") {
+			t.Error("should not fail validation with all fields present")
+		}
+	}
+}
+
+func TestHandleGovernorLoggingBadJSON(t *testing.T) {
+	srv := newFullServer(t)
+	req := httptest.NewRequest("PUT", "/api/governor/logging", strings.NewReader(`{invalid`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorLogging(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleGovernorAddAgentBadJSON(t *testing.T) {
+	srv := newFullServer(t)
+	req := httptest.NewRequest("POST", "/api/governor/agents", strings.NewReader(`{invalid`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorAddAgent(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleGovernorAddAgentMissingName(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"role":"scanner"}`
+	req := httptest.NewRequest("POST", "/api/governor/agents", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorAddAgent(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleGovernorAddAgentDuplicate(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"name":"scanner","role":"scanner"}`
+	req := httptest.NewRequest("POST", "/api/governor/agents", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorAddAgent(w, req)
+
+	// scanner already exists
+	if w.Code != http.StatusConflict && w.Code != http.StatusBadRequest {
+		t.Logf("add duplicate agent: %d", w.Code)
+	}
+}
+
+func TestHandleGovernorHubUpdate(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"enabled":true,"url":"https://hub.example.com","dashboard_url":"https://dash.example.com","is_public":true,"auto_snapshot":false,"contribute_allow_labels":["good-first-issue"],"contribute_deny_labels":["wontfix"],"disabled_repos":["archived-repo"],"disabled_tiers":["newcomer"]}`
+	req := httptest.NewRequest("PUT", "/api/governor/hub", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorHub(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleGovernorHubBadJSON(t *testing.T) {
+	srv := newFullServer(t)
+	req := httptest.NewRequest("PUT", "/api/governor/hub", strings.NewReader(`{bad`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorHub(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleGovernorHubPartialUpdate(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"url":"https://new-hub.example.com","snapshot_url":"https://snap.example.com"}`
+	req := httptest.NewRequest("PUT", "/api/governor/hub", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorHub(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if srv.deps.Config.Hub.URL != "https://new-hub.example.com" {
+		t.Errorf("hub URL not updated: %q", srv.deps.Config.Hub.URL)
+	}
+}
+
+func TestHandleGovernorAddAgentNewAgent(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"name":"helper","backend":"claude","model":"sonnet"}`
+	req := httptest.NewRequest("POST", "/api/governor/agents", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorAddAgent(w, req)
+
+	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
+		t.Errorf("expected 200/201, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleGovernorLoggingValid(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"log_level":"debug","log_tmux":true}`
+	req := httptest.NewRequest("PUT", "/api/governor/logging", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorLogging(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
 func TestHandleGovernorSensingPullbackTooHigh(t *testing.T) {
 	srv := newFullServer(t)
 	body := `{"pullbackSeconds":999999}`

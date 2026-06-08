@@ -7936,10 +7936,10 @@ function burnAreaChart() {
     };
     const RESTART_STRATEGIES = ['immediate', 'backoff', 'none'];
 
-    function openConfigDialog(type, agentName) {
+    function openConfigDialog(type, agentName, initialTabOverride) {
       const isCreate = type === 'agent' && !agentName;
       _configModalOpen = true;
-      _configState = { type, agent: agentName || null, tab: null, data: {}, dirty: {}, isCreate };
+      _configState = { type, agent: agentName || null, tab: null, data: {}, dirty: {}, isCreate, initialTabOverride: initialTabOverride || null };
       document.getElementById('config-overlay').classList.remove('hidden');
       const title = type === 'governor' ? 'Governor Configuration' : isCreate ? 'Create Agent' : `${agentName || 'Agent'} Configuration`;
       document.querySelector('.config-title').textContent = title;
@@ -7956,7 +7956,8 @@ function burnAreaChart() {
       } else {
         const configKey = type === 'governor' ? '__governor__' : agentName;
         const savedTab = _configTabMemory[configKey];
-        const initialTab = savedTab && tabs.includes(savedTab) ? savedTab : tabs[0];
+        const overrideTab = _configState.initialTabOverride;
+        const initialTab = (overrideTab && tabs.includes(overrideTab)) ? overrideTab : (savedTab && tabs.includes(savedTab) ? savedTab : tabs[0]);
         document.getElementById('config-body').innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Loading…</div>';
         loadConfigData(type, agentName).finally(() => {
           if (!_configModalOpen) return;
@@ -7979,7 +7980,24 @@ function burnAreaChart() {
       _configModalOpen = false;
       _configState = { type: null, agent: null, tab: null, data: {}, dirty: {} };
       document.getElementById('config-overlay').classList.add('hidden');
+      if (location.hash.startsWith('#config/')) history.replaceState(null, '', location.pathname);
     }
+
+    function handleConfigHash() {
+      const hash = location.hash;
+      if (!hash.startsWith('#config/')) return;
+      const parts = hash.slice(8).split('/').map(decodeURIComponent);
+      if (parts.length < 1) return;
+      const target = parts[0];
+      const tab = parts[1] || null;
+      if (target === 'governor') {
+        openConfigDialog('governor', null, tab);
+      } else {
+        openConfigDialog('agent', target, tab);
+      }
+    }
+    window.addEventListener('hashchange', () => { if (location.hash.startsWith('#config/')) handleConfigHash(); });
+    setTimeout(() => { if (location.hash.startsWith('#config/')) handleConfigHash(); }, 1000);
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && _configModalOpen) closeConfigDialog();
@@ -8263,6 +8281,8 @@ function burnAreaChart() {
         t.classList.toggle('active', t.dataset.tab === tabId);
       });
       renderConfigTab(tabId);
+      const hashTarget = _configState.type === 'governor' ? 'governor' : _configState.agent;
+      if (hashTarget) history.replaceState(null, '', '#config/' + encodeURIComponent(hashTarget) + '/' + encodeURIComponent(tabId));
     }
 
     async function loadConfigData(type, agentName) {

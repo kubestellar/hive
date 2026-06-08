@@ -1685,22 +1685,22 @@ const dashboardHTML = `<!DOCTYPE html>
       var st = hp.status || 'unknown';
       var colors = {ok:'#3fb950',warning:'#d29922',degraded:'#f85149',critical:'#ff4040',unknown:'#6b7280'};
       var icons = {ok:'✓',warning:'⚠',degraded:'⚠',critical:'✕',unknown:'?'};
+      var checkIcons = {pass:'✓',fail:'✕',warn:'⚠',skip:'–'};
       var c = colors[st] || colors.unknown;
       var ic = icons[st] || '?';
       var isUpgrading = _upgradingHives[h.id];
       var statusLabel = isUpgrading ? 'Starting up after upgrade' : st.charAt(0).toUpperCase() + st.slice(1);
+      var checks = hp.checks || [];
       var lines = [statusLabel];
-      var agents = h.agents || [];
-      var stalled = agents.filter(function(a) { return a.state === 'stalled'; });
-      var failed = agents.filter(function(a) { return a.state === 'failed' || a.state === 'error'; });
-      var running = agents.filter(function(a) { return a.state === 'running'; });
-      var paused = agents.filter(function(a) { return a.state === 'paused'; });
-      if (running.length) lines.push('Running: ' + running.map(function(a){return a.name}).join(', '));
-      if (stalled.length) lines.push('Stalled: ' + stalled.map(function(a){return a.name}).join(', '));
-      if (failed.length) lines.push('Failed: ' + failed.map(function(a){return a.name}).join(', '));
-      if (paused.length) lines.push('Paused: ' + paused.map(function(a){return a.name}).join(', '));
-      var tip = lines.join('\n');
-      return '<span title="' + esc(tip) + '" style="display:inline-flex;align-items:center;gap:4px;cursor:help;white-space:pre-line"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + c + '"></span><span style="font-size:0.7rem;color:' + c + ';font-weight:600">' + ic + '</span></span>';
+      for (var i = 0; i < checks.length; i++) {
+        var ck = checks[i];
+        var ci = checkIcons[ck.status] || '?';
+        var line = ci + ' ' + ck.name;
+        if (ck.detail) line += ': ' + ck.detail;
+        lines.push(line);
+      }
+      if (!checks.length) lines.push('No check data');
+      return '<span title="' + esc(lines.join('\n')) + '" style="display:inline-flex;align-items:center;gap:4px;cursor:help;white-space:pre-line"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + c + '"></span><span style="font-size:0.7rem;color:' + c + ';font-weight:600">' + ic + '</span></span>';
     }
     function dashboardLink(h) {
       var isHosted = h.id && (h.id.startsWith('hosted-') || h.id.startsWith('saas-'));

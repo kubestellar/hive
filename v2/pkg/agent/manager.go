@@ -426,6 +426,22 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	}
 
 	if bootstrapPrompt != "" {
+		now := time.Now()
+		agent.LastKick = &now
+		agent.LastKickMessage = bootstrapPrompt
+		snippet := bootstrapPrompt
+		const maxBootstrapSnippet = 200
+		if len(snippet) > maxBootstrapSnippet {
+			snippet = snippet[:maxBootstrapSnippet] + "..."
+		}
+		agent.KickHistory = append(agent.KickHistory, KickRecord{Timestamp: now, Agent: agent.Name, Snippet: snippet})
+		m.logger.Info("audit: agent kicked",
+			"name", agent.Name,
+			"message_len", len(bootstrapPrompt),
+			"preview", snippet,
+			"trigger", "startup",
+		)
+
 		promptFile := fmt.Sprintf("/tmp/.hive-bootstrap-%s.txt", agent.Name)
 		if err := os.WriteFile(promptFile, []byte(bootstrapPrompt), 0o644); err != nil {
 			m.logger.Warn("failed to write bootstrap prompt", "name", agent.Name, "error", err)

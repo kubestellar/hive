@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubestellar/hive/v2/pkg/agent"
 	"github.com/kubestellar/hive/v2/pkg/github"
 )
 
@@ -294,6 +295,7 @@ func (s *Server) SetSkipReloadFunc(fn func()) {
 
 func (s *Server) registerCoreRoutes() {
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /api/health/deep", s.handleHealthDeep)
 	s.mux.HandleFunc("GET /api/status", s.handleStatus)
 	s.mux.HandleFunc("GET /api/events", s.handleSSE)
 }
@@ -329,7 +331,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 			"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
-		if s.authToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" && r.URL.Path != "/api/auth/token" {
+		if s.authToken != "" && strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/api/health") && r.URL.Path != "/api/auth/token" {
 			trusted := secureCompare(r.Header.Get("X-Hive-Internal"), s.authToken)
 			if !trusted && r.Header.Get("X-Hive-User") != "" && r.Header.Get("X-Hive-Role") != "" {
 				// Trust nginx auth-url proxied requests that have both user
@@ -433,6 +435,133 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleHealthDeep(w http.ResponseWriter, r *http.Request) {
+	checks := map[string]any{}
+	overall := "ok"
+	failCount := 0
+
+	// 1. Basic readiness
+	s.statusMu.RLock()
+	ready := s.status != nil && s.ready
+	s.statusMu.RUnlock()
+	if ready {
+		checks["ready"] = map[string]any{"status": "pass"}
+	} else {
+		checks["ready"] = map[string]any{"status": "fail", "detail": "status not yet available"}
+		overall = "degraded"
+		failCount++
+	}
+
+	// 2. GitHub auth
+	if s.deps != nil && s.deps.GHAppAuth != nil {
+		if _, err := s.deps.GHAppAuth.Token(s.deps.Ctx); err == nil {
+			checks["github_auth"] = map[string]any{"status": "pass"}
+		} else {
+			checks["github_auth"] = map[string]any{"status": "fail", "detail": err.Error()}
+			overall = "degraded"
+			failCount++
+		}
+	} else if s.deps != nil && s.deps.GHClient != nil {
+		checks["github_auth"] = map[string]any{"status": "pass", "detail": "token-based"}
+	} else {
+		checks["github_auth"] = map[string]any{"status": "fail", "detail": "no GitHub auth configured"}
+		overall = "degraded"
+		failCount++
+	}
+
+	// 3. Agents
+	if s.deps != nil && s.deps.AgentMgr != nil {
+		agentChecks := map[string]any{}
+		for name, proc := range s.deps.AgentMgr.AllStatuses() {
+			ac := map[string]any{
+				"state": string(proc.State),
+			}
+			if proc.Paused {
+				ac["paused"] = true
+				ac["status"] = "skip"
+			} else if proc.State == agent.StateRunning {
+				ac["status"] = "pass"
+				if proc.LastKick != nil {
+					ac["last_kick"] = proc.LastKick.Format(time.RFC3339)
+					ac["last_kick_age"] = time.Since(*proc.LastKick).Round(time.Second).String()
+				}
+				if proc.LastKickMessage != "" {
+					ac["last_prompt_len"] = len(proc.LastKickMessage)
+					hasRawVars := false
+					for _, v := range []string{"${ISSUE_LIST}", "${PR_LIST}", "${HIVE_REPO}", "${KNOWLEDGE}"} {
+						if strings.Contains(proc.LastKickMessage, v) {
+							hasRawVars = true
+							break
+						}
+					}
+					if hasRawVars {
+						ac["status"] = "warn"
+						ac["detail"] = "unsubstituted template variables in last kick"
+					}
+				} else {
+					ac["status"] = "warn"
+					ac["detail"] = "no kick message recorded"
+				}
+			} else {
+				ac["status"] = "fail"
+				failCount++
+			}
+			agentChecks[name] = ac
+		}
+		checks["agents"] = agentChecks
+	}
+
+	// 4. Governor
+	if s.deps != nil && s.deps.Governor != nil {
+		state := s.deps.Governor.GetState()
+		govCheck := map[string]any{
+			"status": "pass",
+			"mode":   string(state.Mode),
+			"issues": state.QueueIssues,
+			"prs":    state.QueuePRs,
+			"hold":   state.QueueHold,
+		}
+		checks["governor"] = govCheck
+	}
+
+	// 5. Contribute
+	if s.contributeHub != nil {
+		active := s.contributeHub.ActiveCount()
+		checks["contribute"] = map[string]any{
+			"status":             "pass",
+			"active_contributors": active,
+		}
+	}
+
+	// 6. Config
+	if s.deps != nil && s.deps.Config != nil {
+		cfg := s.deps.Config
+		checks["config"] = map[string]any{
+			"status":  "pass",
+			"org":     cfg.Project.Org,
+			"repos":   len(cfg.Project.Repos),
+			"hive_id": cfg.HiveID,
+		}
+		if cfg.ACMMLevel != nil {
+			checks["config"].(map[string]any)["acmm_level"] = *cfg.ACMMLevel
+		}
+	}
+
+	if failCount > 2 {
+		overall = "critical"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if overall != "ok" {
+		w.WriteHeader(http.StatusOK)
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"status": overall,
+		"checks": checks,
+		"fails":  failCount,
+	})
 }
 
 func (s *Server) MarkReady() {

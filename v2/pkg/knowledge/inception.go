@@ -1105,12 +1105,9 @@ func buildJavaTestStubs(acceptance []Fact) string {
 }
 
 func buildShellMain(name string, vision *Fact) string {
-	desc := name
-	if vision != nil && vision.Body != "" {
-		desc = vision.Body
-		if len(desc) > maxDescriptionLen {
-			desc = desc[:maxDescriptionLen]
-		}
+	desc := singleLine(name)
+	if vision != nil && vision.Title != "" {
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euo pipefail

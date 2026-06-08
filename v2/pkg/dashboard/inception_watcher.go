@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/agent"
@@ -49,7 +50,8 @@ type InceptionWatcher struct {
 	ctx               context.Context
 	factGraceStart    time.Time
 
-	plukFactLines      []string
+	plukMu              sync.Mutex
+	plukFactLines       []string
 	plukIdleInStructure bool
 	plukQuestions       []knowledge.Question
 	plukBdCreateLines   []string
@@ -136,10 +138,12 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.lastKickRetry = time.Time{}
 		w.rateLimitedUntil = time.Time{}
 		w.factGraceStart = time.Time{}
+		w.plukMu.Lock()
 		w.plukFactLines = nil
 		w.plukQuestions = nil
 		w.plukBdCreateLines = nil
 		w.plukIdleInStructure = false
+		w.plukMu.Unlock()
 		if w.lastSlug != "" {
 			w.reapOldInceptionBeads(state.StartedAt)
 		}
@@ -415,7 +419,11 @@ func (w *InceptionWatcher) runPlukSubscriber(ctx context.Context) {
 }
 
 // handlePlukEvent reacts to pluk events from the brainstorm session.
+// Called from the Pluk subscriber goroutine — must hold plukMu for field access.
 func (w *InceptionWatcher) handlePlukEvent(event plukEvent) {
+	w.plukMu.Lock()
+	defer w.plukMu.Unlock()
+
 	state := w.inception.GetState()
 	if state == nil {
 		return
@@ -1106,7 +1114,11 @@ func (w *InceptionWatcher) autoGenerateQuestions(state *knowledge.InceptionState
 // beads. This is a Pluk-driven alternative to the 60s auto-fact fallback:
 // it fires immediately on idle detection instead of waiting for a timeout.
 func (w *InceptionWatcher) tryExtractFactsFromPluk(ctx context.Context, state *knowledge.InceptionState) {
-	if len(w.plukFactLines) == 0 || len(state.Answers) == 0 {
+	w.plukMu.Lock()
+	factLines := append([]string{}, w.plukFactLines...)
+	w.plukMu.Unlock()
+
+	if len(factLines) == 0 || len(state.Answers) == 0 {
 		return
 	}
 
@@ -1123,7 +1135,7 @@ func (w *InceptionWatcher) tryExtractFactsFromPluk(ctx context.Context, state *k
 	}
 
 	seen := make(map[string]bool)
-	for _, line := range w.plukFactLines {
+	for _, line := range factLines {
 		lower := strings.ToLower(line)
 		for keyword, factType := range factTypeKeywords {
 			if strings.Contains(lower, keyword) && !seen[keyword] {
@@ -1164,7 +1176,9 @@ func (w *InceptionWatcher) tryExtractFactsFromPluk(ctx context.Context, state *k
 		"count", len(facts),
 		"source", "pluk-raw-output",
 	)
+	w.plukMu.Lock()
 	w.plukFactLines = nil
+	w.plukMu.Unlock()
 }
 
 // interceptFactsFromBuffer reads the tmux buffer and buffers fact-like
@@ -1179,6 +1193,9 @@ func (w *InceptionWatcher) interceptFactsFromBuffer(ctx context.Context, state *
 	if err != nil || len(lines) == 0 {
 		return
 	}
+
+	w.plukMu.Lock()
+	defer w.plukMu.Unlock()
 
 	for _, line := range lines {
 		lower := strings.ToLower(line)

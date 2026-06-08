@@ -35,12 +35,13 @@ func (s *Server) handleInceptionStart(w http.ResponseWriter, r *http.Request) {
 
 	if req.Force {
 		_ = s.deps.Inception.Reset()
+		// Don't kill the session — kickBrainstorm will SendKick to the
+		// running agent, which is faster than kill+restart. Killing a
+		// busy session causes the next RestartWithBootstrap to race
+		// with shell initialization, producing the alternating pattern.
 		if s.deps.AgentMgr != nil {
-			_ = s.deps.AgentMgr.KillSession("brainstorm")
 			_ = s.deps.AgentMgr.Pause("brainstorm", "inception-force-reset", "forced reset before new inception")
 		}
-		// Close all inception beads from previous runs so the watcher
-		// doesn't confuse them with new ones.
 		if store, ok := s.deps.BeadStores["brainstorm"]; ok {
 			s.clearInceptionBeads(store)
 		}

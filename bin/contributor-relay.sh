@@ -22,7 +22,7 @@ const rawHub = process.env.HIVE_HUB || 'wss://hive.kubestellar.io:3001/contribut
 const HUB_URL = rawHub.replace(/\/contribute\/?$/, '/api/contribute/ws');
 const REG_TOKEN = process.env.HIVE_REGISTRATION_TOKEN;
 const BACKEND = process.env.AGENT_BACKEND || 'claude';
-const MODEL = process.env.AGENT_MODEL || '';
+const MODEL = process.env.AGENT_MODEL || process.env.GOOSE_MODEL || '';
 const TMUX_SESSION = process.env.HIVE_AGENT_SESSION || 'contributor';
 const GH_TOKEN_CACHE = fs.existsSync('/var/run/hive-metrics')
   ? '/var/run/hive-metrics/gh-app-token.cache'

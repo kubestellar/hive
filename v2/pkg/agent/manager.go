@@ -63,8 +63,10 @@ type AgentProcess struct {
 	lastPaneCapture []string
 	paneMu          sync.RWMutex
 	KickHistory     []KickRecord
-	LastKickMessage string
-	LaunchedMode    AgentMode
+	LastKickMessage    string
+	KickRefused        bool
+	KickRefusalReason  string
+	LaunchedMode       AgentMode
 	HasLaunched     bool
 	tmuxSession     string
 	tmuxSocket      string
@@ -589,6 +591,9 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 					agent.OutputBuffer.Write(l)
 				}
 				m.logOutputSignals(agent.Name, l)
+				if !agent.KickRefused {
+					m.checkKickRefusal(agent, l)
+				}
 			}
 			prevLines = filtered
 		}
@@ -921,6 +926,38 @@ func (m *Manager) logOutputSignals(agent, line string) {
 				"agent", agent,
 				"event", event,
 				"content", preview,
+			)
+			return
+		}
+	}
+}
+
+var kickRefusalPatterns = []string{
+	"I'm declining to execute",
+	"I'm declining this",
+	"prompt injection",
+	"I won't act on bulk automated",
+	"credential handling concern",
+	"autonomous orchestration prompt",
+	"I shouldn't follow autonomously",
+	"characteristic of a prompt injection attack",
+}
+
+func (m *Manager) checkKickRefusal(agent *AgentProcess, line string) {
+	lower := strings.ToLower(line)
+	for _, pattern := range kickRefusalPatterns {
+		if strings.Contains(lower, strings.ToLower(pattern)) {
+			agent.KickRefused = true
+			const maxReasonLen = 200
+			reason := line
+			if len(reason) > maxReasonLen {
+				reason = reason[:maxReasonLen]
+			}
+			agent.KickRefusalReason = reason
+			m.logger.Warn("agent refused kick",
+				"agent", agent.Name,
+				"pattern", pattern,
+				"line", reason,
 			)
 			return
 		}
@@ -1329,6 +1366,8 @@ func (m *Manager) SendKick(name string, message string) error {
 	now := time.Now()
 	agent.LastKick = &now
 	agent.LastKickMessage = message
+	agent.KickRefused = false
+	agent.KickRefusalReason = ""
 
 	snippet := message
 	const maxSnippetLen = 120

@@ -1491,6 +1491,7 @@ func (a *AgentProcess) snapshot() AgentProcess {
 		BackendOverride: a.BackendOverride,
 		RestartCount:    a.RestartCount,
 		KickHistory:     history,
+		LastKickMessage: a.LastKickMessage,
 		tmuxSession:     a.tmuxSession,
 		tmuxSocket:      a.tmuxSocket,
 		OutputBuffer:    a.OutputBuffer,

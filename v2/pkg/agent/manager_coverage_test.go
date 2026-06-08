@@ -531,11 +531,8 @@ func TestBuildBootstrapPrompt_NoFile(t *testing.T) {
 	m.mu.RUnlock()
 
 	prompt := m.buildBootstrapPrompt(agent)
-	if prompt == "" {
-		t.Error("expected non-empty fallback prompt")
-	}
-	if !contains(prompt, "first pass") {
-		t.Errorf("expected generic boot prompt, got %q", prompt)
+	if prompt != "" {
+		t.Error("boot prompt should be empty — agents get kicked by governor")
 	}
 }
 
@@ -556,8 +553,8 @@ func TestBuildBootstrapPrompt_WithFile(t *testing.T) {
 	m.mu.RUnlock()
 
 	prompt := m.buildBootstrapPrompt(agent)
-	if prompt == "" {
-		t.Error("expected non-empty prompt")
+	if prompt != "" {
+		t.Error("boot prompt should be empty — agents get kicked by governor")
 	}
 }
 

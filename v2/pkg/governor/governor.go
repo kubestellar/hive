@@ -453,6 +453,15 @@ func (g *Governor) SeedLastKicks(kicks map[string]time.Time) {
 	}
 }
 
+// ClearLastKicks resets all LastKick timestamps so every agent is "due"
+// on the next eval cycle. Paused and on-demand agents are still skipped
+// by agentsDueForKick() — this just clears the timing gate.
+func (g *Governor) ClearLastKicks() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.state.LastKick = make(map[string]time.Time)
+}
+
 func (g *Governor) SeedKickHistory(records []KickRecord) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

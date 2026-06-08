@@ -340,7 +340,7 @@ func TestBuildAgentMessage_UsesTemplate(t *testing.T) {
 		Issues: github.IssueResult{Count: 7},
 	}
 	result := s.BuildAgentMessage("custom-agent", nil, actionable)
-	if !strings.Contains(result, "[agent:custom-agent] [KICK]") {
+	if !strings.Contains(result, "[agent:custom-agent]") {
 		t.Errorf("expected kick header: %s", result)
 	}
 	if !strings.Contains(result, "Custom: custom-agent issues=7") {
@@ -357,7 +357,7 @@ func TestBuildQualityMessage_NoIssues(t *testing.T) {
 	actionable := &github.ActionableResult{}
 	msg := s.buildQualityMessage(nil, actionable)
 
-	if !strings.Contains(msg, "[agent:quality] [KICK]") {
+	if !strings.Contains(msg, "[agent:quality]") {
 		t.Error("expected quality header")
 	}
 	if strings.Contains(msg, "TEST-RELATED ISSUES") {

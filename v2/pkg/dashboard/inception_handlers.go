@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kubestellar/hive/v2/pkg/beads"
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
 )
 
@@ -35,11 +36,13 @@ func (s *Server) handleInceptionStart(w http.ResponseWriter, r *http.Request) {
 	if req.Force {
 		_ = s.deps.Inception.Reset()
 		if s.deps.AgentMgr != nil {
-			// Kill the tmux session to ensure a clean slate — stale
-			// session state from a previous inception causes the agent
-			// to alternate between responsive and unresponsive.
 			_ = s.deps.AgentMgr.KillSession("brainstorm")
 			_ = s.deps.AgentMgr.Pause("brainstorm", "inception-force-reset", "forced reset before new inception")
+		}
+		// Close all inception beads from previous runs so the watcher
+		// doesn't confuse them with new ones.
+		if store, ok := s.deps.BeadStores["brainstorm"]; ok {
+			s.clearInceptionBeads(store)
 		}
 	}
 
@@ -210,6 +213,23 @@ func (s *Server) handleInceptionApprove(w http.ResponseWriter, r *http.Request) 
 	}
 
 	jsonResponse(w, map[string]interface{}{"ok": true})
+}
+
+func (s *Server) clearInceptionBeads(store *beads.Store) {
+	all := store.List(beads.ListFilter{})
+	closed := 0
+	for _, b := range all {
+		if b.Status != beads.StatusOpen {
+			continue
+		}
+		if b.Actor == "brainstorm" || b.Actor == "inception" {
+			_ = store.Close(b.ID)
+			closed++
+		}
+	}
+	if closed > 0 {
+		s.logger.Info("cleared inception beads on force-reset", "closed", closed)
+	}
 }
 
 func (s *Server) handleInceptionReset(w http.ResponseWriter, r *http.Request) {

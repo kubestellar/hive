@@ -115,6 +115,27 @@ func TestLogNtfyErrorDifferentMessage(t *testing.T) {
 	}
 }
 
+func TestSendSlackNetworkError(t *testing.T) {
+	n := New(config.NotificationsConfig{
+		Slack: &config.SlackConfig{Webhook: "http://127.0.0.1:1/slack"},
+	}, slog.Default())
+	n.sendSlack("Test", "message")
+}
+
+func TestSendDiscordNetworkError(t *testing.T) {
+	n := New(config.NotificationsConfig{
+		Discord: &config.DiscordConfig{Webhook: "http://127.0.0.1:1/discord"},
+	}, slog.Default())
+	n.sendDiscordWebhook("Test", "message")
+}
+
+func TestSendNtfyNetworkError(t *testing.T) {
+	n := New(config.NotificationsConfig{
+		Ntfy: &config.NtfyConfig{Server: "http://127.0.0.1:1", Topic: "test"},
+	}, slog.Default())
+	n.sendNtfy("Test", "message", PriorityDefault)
+}
+
 func TestSendWithHiveID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

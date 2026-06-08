@@ -81,7 +81,23 @@ func (w *InceptionWatcher) Run(ctx context.Context) {
 	// Start pluk event subscriber for brainstorm session
 	go w.runPlukSubscriber(ctx)
 
+	const fastPollInterval = 2 * time.Second
+	lastInterval := inceptionWatchIntervalS
+
 	for {
+		// Adaptive polling: 2s during capture/structure, 5s otherwise
+		state := w.inception.GetState()
+		var targetInterval time.Duration
+		if state != nil && (state.Phase == knowledge.PhaseCapture || state.Phase == knowledge.PhaseStructure) {
+			targetInterval = fastPollInterval
+		} else {
+			targetInterval = inceptionWatchIntervalS
+		}
+		if targetInterval != lastInterval {
+			ticker.Reset(targetInterval)
+			lastInterval = targetInterval
+		}
+
 		select {
 		case <-ctx.Done():
 			w.logger.Info("inception watcher stopped")

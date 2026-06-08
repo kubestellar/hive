@@ -723,6 +723,16 @@ func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.logger.Info("audit: hosted hive upgraded", "hive_id", id, "by", username)
+	latestSHA := getLatestSHA()
+	s.mu.Lock()
+	for i := range s.registry.Hives {
+		if s.registry.Hives[i].ID == id {
+			s.registry.Hives[i].Upgrading = true
+			s.registry.Hives[i].UpgradeTarget = latestSHA
+			break
+		}
+	}
+	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status":"upgrading"}`))
 }
@@ -880,10 +890,28 @@ func (s *HubServer) triggerAutoUpgrades(latestSHA string) {
 			continue
 		}
 		s.logger.Info("audit: auto-upgrade triggered", "hive_id", h.ID, "from", currentSHA, "to", latestSHA)
+		s.mu.Lock()
+		for i := range s.registry.Hives {
+			if s.registry.Hives[i].ID == h.ID {
+				s.registry.Hives[i].Upgrading = true
+				s.registry.Hives[i].UpgradeTarget = latestSHA
+				break
+			}
+		}
+		s.mu.Unlock()
 		ns := "hive-hosted-" + h.ID
 		cmd := exec.Command("kubectl", "rollout", "restart", "deployment/hive", "-n", ns)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			s.logger.Warn("auto-upgrade failed", "hive", h.ID, "output", string(out))
+			s.mu.Lock()
+			for i := range s.registry.Hives {
+				if s.registry.Hives[i].ID == h.ID {
+					s.registry.Hives[i].Upgrading = false
+					s.registry.Hives[i].UpgradeTarget = ""
+					break
+				}
+			}
+			s.mu.Unlock()
 		}
 	}
 }
@@ -1763,7 +1791,7 @@ const dashboardHTML = `<!DOCTYPE html>
           var branchName = h.gitBranch || 'v2';
           var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
           var isCurrent = _latestSHA && sha === _latestSHA;
-          var isUpgrading = _upgradingHives[h.id] && sha !== _upgradingHives[h.id];
+          var isUpgrading = (_upgradingHives[h.id] && sha !== _upgradingHives[h.id]) || h.upgrading;
           if (isCurrent && _upgradingHives[h.id]) delete _upgradingHives[h.id];
           var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
           var upgradeIcon = '';

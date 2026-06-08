@@ -798,36 +798,55 @@ func (s *Server) GetAdvisoryDigest() any {
 	return s.advisoryDigest
 }
 
-// HealthSummary returns a compact deep-health summary for embedding in heartbeats.
+// HealthSummary returns a deep-health summary with individual check results for heartbeats.
 func (s *Server) HealthSummary() map[string]any {
-	summary := map[string]any{"status": "ok", "fails": 0, "warns": 0}
+	type check struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+		Detail string `json:"detail,omitempty"`
+	}
+	checks := []check{}
 	fails := 0
 	warns := 0
 
+	// 1. Readiness
 	s.statusMu.RLock()
 	ready := s.status != nil && s.ready
 	s.statusMu.RUnlock()
-	if !ready {
+	if ready {
+		checks = append(checks, check{Name: "ready", Status: "pass"})
+	} else {
+		checks = append(checks, check{Name: "ready", Status: "fail", Detail: "not ready"})
 		fails++
 	}
 
+	// 2. GitHub auth
 	if s.deps != nil && s.deps.GHAppAuth != nil {
 		if _, err := s.deps.GHAppAuth.Token(s.deps.Ctx); err != nil {
+			checks = append(checks, check{Name: "github_auth", Status: "fail", Detail: "token error"})
 			fails++
-			summary["github_auth"] = "fail"
+		} else {
+			checks = append(checks, check{Name: "github_auth", Status: "pass"})
 		}
-	} else if s.deps == nil || s.deps.GHClient == nil {
+	} else if s.deps != nil && s.deps.GHClient != nil {
+		checks = append(checks, check{Name: "github_auth", Status: "pass", Detail: "token"})
+	} else {
+		checks = append(checks, check{Name: "github_auth", Status: "fail", Detail: "no auth"})
 		fails++
-		summary["github_auth"] = "fail"
 	}
 
+	// 3. Agents
 	if s.deps != nil && s.deps.AgentMgr != nil {
-		stalled := 0
-		running := 0
 		grace := s.inHealthGrace()
 		const staleOutputThreshold = 30 * time.Minute
+		running := 0
+		paused := 0
+		stalled := 0
+		unsubstituted := 0
+		down := 0
 		for _, proc := range s.deps.AgentMgr.AllStatuses() {
 			if proc.Paused {
+				paused++
 				continue
 			}
 			if proc.State == agent.StateRunning {
@@ -835,7 +854,7 @@ func (s *Server) HealthSummary() map[string]any {
 				if !grace && proc.LastKickMessage != "" {
 					for _, v := range []string{"${ISSUE_LIST}", "${PR_LIST}", "${HIVE_REPO}", "${KNOWLEDGE}"} {
 						if strings.Contains(proc.LastKickMessage, v) {
-							warns++
+							unsubstituted++
 							break
 						}
 					}
@@ -846,31 +865,85 @@ func (s *Server) HealthSummary() map[string]any {
 					}
 				}
 			} else if !grace {
-				fails++
+				down++
 			}
 		}
-		summary["agents_running"] = running
+		detail := fmt.Sprintf("%d running", running)
+		if paused > 0 {
+			detail += fmt.Sprintf(", %d paused", paused)
+		}
+		if down > 0 {
+			detail += fmt.Sprintf(", %d down", down)
+		}
+		st := "pass"
+		if down > 0 {
+			st = "fail"
+			fails++
+		}
+		checks = append(checks, check{Name: "agents", Status: st, Detail: detail})
+
 		if stalled > 0 {
+			checks = append(checks, check{Name: "stall_detection", Status: "warn", Detail: fmt.Sprintf("%d stalled (no output 30+ min)", stalled)})
 			warns++
-			summary["stalled"] = stalled
+		} else {
+			checks = append(checks, check{Name: "stall_detection", Status: "pass"})
+		}
+
+		if unsubstituted > 0 {
+			checks = append(checks, check{Name: "template_vars", Status: "warn", Detail: fmt.Sprintf("%d with raw ${VARS}", unsubstituted)})
+			warns++
 		}
 	}
 
+	// 4. Governor
+	if s.deps != nil && s.deps.Governor != nil {
+		state := s.deps.Governor.GetState()
+		checks = append(checks, check{Name: "governor", Status: "pass", Detail: string(state.Mode)})
+	}
+
+	// 5. Contribute
+	if s.contributeHub != nil {
+		active := s.contributeHub.ActiveCount()
+		checks = append(checks, check{Name: "contribute", Status: "pass", Detail: fmt.Sprintf("%d active", active)})
+	}
+
+	// 6. Token consumption
 	if s.deps != nil && s.deps.Tokens != nil {
 		ts := s.deps.Tokens.Summary()
-		if ts != nil && ts.TotalTokens == 0 {
-			warns++
+		if ts != nil {
+			if ts.TotalTokens == 0 {
+				checks = append(checks, check{Name: "tokens", Status: "warn", Detail: "zero consumed"})
+				warns++
+			} else {
+				checks = append(checks, check{Name: "tokens", Status: "pass", Detail: fmt.Sprintf("%d total", ts.TotalTokens)})
+			}
 		}
 	}
 
-	summary["fails"] = fails
-	summary["warns"] = warns
-	if fails > 2 {
-		summary["status"] = "critical"
-	} else if fails > 0 {
-		summary["status"] = "degraded"
-	} else if warns > 0 {
-		summary["status"] = "warning"
+	// 7. Queue
+	s.statusMu.RLock()
+	if s.status != nil {
+		total := 0
+		for _, repo := range s.status.Repos {
+			total += len(repo.ActionableIssues)
+		}
+		checks = append(checks, check{Name: "queue", Status: "pass", Detail: fmt.Sprintf("%d actionable", total)})
 	}
-	return summary
+	s.statusMu.RUnlock()
+
+	overall := "ok"
+	if fails > 2 {
+		overall = "critical"
+	} else if fails > 0 {
+		overall = "degraded"
+	} else if warns > 0 {
+		overall = "warning"
+	}
+
+	return map[string]any{
+		"status": overall,
+		"fails":  fails,
+		"warns":  warns,
+		"checks": checks,
+	}
 }

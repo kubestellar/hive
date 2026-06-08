@@ -65,7 +65,8 @@ type Server struct {
 
 	contributeHub *ContributeWSHub
 
-	ready bool
+	ready   bool
+	readyAt time.Time
 }
 
 // StatusPayload matches the JSON contract the dashboard frontend render() expects.
@@ -640,8 +641,17 @@ func (s *Server) handleHealthDeep(w http.ResponseWriter, r *http.Request) {
 func (s *Server) MarkReady() {
 	s.statusMu.Lock()
 	s.ready = true
+	s.readyAt = time.Now()
 	s.statusMu.Unlock()
 	s.logger.Info("dashboard marked ready")
+}
+
+const healthGracePeriod = 90 * time.Second
+
+func (s *Server) inHealthGrace() bool {
+	s.statusMu.RLock()
+	defer s.statusMu.RUnlock()
+	return !s.readyAt.IsZero() && time.Since(s.readyAt) < healthGracePeriod
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -814,6 +824,7 @@ func (s *Server) HealthSummary() map[string]any {
 	if s.deps != nil && s.deps.AgentMgr != nil {
 		stalled := 0
 		running := 0
+		grace := s.inHealthGrace()
 		const staleOutputThreshold = 30 * time.Minute
 		for _, proc := range s.deps.AgentMgr.AllStatuses() {
 			if proc.Paused {
@@ -821,7 +832,7 @@ func (s *Server) HealthSummary() map[string]any {
 			}
 			if proc.State == agent.StateRunning {
 				running++
-				if proc.LastKickMessage != "" {
+				if !grace && proc.LastKickMessage != "" {
 					for _, v := range []string{"${ISSUE_LIST}", "${PR_LIST}", "${HIVE_REPO}", "${KNOWLEDGE}"} {
 						if strings.Contains(proc.LastKickMessage, v) {
 							warns++
@@ -829,12 +840,12 @@ func (s *Server) HealthSummary() map[string]any {
 						}
 					}
 				}
-				if proc.OutputBuffer != nil && proc.OutputBuffer.Count() == 0 && proc.LastKick != nil {
+				if !grace && proc.OutputBuffer != nil && proc.OutputBuffer.Count() == 0 && proc.LastKick != nil {
 					if time.Since(*proc.LastKick) > staleOutputThreshold {
 						stalled++
 					}
 				}
-			} else {
+			} else if !grace {
 				fails++
 			}
 		}

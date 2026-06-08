@@ -41,6 +41,7 @@ type SaaSHive struct {
 	CreatedAt   string `json:"created_at"`
 	Subdomain   string `json:"subdomain"`
 	Error       string `json:"error,omitempty"`
+	AutoUpgrade bool   `json:"auto_upgrade"`
 }
 
 type CreateHiveRequest struct {

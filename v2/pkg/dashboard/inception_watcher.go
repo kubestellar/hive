@@ -1231,26 +1231,24 @@ func (w *InceptionWatcher) interceptQuestionsFromBuffer(state *knowledge.Incepti
 		return
 	}
 
+	w.plukMu.Lock()
+	defer w.plukMu.Unlock()
+
 	for _, line := range lines {
 		lower := strings.ToLower(line)
 		var q *knowledge.Question
 
 		switch {
-		// bd create --title "..."
 		case strings.Contains(lower, "bd create") && strings.Contains(lower, "--title"):
 			q = w.parseQuestionFromBdCreate(line)
 
-		// Tool call preview: ● Create question bead (shell)
-		// followed by: └ bd create --title "..."
 		case strings.HasPrefix(strings.TrimSpace(line), "└") && strings.Contains(lower, "--title"):
 			q = w.parseQuestionFromBdCreate(line)
 
-		// Question lines ending with ? that contain category keywords
 		case strings.HasSuffix(strings.TrimSpace(line), "?") && len(line) > 20:
 			for kw := range categoryKeywords {
 				if strings.Contains(lower, kw) {
 					text := strings.TrimSpace(line)
-					// Remove numbered prefix like "1. " or "- "
 					if m := numberedQuestionRe.FindStringSubmatch(text); m != nil {
 						text = strings.TrimSpace(m[2])
 					}

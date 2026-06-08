@@ -245,7 +245,10 @@ func (s *Server) handleInceptionReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-pause brainstorm after reset so the governor doesn't kick it.
+	if store, ok := s.deps.BeadStores["brainstorm"]; ok {
+		s.clearInceptionBeads(store)
+	}
+
 	if s.deps.AgentMgr != nil {
 		_ = s.deps.AgentMgr.Pause("brainstorm", "inception-reset", "inception reset — on-demand only")
 	}

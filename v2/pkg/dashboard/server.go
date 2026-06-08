@@ -505,6 +505,10 @@ func (s *Server) handleHealthDeep(w http.ResponseWriter, r *http.Request) {
 					ac["status"] = "warn"
 					ac["detail"] = "no kick message recorded"
 				}
+				if proc.KickRefused {
+					ac["status"] = "warn"
+					ac["detail"] = "refused kick: " + proc.KickRefusalReason
+				}
 			} else {
 				ac["status"] = "fail"
 				failCount++
@@ -891,6 +895,17 @@ func (s *Server) HealthSummary() map[string]any {
 
 		if unsubstituted > 0 {
 			checks = append(checks, check{Name: "template_vars", Status: "warn", Detail: fmt.Sprintf("%d with raw ${VARS}", unsubstituted)})
+			warns++
+		}
+
+		refused := []string{}
+		for name, proc := range s.deps.AgentMgr.AllStatuses() {
+			if proc.KickRefused {
+				refused = append(refused, name)
+			}
+		}
+		if len(refused) > 0 {
+			checks = append(checks, check{Name: "kick_refusal", Status: "warn", Detail: fmt.Sprintf("%s refused kick", strings.Join(refused, ", "))})
 			warns++
 		}
 	}

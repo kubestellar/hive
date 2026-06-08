@@ -2198,6 +2198,13 @@ func (m *Manager) Restart(ctx context.Context, name string) error {
 	if err := m.ensureTmuxSession(agent); err != nil {
 		return err
 	}
+
+	if agent.Paused {
+		agent.State = StatePaused
+		m.logger.Info("agent restart preserving paused state", "name", name)
+		return nil
+	}
+
 	return m.launchInTmux(ctx, agent)
 }
 

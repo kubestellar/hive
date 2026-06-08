@@ -33,16 +33,11 @@ docker compose build
 docker compose up -d
 ```
 
-### Image tags
+### Pre-built image
 
-| Tag | Description |
-|-----|-------------|
-| `ghcr.io/kubestellar/hive:stable` | Last known good release — recommended for production |
-| `ghcr.io/kubestellar/hive:latest` | Built from latest v2 commit — may include untested changes |
-
-To pin to stable, edit `docker-compose.yaml` and replace the `build:` block with:
+To use the pre-built image instead of building from source, edit `docker-compose.yaml` and replace the `build:` block with:
 ```yaml
-image: ghcr.io/kubestellar/hive:stable
+image: ghcr.io/kubestellar/hive:latest
 ```
 
 ## Kubernetes

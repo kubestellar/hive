@@ -1264,6 +1264,26 @@ func (w *InceptionWatcher) interceptQuestionsFromBuffer(state *knowledge.Incepti
 // bdCreateTitleRe extracts the --title value from a bd create command line.
 var bdCreateTitleRe = regexp.MustCompile(`--title\s+"([^"]+)"`)
 
+// isTemplatePlaceholder rejects placeholder titles that the agent outputs
+// as part of showing a command template before filling in actual values.
+func isTemplatePlaceholder(title string) bool {
+	lower := strings.ToLower(title)
+	if strings.HasPrefix(lower, "<") && strings.HasSuffix(lower, ">") {
+		return true
+	}
+	placeholders := []string{
+		"<fact title>", "<question title>", "<title>",
+		"<your question>", "<description>", "<bead title>",
+		"fact_title", "question_title", "your question here",
+	}
+	for _, p := range placeholders {
+		if lower == p {
+			return true
+		}
+	}
+	return false
+}
+
 // parseQuestionFromBdCreate extracts a question from a bd create command
 // in the agent's raw output. Works regardless of --type, --actor, or
 // --external-ref values — the title IS the question.
@@ -1274,6 +1294,9 @@ func (w *InceptionWatcher) parseQuestionFromBdCreate(line string) *knowledge.Que
 	}
 	title := strings.TrimSpace(m[1])
 	if title == "" {
+		return nil
+	}
+	if isTemplatePlaceholder(title) {
 		return nil
 	}
 

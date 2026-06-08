@@ -1466,18 +1466,33 @@ const dashboardHTML = `<!DOCTYPE html>
       setTimeout(function() { t.remove(); }, 4000);
     }
 
-    function hiveConfirm(msg) {
+    function hiveConfirm(msg, rawHTML) {
       return new Promise(function(resolve) {
         var overlay = document.createElement('div');
         overlay.className = 'hive-confirm-overlay';
-        overlay.innerHTML = '<div class="hive-confirm"><p>' + esc(msg) + '</p><div class="hive-confirm-btns">' +
-          '<button style="padding:8px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer" onclick="this.closest(\'.hive-confirm-overlay\').remove()">Cancel</button>' +
+        overlay.innerHTML = '<div class="hive-confirm"><p>' + (rawHTML ? msg : esc(msg)) + '</p><div class="hive-confirm-btns">' +
+          '<button style="padding:8px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Cancel</button>' +
           '<button style="padding:8px 16px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer" id="hive-confirm-ok">Confirm</button></div></div>';
         document.body.appendChild(overlay);
-        overlay.querySelector('#hive-confirm-ok').onclick = function() { overlay.remove(); resolve(true); };
-        overlay.querySelector('button:first-child').onclick = function() { overlay.remove(); resolve(false); };
+        var done = false;
+        function finish(val) { if (done) return; done = true; overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); }
+        function onKey(e) { if (e.key === 'Escape') finish(false); if (e.key === 'Enter') finish(true); }
+        document.addEventListener('keydown', onKey);
+        overlay.querySelector('#hive-confirm-ok').onclick = function() { finish(true); };
+        overlay.querySelector('button:first-child').onclick = function() { finish(false); };
+        overlay.querySelector('#hive-confirm-ok').focus();
       });
     }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Escape') return;
+      var createModal = document.getElementById('create-modal');
+      if (createModal && createModal.style.display === 'flex') { createModal.style.display = 'none'; return; }
+      var accessOverlay = document.querySelector('.hive-confirm-overlay');
+      if (accessOverlay) { accessOverlay.remove(); return; }
+      var accessModal = document.getElementById('access-modal');
+      if (accessModal && accessModal.style.display === 'flex') { accessModal.style.display = 'none'; }
+    });
 
     var ACMM_LABELS = {1:'L1 Idea',2:'L2 Measured',3:'L3 CI/CD',4:'L4 Auto PR',5:'L5 Self-Governing',6:'L6 Fully Autonomous'};
     function acmmBadge(level) {
@@ -1672,7 +1687,7 @@ const dashboardHTML = `<!DOCTYPE html>
           if (isUpgrading) {
             upgradeIcon = ' <span style="display:inline-block;padding:3px 10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:0.7rem;margin-left:6px;white-space:nowrap;opacity:0.8"><span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading</span>';
           } else if (!isCurrent && isHosted && h.role === 'owner') {
-            upgradeIcon = ' <button id="upgrade-' + esc(h.id) + '" onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>';
+            upgradeIcon = ' <button id="upgrade-' + esc(h.id) + '" onclick="upgradeHive(\'' + esc(h.id) + '\',\'' + esc(sha) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>';
           }
           versionCell = branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
         } else { versionCell = '<span style="color:var(--muted)">—</span>'; }
@@ -1716,8 +1731,10 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     var _upgradingHives = {};
-    async function upgradeHive(id) {
-      if (!await hiveConfirm('Upgrade ' + id + ' to latest?')) return;
+    async function upgradeHive(id, currentSHA) {
+      var fromSHA = currentSHA ? currentSHA.substring(0, 7) : '?';
+      var toSHA = _latestSHA ? _latestSHA.substring(0, 7) : 'latest';
+      if (!await hiveConfirm('Upgrade ' + id + '?<br><br><span style="font-family:monospace;font-size:0.85rem;color:var(--muted)">' + fromSHA + '</span> → <span style="font-family:monospace;font-size:0.85rem;color:var(--green)">' + toSHA + '</span>', true)) return;
       var btn = document.getElementById('upgrade-' + id);
       if (btn) { btn.disabled = true; btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading'; btn.style.opacity = '0.6'; }
       try {

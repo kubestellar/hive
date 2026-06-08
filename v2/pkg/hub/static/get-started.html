@@ -33,6 +33,20 @@
     .badge-ready { background: rgba(22,163,74,0.15); color: #22c55e; border: 1px solid rgba(22,163,74,0.3); }
     .badge-soon { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
     .card { background: #12121a; border: 1px solid #1e1e2e; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+    @media (max-width: 600px) {
+      .content { padding: 60px 12px 32px; }
+      h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.2rem; }
+      .card { padding: 16px; }
+      pre { font-size: 0.78rem; overflow-x: auto; max-width: 100%; }
+      .nav-inner { padding: 10px 12px; }
+      .nav-links { gap: 10px; font-size: 0.78rem; flex-wrap: wrap; }
+    }
+    @media (max-width: 400px) {
+      .content { padding: 48px 8px 24px; }
+      h1 { font-size: 1.3rem; }
+      .card { padding: 12px; }
+    }
   </style>
 </head>
 <body>

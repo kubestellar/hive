@@ -313,7 +313,11 @@ func (s *Server) handleInceptionDownload(w http.ResponseWriter, r *http.Request)
 	defer zw.Close()
 
 	for _, f := range result.Files {
-		fw, err := zw.Create(f.Path)
+		clean := filepath.Clean(f.Path)
+		if strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
+			continue
+		}
+		fw, err := zw.Create(filepath.ToSlash(clean))
 		if err != nil {
 			continue
 		}

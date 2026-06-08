@@ -578,16 +578,17 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		}
 	}
 
+	projectType := inferProjectType(constitution, requirements, vision)
+
 	// Makefile
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "Makefile",
-		Content: buildMakefile(lang, projectName),
+		Content: buildMakefile(lang, projectName, projectType),
 		Purpose: "makefile",
 		IsNew:   true,
 	})
 
 	// Project-type-specific files
-	projectType := inferProjectType(constitution, requirements, vision)
 	if projectType == "container" || projectType == "kubernetes" {
 		result.Files = append(result.Files, ScaffoldFile{
 			Path: "Dockerfile", Content: buildDockerfile(lang, projectName), Purpose: "dockerfile", IsNew: true,
@@ -2005,15 +2006,22 @@ export function t(key: string): string {
 `
 }
 
-func buildMakefile(lang, name string) string {
+func buildMakefile(lang, name, projectType string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, ".PHONY: build test lint clean docker-build docker-push deploy\n\n")
+	phony := ".PHONY: build test lint clean"
+	if projectType == "container" || projectType == "kubernetes" {
+		phony += " docker-build docker-push"
+	}
+	if projectType == "kubernetes" {
+		phony += " deploy deploy-prod"
+	}
+	fmt.Fprintf(&b, "%s\n\n", phony)
 	switch lang {
 	case "go":
 		fmt.Fprintf(&b, "build:\n\tgo build -o bin/%s .\n\n", name)
 		b.WriteString("test:\n\tgo test -race -cover ./...\n\n")
 		b.WriteString("lint:\n\tgolangci-lint run ./...\n\n")
-		fmt.Fprintf(&b, "clean:\n\trm -rf bin/\n\n")
+		b.WriteString("clean:\n\trm -rf bin/\n\n")
 	case "python":
 		b.WriteString("build:\n\tpip install -e .\n\n")
 		b.WriteString("test:\n\tpytest\n\n")
@@ -2038,10 +2046,14 @@ func buildMakefile(lang, name string) string {
 		b.WriteString("test:\n\tbash test.sh\n\n")
 		b.WriteString("lint:\n\tshellcheck *.sh\n\n")
 	}
-	fmt.Fprintf(&b, "docker-build:\n\tdocker build -t %s:latest .\n\n", name)
-	fmt.Fprintf(&b, "docker-push:\n\tdocker push %s:latest\n\n", name)
-	b.WriteString("deploy:\n\tkubectl apply -k deploy/overlays/dev\n\n")
-	b.WriteString("deploy-prod:\n\tkubectl apply -k deploy/overlays/prod\n")
+	if projectType == "container" || projectType == "kubernetes" {
+		fmt.Fprintf(&b, "docker-build:\n\tdocker build -t %s:latest .\n\n", name)
+		fmt.Fprintf(&b, "docker-push:\n\tdocker push %s:latest\n\n", name)
+	}
+	if projectType == "kubernetes" {
+		b.WriteString("deploy:\n\tkubectl apply -k deploy/overlays/dev\n\n")
+		b.WriteString("deploy-prod:\n\tkubectl apply -k deploy/overlays/prod\n")
+	}
 	return b.String()
 }
 

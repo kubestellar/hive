@@ -41,7 +41,7 @@ func (s *HubServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		redirect = "/dashboard"
 	}
 	state := url.QueryEscape(redirect)
-	authURL := fmt.Sprintf("%s?client_id=%s&scope=read:user,repo&redirect_uri=%s&state=%s",
+	authURL := fmt.Sprintf("%s?client_id=%s&scope=read:user&redirect_uri=%s&state=%s",
 		ghAuthorizeURL, clientID, "https://hive.kubestellar.io/api/auth/callback", state)
 	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
 }

@@ -626,6 +626,182 @@ func TestHandleTimelineModeHistoryFallback(t *testing.T) {
 	}
 }
 
+func TestHandleGovernorReposEmpty(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"repos":[]}`
+	req := httptest.NewRequest("PUT", "/api/governor/repos", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorRepos(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty repos, got %d", w.Code)
+	}
+}
+
+func TestHandleGovernorReposInvalidName(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"repos":["valid-repo","../evil"]}`
+	req := httptest.NewRequest("PUT", "/api/governor/repos", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorRepos(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid repo, got %d", w.Code)
+	}
+}
+
+func TestHandleGovernorReposSpecialChars(t *testing.T) {
+	srv := newFullServer(t)
+	// sanitizeString strips HTML tags, so use chars that survive but are invalid
+	body := `{"repos":["repo;drop"]}`
+	req := httptest.NewRequest("PUT", "/api/governor/repos", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorRepos(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for special chars, got %d", w.Code)
+	}
+}
+
+func TestHandleGovernorReposStripOrgPrefix(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"repos":["testorg/my-repo","other-repo"]}`
+	req := httptest.NewRequest("PUT", "/api/governor/repos", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorRepos(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+	// Verify org prefix was stripped
+	repos := srv.deps.Config.Project.Repos
+	for _, r := range repos {
+		if strings.HasPrefix(r, "testorg/") {
+			t.Errorf("org prefix should be stripped: %q", r)
+		}
+	}
+}
+
+func TestHandleGovernorAddAgentWithRole(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"name":"architect","backend":"claude","model":"opus","role":"architect"}`
+	req := httptest.NewRequest("POST", "/api/governor/agents", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleGovernorAddAgent(w, req)
+
+	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
+		t.Errorf("expected 200/201, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleGovernorRemoveAgentUnknown(t *testing.T) {
+	srv := newFullServer(t)
+	req := httptest.NewRequest("DELETE", "/api/governor/agents/nonexistent", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound && w.Code != http.StatusBadRequest {
+		t.Logf("remove unknown agent: %d", w.Code)
+	}
+}
+
+func TestHandleGovernorRemoveAgentKnown(t *testing.T) {
+	srv := newFullServer(t)
+	req := httptest.NewRequest("DELETE", "/api/governor/agents/scanner", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	// Should succeed or fail gracefully
+	_ = w.Code
+}
+
+func TestHandleKnowledgeSubsAddBadJSON(t *testing.T) {
+	srv := newMinimalServer(t)
+	srv.ensureKnowledge()
+	req := httptest.NewRequest("POST", "/api/knowledge/subscriptions", strings.NewReader(`{bad`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleKnowledgeSubsAdd(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleKnowledgeSubsAddMissingURL(t *testing.T) {
+	srv := newMinimalServer(t)
+	srv.ensureKnowledge()
+	body := `{"agent":"scanner"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/subscriptions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleKnowledgeSubsAdd(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing url, got %d", w.Code)
+	}
+}
+
+func TestHandleKnowledgeSubsAddPrivateURL(t *testing.T) {
+	srv := newMinimalServer(t)
+	srv.ensureKnowledge()
+	body := `{"url":"http://localhost:8080/feed"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/subscriptions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleKnowledgeSubsAdd(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for private URL, got %d", w.Code)
+	}
+}
+
+func TestHandleKnowledgeSubsAddBadScheme(t *testing.T) {
+	srv := newMinimalServer(t)
+	srv.ensureKnowledge()
+	body := `{"url":"ftp://example.com/feed"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/subscriptions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleKnowledgeSubsAdd(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-http scheme, got %d", w.Code)
+	}
+}
+
+func TestHandleVaultsConnectBadJSON(t *testing.T) {
+	srv := newMinimalServer(t)
+	srv.ensureKnowledge()
+	req := httptest.NewRequest("POST", "/api/knowledge/vaults", strings.NewReader(`{bad`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleVaultsConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleVaultsConnectMissingPath(t *testing.T) {
+	srv := newMinimalServer(t)
+	srv.ensureKnowledge()
+	body := `{"name":"my-vault"}`
+	req := httptest.NewRequest("POST", "/api/knowledge/vaults", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleVaultsConnect(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing path, got %d", w.Code)
+	}
+}
+
 func TestHandleGovernorSensingPullbackTooHigh(t *testing.T) {
 	srv := newFullServer(t)
 	body := `{"pullbackSeconds":999999}`

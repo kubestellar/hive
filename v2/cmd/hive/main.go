@@ -993,6 +993,8 @@ func main() {
 		return
 	}
 
+	gov.ClearLastKicks()
+	logger.Info("cleared last kicks for startup — all eligible agents will be kicked on first eval")
 	runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, nil, logger)
 	persistState(agentMgr, gov, cfg, tokenCollector, statePath, logger, dashSrv)
 

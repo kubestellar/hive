@@ -1345,16 +1345,17 @@ func (m *Manager) SendKick(name string, message string) error {
 		time.Sleep(clearBeforeKickDelay)
 	}
 
-	// Send message in chunks (old hive pattern: 400 char max per chunk)
-	if len(message) <= chunkSize {
+	// Send message in chunks (400 rune max per chunk, rune-safe)
+	runes := []rune(message)
+	if len(runes) <= chunkSize {
 		m.tmuxSendLiteralForAgent(agent, message)
 	} else {
-		for offset := 0; offset < len(message); offset += chunkSize {
+		for offset := 0; offset < len(runes); offset += chunkSize {
 			end := offset + chunkSize
-			if end > len(message) {
-				end = len(message)
+			if end > len(runes) {
+				end = len(runes)
 			}
-			m.tmuxSendLiteralForAgent(agent, message[offset:end])
+			m.tmuxSendLiteralForAgent(agent, string(runes[offset:end]))
 			time.Sleep(chunkDelay)
 		}
 	}

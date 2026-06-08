@@ -1332,6 +1332,26 @@ const dashboardHTML = `<!DOCTYPE html>
     .dash-link { color: var(--blue); font-size: 0.8rem; }
     .repo-link { color: var(--blue); font-size: 0.8rem; }
     .loading { text-align: center; padding: 32px; color: var(--muted); }
+    @media (max-width: 600px) {
+      .content { padding: 60px 12px 32px; }
+      .nav-inner { padding: 10px 12px; }
+      .nav-links { flex-wrap: wrap; gap: 8px; font-size: 0.78rem; }
+      .nav-brand { font-size: 0.95rem; }
+      h1 { font-size: 1.4rem; }
+      .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .hive-table { font-size: 0.72rem; min-width: 600px; }
+      .hive-table td, .hive-table th { padding: 8px 6px; }
+      .hive-modal { width: 95vw; max-height: 90vh; padding: 20px; }
+      .empty-state { padding: 24px; }
+      .hive-confirm-btns { flex-direction: column; }
+      .hive-confirm-btns button { width: 100%; }
+    }
+    @media (max-width: 400px) {
+      .content { padding: 48px 8px 24px; }
+      .nav-links { gap: 4px; font-size: 0.7rem; }
+      .hive-modal { padding: 14px; }
+      h1 { font-size: 1.2rem; }
+    }
   </style>
 </head>
 <body>

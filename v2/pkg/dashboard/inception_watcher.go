@@ -22,7 +22,9 @@ const (
 	inceptionWatchIntervalS  = 5 * time.Second
 	inceptionBeadRefPrefix   = "inception/"
 	minQuestionsForAdvance   = 5
-	minFactsForAdvance       = 3
+	minFactsForAdvance           = 3
+	targetFactCount              = 8
+	factEnrichmentGracePeriod    = 15 * time.Second
 	autoFactFallbackTimeout      = 60 * time.Second
 	autoQuestionFallbackTimeout  = 60 * time.Second
 )
@@ -45,6 +47,7 @@ type InceptionWatcher struct {
 	kickRetryCount    int
 	rateLimitedUntil  time.Time
 	ctx               context.Context
+	factGraceStart    time.Time
 
 	plukFactLines      []string
 	plukIdleInStructure bool
@@ -122,6 +125,7 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.lastQuestionCount = 0
 		w.lastFactCount = 0
 		w.lastSlug = ""
+		w.factGraceStart = time.Time{}
 		return
 	}
 
@@ -131,6 +135,7 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.kickRetryCount = 0
 		w.lastKickRetry = time.Time{}
 		w.rateLimitedUntil = time.Time{}
+		w.factGraceStart = time.Time{}
 		w.plukFactLines = nil
 		w.plukQuestions = nil
 		w.plukBdCreateLines = nil
@@ -876,10 +881,47 @@ func (w *InceptionWatcher) checkForFacts(ctx context.Context, inceptionBeads []*
 	if len(facts) < minFactsForAdvance {
 		return
 	}
+
+	if len(facts) >= targetFactCount {
+		w.recordAndAdvanceFacts(ctx, facts)
+		return
+	}
+
+	if w.factGraceStart.IsZero() {
+		w.factGraceStart = time.Now()
+		w.logger.Info("inception watcher: facts met minimum, starting enrichment grace period",
+			"count", len(facts),
+			"target", targetFactCount,
+			"grace_seconds", factEnrichmentGracePeriod.Seconds(),
+		)
+		return
+	}
+
+	if time.Since(w.factGraceStart) < factEnrichmentGracePeriod {
+		if len(facts) != w.lastFactCount {
+			w.lastFactCount = len(facts)
+			w.logger.Info("inception watcher: more facts arriving during grace period",
+				"count", len(facts),
+				"elapsed", time.Since(w.factGraceStart).Round(time.Second),
+			)
+		}
+		return
+	}
+
+	w.recordAndAdvanceFacts(ctx, facts)
+}
+
+func (w *InceptionWatcher) recordAndAdvanceFacts(ctx context.Context, facts []knowledge.IdeationFact) {
+	state := w.inception.GetState()
+	if state != nil && len(state.Questions) > 0 && len(state.Answers) > 0 {
+		facts = w.supplementFactsFromQA(facts, state)
+	}
+
 	if len(facts) == w.lastFactCount {
 		return
 	}
 	w.lastFactCount = len(facts)
+	w.factGraceStart = time.Time{}
 
 	if err := w.inception.RecordFacts(ctx, facts); err != nil {
 		w.logger.Warn("inception watcher: failed to record facts", "error", err, "count", len(facts))
@@ -889,6 +931,60 @@ func (w *InceptionWatcher) checkForFacts(ctx context.Context, inceptionBeads []*
 	w.logger.Info("inception watcher: facts extracted, advancing to scaffold",
 		"count", len(facts),
 	)
+}
+
+func (w *InceptionWatcher) supplementFactsFromQA(existing []knowledge.IdeationFact, state *knowledge.InceptionState) []knowledge.IdeationFact {
+	existingTypes := make(map[knowledge.FactType]bool)
+	for _, f := range existing {
+		existingTypes[f.Type] = true
+	}
+
+	categoryToFact := map[string]knowledge.FactType{
+		"language":    knowledge.FactConstitution,
+		"features":    knowledge.FactRequirement,
+		"constraints": knowledge.FactConstraint,
+		"users":       knowledge.FactStakeholder,
+		"testing":     knowledge.FactAcceptance,
+		"deployment":  knowledge.FactConstraint,
+		"storage":     knowledge.FactRequirement,
+	}
+
+	if !existingTypes[knowledge.FactVision] && state.IdeaText != "" {
+		existing = append(existing, knowledge.IdeationFact{
+			Title: "Project Vision",
+			Body:  state.IdeaText,
+			Type:  knowledge.FactVision,
+			Tags:  []string{"supplemented"},
+		})
+	}
+
+	for _, q := range state.Questions {
+		answer, ok := state.Answers[q.ID]
+		if !ok || strings.TrimSpace(answer) == "" {
+			continue
+		}
+		factType, mapped := categoryToFact[q.Category]
+		if !mapped {
+			factType = knowledge.FactRequirement
+		}
+		if existingTypes[factType] {
+			continue
+		}
+		existingTypes[factType] = true
+		existing = append(existing, knowledge.IdeationFact{
+			Title: q.Text,
+			Body:  answer,
+			Type:  factType,
+			Tags:  []string{"supplemented"},
+		})
+	}
+
+	w.logger.Info("inception watcher: supplemented facts from Q&A",
+		"original", len(existingTypes)-len(existing)+len(existing),
+		"total", len(existing),
+	)
+
+	return existing
 }
 
 // autoGenerateFacts synthesizes facts from the inception Q&A when the

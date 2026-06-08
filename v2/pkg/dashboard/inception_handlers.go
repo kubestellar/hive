@@ -352,7 +352,7 @@ func (s *Server) handleInceptionRenameWiki(w http.ResponseWriter, r *http.Reques
 		jsonError(w, "knowledge not initialized", http.StatusServiceUnavailable)
 		return
 	}
-	store := s.deps.Knowledge.GetVaultStore("/data/inception-wiki")
+	store := s.deps.Knowledge.GetVaultStore(s.deps.Inception.WikiDir())
 	if store == nil {
 		jsonError(w, "inception wiki vault not found", http.StatusNotFound)
 		return

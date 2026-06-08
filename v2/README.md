@@ -37,6 +37,12 @@ docker compose up -d
 
 The default `docker-compose.yaml` uses the pre-built image `ghcr.io/kubestellar/hive:v2-latest`. To build from source instead, run `docker compose build` before `docker compose up -d`.
 
+### Troubleshooting
+
+- **Rancher Desktop / Lima**: Volume mounts from `/tmp` may fail silently (file appears as directory inside container). Clone the repo under your home directory instead.
+- **Gateway won't start**: The gateway depends on the hive health check (120s start period). If it times out, run the hive container directly: `docker run -d --name hive -p 3001:3001 -v ./hive.yaml:/etc/hive/hive.yaml -e HIVE_GITHUB_TOKEN=$HIVE_GITHUB_TOKEN ghcr.io/kubestellar/hive:v2-latest`
+- **Policy clone errors in logs**: The example config has a placeholder policy repo. Comment out the `policies:` section in `hive.yaml` if you don't have a custom policy repo.
+
 ## Kubernetes
 
 ```bash

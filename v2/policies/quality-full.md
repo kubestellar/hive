@@ -64,6 +64,16 @@ bd create --title "<specific coverage gap title>" \
 
 Priority: 0 (critical untested path), 1 (major logic gap), 2 (significant gap), 3 (minor/nice-to-have)
 
+## Work List
+
+ACTIONABLE ISSUES:
+${ISSUE_LIST}
+
+ACTIONABLE PRs:
+${PR_LIST}
+
+⛔ NEVER run `gh issue list`, `gh pr list`, or `gh search issues` — the work list above is your ONLY source.
+
 ## Workflow
 
 1. Read the kick message

@@ -48,6 +48,8 @@ type InceptionWatcher struct {
 
 	plukFactLines      []string
 	plukIdleInStructure bool
+	plukQuestions       []knowledge.Question
+	plukBdCreateLines   []string
 }
 
 // NewInceptionWatcher creates a watcher that polls the brainstorm bead store.
@@ -114,6 +116,8 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.lastKickRetry = time.Time{}
 		w.rateLimitedUntil = time.Time{}
 		w.plukFactLines = nil
+		w.plukQuestions = nil
+		w.plukBdCreateLines = nil
 		w.plukIdleInStructure = false
 		if w.lastSlug != "" {
 			w.reapOldInceptionBeads(state.StartedAt)
@@ -394,11 +398,23 @@ func (w *InceptionWatcher) handlePlukEvent(event plukEvent) {
 	case "state_change":
 		if event.Data["state"] == "idle" {
 			phase := state.Phase
+
+			// Agent went idle during capture — if Pluk intercepted questions, apply them now
+			if phase == knowledge.PhaseCapture && len(w.plukQuestions) > 0 {
+				w.applyPlukQuestions(state)
+				return
+			}
+
 			// Agent went idle during structure — try to extract facts from
 			// buffered Pluk output before falling back to auto-generation.
-			if phase == knowledge.PhaseStructure && len(w.plukFactLines) > 0 {
+			if phase == knowledge.PhaseStructure {
 				w.plukIdleInStructure = true
-				w.tryExtractFactsFromPluk(w.ctx, state)
+				if len(w.plukFactLines) > 0 {
+					w.tryExtractFactsFromPluk(w.ctx, state)
+				} else {
+					// No fact lines from Pluk — auto-generate immediately
+					w.autoGenerateFacts(w.ctx, state)
+				}
 				return
 			}
 
@@ -453,11 +469,21 @@ func (w *InceptionWatcher) handlePlukEvent(event plukEvent) {
 		}
 		lower := strings.ToLower(line)
 
+		// Buffer all bd create lines for parsing
+		if strings.Contains(lower, "bd create") && strings.Contains(lower, "--title") {
+			w.plukBdCreateLines = append(w.plukBdCreateLines, line)
+		}
+
 		switch state.Phase {
 		case knowledge.PhaseCapture:
-			// Detect bd create commands with question titles
+			// Intercept bd create commands — parse question title directly
 			if strings.Contains(lower, "bd create") && strings.Contains(lower, "--title") {
-				go w.poll(w.ctx)
+				if q := w.parseQuestionFromBdCreate(line); q != nil {
+					w.plukQuestions = append(w.plukQuestions, *q)
+					if len(w.plukQuestions) >= minQuestionsForAdvance {
+						w.applyPlukQuestions(state)
+					}
+				}
 				return
 			}
 			if strings.Contains(line, "│") {
@@ -469,9 +495,13 @@ func (w *InceptionWatcher) handlePlukEvent(event plukEvent) {
 				}
 			}
 		case knowledge.PhaseStructure:
-			// Detect fact bead creation in real-time
-			if strings.Contains(lower, "bd create") || strings.Contains(lower, "bd update") ||
-				strings.Contains(lower, "fact_type") || strings.Contains(lower, "fact_body") {
+			// Intercept bd create with fact-like titles — extract directly
+			if strings.Contains(lower, "bd create") && strings.Contains(lower, "--title") {
+				go w.poll(w.ctx)
+				return
+			}
+			if strings.Contains(lower, "bd update") &&
+				(strings.Contains(lower, "fact_type") || strings.Contains(lower, "fact_body")) {
 				go w.poll(w.ctx)
 				return
 			}
@@ -1011,4 +1041,86 @@ func (w *InceptionWatcher) tryExtractFactsFromPluk(ctx context.Context, state *k
 		"source", "pluk-raw-output",
 	)
 	w.plukFactLines = nil
+}
+
+// bdCreateTitleRe extracts the --title value from a bd create command line.
+var bdCreateTitleRe = regexp.MustCompile(`--title\s+"([^"]+)"`)
+
+// parseQuestionFromBdCreate extracts a question from a bd create command
+// in the agent's raw output. Works regardless of --type, --actor, or
+// --external-ref values — the title IS the question.
+func (w *InceptionWatcher) parseQuestionFromBdCreate(line string) *knowledge.Question {
+	m := bdCreateTitleRe.FindStringSubmatch(line)
+	if m == nil || len(m) < 2 {
+		return nil
+	}
+	title := strings.TrimSpace(m[1])
+	if title == "" {
+		return nil
+	}
+
+	// Infer category from title or known keywords
+	lower := strings.ToLower(title)
+	cat := "general"
+	for kw := range categoryKeywords {
+		if strings.Contains(lower, kw) {
+			cat = kw
+			break
+		}
+	}
+
+	// Remove "Clarification: " prefix if present
+	title = strings.TrimPrefix(title, "Clarification: ")
+	title = strings.TrimPrefix(title, "clarification: ")
+
+	qID := cat + "-" + fmt.Sprintf("%d", len(w.plukQuestions)+1)
+
+	w.logger.Info("pluk: intercepted question from bd create",
+		"title", title,
+		"category", cat,
+	)
+
+	return &knowledge.Question{
+		ID:       qID,
+		Text:     title,
+		Category: cat,
+		Default:  "Yes, use best practices",
+	}
+}
+
+// applyPlukQuestions sets intercepted questions on the inception engine,
+// bypassing the bead store entirely. Called when Pluk has captured enough
+// questions from the agent's bd create output.
+func (w *InceptionWatcher) applyPlukQuestions(state *knowledge.InceptionState) {
+	if len(w.plukQuestions) < minQuestionsForAdvance {
+		return
+	}
+	if len(state.Questions) >= minQuestionsForAdvance {
+		return
+	}
+
+	// Deduplicate by text
+	seen := make(map[string]bool)
+	var unique []knowledge.Question
+	for _, q := range w.plukQuestions {
+		if !seen[q.Text] {
+			seen[q.Text] = true
+			unique = append(unique, q)
+		}
+	}
+
+	if len(unique) < minQuestionsForAdvance {
+		return
+	}
+
+	if err := w.inception.SetQuestions(unique); err != nil {
+		w.logger.Warn("pluk: failed to apply intercepted questions", "error", err, "count", len(unique))
+		return
+	}
+
+	w.logger.Info("pluk: applied intercepted questions — bypassed bead store",
+		"count", len(unique),
+		"source", "pluk-bd-create-intercept",
+	)
+	w.plukQuestions = nil
 }

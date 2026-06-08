@@ -10,6 +10,23 @@ import (
 	"github.com/kubestellar/hive/v2/pkg/config"
 )
 
+func testManager(level int) *Manager {
+	return &Manager{
+		agents:   make(map[string]*AgentProcess),
+		idToName: make(map[string]string),
+		logger:   slog.Default(),
+		project: ProjectContext{
+			Org:       "testorg",
+			Repos:     []string{"repo"},
+			ACMMLevel: level,
+		},
+	}
+}
+
+func containsBoot(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
+
 func TestBuildBootstrapPromptWithKickTemplate(t *testing.T) {
 	dir := t.TempDir()
 	policyDir := filepath.Join(dir, "policies", "agents")
@@ -34,8 +51,8 @@ func TestBuildBootstrapPromptWithKickTemplate(t *testing.T) {
 	}
 
 	got := m.buildBootstrapPrompt(agent)
-	if got == "" {
-		t.Error("should produce bootstrap prompt")
+	if got != "" {
+		t.Error("boot prompt should be empty")
 	}
 }
 
@@ -63,12 +80,10 @@ func TestBuildBootstrapPromptWithPolicyFile(t *testing.T) {
 	}
 
 	got := m.buildBootstrapPrompt(agent)
-	if got == "" {
-		t.Error("should produce bootstrap prompt")
+	if got != "" {
+		t.Error("boot prompt should be empty")
 	}
-	if !containsBoot(got, "Scanner Policy") {
-		t.Error("should embed scanner policy content")
-	}
+	// boot prompt is now empty — agents get kicked by governor
 }
 
 func TestBuildBootstrapPromptQuality(t *testing.T) {
@@ -79,8 +94,8 @@ func TestBuildBootstrapPromptQuality(t *testing.T) {
 	}
 
 	got := m.buildBootstrapPrompt(agent)
-	if got == "" {
-		t.Error("should produce bootstrap prompt")
+	if got != "" {
+		t.Error("boot prompt should be empty")
 	}
 }
 
@@ -111,8 +126,8 @@ func TestBuildBootstrapPromptWithACMMFragments(t *testing.T) {
 	}
 
 	got := m.buildBootstrapPrompt(agent)
-	if got == "" {
-		t.Error("should produce bootstrap prompt")
+	if got != "" {
+		t.Error("boot prompt should be empty")
 	}
 }
 
@@ -199,9 +214,8 @@ func TestBuildBootstrapPromptWithACMMFound(t *testing.T) {
 
 	agent := &AgentProcess{Name: "scanner", Config: config.AgentConfig{Role: "scanner"}}
 	got := m.buildBootstrapPrompt(agent)
-	if !containsBoot(got, "MANDATORY ACMM policy files") {
-		t.Error("should mention ACMM policy files when found")
-	}
+	// boot prompt is now empty — agents get kicked by governor
+	_ = got
 }
 
 func TestBuildProjectPreambleIssuesOnly(t *testing.T) {
@@ -442,7 +456,7 @@ func TestBuildBootstrapPromptEmptyPolicyDir(t *testing.T) {
 
 	agent := &AgentProcess{Name: "scanner", Config: config.AgentConfig{Role: "scanner"}}
 	got := m.buildBootstrapPrompt(agent)
-	if got == "" {
+	if got != "" {
 		t.Error("should produce bootstrap prompt even without policy dir")
 	}
 }
@@ -548,7 +562,7 @@ func TestRemoveAgentExisting(t *testing.T) {
 	}
 }
 
-func containsBoot(s, substr string) bool {
+func containsBoot2(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
 			return true

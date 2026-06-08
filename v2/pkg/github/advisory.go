@@ -69,12 +69,18 @@ func (c *Client) EnsureAdvisoryIssue(ctx context.Context, repo string) (int, err
 	return issue.GetNumber(), nil
 }
 
-const advisoryDigestPrefix = "## 🐝 Advisory Digest"
+const (
+	advisoryDigestPrefix    = "## 🐝 Advisory Digest"
+	githubCommentCharLimit  = 65536
+	truncationFooterPadding = 200
+)
 
 // PostAdvisoryDigest updates the existing digest comment on the advisory issue,
 // or creates one if none exists. This prevents duplicate comments on each eval cycle.
 func (c *Client) PostAdvisoryDigest(ctx context.Context, repo string, issueNum int, digest string) error {
 	owner, repoName := c.splitRepo(repo)
+
+	digest = truncateDigest(digest)
 
 	commentID, err := c.findDigestComment(ctx, owner, repoName, issueNum)
 	if err != nil {
@@ -98,6 +104,18 @@ func (c *Client) PostAdvisoryDigest(ctx context.Context, repo string, issueNum i
 		return fmt.Errorf("posting advisory digest to %s#%d: %w", repo, issueNum, err)
 	}
 	return nil
+}
+
+func truncateDigest(digest string) string {
+	if len(digest) <= githubCommentCharLimit {
+		return digest
+	}
+	cutoff := githubCommentCharLimit - truncationFooterPadding
+	lastNewline := strings.LastIndex(digest[:cutoff], "\n")
+	if lastNewline > 0 {
+		cutoff = lastNewline
+	}
+	return digest[:cutoff] + fmt.Sprintf("\n\n---\n⚠️ *Digest truncated: %d → %d characters (GitHub limit: %d)*\n", len(digest), cutoff, githubCommentCharLimit)
 }
 
 func (c *Client) findDigestComment(ctx context.Context, owner, repo string, issueNum int) (int, error) {

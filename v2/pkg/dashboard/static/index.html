@@ -7743,9 +7743,17 @@ function burnAreaChart() {
         const ocEl = document.getElementById('oc-git-version');
         let html = `<a href="https://github.com/kubestellar/hive/commit/${escapeHtml(v.hash)}" target="_blank" style="color:inherit;text-decoration:none" title="${escapeHtml(v.hash)}">${escapeHtml(v.short)}</a>`;
         if (v.dirty) html += ' <span class="git-dirty">*</span>';
-        if (v.behind) {
+        if (_upgradeInProgress && v.hash !== _upgradeTargetHash) {
+          html += ` <span class="git-behind" title="Upgrading to ${escapeHtml(v.latestShort || '?')}">⬆ upgrading</span>`;
+          html += ` <span style="display:inline-block;padding:3px 10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:0.7rem;margin-left:6px;white-space:nowrap;opacity:0.8"><span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading</span>`;
+        } else if (_upgradeInProgress && v.hash === _upgradeTargetHash) {
+          _upgradeInProgress = false;
+          _upgradeTargetHash = null;
+          showToast('Upgrade complete!', 'success');
+          html += ' <span style="color:#22c55e" title="Up to date with remote">✓</span>';
+        } else if (v.behind) {
           html += ` <span class="git-behind" title="Latest: ${escapeHtml(v.latestShort || '?')}">⬆ behind</span>`;
-          html += ` <button onclick="selfUpgrade()" style="padding:3px 10px;font-size:0.7rem;background:#238636;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:6px;white-space:nowrap" title="Upgrade to latest">Upgrade</button>`;
+          html += ` <button id="spoke-upgrade-btn" onclick="selfUpgrade('${escapeHtml(v.latestHash || '')}')" style="padding:3px 10px;font-size:0.7rem;background:#238636;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:6px;white-space:nowrap" title="Upgrade to latest">Upgrade</button>`;
         } else if (v.latestHash) {
           html += ' <span style="color:#22c55e" title="Up to date with remote">✓</span>';
         }
@@ -7757,17 +7765,32 @@ function burnAreaChart() {
     setInterval(fetchGitVersion, GIT_VERSION_POLL_MS);
 
     // SSE connection
-    async function selfUpgrade() {
+    var _upgradeInProgress = false;
+    var _upgradeTargetHash = null;
+    async function selfUpgrade(targetHash) {
+      var btn = document.getElementById('spoke-upgrade-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading'; btn.style.opacity = '0.6'; }
       try {
         showToast('Upgrading to latest...', 'info');
         var resp = await fetch('/api/self-upgrade', { method: 'POST' });
         if (!resp.ok) {
           var err = await resp.json().catch(function() { return {}; });
           showToast('Upgrade failed: ' + (err.error || resp.statusText), 'error');
+          _upgradeInProgress = false;
+          _upgradeTargetHash = null;
+          fetchGitVersion();
           return;
         }
-        showToast('Upgrade started — page will auto-refresh when ready', 'success');
-      } catch (e) { showToast('Upgrade error: ' + e.message, 'error'); }
+        _upgradeInProgress = true;
+        _upgradeTargetHash = targetHash || null;
+        showToast('Upgrade started — waiting for rollout to complete', 'success');
+        fetchGitVersion();
+      } catch (e) {
+        showToast('Upgrade error: ' + e.message, 'error');
+        _upgradeInProgress = false;
+        _upgradeTargetHash = null;
+        fetchGitVersion();
+      }
     }
 
     var _initialVersionHash = null;

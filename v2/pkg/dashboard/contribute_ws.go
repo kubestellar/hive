@@ -81,6 +81,7 @@ type WSMessage struct {
 	Result            string          `json:"result,omitempty"`
 	Summary           string          `json:"summary,omitempty"`
 	TmuxOutput        []string        `json:"tmux_output,omitempty"`
+	AcceptedModels    []string        `json:"accepted_models,omitempty"`
 }
 
 type WSTaskAssign struct {
@@ -480,6 +481,17 @@ func (h *ContributeWSHub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			if allowed, acceptedModels := h.checkModelAllowed(msg.Model); !allowed {
+				reason := fmt.Sprintf("Model %q is not accepted by this hive", msg.Model)
+				if msg.Model == "" {
+					reason = "No model specified — this hive requires an accepted model"
+				}
+				_ = sendJSON(conn, WSMessage{Type: "auth_failed", Reason: reason, AcceptedModels: acceptedModels})
+				h.logger.Info("[contribute-ws] model rejected", "username", profile.GitHubUsername, "model", msg.Model)
+				conn.Close()
+				return
+			}
+
 			profile.LastActive = time.Now().UTC().Format(time.RFC3339)
 			if msg.CLIBackend != "" {
 				profile.CLIBackend = msg.CLIBackend
@@ -705,6 +717,26 @@ func (h *ContributeWSHub) heartbeatLoop(c *ContributorConnection) {
 			return
 		}
 	}
+}
+
+func (h *ContributeWSHub) checkModelAllowed(model string) (bool, []string) {
+	if h.server == nil || h.server.deps == nil || h.server.deps.Config == nil {
+		return true, nil
+	}
+	cfg := h.server.deps.Config.Hub
+	if len(cfg.ContributeAllowModels) == 0 {
+		return true, nil
+	}
+	if model == "" {
+		return !cfg.ContributeRejectUnknownModels, cfg.ContributeAllowModels
+	}
+	if config.MatchesAny(model, cfg.ContributeAllowModels) {
+		return true, nil
+	}
+	if cfg.ContributeRejectUnknownModels {
+		return false, cfg.ContributeAllowModels
+	}
+	return true, nil
 }
 
 func (h *ContributeWSHub) cleanupLoop() {

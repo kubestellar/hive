@@ -2065,10 +2065,16 @@ func (s *Server) handleGovernorConfigGet(w http.ResponseWriter, r *http.Request)
 			"is_public":               cfg.Hub.IsPublic,
 			"auto_snapshot":           cfg.Hub.AutoSnapshot,
 			"snapshot_interval_min":   cfg.Hub.SnapshotIntervalMin,
-			"contribute_allow_labels": cfg.Hub.ContributeAllowLabels,
-			"contribute_deny_labels":  cfg.Hub.ContributeDenyLabels,
-			"disabled_repos":          cfg.Hub.DisabledRepos,
-			"disabled_tiers":          cfg.Hub.DisabledTiers,
+			"contribute_suspended":             cfg.Hub.ContributeSuspended,
+			"contribute_allow_labels":          cfg.Hub.ContributeAllowLabels,
+			"contribute_deny_labels":           cfg.Hub.ContributeDenyLabels,
+			"contribute_deny_titles":           cfg.Hub.ContributeDenyTitles,
+			"contribute_deny_authors":          cfg.Hub.ContributeDenyAuthors,
+			"contribute_allow_models":          cfg.Hub.ContributeAllowModels,
+			"contribute_reject_unknown_models": cfg.Hub.ContributeRejectUnknownModels,
+			"disabled_repos":                   cfg.Hub.DisabledRepos,
+			"disabled_tiers":                   cfg.Hub.DisabledTiers,
+			"tier_limits":                      cfg.Hub.TierLimits,
 		},
 	})
 }
@@ -2353,16 +2359,22 @@ func (s *Server) handleGovernorLogging(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGovernorHub(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Enabled              *bool    `json:"enabled"`
-		URL                  string   `json:"url"`
-		DashboardURL         string   `json:"dashboard_url"`
-		SnapshotURL          string   `json:"snapshot_url"`
-		IsPublic             *bool    `json:"is_public"`
-		AutoSnapshot         *bool    `json:"auto_snapshot"`
-		ContributeAllowLabels []string `json:"contribute_allow_labels"`
-		ContributeDenyLabels  []string `json:"contribute_deny_labels"`
-		DisabledRepos         []string `json:"disabled_repos"`
-		DisabledTiers         []string `json:"disabled_tiers"`
+		Enabled                       *bool               `json:"enabled"`
+		URL                           string              `json:"url"`
+		DashboardURL                  string              `json:"dashboard_url"`
+		SnapshotURL                   string              `json:"snapshot_url"`
+		IsPublic                      *bool               `json:"is_public"`
+		AutoSnapshot                  *bool               `json:"auto_snapshot"`
+		ContributeSuspended           *bool               `json:"contribute_suspended"`
+		ContributeAllowLabels         []string            `json:"contribute_allow_labels"`
+		ContributeDenyLabels          []string            `json:"contribute_deny_labels"`
+		ContributeDenyTitles          []string            `json:"contribute_deny_titles"`
+		ContributeDenyAuthors         []string            `json:"contribute_deny_authors"`
+		ContributeAllowModels         []string            `json:"contribute_allow_models"`
+		ContributeRejectUnknownModels *bool               `json:"contribute_reject_unknown_models"`
+		DisabledRepos                 []string            `json:"disabled_repos"`
+		DisabledTiers                 []string            `json:"disabled_tiers"`
+		TierLimits                    map[string]config.TierRate `json:"tier_limits"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body", http.StatusBadRequest)
@@ -2385,17 +2397,35 @@ func (s *Server) handleGovernorHub(w http.ResponseWriter, r *http.Request) {
 	if body.AutoSnapshot != nil {
 		cfg.Hub.AutoSnapshot = *body.AutoSnapshot
 	}
+	if body.ContributeSuspended != nil {
+		cfg.Hub.ContributeSuspended = *body.ContributeSuspended
+	}
 	if body.ContributeAllowLabels != nil {
 		cfg.Hub.ContributeAllowLabels = body.ContributeAllowLabels
 	}
 	if body.ContributeDenyLabels != nil {
 		cfg.Hub.ContributeDenyLabels = body.ContributeDenyLabels
 	}
+	if body.ContributeDenyTitles != nil {
+		cfg.Hub.ContributeDenyTitles = body.ContributeDenyTitles
+	}
+	if body.ContributeDenyAuthors != nil {
+		cfg.Hub.ContributeDenyAuthors = body.ContributeDenyAuthors
+	}
+	if body.ContributeAllowModels != nil {
+		cfg.Hub.ContributeAllowModels = body.ContributeAllowModels
+	}
+	if body.ContributeRejectUnknownModels != nil {
+		cfg.Hub.ContributeRejectUnknownModels = *body.ContributeRejectUnknownModels
+	}
 	if body.DisabledRepos != nil {
 		cfg.Hub.DisabledRepos = body.DisabledRepos
 	}
 	if body.DisabledTiers != nil {
 		cfg.Hub.DisabledTiers = body.DisabledTiers
+	}
+	if body.TierLimits != nil {
+		cfg.Hub.TierLimits = body.TierLimits
 	}
 	s.refreshAndPersist()
 	okResponse(w, map[string]string{"status": "updated"})

@@ -1602,6 +1602,7 @@ const dashboardHTML = `<!DOCTYPE html>
       <div>
         <h1>My Hives</h1>
         <p class="subtitle">Hive instances you own or have access to</p>
+        <p id="latest-image-sha" style="font-size:0.7rem;color:var(--muted);margin-top:4px"></p>
       </div>
       <button class="btn-primary" id="btn-add-hive" disabled onclick="document.getElementById('create-modal').style.display='flex'">+ Add Hosted Hive</button>
     </div>
@@ -1775,6 +1776,8 @@ const dashboardHTML = `<!DOCTYPE html>
         _allDashHives = data.hives || [];
         _hiveRegistry = data.hives || [];
         _latestSHA = data.latest_sha || _latestSHA;
+        var shaEl = document.getElementById('latest-image-sha');
+        if (shaEl && _latestSHA) shaEl.textContent = 'Latest image: ' + _latestSHA;
         var hubHash = data.hub_git_hash || '';
         if (hubHash) {
           var el = document.getElementById('hub-version');

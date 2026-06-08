@@ -396,7 +396,7 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wikiDir := "/data/inception-wiki"
+	wikiDir := s.deps.Inception.WikiDir()
 	os.MkdirAll(wikiDir, 0o755)
 
 	imported := 0

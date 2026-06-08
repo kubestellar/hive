@@ -1996,6 +1996,20 @@ func (m *Manager) agentEnvPairs(agent *AgentProcess) []agentEnvPair {
 	return vars
 }
 
+func (m *Manager) KillSession(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	agent, ok := m.agents[name]
+	if !ok {
+		return fmt.Errorf("agent %s not found", name)
+	}
+
+	_ = m.tmuxCmd(agent, "kill-session", "-t", agent.tmuxSession).Run()
+	m.logger.Info("agent tmux session killed", "name", name, "session", agent.tmuxSession)
+	return nil
+}
+
 func (m *Manager) Pause(name, trigger, reason string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

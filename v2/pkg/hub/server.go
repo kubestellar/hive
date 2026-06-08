@@ -64,6 +64,8 @@ type RegistryEntry struct {
 	Agents             []AgentSummary `json:"agents,omitempty"`
 	Leaderboard        []LeaderboardEntry `json:"leaderboard,omitempty"`
 	Online             bool           `json:"online"`
+	Upgrading          bool           `json:"upgrading,omitempty"`
+	UpgradeTarget      string         `json:"upgradeTarget,omitempty"`
 }
 
 var safeNamePattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
@@ -321,6 +323,13 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 			entry.RegisteredAt = h.RegisteredAt
 			if entry.SnapshotURL == "" {
 				entry.SnapshotURL = h.SnapshotURL
+			}
+			if h.Upgrading && h.UpgradeTarget != "" && entry.GitHash == h.UpgradeTarget {
+				entry.Upgrading = false
+				entry.UpgradeTarget = ""
+			} else if h.Upgrading {
+				entry.Upgrading = h.Upgrading
+				entry.UpgradeTarget = h.UpgradeTarget
 			}
 			s.registry.Hives[i] = entry
 			found = true

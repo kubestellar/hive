@@ -8874,19 +8874,7 @@ function burnAreaChart() {
             if (el) {
               const raw = data.prompt || '';
               if (!raw) { el.textContent = '(no template found — check kick_template in agent config)'; }
-              else {
-                let html = '';
-                const lines = raw.split('\n');
-                for (const ln of lines) {
-                  if (ln.startsWith('# ')) html += '<div style="font-weight:700;font-size:0.9rem;color:var(--text);margin:12px 0 6px">' + esc(ln.slice(2)) + '</div>';
-                  else if (ln.startsWith('## ')) html += '<div style="font-weight:700;font-size:0.82rem;color:var(--text);margin:10px 0 4px;border-bottom:1px solid var(--border);padding-bottom:3px">' + esc(ln.slice(3)) + '</div>';
-                  else if (/^\d+\.\s/.test(ln)) html += '<div style="margin:3px 0 3px 8px;color:var(--text)">' + esc(ln) + '</div>';
-                  else if (ln.startsWith('```')) html += '<div style="margin:4px 0;padding:4px 8px;background:rgba(0,0,0,0.2);border-radius:4px;font-family:monospace;font-size:0.72rem;white-space:pre-wrap">' + esc(ln) + '</div>';
-                  else if (ln.trim() === '') html += '<br>';
-                  else html += '<div style="margin:2px 0;color:var(--muted)">' + esc(ln) + '</div>';
-                }
-                el.innerHTML = html;
-              }
+              else { el.innerHTML = formatMarkdownPrompt(raw); }
             }
             const srcEl = document.getElementById(srcId);
             if (srcEl && data.sourceFiles && data.sourceFiles.length > 0) {
@@ -8913,44 +8901,55 @@ function burnAreaChart() {
         </div>`;
     }
 
+    function formatMarkdownPrompt(text) {
+      const lines = text.split('\n');
+      let html = '';
+      let inCode = false;
+      for (let i = 0; i < lines.length; i++) {
+        const ln = lines[i];
+        if (ln.trimStart().startsWith('```')) {
+          if (inCode) {
+            html += '</pre>';
+            inCode = false;
+          } else {
+            html += '<pre style="margin:8px 0;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-family:monospace;font-size:0.72rem;white-space:pre-wrap;overflow-x:auto;color:var(--text)">';
+            inCode = true;
+          }
+          continue;
+        }
+        if (inCode) {
+          html += esc(ln) + '\n';
+          continue;
+        }
+        if (ln.startsWith('# ') && !ln.startsWith('## ')) {
+          html += '<div style="font-weight:700;font-size:0.92rem;color:var(--text);margin:16px 0 8px">' + esc(ln.slice(2)) + '</div>';
+        } else if (ln.startsWith('## ')) {
+          html += '<div style="font-weight:600;font-size:0.82rem;color:var(--text);margin:14px 0 6px;border-bottom:1px solid var(--border);padding-bottom:4px">' + esc(ln.slice(3)) + '</div>';
+        } else if (/^\d+\.\s/.test(ln)) {
+          html += '<div style="margin:3px 0 3px 12px;color:var(--text)">' + esc(ln) + '</div>';
+        } else if (/^\s*[-*]\s/.test(ln)) {
+          html += '<div style="margin:2px 0 2px 20px;color:var(--muted)">' + esc(ln.trim()) + '</div>';
+        } else if (ln.trim() === '') {
+          html += '<div style="height:6px"></div>';
+        } else {
+          html += '<div style="margin:2px 0;color:var(--muted)">' + esc(ln) + '</div>';
+        }
+      }
+      if (inCode) html += '</pre>';
+      return html;
+    }
+
     function renderAgentLastPrompt(prompt) {
       if (!prompt) {
         return `<div style="display:flex;flex-direction:column;height:100%">
           <p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">The fully expanded prompt sent to this agent on its most recent kick.</p>
-          <div class="config-pre config-pre-fill" style="color:var(--muted);font-style:italic">(awaiting first kick — the expanded prompt will appear here after the governor kicks this agent)</div>
+          <div class="config-pre config-pre-fill" style="color:var(--muted);font-style:italic">(awaiting first kick)</div>
           </div>`;
       }
-      const sections = prompt.split(/\n(?=##\s)/).map(s => s.trim()).filter(Boolean);
-      let html = '<div style="display:flex;flex-direction:column;height:100%">';
-      html += '<p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;flex-shrink:0">The fully expanded prompt sent to this agent on its most recent kick — all variables resolved, pipeline data injected.</p>';
-      html += '<div class="config-pre config-pre-fill" style="font-family:inherit;font-size:0.78rem;line-height:1.5">';
-      for (const section of sections) {
-        const lines = section.split('\n');
-        const first = lines[0] || '';
-        if (first.startsWith('## ')) {
-          html += '<div style="margin-top:12px;margin-bottom:6px;font-weight:700;color:var(--text);font-size:0.82rem;border-bottom:1px solid var(--border);padding-bottom:4px">' + esc(first.replace(/^##\s*/, '')) + '</div>';
-          html += '<div style="color:var(--muted)">';
-          for (let i = 1; i < lines.length; i++) {
-            const ln = lines[i];
-            if (/^\d+\.\s/.test(ln)) {
-              html += '<div style="margin:3px 0 3px 8px;color:var(--text)">' + esc(ln) + '</div>';
-            } else if (/^[-*]\s/.test(ln.trim())) {
-              html += '<div style="margin:2px 0 2px 16px;color:var(--muted)">' + esc(ln) + '</div>';
-            } else if (ln.startsWith('```')) {
-              html += '<div style="margin:4px 0;padding:4px 8px;background:rgba(0,0,0,0.2);border-radius:4px;font-family:monospace;font-size:0.72rem;white-space:pre-wrap">';
-            } else if (ln.trim() === '') {
-              html += '<br>';
-            } else {
-              html += '<div style="margin:2px 0">' + esc(ln) + '</div>';
-            }
-          }
-          html += '</div>';
-        } else {
-          html += '<div style="white-space:pre-wrap;margin-bottom:8px">' + esc(section) + '</div>';
-        }
-      }
-      html += '</div></div>';
-      return html;
+      return `<div style="display:flex;flex-direction:column;height:100%">
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;flex-shrink:0">The fully expanded prompt sent to this agent on its most recent kick — all variables resolved, pipeline data injected.</p>
+        <div class="config-pre config-pre-fill" style="font-family:inherit;font-size:0.78rem;line-height:1.6">${formatMarkdownPrompt(prompt)}</div>
+        </div>`;
     }
 
     // ── Governor Tab Renderers ──

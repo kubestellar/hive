@@ -92,24 +92,30 @@ Rate limits and tiers are configurable by the hive owner in the governor config.
 
 ---
 
-## Setup (Docker — recommended)
+## Run Your Own Hive (v2)
 
-The v2 container packages everything: the Go orchestrator, dashboard, all CLI backends (Claude Code, Copilot, Gemini, Goose), tmux sessions, and a ttyd web terminal. One container, one config file, one volume.
-
-### 1. Create config and data directory
+The recommended way to run Hive is with Docker Compose on the v2 branch:
 
 ```bash
-mkdir -p /opt/hive/secrets
+git clone -b v2 https://github.com/kubestellar/hive.git
+cd hive/v2
+
+cp hive.yaml.example hive.yaml
+# Edit hive.yaml: set your org, repos, and GitHub token
+
+export HIVE_GITHUB_TOKEN=ghp_your_token_here
+docker compose up -d
+
+# Dashboard at http://localhost:3001
 ```
 
-Copy the example config and edit it for your project:
+For Kubernetes deployment, see the [v2 README](v2/README.md#kubernetes).
 
-```bash
-curl -sL https://raw.githubusercontent.com/kubestellar/hive/v2/v2/deploy/hive.yaml \
-  -o /opt/hive/hive.yaml
-```
+For full configuration reference, see `v2/hive.yaml.example`.
 
-Edit `/opt/hive/hive.yaml` — set your org, repos, agents, and governor thresholds. See `v2/deploy/hive.yaml` for a full production reference.
+### Advanced: standalone Docker run
+
+For production deployments without Docker Compose:
 
 ### 2. Run the container
 
@@ -190,15 +196,9 @@ This checks for a new `hive` image every 60 seconds, pulls it, recreates the con
 | `/etc/hive/hive.yaml` | Configuration (bind mount) |
 | `/secrets` | GitHub App key, other secrets (read-only bind mount) |
 
-### Legacy setup (systemd)
+### Legacy setup (v1 systemd — deprecated)
 
-For bare-metal installs without Docker, the v1 systemd approach is still supported on the `main` branch:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/kubestellar/hive/main/install.sh | sudo bash
-sudo cp config/hive-project.yaml.example /etc/hive/hive-project.yaml
-hive supervisor
-```
+> **Note:** The v1 systemd install is deprecated. Use v2 Docker Compose (above) instead.
 
 ---
 

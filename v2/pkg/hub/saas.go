@@ -1665,8 +1665,15 @@ const dashboardHTML = `<!DOCTYPE html>
           var branchName = h.gitBranch || 'v2';
           var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
           var isCurrent = _latestSHA && sha === _latestSHA;
+          var isUpgrading = _upgradingHives[h.id] && sha !== _upgradingHives[h.id];
+          if (isCurrent && _upgradingHives[h.id]) delete _upgradingHives[h.id];
           var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
-          var upgradeIcon = (!isCurrent && isHosted && h.role === 'owner') ? ' <button onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>' : '';
+          var upgradeIcon = '';
+          if (isUpgrading) {
+            upgradeIcon = ' <span style="display:inline-block;padding:3px 10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:0.7rem;margin-left:6px;white-space:nowrap;opacity:0.8"><span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading</span>';
+          } else if (!isCurrent && isHosted && h.role === 'owner') {
+            upgradeIcon = ' <button id="upgrade-' + esc(h.id) + '" onclick="upgradeHive(\'' + esc(h.id) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>';
+          }
           versionCell = branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
         } else { versionCell = '<span style="color:var(--muted)">—</span>'; }
         return '<tr>' +
@@ -1708,19 +1715,19 @@ const dashboardHTML = `<!DOCTYPE html>
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); loadHives(); }
     }
 
+    var _upgradingHives = {};
     async function upgradeHive(id) {
       if (!await hiveConfirm('Upgrade ' + id + ' to latest?')) return;
-      var btns = document.querySelectorAll('button[onclick*="upgradeHive"]');
-      btns.forEach(function(b) { b.disabled = true; b.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading'; b.style.opacity = '0.6'; });
+      var btn = document.getElementById('upgrade-' + id);
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading'; btn.style.opacity = '0.6'; }
       try {
         hiveToast('Upgrading ' + id + '...', 'info');
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id) + '/upgrade', {method: 'POST'});
         var data = await resp.json();
-        if (!resp.ok) { hiveToast(data.error || 'Upgrade failed', 'error'); return; }
-        hiveToast('Upgrade started for ' + id, 'success');
-        loadHives();
-      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
-      finally { btns.forEach(function(b) { b.disabled = false; b.textContent = '⟳'; b.style.opacity = '1'; }); }
+        if (!resp.ok) { hiveToast(data.error || 'Upgrade failed', 'error'); delete _upgradingHives[id]; loadHives(); return; }
+        _upgradingHives[id] = _latestSHA;
+        hiveToast('Upgrade started for ' + id + ' — waiting for rollout', 'success');
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); delete _upgradingHives[id]; loadHives(); }
     }
 
     async function init() {

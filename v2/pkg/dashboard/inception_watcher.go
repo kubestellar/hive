@@ -25,7 +25,7 @@ const (
 	minFactsForAdvance           = 3
 	targetFactCount              = 8
 	factEnrichmentGracePeriod    = 15 * time.Second
-	autoFactFallbackTimeout      = 60 * time.Second
+	autoFactFallbackTimeout      = 30 * time.Second
 	autoQuestionFallbackTimeout  = 30 * time.Second
 )
 

@@ -17,6 +17,11 @@ RUN GIT_HASH=$(git -C /repo rev-parse HEAD 2>/dev/null || echo "unknown") && \
     GOCACHE=/tmp/gobuild CGO_ENABLED=0 go build -ldflags "-X main.gitHash=${GIT_HASH} -X main.gitShort=${GIT_SHORT} -X main.gitBranch=${GIT_BRANCH}" -o /hive ./cmd/hive && \
     GOCACHE=/tmp/gobuild CGO_ENABLED=0 go build -o /bd ./cmd/bd
 
+# Build pluk (Go binary) in the builder stage
+RUN git clone --depth 1 https://github.com/kubestellar/pluk.git /tmp/pluk && \
+    cd /tmp/pluk && GOCACHE=/tmp/gobuild CGO_ENABLED=0 go build -o /pluk ./cmd/pluk/ && \
+    rm -rf /tmp/pluk
+
 # --- tmux from source (cached until TMUX_VERSION changes) ---
 FROM node:24-slim AS tmux-builder
 ARG TMUX_VERSION=3.5a
@@ -127,17 +132,17 @@ RUN pip3 install --no-cache-dir --break-system-packages specify-cli 2>/dev/null 
     pip3 install --no-cache-dir specify-cli 2>/dev/null || \
     echo "WARN: spec-kit (specify-cli) install failed — inception will generate facts without it"
 # pluk (v3 — Go binary): structured event streaming for AI agent tmux sessions
-RUN git clone --depth 1 https://github.com/kubestellar/pluk.git /tmp/pluk && \
-    cd /tmp/pluk && go build -o /usr/local/bin/pluk ./cmd/pluk/ && \
-    ln -sf pluk /usr/local/bin/pluk-publish && \
+COPY --from=builder /pluk /usr/local/bin/pluk
+RUN ln -sf pluk /usr/local/bin/pluk-publish && \
     ln -sf pluk /usr/local/bin/pluk-subscribe && \
     ln -sf pluk /usr/local/bin/pluk-send && \
+    mkdir -p /var/run/pluk/logs /var/run/pluk/commands && \
+    chmod 1777 /var/run/pluk/logs /var/run/pluk/commands
+# Pattern files are embedded in the binary — copy config dir for custom overrides
+RUN git clone --depth 1 https://github.com/kubestellar/pluk.git /tmp/pluk && \
     mkdir -p /usr/local/etc/pluk/patterns.d && \
     cp -r /tmp/pluk/config/patterns.d/* /usr/local/etc/pluk/patterns.d/ && \
-    rm -rf /tmp/pluk && \
-    mkdir -p /var/run/pluk/logs /var/run/pluk/commands && \
-    chmod 1777 /var/run/pluk/logs /var/run/pluk/commands || \
-    echo "WARN: pluk install failed"
+    rm -rf /tmp/pluk
 RUN (which git && git clone -b feat/cli-agent-mode https://github.com/clubanderson/agentic-strategy-evolution /opt/nous && \
     python3 -m venv /opt/nous/venv && \
     /opt/nous/venv/bin/pip install --no-cache-dir -e /opt/nous 2>&1) || \

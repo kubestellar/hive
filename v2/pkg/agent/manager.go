@@ -704,9 +704,15 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 		}
 	}
 
-	base := fmt.Sprintf("[agent:%s] [BOOT] Read your policy file for instructions and begin your first pass.", agent.Name)
+	var base string
 	if policyPath != "" {
-		base = fmt.Sprintf("[agent:%s] [BOOT] Read %s for your instructions.", agent.Name, policyPath)
+		if policyContent, err := os.ReadFile(policyPath); err == nil {
+			base = fmt.Sprintf("[agent:%s] [KICK]\n\n%s", agent.Name, string(policyContent))
+		} else {
+			base = fmt.Sprintf("[agent:%s] [BOOT] Read %s for your instructions.", agent.Name, policyPath)
+		}
+	} else {
+		base = fmt.Sprintf("[agent:%s] [BOOT] Read your policy file for instructions and begin your first pass.", agent.Name)
 	}
 
 	// ACMM fragment files: base rules + level-specific rules.

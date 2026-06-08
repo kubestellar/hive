@@ -934,6 +934,7 @@ func (w *InceptionWatcher) recordAndAdvanceFacts(ctx context.Context, facts []kn
 }
 
 func (w *InceptionWatcher) supplementFactsFromQA(existing []knowledge.IdeationFact, state *knowledge.InceptionState) []knowledge.IdeationFact {
+	originalCount := len(existing)
 	existingTypes := make(map[knowledge.FactType]bool)
 	for _, f := range existing {
 		existingTypes[f.Type] = true
@@ -950,6 +951,7 @@ func (w *InceptionWatcher) supplementFactsFromQA(existing []knowledge.IdeationFa
 	}
 
 	if !existingTypes[knowledge.FactVision] && state.IdeaText != "" {
+		existingTypes[knowledge.FactVision] = true
 		existing = append(existing, knowledge.IdeationFact{
 			Title: "Project Vision",
 			Body:  state.IdeaText,
@@ -979,10 +981,14 @@ func (w *InceptionWatcher) supplementFactsFromQA(existing []knowledge.IdeationFa
 		})
 	}
 
-	w.logger.Info("inception watcher: supplemented facts from Q&A",
-		"original", len(existingTypes)-len(existing)+len(existing),
-		"total", len(existing),
-	)
+	supplemented := len(existing) - originalCount
+	if supplemented > 0 {
+		w.logger.Info("inception watcher: supplemented facts from Q&A",
+			"original", originalCount,
+			"supplemented", supplemented,
+			"total", len(existing),
+		)
+	}
 
 	return existing
 }

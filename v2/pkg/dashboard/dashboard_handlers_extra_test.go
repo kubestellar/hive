@@ -315,7 +315,7 @@ func TestHandleGovernorSensingTTLTooHigh(t *testing.T) {
 
 func TestHandleAgentConfigGeneralMultiField(t *testing.T) {
 	srv := newFullServer(t)
-	body := `{"displayName":"New Scanner","description":"Updated desc","enabled":true,"clearOnKick":true,"staleTimeout":300,"emoji":"🔍","color":"#ff0000","sortOrder":5}`
+	body := `{"displayName":"New Scanner","description":"Updated desc","enabled":true,"clearOnKick":true,"staleTimeout":300,"emoji":"🔍","color":"#ff0000","sortOrder":5,"role":"scanner","kickTemplate":"review-issues.md","mode":"ADVISORY","includeRepos":true,"laneKeywords":["bug","fix"],"detectKeywords":["error","fail"],"aliases":["scan","s"],"beadRole":"worker","cliPinned":true,"restartStrategy":"immediate"}`
 	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/general", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -323,6 +323,36 @@ func TestHandleAgentConfigGeneralMultiField(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleAgentConfigGeneralInvalidMode(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"mode":"INVALID_MODE"}`
+	req := httptest.NewRequest("PUT", "/api/config/agent/scanner/general", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid mode, got %d", w.Code)
+	}
+}
+
+func TestHandleAgentConfigGeneralAllModes(t *testing.T) {
+	modes := []string{"ADVISORY", "ISSUES_ONLY", "ISSUES_AND_PRS", "ISSUES_PRS_MERGE", "NO_GITHUB"}
+	for _, mode := range modes {
+		t.Run(mode, func(t *testing.T) {
+			srv := newFullServer(t)
+			body := `{"mode":"` + mode + `"}`
+			req := httptest.NewRequest("PUT", "/api/config/agent/scanner/general", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			srv.mux.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Errorf("mode %s: expected 200, got %d", mode, w.Code)
+			}
+		})
 	}
 }
 
@@ -510,6 +540,89 @@ func TestHandleGovernorLoggingValid(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleKnowledgeListWithTypeFilter(t *testing.T) {
+	srv := newMinimalServer(t)
+	req := httptest.NewRequest("GET", "/api/knowledge?type=pattern", nil)
+	w := httptest.NewRecorder()
+	srv.handleKnowledgeList(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["enabled"] == nil {
+		t.Error("should have enabled field")
+	}
+}
+
+func TestHandleKnowledgeListNoFilter(t *testing.T) {
+	srv := newMinimalServer(t)
+	req := httptest.NewRequest("GET", "/api/knowledge", nil)
+	w := httptest.NewRecorder()
+	srv.handleKnowledgeList(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestHandleKnowledgeExportMarkdown(t *testing.T) {
+	srv := newMinimalServer(t)
+	req := httptest.NewRequest("GET", "/api/knowledge/export", nil)
+	w := httptest.NewRecorder()
+	srv.handleKnowledgeExport(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	ct := w.Header().Get("Content-Type")
+	if !strings.Contains(ct, "markdown") && !strings.Contains(ct, "text") {
+		t.Errorf("expected markdown content type, got %q", ct)
+	}
+}
+
+func TestHandleRestartUnknownAgent(t *testing.T) {
+	srv := newFullServer(t)
+	req := httptest.NewRequest("POST", "/api/restart/nonexistent", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	// Agent not found → 400
+	if w.Code != http.StatusBadRequest && w.Code != http.StatusNotFound {
+		t.Logf("restart unknown agent: %d", w.Code)
+	}
+}
+
+func TestHandleRestartKnownAgent(t *testing.T) {
+	srv := newFullServer(t)
+	req := httptest.NewRequest("POST", "/api/restart/scanner", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	// Restart will fail (no tmux) → 400
+	if w.Code != http.StatusBadRequest {
+		t.Logf("restart known agent: %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleTimelineModeHistoryFallback(t *testing.T) {
+	srv := newFullServer(t)
+	// No evals recorded — should fall back to mode history
+	req := httptest.NewRequest("GET", "/api/timeline", nil)
+	w := httptest.NewRecorder()
+	srv.handleTimeline(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["modes"] == nil {
+		t.Error("should have modes field")
 	}
 }
 

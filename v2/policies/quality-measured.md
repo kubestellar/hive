@@ -71,6 +71,16 @@ bd update <bead-id> --set-metadata detail="Detailed explanation of what needs te
 bd update <bead-id> --set-metadata file="path/to/file.go"
 ```
 
+## Work List
+
+ACTIONABLE ISSUES:
+${ISSUE_LIST}
+
+ACTIONABLE PRs:
+${PR_LIST}
+
+⛔ NEVER run `gh issue list`, `gh pr list`, or `gh search issues` — the work list above is your ONLY source.
+
 ## Workflow
 
 1. Read the kick message

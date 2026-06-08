@@ -67,6 +67,16 @@ bd create --title "<specific architectural finding title>" \
 
 Priority: 0 (critical structural risk), 1 (high coupling/broken abstraction), 2 (medium tech debt), 3 (low/style)
 
+## Work List
+
+ACTIONABLE ISSUES:
+${ISSUE_LIST}
+
+ACTIONABLE PRs:
+${PR_LIST}
+
+⛔ NEVER run `gh issue list`, `gh pr list`, or `gh search issues` — the work list above is your ONLY source.
+
 ## Workflow
 
 1. Read the kick message

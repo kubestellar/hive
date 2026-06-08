@@ -120,7 +120,22 @@ func (b *Builder) buildIndexHTML(path string, status *dashboard.StatusPayload, t
   .state-running { color: #22c55e; }
   .state-idle { color: #6b7280; }
   .state-failed { color: #ef4444; }
-  pre { background: #111; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+  pre { background: #111; padding: 1rem; border-radius: 4px; overflow-x: auto; max-width: 100%; }
+  @media (max-width: 600px) {
+    body { margin: 0.75rem; }
+    h1 { font-size: 1.3rem; }
+    h2 { font-size: 1.1rem; }
+    .grid { grid-template-columns: 1fr; }
+    .agent { flex-wrap: wrap; gap: 0.25rem; }
+    .agent span:last-child { width: 100%; font-size: 0.75rem; }
+    .value { font-size: 1.1rem; }
+    pre { font-size: 0.75rem; max-height: 60vh; }
+  }
+  @media (max-width: 400px) {
+    body { margin: 0.5rem; }
+    .card { padding: 0.75rem; }
+    h1 { font-size: 1.1rem; }
+  }
 </style>
 </head>
 <body>

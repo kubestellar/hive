@@ -656,7 +656,7 @@ func (w *InceptionWatcher) buildInceptionKickMessage(state *knowledge.InceptionS
 // questions (with │ delimiters) even when bd create doesn't execute. This
 // catches the ~30% of cases where beads aren't created but questions exist.
 func (w *InceptionWatcher) checkForQuestionsInOutput() {
-	lines, err := w.agentMgr.GetBufferOutput("brainstorm", outputParseLineCount)
+	lines, err := w.agentMgr.GetBufferOutput("brainstorm", interceptBufferLineCount)
 	if err != nil || len(lines) == 0 {
 		return
 	}

@@ -1638,7 +1638,7 @@ func buildPackageJSON(name string, vision *Fact) string {
     "eslint": "^9.0.0"
   }
 }
-`, name, desc)
+`, jsonEscape(name), jsonEscape(desc))
 }
 
 func buildTSConfig() string {
@@ -1956,6 +1956,7 @@ jobs:
 }
 
 func buildI18nFile(locale, name string) string {
+	escaped := jsonEscape(name)
 	switch locale {
 	case "es":
 		return fmt.Sprintf(`{
@@ -1970,7 +1971,7 @@ func buildI18nFile(locale, name string) string {
   "common.success": "Éxito",
   "common.search": "Buscar"
 }
-`, name)
+`, escaped)
 	default:
 		return fmt.Sprintf(`{
   "app.title": "%s",
@@ -1984,7 +1985,7 @@ func buildI18nFile(locale, name string) string {
   "common.success": "Success",
   "common.search": "Search"
 }
-`, name)
+`, escaped)
 	}
 }
 
@@ -2049,6 +2050,12 @@ func buildMakefile(lang, name string) string {
 }
 
 // --- string helpers ---
+
+func jsonEscape(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return s
+}
 
 func pyPackageName(name string) string {
 	return strings.ReplaceAll(name, "-", "_")

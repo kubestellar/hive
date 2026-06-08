@@ -773,38 +773,44 @@ func (s *HubServer) handleToggleVisibility(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var svcURL string
 	if isHosted {
 		const goAPIPort = 3002
 		ns := "hive-hosted-" + id
-		svcURL = fmt.Sprintf("http://hive.%s.svc.cluster.local:%d/api/config/governor/hub", ns, goAPIPort)
-	} else {
-		svcURL = strings.TrimRight(dashURL, "/") + "/api/config/governor/hub"
+		svcURL := fmt.Sprintf("http://hive.%s.svc.cluster.local:%d/api/config/governor/hub", ns, goAPIPort)
+		payload := fmt.Sprintf(`{"is_public":%t}`, body.IsPublic)
+		req, err := http.NewRequest("PUT", svcURL, strings.NewReader(payload))
+		if err != nil {
+			http.Error(w, `{"error":"failed to create request"}`, http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		const visibilityTimeout = 10 * time.Second
+		client := &http.Client{Timeout: visibilityTimeout}
+		spokeResp, err := client.Do(req)
+		if err != nil {
+			s.logger.Warn("visibility toggle failed", "hive", id, "error", err)
+			http.Error(w, `{"error":"failed to reach hive"}`, http.StatusBadGateway)
+			return
+		}
+		defer spokeResp.Body.Close()
+		if spokeResp.StatusCode != http.StatusOK {
+			respBody, _ := io.ReadAll(spokeResp.Body)
+			s.logger.Warn("visibility toggle rejected", "hive", id, "status", spokeResp.StatusCode, "body", string(respBody))
+			http.Error(w, `{"error":"hive rejected the change"}`, http.StatusBadGateway)
+			return
+		}
 	}
-
-	payload := fmt.Sprintf(`{"is_public":%t}`, body.IsPublic)
-	req, err := http.NewRequest("PUT", svcURL, strings.NewReader(payload))
-	if err != nil {
-		http.Error(w, `{"error":"failed to create request"}`, http.StatusInternalServerError)
-		return
+	// Update the hub registry directly (works for both hosted and local hives)
+	s.mu.Lock()
+	for i := range s.registry.Hives {
+		if s.registry.Hives[i].ID == id {
+			s.registry.Hives[i].IsPublic = body.IsPublic
+			break
+		}
 	}
-	req.Header.Set("Content-Type", "application/json")
-	const visibilityTimeout = 10 * time.Second
-	client := &http.Client{Timeout: visibilityTimeout}
-	spokeResp, err := client.Do(req)
-	if err != nil {
-		s.logger.Warn("visibility toggle failed", "hive", id, "error", err)
-		http.Error(w, `{"error":"failed to reach hive"}`, http.StatusBadGateway)
-		return
-	}
-	defer spokeResp.Body.Close()
-	if spokeResp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(spokeResp.Body)
-		s.logger.Warn("visibility toggle rejected", "hive", id, "status", spokeResp.StatusCode, "body", string(respBody))
-		http.Error(w, `{"error":"hive rejected the change"}`, http.StatusBadGateway)
-		return
-	}
-	s.logger.Info("audit: visibility toggled", "hive_id", id, "is_public", body.IsPublic, "by", username)
+	s.mu.Unlock()
+	s.requestSave()
+	s.logger.Info("audit: visibility toggled", "hive_id", id, "is_public", body.IsPublic, "by", username, "hosted", isHosted)
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"ok":true,"is_public":%t}`, body.IsPublic)
 }

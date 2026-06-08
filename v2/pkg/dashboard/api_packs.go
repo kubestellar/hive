@@ -346,7 +346,10 @@ func (s *Server) syncAgentVisibility(level int) (paused, resumed []string) {
 				continue
 			}
 			if s.deps.AgentMgr.IsPaused(name) {
-				toResume = append(toResume, name)
+				proc, err := s.deps.AgentMgr.GetStatus(name)
+				if err == nil && proc.PausedTrigger == "acmm-pack" {
+					toResume = append(toResume, name)
+				}
 			}
 		} else {
 			// Pause sequentially — it's fast and order can matter.

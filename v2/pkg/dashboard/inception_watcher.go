@@ -258,11 +258,15 @@ func (w *InceptionWatcher) findInceptionBeads() []*beads.Bead {
 		if b.Actor != "brainstorm" && b.Actor != "inception" {
 			continue
 		}
-		// Match by external_ref OR by title pattern (Clarification:, fact keywords)
+		// Accept beads matching any inception indicator. The agent uses
+		// inconsistent formats — cast a wide net.
 		hasInceptionRef := strings.HasPrefix(b.ExternalRef, inceptionBeadRefPrefix)
-		hasClarificationTitle := strings.HasPrefix(b.Title, "Clarification:") || strings.HasPrefix(b.Title, "clarification:")
-		hasQuestionType := b.Type == "question"
-		if hasInceptionRef || hasClarificationTitle || hasQuestionType {
+		hasClarificationTitle := strings.Contains(strings.ToLower(b.Title), "clarif") ||
+			strings.HasSuffix(strings.TrimSpace(b.Title), "?")
+		hasFactKeyword := strings.Contains(strings.ToLower(b.Title), "vision") ||
+			strings.Contains(strings.ToLower(b.Title), "requirement") ||
+			strings.Contains(strings.ToLower(b.Title), "constraint")
+		if hasInceptionRef || hasClarificationTitle || hasFactKeyword || b.Type == beads.TypeAdvisory {
 			inception = append(inception, b)
 		}
 	}

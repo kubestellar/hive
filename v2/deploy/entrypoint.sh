@@ -37,8 +37,15 @@ fi
 
 # ── Root-only setup (runs once, then re-execs as dev) ──────────────────
 if [ "$(id -u)" = "0" ]; then
-  # Fix ownership of mounted volumes (may be root-owned from host bind mounts)
-  chown -R dev:node /data /home/dev 2>/dev/null || true
+  # Fix ownership of mounted volumes (may be root-owned from host bind mounts).
+  # Skip recursive chown if /data is already owned by dev — critical for NFS
+  # where recursive chown over thousands of files causes multi-minute delays.
+  DATA_OWNER=$(stat -c '%u' /data 2>/dev/null || echo "0")
+  if [ "$DATA_OWNER" != "1001" ]; then
+    echo "[entrypoint] Fixing /data ownership (currently uid=$DATA_OWNER)..."
+    chown -R dev:node /data 2>/dev/null || true
+  fi
+  chown dev:node /home/dev 2>/dev/null || true
   chown dev:node /etc/hive/hive.yaml 2>/dev/null || true
   mkdir -p /var/run/hive-metrics && chown dev:node /var/run/hive-metrics 2>/dev/null || true
 
@@ -59,7 +66,6 @@ if [ "$(id -u)" = "0" ]; then
   if [ -d /opt/hive/seed-data ]; then
     echo "[entrypoint] Seeding data files..."
     cp -rn /opt/hive/seed-data/* /data/ 2>/dev/null || true
-    chown -R dev:node /data 2>/dev/null || true
   fi
 
   # Create beads symlinks: /home/dev/<agent>-beads -> /data/beads/<agent>
@@ -82,8 +88,11 @@ if [ "$(id -u)" = "0" ]; then
         echo "[entrypoint] Beads symlink: /home/dev/${agent}-beads -> /data/beads/${agent}"
       fi
     done
-    chown -R dev:node /data/beads /home/dev 2>/dev/null || true
-    chmod -R g+rwX /data/beads 2>/dev/null || true
+    chown dev:node /home/dev 2>/dev/null || true
+    if [ "$DATA_OWNER" != "1001" ]; then
+      chown -R dev:node /data/beads 2>/dev/null || true
+      chmod -R g+rwX /data/beads 2>/dev/null || true
+    fi
   fi
 
   # Shared CLI auth/cache lives in /data/home (persistent volume).
@@ -93,10 +102,15 @@ if [ "$(id -u)" = "0" ]; then
   ln -sfn /data/config/github-copilot /home/dev/.config/github-copilot
   ln -sfn /data/config/github-copilot /data/home/.config/github-copilot
   ln -sfn /data/home/.copilot /home/dev/.copilot
-  chmod -R g+rwX /data/home 2>/dev/null || true
+  if [ "$DATA_OWNER" != "1001" ]; then
+    chmod -R g+rwX /data/home 2>/dev/null || true
+  fi
   # setgid on .copilot so new files inherit group node (agents share this dir)
   chmod g+s /data/home/.copilot 2>/dev/null || true
-  chown -R dev:node /data/config /data/home /home/dev/.config 2>/dev/null || true
+  if [ "$DATA_OWNER" != "1001" ]; then
+    chown -R dev:node /data/config /data/home 2>/dev/null || true
+  fi
+  chown dev:node /home/dev/.config 2>/dev/null || true
   # inotify watcher: copilot CLI rewrites config.json with 0600 on every
   # token refresh, locking out other agent UIDs. This watcher resets perms
   # instantly on every write — sub-second response, no polling race.

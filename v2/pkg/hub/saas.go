@@ -1471,13 +1471,28 @@ const dashboardHTML = `<!DOCTYPE html>
         var overlay = document.createElement('div');
         overlay.className = 'hive-confirm-overlay';
         overlay.innerHTML = '<div class="hive-confirm"><p>' + esc(msg) + '</p><div class="hive-confirm-btns">' +
-          '<button style="padding:8px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer" onclick="this.closest(\'.hive-confirm-overlay\').remove()">Cancel</button>' +
+          '<button style="padding:8px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Cancel</button>' +
           '<button style="padding:8px 16px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer" id="hive-confirm-ok">Confirm</button></div></div>';
         document.body.appendChild(overlay);
-        overlay.querySelector('#hive-confirm-ok').onclick = function() { overlay.remove(); resolve(true); };
-        overlay.querySelector('button:first-child').onclick = function() { overlay.remove(); resolve(false); };
+        var done = false;
+        function finish(val) { if (done) return; done = true; overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); }
+        function onKey(e) { if (e.key === 'Escape') finish(false); if (e.key === 'Enter') finish(true); }
+        document.addEventListener('keydown', onKey);
+        overlay.querySelector('#hive-confirm-ok').onclick = function() { finish(true); };
+        overlay.querySelector('button:first-child').onclick = function() { finish(false); };
+        overlay.querySelector('#hive-confirm-ok').focus();
       });
     }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Escape') return;
+      var createModal = document.getElementById('create-modal');
+      if (createModal && createModal.style.display === 'flex') { createModal.style.display = 'none'; return; }
+      var accessOverlay = document.querySelector('.hive-confirm-overlay');
+      if (accessOverlay) { accessOverlay.remove(); return; }
+      var accessModal = document.getElementById('access-modal');
+      if (accessModal && accessModal.style.display === 'flex') { accessModal.style.display = 'none'; }
+    });
 
     var ACMM_LABELS = {1:'L1 Idea',2:'L2 Measured',3:'L3 CI/CD',4:'L4 Auto PR',5:'L5 Self-Governing',6:'L6 Fully Autonomous'};
     function acmmBadge(level) {

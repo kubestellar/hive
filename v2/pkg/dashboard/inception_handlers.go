@@ -35,6 +35,10 @@ func (s *Server) handleInceptionStart(w http.ResponseWriter, r *http.Request) {
 	if req.Force {
 		_ = s.deps.Inception.Reset()
 		if s.deps.AgentMgr != nil {
+			// Kill the tmux session to ensure a clean slate — stale
+			// session state from a previous inception causes the agent
+			// to alternate between responsive and unresponsive.
+			_ = s.deps.AgentMgr.KillSession("brainstorm")
 			_ = s.deps.AgentMgr.Pause("brainstorm", "inception-force-reset", "forced reset before new inception")
 		}
 	}

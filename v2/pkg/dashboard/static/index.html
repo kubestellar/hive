@@ -8828,7 +8828,7 @@ function burnAreaChart() {
           .then(r => r.json())
           .then(data => {
             const el = document.getElementById(elId);
-            if (el) el.textContent = data.prompt || '(no template found in kick-agents.sh)';
+            if (el) el.textContent = data.prompt || '(no template found — check kick_template in agent config)';
             const srcEl = document.getElementById(srcId);
             if (srcEl && data.sourceFiles && data.sourceFiles.length > 0) {
               let items = '';
@@ -8849,7 +8849,7 @@ function burnAreaChart() {
         <div id="${srcId}" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:10px;flex-shrink:0">
           <div style="font-size:0.7rem;font-weight:600;color:var(--text);margin-bottom:6px">Source files <span style="font-weight:400;color:var(--muted)">(edit these on your fork)</span></div>
         </div>
-        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;flex-shrink:0">Prompt template from <code>kick-agents.sh</code>. Variable names shown as <code>⟨name⟩</code> — these are filled by the deterministic pipeline at kick time.</p>
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;flex-shrink:0">Kick template with <code>\${VAR}</code> placeholders resolved from config. This is the policy sent to the agent on each governor kick.</p>
         <pre class="config-pre config-pre-fill" id="${elId}">${esc('Loading template…')}</pre>
         </div>`;
     }

@@ -356,7 +356,7 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 
 		var content strings.Builder
 		content.WriteString("---\n")
-		fmt.Fprintf(&content, "title: %s\n", f.Title)
+		fmt.Fprintf(&content, "title: \"%s\"\n", strings.ReplaceAll(f.Title, `"`, `\"`))
 		fmt.Fprintf(&content, "type: %s\n", string(f.Type))
 		fmt.Fprintf(&content, "confidence: %.2f\n", conf)
 		if len(tags) > 0 {
@@ -858,6 +858,8 @@ func parseInceptionFactFile(content, filename string) (title, body, factType str
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "title:") {
 			title = strings.TrimSpace(strings.TrimPrefix(line, "title:"))
+			title = strings.Trim(title, `"`)
+			title = strings.ReplaceAll(title, `\"`, `"`)
 		}
 		if strings.HasPrefix(line, "type:") {
 			factType = strings.TrimSpace(strings.TrimPrefix(line, "type:"))

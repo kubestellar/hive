@@ -109,6 +109,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/upgrade", s.requireAuth(s.handleUpgradeHive))
 	s.mux.HandleFunc("PUT /api/saas/hives/{id}/visibility", s.requireAuth(s.handleToggleVisibility))
+	s.mux.HandleFunc("PUT /api/saas/hives/{id}/auto-upgrade", s.requireAuth(s.handleToggleAutoUpgrade))
 	s.mux.HandleFunc("GET /api/saas/hive-config/{hiveID}", s.requireAuth(s.handleProxyHiveConfig))
 	s.mux.HandleFunc("GET /api/saas/latest-sha", s.handleLatestSHA)
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
@@ -124,7 +125,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
 
 	go StartProvisionWatcher(s.logger, &s.mu)
-	go StartLatestSHAPoller(s.logger)
+	go s.StartLatestSHAPoller()
 }
 
 func (s *HubServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
@@ -389,6 +390,7 @@ type MyHiveEntry struct {
 	Role        string `json:"role"`
 	ProvError   string `json:"provError,omitempty"`
 	ProvStatus  string `json:"provStatus,omitempty"`
+	AutoUpgrade bool   `json:"autoUpgrade"`
 }
 
 func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
@@ -408,13 +410,18 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 
 	var result []MyHiveEntry
 
+	autoUpgradeMap := make(map[string]bool)
+	for _, sh := range listSaaSHives() {
+		autoUpgradeMap[sh.ID] = sh.AutoUpgrade
+	}
+
 	for _, h := range allHives {
 		if role, ok := user.Hives[h.ID]; ok {
-			result = append(result, MyHiveEntry{RegistryEntry: h, Role: role})
+			result = append(result, MyHiveEntry{RegistryEntry: h, Role: role, AutoUpgrade: autoUpgradeMap[h.ID]})
 			continue
 		}
 		if strings.EqualFold(h.Owner, username) {
-			result = append(result, MyHiveEntry{RegistryEntry: h, Role: "owner"})
+			result = append(result, MyHiveEntry{RegistryEntry: h, Role: "owner", AutoUpgrade: autoUpgradeMap[h.ID]})
 			user.Hives[h.ID] = "owner"
 		}
 	}
@@ -783,6 +790,46 @@ func (s *HubServer) handleToggleVisibility(w http.ResponseWriter, r *http.Reques
 	fmt.Fprintf(w, `{"ok":true,"is_public":%t}`, body.IsPublic)
 }
 
+func (s *HubServer) handleToggleAutoUpgrade(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	if isTrustedOrigin(origin) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "PUT, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	}
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	id := r.PathValue("id")
+	username := s.getAuthUser(r)
+	h := loadSaaSHive(id)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+	if h.Owner != username && username != hubAdminUsername {
+		http.Error(w, `{"error":"only the owner can change auto-upgrade"}`, http.StatusForbidden)
+		return
+	}
+	var body struct {
+		AutoUpgrade bool `json:"auto_upgrade"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+	h.AutoUpgrade = body.AutoUpgrade
+	if err := saveSaaSHive(h); err != nil {
+		http.Error(w, `{"error":"failed to save"}`, http.StatusInternalServerError)
+		return
+	}
+	s.logger.Info("audit: auto-upgrade toggled", "hive_id", id, "auto_upgrade", body.AutoUpgrade, "by", username)
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"ok":true,"auto_upgrade":%t}`, body.AutoUpgrade)
+}
+
 var (
 	latestSHAMu    sync.RWMutex
 	latestSHACache string
@@ -796,12 +843,44 @@ func getLatestSHA() string {
 	return latestSHACache
 }
 
-func StartLatestSHAPoller(logger *slog.Logger) {
-	fetchSHA(logger)
+func (s *HubServer) StartLatestSHAPoller() {
+	fetchSHA(s.logger)
 	ticker := time.NewTicker(latestSHAPollInterval)
 	defer ticker.Stop()
 	for range ticker.C {
-		fetchSHA(logger)
+		oldSHA := getLatestSHA()
+		fetchSHA(s.logger)
+		newSHA := getLatestSHA()
+		if oldSHA != "" && newSHA != "" && oldSHA != newSHA {
+			s.triggerAutoUpgrades(newSHA)
+		}
+	}
+}
+
+func (s *HubServer) triggerAutoUpgrades(latestSHA string) {
+	hives := listSaaSHives()
+	for _, h := range hives {
+		if !h.AutoUpgrade || h.Status != "running" {
+			continue
+		}
+		s.mu.RLock()
+		var currentSHA string
+		for _, reg := range s.registry.Hives {
+			if reg.ID == h.ID {
+				currentSHA = reg.GitHash
+				break
+			}
+		}
+		s.mu.RUnlock()
+		if currentSHA == latestSHA {
+			continue
+		}
+		s.logger.Info("audit: auto-upgrade triggered", "hive_id", h.ID, "from", currentSHA, "to", latestSHA)
+		ns := "hive-hosted-" + h.ID
+		cmd := exec.Command("kubectl", "rollout", "restart", "deployment/hive", "-n", ns)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			s.logger.Warn("auto-upgrade failed", "hive", h.ID, "output", string(out))
+		}
 	}
 }
 
@@ -1689,7 +1768,11 @@ const dashboardHTML = `<!DOCTYPE html>
           } else if (!isCurrent && isHosted && h.role === 'owner') {
             upgradeIcon = ' <button id="upgrade-' + esc(h.id) + '" onclick="upgradeHive(\'' + esc(h.id) + '\',\'' + esc(sha) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>';
           }
-          versionCell = branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon;
+          var autoUpgradeCheck = '';
+          if (isHosted && h.role === 'owner') {
+            autoUpgradeCheck = ' <label style="margin-left:8px;font-size:0.65rem;color:var(--muted);cursor:pointer;white-space:nowrap" title="Automatically upgrade when a new version is available"><input type="checkbox" ' + (h.autoUpgrade ? 'checked' : '') + ' onchange="toggleAutoUpgrade(\'' + esc(h.id) + '\',this.checked)" style="vertical-align:middle;margin-right:2px;cursor:pointer">auto</label>';
+          }
+          versionCell = branch + '<span style="font-family:monospace;color:var(--muted)">' + esc(sha) + '</span>' + status + upgradeIcon + autoUpgradeCheck;
         } else { versionCell = '<span style="color:var(--muted)">—</span>'; }
         return '<tr>' +
           '<td class="hive-menu-cell" style="position:relative;width:30px;text-align:center;overflow:visible"><span style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div class="hive-menu-dropdown" style="display:none;position:absolute;left:0;bottom:auto;background:#1c2128;border:1px solid #30363d;border-radius:8px;min-width:160px;padding:4px 0;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,0.5)">' + menuItems.join('') + '</div></td>' +
@@ -1727,6 +1810,19 @@ const dashboardHTML = `<!DOCTYPE html>
         if (!resp.ok) { hiveToast(data.error || 'Failed to change visibility', 'error'); loadHives(); return; }
         hiveToast(id + ' is now ' + (isPublic ? 'public' : 'private'), 'success');
         loadHives();
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); loadHives(); }
+    }
+
+    async function toggleAutoUpgrade(id, enabled) {
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id) + '/auto-upgrade', {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({auto_upgrade: enabled})
+        });
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Failed', 'error'); loadHives(); return; }
+        hiveToast(id + ' auto-upgrade ' + (enabled ? 'enabled' : 'disabled'), 'success');
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); loadHives(); }
     }
 

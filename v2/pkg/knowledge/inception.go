@@ -1504,12 +1504,9 @@ description = "%s"
 }
 
 func buildRustMain(name string, vision *Fact) string {
-	desc := name
-	if vision != nil && vision.Body != "" {
-		desc = vision.Body
-		if len(desc) > maxDescriptionLen {
-			desc = desc[:maxDescriptionLen]
-		}
+	desc := singleLine(name)
+	if vision != nil && vision.Title != "" {
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`// %s
 fn main() {
@@ -1541,12 +1538,9 @@ func buildPomXml(name string, vision *Fact) string {
 }
 
 func buildJavaMain(name string, vision *Fact) string {
-	desc := name
-	if vision != nil && vision.Body != "" {
-		desc = vision.Body
-		if len(desc) > maxDescriptionLen {
-			desc = desc[:maxDescriptionLen]
-		}
+	desc := singleLine(name)
+	if vision != nil && vision.Title != "" {
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`// %s
 public class App {

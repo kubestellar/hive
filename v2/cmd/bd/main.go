@@ -20,27 +20,35 @@ import (
 // agentDirPattern matches /home/dev/<agent>-beads or /data/beads/<agent>.
 var agentDirPattern = regexp.MustCompile(`^(/home/dev/[^/]+-beads|/data/beads/[^/]+)$`)
 
+// agentWorkdirPattern matches /data/agents/<name> and extracts the agent name.
+var agentWorkdirPattern = regexp.MustCompile(`^/data/agents/([^/]+)$`)
+
 func resolveDir() string {
-	// 1. If cwd matches the agent beads convention, use it.
+	// 1. BD_DIR env var — explicit override.
+	if dir := os.Getenv("BD_DIR"); dir != "" {
+		return dir
+	}
+
 	cwd, err := os.Getwd()
-	if err == nil && agentDirPattern.MatchString(cwd) {
-		// Follow symlinks so the Store opens the real path.
+	if err != nil {
+		return "."
+	}
+
+	// 2. If cwd matches the beads dir convention, use it directly.
+	if agentDirPattern.MatchString(cwd) {
 		if resolved, err := filepath.EvalSymlinks(cwd); err == nil {
 			return resolved
 		}
 		return cwd
 	}
 
-	// 2. BD_DIR env var.
-	if dir := os.Getenv("BD_DIR"); dir != "" {
-		return dir
+	// 3. If cwd is /data/agents/<name>, derive /data/beads/<name>.
+	if m := agentWorkdirPattern.FindStringSubmatch(cwd); m != nil {
+		return filepath.Join("/data/beads", m[1])
 	}
 
-	// 3. Fall back to cwd.
-	if cwd != "" {
-		return cwd
-	}
-	return "."
+	// 4. Fall back to cwd.
+	return cwd
 }
 
 func main() {

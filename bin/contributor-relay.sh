@@ -428,6 +428,11 @@ function handleMessage(data) {
 
     case 'auth_failed':
       console.error(`Authentication failed: ${msg.reason}`);
+      if (msg.accepted_models && msg.accepted_models.length > 0) {
+        console.error('\nThis hive accepts the following models:');
+        msg.accepted_models.forEach(m => console.error('  - ' + m));
+        console.error('\nSet your model: export AGENT_MODEL=<model>');
+      }
       process.exit(1);
       break;
 

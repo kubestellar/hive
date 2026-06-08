@@ -337,8 +337,10 @@ type HubConfig struct {
 	ContributeAllowLabels  []string `yaml:"contribute_allow_labels"`
 	ContributeDenyLabels   []string `yaml:"contribute_deny_labels"`
 	ContributeDenyTitles   []string `yaml:"contribute_deny_titles"`
-	ContributeDenyAuthors  []string `yaml:"contribute_deny_authors"`
-	DisabledRepos          []string            `yaml:"disabled_repos"`
+	ContributeDenyAuthors         []string `yaml:"contribute_deny_authors"`
+	ContributeAllowModels         []string `yaml:"contribute_allow_models"`
+	ContributeRejectUnknownModels bool     `yaml:"contribute_reject_unknown_models"`
+	DisabledRepos                 []string            `yaml:"disabled_repos"`
 	DisabledTiers          []string            `yaml:"disabled_tiers"`
 	TierLimits             map[string]TierRate `yaml:"tier_limits"`
 	SnapshotIntervalMin    int                 `yaml:"snapshot_interval_min"`

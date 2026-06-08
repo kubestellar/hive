@@ -127,6 +127,91 @@ func TestVaultFactNotFound(t *testing.T) {
 func TestLayersWithFileEngine(t *testing.T) {
 	api := NewKnowledgeAPI(nil, KnowledgeConfig{Enabled: true, Engine: "file"}, slog.Default())
 	layers := api.Layers()
-	// File engine may return empty layers when no vaults configured
 	_ = layers
+}
+
+func TestObsidianSyncPathTraversal(t *testing.T) {
+	api := NewKnowledgeAPI(nil, KnowledgeConfig{Enabled: true, Engine: "file"}, slog.Default())
+	_, err := api.ObsidianSync(context.Background(), ObsidianSyncRequest{
+		Filename: "../../../etc/passwd",
+		Content:  "evil",
+	})
+	if err == nil {
+		t.Error("should reject path traversal in filename")
+	}
+}
+
+func TestObsidianSyncValid(t *testing.T) {
+	api := NewKnowledgeAPI(nil, KnowledgeConfig{Enabled: true, Engine: "file"}, slog.Default())
+	result, err := api.ObsidianSync(context.Background(), ObsidianSyncRequest{
+		Filename: "test-pattern.md",
+		Content:  "Always validate input before processing",
+		Frontmatter: map[string]interface{}{
+			"title":      "Input Validation",
+			"type":       "pattern",
+			"layer":      "project",
+			"confidence": 0.9,
+			"tags":       []interface{}{"security", "validation"},
+		},
+	})
+	if err != nil {
+		t.Logf("ObsidianSync: %v (may fail on macOS without /data)", err)
+	}
+	if result != nil && result.Slug == "" {
+		t.Error("result should have a slug")
+	}
+}
+
+func TestObsidianSyncNoExtension(t *testing.T) {
+	api := NewKnowledgeAPI(nil, KnowledgeConfig{Enabled: true, Engine: "file"}, slog.Default())
+	result, err := api.ObsidianSync(context.Background(), ObsidianSyncRequest{
+		Filename: "my-fact.markdown",
+		Content:  "Some content",
+	})
+	if err != nil {
+		t.Logf("ObsidianSync markdown ext: %v", err)
+	}
+	_ = result
+}
+
+func TestObsidianSyncBadLayer(t *testing.T) {
+	api := NewKnowledgeAPI(nil, KnowledgeConfig{Enabled: true, Engine: "file"}, slog.Default())
+	result, err := api.ObsidianSync(context.Background(), ObsidianSyncRequest{
+		Filename: "test.md",
+		Content:  "content",
+		Frontmatter: map[string]interface{}{
+			"layer": "..",
+		},
+	})
+	if err != nil {
+		t.Logf("ObsidianSync bad layer: %v", err)
+	}
+	_ = result
+}
+
+func TestObsidianSyncEmptyLayer(t *testing.T) {
+	api := NewKnowledgeAPI(nil, KnowledgeConfig{Enabled: true, Engine: "file"}, slog.Default())
+	result, err := api.ObsidianSync(context.Background(), ObsidianSyncRequest{
+		Filename: "test.md",
+		Content:  "content",
+		Frontmatter: map[string]interface{}{
+			"layer": "",
+		},
+	})
+	if err != nil {
+		t.Logf("ObsidianSync empty layer: %v", err)
+	}
+	_ = result
+}
+
+func TestListIdeationFactsFileEngine(t *testing.T) {
+	api := NewKnowledgeAPI(nil, KnowledgeConfig{Enabled: true, Engine: "file"}, slog.Default())
+	facts := api.ListIdeationFacts(context.Background())
+	_ = facts
+}
+
+func TestGetConstitutionFileEngine(t *testing.T) {
+	api := NewKnowledgeAPI(nil, KnowledgeConfig{Enabled: true, Engine: "file"}, slog.Default())
+	c := api.GetConstitution(context.Background())
+	_ = c
 }

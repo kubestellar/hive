@@ -1864,8 +1864,8 @@ const dashboardHTML = `<!DOCTYPE html>
           var branchName = h.gitBranch || 'v2';
           var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
           var isCurrent = _latestSHA && sha === _latestSHA;
-          var isUpgrading = (_upgradingHives[h.id] && sha !== _upgradingHives[h.id]) || h.upgrading;
-          if (isCurrent && _upgradingHives[h.id]) delete _upgradingHives[h.id];
+          var isUpgrading = _upgradingHives[h.id] && sha === _upgradingHives[h.id];
+          if (_upgradingHives[h.id] && sha !== _upgradingHives[h.id]) delete _upgradingHives[h.id];
           var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
           var upgradeIcon = '';
           if (isUpgrading) {
@@ -1943,7 +1943,7 @@ const dashboardHTML = `<!DOCTYPE html>
         var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id) + '/upgrade', {method: 'POST'});
         var data = await resp.json();
         if (!resp.ok) { hiveToast(data.error || 'Upgrade failed', 'error'); delete _upgradingHives[id]; loadHives(); return; }
-        _upgradingHives[id] = _latestSHA;
+        _upgradingHives[id] = currentSHA;
         hiveToast('Upgrade started for ' + id + ' — waiting for rollout', 'success');
         loadHives();
         setTimeout(loadHives, 10000);

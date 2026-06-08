@@ -19,10 +19,7 @@ docker compose up -d
 # Dashboard at http://localhost:3001
 ```
 
-To use the pre-built image instead of building from source, edit `docker-compose.yaml` and replace the `build:` block with:
-```yaml
-image: ghcr.io/kubestellar/hive:latest
-```
+The default `docker-compose.yaml` pulls the pre-built image `ghcr.io/kubestellar/hive:v2-latest`. To build from source instead, run `docker compose build` before `docker compose up -d`.
 
 ## Links
 

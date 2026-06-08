@@ -1872,6 +1872,11 @@ const dashboardHTML = `<!DOCTYPE html>
         if (!resp.ok) { hiveToast(data.error || 'Upgrade failed', 'error'); delete _upgradingHives[id]; loadHives(); return; }
         _upgradingHives[id] = _latestSHA;
         hiveToast('Upgrade started for ' + id + ' — waiting for rollout', 'success');
+        loadHives();
+        setTimeout(loadHives, 10000);
+        setTimeout(loadHives, 30000);
+        setTimeout(loadHives, 60000);
+        setTimeout(loadHives, 90000);
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); delete _upgradingHives[id]; loadHives(); }
     }
 

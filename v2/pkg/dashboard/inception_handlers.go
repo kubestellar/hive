@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/beads"
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
@@ -456,15 +457,27 @@ func (s *Server) kickBrainstorm() {
 
 		msg := s.deps.Scheduler.BuildAgentMessage("brainstorm", nil, s.deps.Scheduler.GetLastActionable())
 
-		// Try pluk-send first (pluk) — reliable, structured delivery.
-		// Falls back to RestartWithBootstrap if pluk-send is not installed.
-		if err := plukSendKick("brainstorm", msg); err != nil {
-			s.logger.Debug("pluk-send not available, using RestartWithBootstrap", "error", err)
-			if err2 := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err2 != nil {
-				s.logger.Warn("failed to restart brainstorm for inception", "error", err2)
+		// Try SendKick to the running session — send /clear first to
+		// reset CLI context, then the inception prompt. No restart needed.
+		// This avoids the shell initialization race that causes the
+		// alternating responsive/unresponsive pattern.
+		clearErr := s.deps.AgentMgr.SendKick("brainstorm", "/clear")
+		if clearErr == nil {
+			time.Sleep(1 * time.Second)
+			if err := s.deps.AgentMgr.SendKick("brainstorm", msg); err != nil {
+				s.logger.Warn("SendKick after /clear failed, trying RestartWithBootstrap", "error", err)
+				if err2 := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err2 != nil {
+					s.logger.Warn("failed to restart brainstorm for inception", "error", err2)
+				}
+			} else {
+				s.logger.Info("inception kick sent via /clear + SendKick")
 			}
 		} else {
-			s.logger.Info("inception kick sent via pluk-send")
+			// No running session — use RestartWithBootstrap
+			s.logger.Debug("no running session, using RestartWithBootstrap", "error", clearErr)
+			if err := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err != nil {
+				s.logger.Warn("failed to restart brainstorm for inception", "error", err)
+			}
 		}
 
 		if s.deps.Governor != nil {

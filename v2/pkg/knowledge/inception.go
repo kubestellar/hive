@@ -1050,7 +1050,7 @@ func buildGoTestStubs(acceptance []Fact) string {
 	for _, a := range acceptance {
 		funcName := "Test" + toPascalCase(a.Title)
 		fmt.Fprintf(&b, "func %s(t *testing.T) {\n", funcName)
-		fmt.Fprintf(&b, "\tt.Skip(\"TODO: %s\")\n", a.Title)
+		fmt.Fprintf(&b, "\tt.Skip(\"TODO: %s\")\n", strings.ReplaceAll(a.Title, `"`, `\"`))
 		b.WriteString("}\n\n")
 	}
 	return b.String()
@@ -1072,7 +1072,7 @@ func buildPythonTestStubs(acceptance []Fact) string {
 	b.WriteString("import pytest\n\n")
 	for _, a := range acceptance {
 		funcName := "test_" + toSnakeCase(a.Title)
-		fmt.Fprintf(&b, "@pytest.mark.skip(reason=\"TODO: %s\")\n", a.Title)
+		fmt.Fprintf(&b, "@pytest.mark.skip(reason=\"TODO: %s\")\n", strings.ReplaceAll(a.Title, `"`, `\"`))
 		fmt.Fprintf(&b, "def %s():\n    pass\n\n", funcName)
 	}
 	return b.String()
@@ -1083,7 +1083,7 @@ func buildRustTestStubs(acceptance []Fact) string {
 	b.WriteString("#[cfg(test)]\nmod tests {\n\n")
 	for _, a := range acceptance {
 		funcName := toSnakeCase(a.Title)
-		fmt.Fprintf(&b, "    #[test]\n    #[ignore = \"TODO: %s\"]\n", a.Title)
+		fmt.Fprintf(&b, "    #[test]\n    #[ignore = \"TODO: %s\"]\n", strings.ReplaceAll(a.Title, `"`, `\"`))
 		fmt.Fprintf(&b, "    fn %s() {\n        todo!()\n    }\n\n", funcName)
 	}
 	b.WriteString("}\n")
@@ -1096,7 +1096,7 @@ func buildJavaTestStubs(acceptance []Fact) string {
 	b.WriteString("class AppTest {\n\n")
 	for _, a := range acceptance {
 		funcName := "test" + toPascalCase(a.Title)
-		fmt.Fprintf(&b, "    @Test\n    @Disabled(\"TODO: %s\")\n", a.Title)
+		fmt.Fprintf(&b, "    @Test\n    @Disabled(\"TODO: %s\")\n", strings.ReplaceAll(a.Title, `"`, `\"`))
 		fmt.Fprintf(&b, "    void %s() {\n        // TODO: implement\n    }\n\n", funcName)
 	}
 	b.WriteString("}\n")
@@ -1129,7 +1129,8 @@ func buildShellTestStubs(acceptance []Fact) string {
 	for _, a := range acceptance {
 		funcName := toSnakeCase(a.Title)
 		fmt.Fprintf(&b, "test_%s() {\n", funcName)
-		fmt.Fprintf(&b, "    echo \"SKIP: %s\"\n", a.Title)
+		safeTitle := strings.NewReplacer(`"`, `\"`, `$`, `\$`, "`", "\\`").Replace(a.Title)
+		fmt.Fprintf(&b, "    echo \"SKIP: %s\"\n", safeTitle)
 		b.WriteString("    PASS=$((PASS+1))\n}\n\n")
 	}
 	b.WriteString("# Run all tests\n")

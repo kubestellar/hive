@@ -845,6 +845,10 @@ func getLatestSHA() string {
 
 func (s *HubServer) StartLatestSHAPoller() {
 	fetchSHA(s.logger)
+	// On first poll, check if any auto-upgrade hives are behind
+	if sha := getLatestSHA(); sha != "" {
+		s.triggerAutoUpgrades(sha)
+	}
 	ticker := time.NewTicker(latestSHAPollInterval)
 	defer ticker.Stop()
 	for range ticker.C {

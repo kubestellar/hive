@@ -1433,13 +1433,18 @@ func buildGitignore(lang string) string {
 }
 
 func buildGoMod(name string) string {
-	return fmt.Sprintf("module %s\n\ngo 1.23\n", name)
+	return fmt.Sprintf(`module %s
+
+go 1.23
+
+require github.com/spf13/cobra v1.8.1
+`, name)
 }
 
 func buildGoMain(name string, vision *Fact) string {
-	desc := name
+	desc := singleLine(name)
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`package main
 
@@ -1453,9 +1458,9 @@ func main() {
 }
 
 func buildGoCmdRoot(name string, vision *Fact) string {
-	desc := name
+	desc := singleLine(name)
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`package cmd
 
@@ -2063,6 +2068,12 @@ func xmlEscape(s string) string {
 	s = strings.ReplaceAll(s, ">", "&gt;")
 	s = strings.ReplaceAll(s, `"`, "&quot;")
 	return s
+}
+
+func singleLine(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", "")
+	return strings.TrimSpace(s)
 }
 
 func tomlEscape(s string) string {

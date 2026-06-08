@@ -126,13 +126,18 @@ RUN pip3 install --no-cache-dir --break-system-packages pyyaml 2>/dev/null || \
 RUN pip3 install --no-cache-dir --break-system-packages specify-cli 2>/dev/null || \
     pip3 install --no-cache-dir specify-cli 2>/dev/null || \
     echo "WARN: spec-kit (specify-cli) install failed — inception will generate facts without it"
-# pluk (v2): structured event streaming for AI agent tmux sessions
+# pluk (v3 — Go binary): structured event streaming for AI agent tmux sessions
 RUN git clone --depth 1 https://github.com/kubestellar/pluk.git /tmp/pluk && \
-    bash /tmp/pluk/install.sh /usr/local && \
+    cd /tmp/pluk && go build -o /usr/local/bin/pluk ./cmd/pluk/ && \
+    ln -sf pluk /usr/local/bin/pluk-publish && \
+    ln -sf pluk /usr/local/bin/pluk-subscribe && \
+    ln -sf pluk /usr/local/bin/pluk-send && \
+    mkdir -p /usr/local/etc/pluk/patterns.d && \
+    cp -r /tmp/pluk/config/patterns.d/* /usr/local/etc/pluk/patterns.d/ && \
     rm -rf /tmp/pluk && \
     mkdir -p /var/run/pluk/logs /var/run/pluk/commands && \
     chmod 1777 /var/run/pluk/logs /var/run/pluk/commands || \
-    echo "WARN: pluk install failed — inception will use RestartWithBootstrap fallback"
+    echo "WARN: pluk install failed"
 RUN (which git && git clone -b feat/cli-agent-mode https://github.com/clubanderson/agentic-strategy-evolution /opt/nous && \
     python3 -m venv /opt/nous/venv && \
     /opt/nous/venv/bin/pip install --no-cache-dir -e /opt/nous 2>&1) || \

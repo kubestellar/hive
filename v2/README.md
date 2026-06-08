@@ -4,6 +4,8 @@ AI agent orchestrator for GitHub repositories. A single Go binary that enumerate
 
 ## Quick Start (Docker)
 
+### Option A: Pre-built image (recommended)
+
 ```bash
 git clone -b v2 https://github.com/kubestellar/hive.git
 cd hive/v2
@@ -15,6 +17,32 @@ export HIVE_GITHUB_TOKEN=ghp_...
 docker compose up -d
 
 # Dashboard at http://localhost:3001
+```
+
+### Option B: Build from source
+
+```bash
+git clone -b v2 https://github.com/kubestellar/hive.git
+cd hive/v2
+
+cp hive.yaml.example hive.yaml
+# Edit hive.yaml — set your org, repos, and agent config
+
+export HIVE_GITHUB_TOKEN=ghp_...
+docker compose build
+docker compose up -d
+```
+
+### Image tags
+
+| Tag | Description |
+|-----|-------------|
+| `ghcr.io/kubestellar/hive:stable` | Last known good release — recommended for production |
+| `ghcr.io/kubestellar/hive:latest` | Built from latest v2 commit — may include untested changes |
+
+To pin to stable, edit `docker-compose.yaml` and replace the `build:` block with:
+```yaml
+image: ghcr.io/kubestellar/hive:stable
 ```
 
 ## Kubernetes

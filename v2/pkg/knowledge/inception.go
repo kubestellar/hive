@@ -1413,7 +1413,7 @@ func buildAgentsMD(constitution *Fact, constraints []Fact, requirements []Fact, 
 }
 
 func buildGitignore(lang string) string {
-	common := "# OS\n.DS_Store\nThumbs.db\n\n# IDE\n.idea/\n.vscode/\n*.swp\n*.swo\n\n"
+	common := "# OS\n.DS_Store\nThumbs.db\n\n# IDE\n.idea/\n.vscode/\n*.swp\n*.swo\n\n# Secrets\n.env\n.env.*\n*.pem\n*.key\n\n"
 	switch lang {
 	case "go":
 		return common + "# Go\n/bin/\n*.exe\ncoverage.out\n"
@@ -1433,7 +1433,7 @@ func buildGitignore(lang string) string {
 }
 
 func buildGoMod(name string) string {
-	return fmt.Sprintf("module %s\n\ngo 1.22\n", name)
+	return fmt.Sprintf("module %s\n\ngo 1.23\n", name)
 }
 
 func buildGoMain(name string, vision *Fact) string {
@@ -1874,11 +1874,11 @@ kind: Secret
 metadata:
   name: %s-secrets
 type: Opaque
-stringData:
-  # WARNING: Do not commit real secrets. Use sealed-secrets or
-  # external-secrets-operator in production.
-  API_KEY: "changeme"
-`, name)
+data: {}
+  # Populate from sealed-secrets, external-secrets-operator, or
+  # kubectl create secret generic %s-secrets --from-literal=API_KEY=<value>
+  # Do NOT add plaintext secrets to this file.
+`, name, name)
 }
 
 func buildK8sBaseKustomization(name string) string {

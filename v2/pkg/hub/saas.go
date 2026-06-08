@@ -917,76 +917,41 @@ func (s *HubServer) triggerAutoUpgrades(latestSHA string) {
 }
 
 func fetchSHA(logger *slog.Logger) {
-	// Check the GHCR container image for the latest built SHA.
-	// Only updates when a new image is actually pushed, not on every git commit.
-	client := &http.Client{Timeout: 15 * time.Second}
-
-	// Step 1: Get the v2-latest manifest to find the image digest
-	const tokenURL = "https://ghcr.io/token?scope=repository:kubestellar/hive:pull&service=ghcr.io"
-	tokenResp, err := client.Get(tokenURL)
-	if err != nil {
-		logger.Debug("SHA poll: token fetch failed", "error", err)
-		return
-	}
-	defer tokenResp.Body.Close()
-	var tokenBody struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(tokenResp.Body).Decode(&tokenBody); err != nil || tokenBody.Token == "" {
-		return
-	}
-
-	// Step 2: Get the image config to read the revision label
-	const manifestURL = "https://ghcr.io/v2/kubestellar/hive/manifests/v2-latest"
-	req, _ := http.NewRequest("GET", manifestURL, nil)
-	req.Header.Set("Authorization", "Bearer "+tokenBody.Token)
-	req.Header.Set("Accept", "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json")
+	// Get the SHA from the latest SUCCESSFUL Docker image build on the v2 branch.
+	// This ensures we only offer upgrades when a new image actually exists.
+	const actionsURL = "https://api.github.com/repos/kubestellar/hive/actions/runs?branch=v2&status=success&per_page=1"
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, _ := http.NewRequest("GET", actionsURL, nil)
+	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-
-	// Try to extract revision from OCI annotations or fall back to git API
-	var manifest struct {
-		Annotations map[string]string `json:"annotations"`
-		Config      struct {
-			Digest string `json:"digest"`
-		} `json:"config"`
-		Manifests []struct {
-			Annotations map[string]string `json:"annotations"`
-			Digest      string            `json:"digest"`
-			Platform    struct {
-				Architecture string `json:"architecture"`
-			} `json:"platform"`
-		} `json:"manifests"`
-	}
-	if err := json.Unmarshal(body, &manifest); err != nil {
+	if resp.StatusCode != 200 {
 		return
 	}
-
-	// Check top-level annotations first
-	if rev, ok := manifest.Annotations["org.opencontainers.image.revision"]; ok && len(rev) >= 7 {
-		latestSHAMu.Lock()
-		latestSHACache = rev[:7]
-		latestSHAMu.Unlock()
-		logger.Debug("latest SHA from image annotation", "sha", rev[:7])
+	var result struct {
+		Runs []struct {
+			Name    string `json:"name"`
+			HeadSHA string `json:"head_sha"`
+		} `json:"workflow_runs"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return
 	}
-
-	// For multi-arch manifests, check sub-manifests
-	for _, m := range manifest.Manifests {
-		if rev, ok := m.Annotations["org.opencontainers.image.revision"]; ok && len(rev) >= 7 {
-			latestSHAMu.Lock()
-			latestSHACache = rev[:7]
-			latestSHAMu.Unlock()
-			logger.Debug("latest SHA from sub-manifest annotation", "sha", rev[:7], "arch", m.Platform.Architecture)
-			return
+	for _, run := range result.Runs {
+		if strings.Contains(run.Name, "Docker") || strings.Contains(run.Name, "Build") {
+			if len(run.HeadSHA) >= 7 {
+				sha := run.HeadSHA[:7]
+				latestSHAMu.Lock()
+				latestSHACache = sha
+				latestSHAMu.Unlock()
+				logger.Debug("latest image SHA from successful build", "sha", sha)
+				return
+			}
 		}
 	}
-
-	logger.Debug("SHA poll: no revision found in image annotations")
 }
 
 func (s *HubServer) handleProxyHiveConfig(w http.ResponseWriter, r *http.Request) {

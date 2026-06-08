@@ -527,6 +527,23 @@ func (p *GitHubProxy) proxyHTTP(client net.Conn, upstream net.Conn, agentName st
 			continue
 		}
 
+		// Git smart HTTP uses chunked streaming that http.ReadResponse
+		// can't handle reliably. After the ACMM check passes, forward
+		// the request and switch to raw bidirectional streaming.
+		if isGitPath(req.URL.Path) {
+			if err := req.Write(upstream); err != nil {
+				return
+			}
+			done := make(chan struct{})
+			go func() {
+				io.Copy(upstream, client)
+				close(done)
+			}()
+			io.Copy(client, upstream)
+			<-done
+			return
+		}
+
 		// Forward to upstream.
 		if err := req.Write(upstream); err != nil {
 			return
@@ -552,6 +569,12 @@ func (p *GitHubProxy) recordViolation(agentName, method, path string) {
 	if _, exists := p.violations[agentName]; exists || len(p.violations) < maxViolationLog {
 		p.violations[agentName]++
 	}
+}
+
+func isGitPath(path string) bool {
+	return strings.HasSuffix(path, "/git-receive-pack") ||
+		strings.HasSuffix(path, "/git-upload-pack") ||
+		strings.HasSuffix(path, "/info/refs")
 }
 
 // tunnelDirect creates a raw TCP tunnel for non-GitHub CONNECT requests.

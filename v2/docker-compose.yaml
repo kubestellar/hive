@@ -19,6 +19,7 @@ services:
       retries: 3
 
   hive:
+    image: ghcr.io/kubestellar/hive:latest
     build:
       context: ..
       dockerfile: v2/Dockerfile

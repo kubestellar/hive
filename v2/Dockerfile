@@ -126,7 +126,7 @@ RUN pip3 install --no-cache-dir --break-system-packages pyyaml 2>/dev/null || \
 RUN pip3 install --no-cache-dir --break-system-packages specify-cli 2>/dev/null || \
     pip3 install --no-cache-dir specify-cli 2>/dev/null || \
     echo "WARN: spec-kit (specify-cli) install failed — inception will generate facts without it"
-# pluk: structured event streaming for AI agent tmux sessions
+# pluk (v2): structured event streaming for AI agent tmux sessions
 RUN git clone --depth 1 https://github.com/kubestellar/pluk.git /tmp/pluk && \
     bash /tmp/pluk/install.sh /usr/local && \
     rm -rf /tmp/pluk && \

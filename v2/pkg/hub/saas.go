@@ -108,6 +108,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/status", s.requireAuth(s.handleHiveStatus))
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}", s.requireAuth(s.handleDeleteHive))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/upgrade", s.requireAuth(s.handleUpgradeHive))
+	s.mux.HandleFunc("PUT /api/saas/hives/{id}/visibility", s.requireAuth(s.handleToggleVisibility))
 	s.mux.HandleFunc("GET /api/saas/hive-config/{hiveID}", s.requireAuth(s.handleProxyHiveConfig))
 	s.mux.HandleFunc("GET /api/saas/latest-sha", s.handleLatestSHA)
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
@@ -717,6 +718,64 @@ func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("audit: hosted hive upgraded", "hive_id", id, "by", username)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status":"upgrading"}`))
+}
+
+func (s *HubServer) handleToggleVisibility(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	if isTrustedOrigin(origin) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "PUT, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	}
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	id := r.PathValue("id")
+	username := s.getAuthUser(r)
+	h := loadSaaSHive(id)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+	if h.Owner != username && username != hubAdminUsername {
+		http.Error(w, `{"error":"only the owner can change visibility"}`, http.StatusForbidden)
+		return
+	}
+	var body struct {
+		IsPublic bool `json:"is_public"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+	ns := "hive-hosted-" + id
+	const goAPIPort = 3002
+	svcURL := fmt.Sprintf("http://hive.%s.svc.cluster.local:%d/api/config/governor/hub", ns, goAPIPort)
+	payload := fmt.Sprintf(`{"is_public":%t}`, body.IsPublic)
+	req, err := http.NewRequest("PUT", svcURL, strings.NewReader(payload))
+	if err != nil {
+		http.Error(w, `{"error":"failed to create request"}`, http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	spokeResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		s.logger.Warn("visibility toggle failed", "hive", id, "error", err)
+		http.Error(w, `{"error":"failed to reach hive"}`, http.StatusBadGateway)
+		return
+	}
+	defer spokeResp.Body.Close()
+	if spokeResp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(spokeResp.Body)
+		s.logger.Warn("visibility toggle rejected", "hive", id, "status", spokeResp.StatusCode, "body", string(respBody))
+		http.Error(w, `{"error":"hive rejected the change"}`, http.StatusBadGateway)
+		return
+	}
+	s.logger.Info("audit: visibility toggled", "hive_id", id, "is_public", body.IsPublic, "by", username)
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"ok":true,"is_public":%t}`, body.IsPublic)
 }
 
 var (
@@ -1609,6 +1668,7 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td class="hive-menu-cell" style="position:relative;width:30px;text-align:center;overflow:visible"><span style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span><div class="hive-menu-dropdown" style="display:none;position:absolute;left:0;bottom:auto;background:#1c2128;border:1px solid #30363d;border-radius:8px;min-width:160px;padding:4px 0;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,0.5)">' + menuItems.join('') + '</div></td>' +
           '<td style="text-align:left">' + dot + (function() { var dh = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? esc(h.dashboardUrl) : ''); return dh ? '<a href="' + dh + '" target="_blank" class="hive-name" style="color:inherit;text-decoration:none">' + esc(h.name || h.id) + '</a>' : '<span class="hive-name">' + esc(h.name || h.id) + '</span>'; })() + (function() { var rp = h.org && h.primaryRepo ? h.org + '/' + h.primaryRepo : ''; return rp ? ' <a href="https://github.com/' + esc(rp) + '" target="_blank" style="opacity:0.5;margin-left:4px;vertical-align:middle" title="' + esc(rp) + '"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>' : ''; })() + '<br>' + roleBadge(h.role) + '</td>' +
           '<td>' + typeBadge + '</td>' +
+          '<td>' + (function() { var canToggle = isHosted && h.role === 'owner'; var pub = !!h.isPublic; var tid = 'vis-' + esc(h.id); return canToggle ? '<label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer"><input type="checkbox" id="' + tid + '" ' + (pub ? 'checked' : '') + ' onchange="toggleVisibility(\'' + esc(h.id) + '\',this.checked)" style="opacity:0;width:0;height:0"><span style="position:absolute;inset:0;background:' + (pub ? 'var(--green)' : 'var(--border)') + ';border-radius:10px;transition:background 0.2s"></span><span style="position:absolute;top:2px;left:' + (pub ? '18px' : '2px') + ';width:16px;height:16px;background:#fff;border-radius:50%;transition:left 0.2s"></span></label>' : (pub ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--muted)">—</span>'); })() + '</td>' +
           '<td style="font-size:0.7rem;white-space:nowrap">' + versionCell + '</td>' +
           '<td>' + repoCount + '</td>' +
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
@@ -1621,12 +1681,26 @@ const dashboardHTML = `<!DOCTYPE html>
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<div class="table-wrap"><table class="hive-table"><thead><tr>' +
-        '<th></th><th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Version</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th>' +
+        '<th></th><th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Public</th><th>Version</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table></div>';
       setTimeout(function() {
         var tw = document.querySelector('.table-wrap');
         if (tw && tw.scrollWidth > tw.clientWidth) tw.classList.add('has-scroll');
       }, 0);
+    }
+
+    async function toggleVisibility(id, isPublic) {
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(id) + '/visibility', {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({is_public: isPublic})
+        });
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Failed to change visibility', 'error'); loadHives(); return; }
+        hiveToast(id + ' is now ' + (isPublic ? 'public' : 'private'), 'success');
+        loadHives();
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); loadHives(); }
     }
 
     async function upgradeHive(id) {

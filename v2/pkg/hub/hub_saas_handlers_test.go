@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHandleLoginRedirect(t *testing.T) {
@@ -827,6 +828,108 @@ func TestSaveAccessRequestsNonexistentDir(t *testing.T) {
 	saveAccessRequests("nonexistent-hive-xyz", []AccessRequest{
 		{Username: "testuser", RequestedAt: "2024-01-01T00:00:00Z", Status: "pending"},
 	})
+}
+
+func TestValidateGitHubTokenCacheHit(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	// Pre-populate the cache
+	ghTokenCacheMu.Lock()
+	ghTokenCache["ghp_cached_test_token"] = ghTokenCacheEntry{
+		username:  "cached-user",
+		expiresAt: time.Now().Add(5 * time.Minute),
+	}
+	ghTokenCacheMu.Unlock()
+
+	result := srv.validateGitHubToken("ghp_cached_test_token")
+	if result != "cached-user" {
+		t.Errorf("expected 'cached-user', got %q", result)
+	}
+
+	// Cleanup
+	ghTokenCacheMu.Lock()
+	delete(ghTokenCache, "ghp_cached_test_token")
+	ghTokenCacheMu.Unlock()
+}
+
+func TestValidateGitHubTokenCacheExpired(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	// Pre-populate with expired entry
+	ghTokenCacheMu.Lock()
+	ghTokenCache["ghp_expired_test_token"] = ghTokenCacheEntry{
+		username:  "expired-user",
+		expiresAt: time.Now().Add(-1 * time.Minute),
+	}
+	ghTokenCacheMu.Unlock()
+
+	// Expired cache → hits GitHub API → fails with invalid token → returns ""
+	result := srv.validateGitHubToken("ghp_expired_test_token")
+	if result != "" {
+		t.Errorf("expired cache should re-validate and fail, got %q", result)
+	}
+
+	// Cleanup
+	ghTokenCacheMu.Lock()
+	delete(ghTokenCache, "ghp_expired_test_token")
+	ghTokenCacheMu.Unlock()
+}
+
+func TestValidateGitHubTokenEmpty(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	result := srv.validateGitHubToken("")
+	if result != "" {
+		t.Errorf("empty token should return empty, got %q", result)
+	}
+}
+
+func TestGetAuthUserBearer(t *testing.T) {
+	srv := NewHubServer(0, slog.Default(), "test")
+	srv.hubSecret = ""
+
+	// Pre-populate cache so Bearer auth works
+	ghTokenCacheMu.Lock()
+	ghTokenCache["ghp_bearer_test"] = ghTokenCacheEntry{
+		username:  "bearer-user",
+		expiresAt: time.Now().Add(5 * time.Minute),
+	}
+	ghTokenCacheMu.Unlock()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer ghp_bearer_test")
+	result := srv.getAuthUser(req)
+	if result != "bearer-user" {
+		t.Errorf("expected 'bearer-user', got %q", result)
+	}
+
+	ghTokenCacheMu.Lock()
+	delete(ghTokenCache, "ghp_bearer_test")
+	ghTokenCacheMu.Unlock()
+}
+
+func TestIsTrustedOriginSubdomain(t *testing.T) {
+	if !isTrustedOrigin("https://dashboard.hive.kubestellar.io") {
+		t.Error("subdomain of hive.kubestellar.io should be trusted")
+	}
+	if !isTrustedOrigin("https://my-hive.hive.kubestellar.io") {
+		t.Error("any subdomain of hive.kubestellar.io should be trusted")
+	}
+	if !isTrustedOrigin("http://localhost:3001") {
+		t.Error("localhost should be trusted")
+	}
+	if !isTrustedOrigin("http://127.0.0.1:8080") {
+		t.Error("127.0.0.1 should be trusted")
+	}
+}
+
+func TestIsTrustedOriginBadParse(t *testing.T) {
+	if isTrustedOrigin("://invalid") {
+		t.Error("unparseable URL should not be trusted")
+	}
 }
 
 func TestRegisterOAuthEnabled(t *testing.T) {

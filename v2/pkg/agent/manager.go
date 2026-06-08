@@ -63,6 +63,7 @@ type AgentProcess struct {
 	lastPaneCapture []string
 	paneMu          sync.RWMutex
 	KickHistory     []KickRecord
+	LastKickMessage string
 	LaunchedMode    AgentMode
 	HasLaunched     bool
 	tmuxSession     string
@@ -1343,6 +1344,7 @@ func (m *Manager) SendKick(name string, message string) error {
 
 	now := time.Now()
 	agent.LastKick = &now
+	agent.LastKickMessage = message
 
 	snippet := message
 	const maxSnippetLen = 120

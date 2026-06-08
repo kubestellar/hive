@@ -19,6 +19,7 @@ import (
 	"github.com/kubestellar/hive/v2/pkg/config"
 	"github.com/kubestellar/hive/v2/pkg/github"
 	"github.com/kubestellar/hive/v2/pkg/knowledge"
+	"github.com/kubestellar/hive/v2/pkg/policies"
 )
 
 func (s *Server) RegisterAPI(deps *Dependencies) {
@@ -1299,10 +1300,7 @@ func (s *Server) handleAgentConfigGet(w http.ResponseWriter, r *http.Request) {
 		models[modeName] = ""
 	}
 
-	var lastPrompt string
-	if len(proc.KickHistory) > 0 {
-		lastPrompt = proc.KickHistory[len(proc.KickHistory)-1].Snippet
-	}
+	lastPrompt := proc.LastKickMessage
 
 	// Read restrictions from agent work dir files
 	restrictions := s.loadAgentRestrictions(name)
@@ -1409,9 +1407,9 @@ func (s *Server) loadAgentRestrictions(name string) map[string]interface{} {
 	// Old hive extracts lines containing policy-relevant keywords, including
 	// markdown-formatted lines with ** bold markers and numbered list items.
 	policyRestrictions := []any{}
-	claudeMdPath := s.findAgentCLAUDEMd(name)
-	if data, err := os.ReadFile(claudeMdPath); err == nil {
-		content := string(data)
+	policyContent := s.loadPromptTemplate(name)
+	if policyContent != "" {
+		content := policyContent
 		for _, line := range strings.Split(content, "\n") {
 			line = strings.TrimSpace(line)
 			// Strip leading markdown list markers (-, *, numbered)
@@ -1448,38 +1446,38 @@ func (s *Server) loadAgentRestrictions(name string) map[string]interface{} {
 	return result
 }
 
-func (s *Server) findAgentCLAUDEMd(name string) string {
+func (s *Server) loadPromptTemplate(name string) string {
+	templateName := ""
+	if s.deps != nil && s.deps.Config != nil {
+		if ac, ok := s.deps.Config.Agents[name]; ok && ac.KickTemplate != "" {
+			templateName = ac.KickTemplate
+		}
+	}
+	if templateName == "" {
+		templateName = name + ".md"
+	}
+
 	paths := []string{
-		fmt.Sprintf("/data/agents/%s/CLAUDE.md", name),
-		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s.md", name),
+		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s", templateName),
 	}
 	if s.deps != nil && s.deps.Config != nil {
 		policyDir := s.deps.Config.Policies.LocalDir
 		if policyDir != "" {
 			paths = append(paths,
-				fmt.Sprintf("%s/examples/kubestellar/agents/%s.md", policyDir, name),
-				fmt.Sprintf("%s/%s%s.md", policyDir, s.deps.Config.Policies.Path, name),
+				fmt.Sprintf("%s/examples/kubestellar/agents/%s", policyDir, templateName),
+				fmt.Sprintf("%s/%s%s", policyDir, s.deps.Config.Policies.Path, templateName),
 			)
 		}
 	}
 	for _, p := range paths {
-		if _, err := os.Stat(p); err == nil {
-			return p
+		if data, err := os.ReadFile(p); err == nil {
+			return s.substituteTemplateVars(string(data), name)
 		}
 	}
+	if data, err := policies.DefaultPolicies.ReadFile("defaults/" + templateName); err == nil {
+		return s.substituteTemplateVars(string(data), name)
+	}
 	return ""
-}
-
-func (s *Server) loadPromptTemplate(name string) string {
-	claudeMdPath := s.findAgentCLAUDEMd(name)
-	if claudeMdPath == "" {
-		return ""
-	}
-	data, err := os.ReadFile(claudeMdPath)
-	if err != nil {
-		return ""
-	}
-	return s.substituteTemplateVars(string(data), name)
 }
 
 // substituteTemplateVars replaces ${VAR} placeholders in a prompt template
@@ -1904,40 +1902,22 @@ func (s *Server) handleAgentPrompt(w http.ResponseWriter, r *http.Request) {
 
 	template := s.loadPromptTemplate(name)
 
-	// Build source control paths so operators know where to edit
-	const agentDir = "examples/kubestellar/agents"
 	const repoBaseURL = "https://github.com/kubestellar/hive/blob/v2/"
-
 	sourceFiles := []map[string]string{}
 
-	// Policy file
-	claudeMdPath := s.findAgentCLAUDEMd(name)
-	policyRelPath := fmt.Sprintf("%s/%s.md", agentDir, name)
-	if claudeMdPath != "" {
-		sourceFiles = append(sourceFiles, map[string]string{
-			"label": "Policy",
-			"path":  policyRelPath,
-			"url":   repoBaseURL + policyRelPath,
-			"note":  "",
-		})
+	templateName := ""
+	if ac, ok := s.deps.Config.Agents[name]; ok && ac.KickTemplate != "" {
+		templateName = ac.KickTemplate
+	}
+	if templateName == "" {
+		templateName = name + ".md"
 	}
 
-	// Env file (kick prompt)
-	envRelPath := fmt.Sprintf("%s/%s.env", agentDir, name)
 	sourceFiles = append(sourceFiles, map[string]string{
-		"label": "Kick prompt",
-		"path":  envRelPath,
-		"url":   repoBaseURL + envRelPath,
-		"note":  "AGENT_LOOP_PROMPT",
-	})
-
-	// Kick script
-	kickScriptPath := "bin/kick-agents.sh"
-	sourceFiles = append(sourceFiles, map[string]string{
-		"label": "Kick script",
-		"path":  kickScriptPath,
-		"url":   repoBaseURL + kickScriptPath,
-		"note":  "template rendering",
+		"label": "Kick template",
+		"path":  "v2/pkg/policies/defaults/" + templateName,
+		"url":   repoBaseURL + "v2/pkg/policies/defaults/" + templateName,
+		"note":  "kick_template: " + templateName,
 	})
 
 	jsonResponse(w, map[string]interface{}{

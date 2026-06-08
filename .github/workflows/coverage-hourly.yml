@@ -26,25 +26,78 @@ jobs:
           cache-dependency-path: v2/go.sum
 
       - name: Test with coverage
-        run: go test ./pkg/... -short -race -coverprofile=coverage.out -count=1
+        run: go test ./pkg/... -short -race -coverprofile=coverage.out -count=1 -timeout 300s
 
-      - name: Check coverage threshold
+      - name: Check per-package coverage
         id: coverage
         run: |
-          TOTAL=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $3}' | tr -d '%')
-          echo "Total coverage: ${TOTAL}%"
-          echo "coverage=$TOTAL" >> "$GITHUB_OUTPUT"
+          THRESHOLD=90
+          FAILED=""
+          REPORT=""
 
-          THRESHOLD=91.0
-          if [ "$(echo "$TOTAL < $THRESHOLD" | bc -l)" -eq 1 ]; then
-            echo "::warning::Coverage ${TOTAL}% is below ${THRESHOLD}% threshold"
+          while IFS= read -r line; do
+            pkg=$(echo "$line" | awk '{print $2}' | sed 's/.*\///')
+            pct=$(echo "$line" | grep -o '[0-9]*\.[0-9]*%' | tr -d '%')
+            if [ -z "$pct" ]; then continue; fi
+            int_pct=$(echo "$pct" | cut -d. -f1)
+            if [ "$int_pct" -lt "$THRESHOLD" ]; then
+              FAILED="${FAILED}${pkg}: ${pct}%\n"
+            fi
+            REPORT="${REPORT}${pkg}: ${pct}%\n"
+          done < <(go test -cover ./pkg/... -short -count=1 -timeout 300s 2>&1 | grep '^ok')
+
+          TOTAL=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $3}')
+          echo "Total coverage: ${TOTAL}"
+          echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$FAILED" ]; then
             echo "below_threshold=true" >> "$GITHUB_OUTPUT"
+            echo -e "Packages below ${THRESHOLD}%:\n${FAILED}" >> "$GITHUB_STEP_SUMMARY"
+            echo -e "failed_packages<<EOF\n${FAILED}EOF" >> "$GITHUB_OUTPUT"
+            echo -e "full_report<<EOF\n${REPORT}EOF" >> "$GITHUB_OUTPUT"
           else
             echo "below_threshold=false" >> "$GITHUB_OUTPUT"
+            echo "All packages above ${THRESHOLD}% coverage" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Per-package coverage
-        if: steps.coverage.outputs.below_threshold == 'true'
-        run: |
-          echo "## Per-package coverage"
-          go tool cover -func=coverage.out | sort -t: -k3 -n | head -20
+  create-issue-on-coverage-drop:
+    if: failure() || (needs.coverage.outputs.below_threshold == 'true' && github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    needs: coverage
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Create or update coverage issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const sha = context.sha.substring(0, 7);
+            const title = `[Coverage] packages below 90% threshold`;
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'ci-coverage',
+              per_page: 10,
+            });
+            const dup = existing.data.find(i => i.title.startsWith('[Coverage]'));
+            if (dup) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: dup.number,
+                body: `Coverage still below threshold on \`${sha}\`: ${runUrl}`,
+              });
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `## Coverage Below Threshold\n\n- **Commit:** \`${context.sha}\`\n- **Run:** ${runUrl}\n- **Branch:** v2\n- **Threshold:** 90% per package\n\nOne or more packages dropped below the 90% coverage threshold. See the [workflow run](${runUrl}) for details.\n\nClose this issue when all packages are back above 90%.`,
+              labels: ['ci-coverage', 'kind/bug'],
+            });

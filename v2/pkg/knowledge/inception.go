@@ -1495,7 +1495,7 @@ edition = "2021"
 description = "%s"
 
 [dependencies]
-`, name, desc)
+`, tomlEscape(name), tomlEscape(desc))
 }
 
 func buildRustMain(name string, vision *Fact) string {
@@ -1532,7 +1532,7 @@ func buildPomXml(name string, vision *Fact) string {
         <maven.compiler.target>21</maven.compiler.target>
     </properties>
 </project>
-`, name, desc)
+`, xmlEscape(name), xmlEscape(desc))
 }
 
 func buildJavaMain(name string, vision *Fact) string {
@@ -1575,7 +1575,7 @@ dev = ["pytest", "ruff"]
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.backends._legacy:_Backend"
-`, name, desc, name, pyPackageName(name))
+`, tomlEscape(name), tomlEscape(desc), tomlEscape(name), pyPackageName(name))
 }
 
 func buildPyInit(name string, vision *Fact) string {
@@ -2052,6 +2052,20 @@ func buildMakefile(lang, name string) string {
 // --- string helpers ---
 
 func jsonEscape(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return s
+}
+
+func xmlEscape(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, `"`, "&quot;")
+	return s
+}
+
+func tomlEscape(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	return s

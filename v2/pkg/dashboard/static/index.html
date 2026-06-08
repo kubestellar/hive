@@ -2295,9 +2295,9 @@
         const itmMedian = itm.median_minutes || 0;
         const MTTR_COLOR = '#d2a8ff';
         const govThresh = gov.thresholds || {};
-        const OC_THRESH_QUIET = govThresh.quiet || 2;
-        const OC_THRESH_BUSY = govThresh.busy || 10;
-        const OC_THRESH_SURGE = govThresh.surge || 20;
+        const OC_THRESH_QUIET = govThresh.quiet ?? 2;
+        const OC_THRESH_BUSY = govThresh.busy ?? 10;
+        const OC_THRESH_SURGE = govThresh.surge ?? 20;
         const OC_GAUGE_MAX = Math.max(OC_THRESH_SURGE + 10, govActionable + 5);
         const gaugePct = Math.min(govActionable / OC_GAUGE_MAX * 100, 100);
         govOuter.innerHTML = `
@@ -3315,9 +3315,9 @@
 
       // Gauge bar — thresholds from governor.env (dynamic via status API)
       const _gt = gov.thresholds || {};
-      const CLASSIC_THRESH_QUIET = _gt.quiet || 2;
-      const CLASSIC_THRESH_BUSY = _gt.busy || 10;
-      const CLASSIC_THRESH_SURGE = _gt.surge || 20;
+      const CLASSIC_THRESH_QUIET = _gt.quiet ?? 2;
+      const CLASSIC_THRESH_BUSY = _gt.busy ?? 10;
+      const CLASSIC_THRESH_SURGE = _gt.surge ?? 20;
       const maxQ = Math.max(CLASSIC_THRESH_SURGE + 10, issueCount + 5);
       const pct = Math.min(issueCount / maxQ * 100, 100);
       const modeColors = { idle: '#238636', quiet: '#58a6ff', busy: '#d29922', surge: '#f85149' };

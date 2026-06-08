@@ -802,6 +802,127 @@ func TestHandleVaultsConnectMissingPath(t *testing.T) {
 	}
 }
 
+func TestHandleContributeActivityNilHub(t *testing.T) {
+	srv := newFullServer(t)
+	srv.contributeHub = nil
+
+	req := httptest.NewRequest("GET", "/api/contribute/activity", nil)
+	w := httptest.NewRecorder()
+	srv.handleContributeActivity(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestHandleContributeActivityWithHubExtra(t *testing.T) {
+	srv := newFullServer(t)
+	srv.contributeHub = NewContributeWSHub(slog.Default(), nil)
+	srv.contributeHub.addActivity("user1", "joined", "newcomer", "claude", "sonnet", "")
+
+	req := httptest.NewRequest("GET", "/api/contribute/activity", nil)
+	w := httptest.NewRecorder()
+	srv.handleContributeActivity(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "activity") {
+		t.Error("should return activity field")
+	}
+}
+
+func TestHandleHivesRegisterBadURLScheme(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"project_name":"test","org":"testorg","hub_url":"ftp://example.com"}`
+	req := httptest.NewRequest("POST", "/api/contribute/hives/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleHivesRegister(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad URL scheme, got %d", w.Code)
+	}
+}
+
+func TestHandleHivesRegisterPrivateURL(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"project_name":"test","org":"testorg","hub_url":"http://localhost:3001"}`
+	req := httptest.NewRequest("POST", "/api/contribute/hives/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleHivesRegister(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for private URL, got %d", w.Code)
+	}
+}
+
+func TestHandleHivesRegisterBadDashboardURL(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"project_name":"test","org":"testorg","hub_url":"https://hub.example.com","dashboard_url":"ftp://bad"}`
+	req := httptest.NewRequest("POST", "/api/contribute/hives/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleHivesRegister(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad dashboard URL, got %d", w.Code)
+	}
+}
+
+func TestHandleHivesRegisterPrivateDashboardURL(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"project_name":"test","org":"testorg","hub_url":"https://hub.example.com","dashboard_url":"http://127.0.0.1:8080"}`
+	req := httptest.NewRequest("POST", "/api/contribute/hives/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleHivesRegister(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for private dashboard URL, got %d", w.Code)
+	}
+}
+
+func TestHandleHivesRegisterValidWS(t *testing.T) {
+	srv := newFullServer(t)
+	body := `{"project_name":"test","org":"testorg","hub_url":"wss://hub.example.com"}`
+	req := httptest.NewRequest("POST", "/api/contribute/hives/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleHivesRegister(w, req)
+
+	// Should pass URL validation (may fail at federation registry save)
+	if w.Code == http.StatusBadRequest {
+		body := w.Body.String()
+		if strings.Contains(body, "url") {
+			t.Error("wss:// should be accepted as valid scheme")
+		}
+	}
+}
+
+func TestValidateDisplayNameHTML(t *testing.T) {
+	err := validateDisplayName("<script>alert(1)</script>")
+	if err == nil {
+		t.Error("should reject HTML tags in display name")
+	}
+}
+
+func TestValidateDisplayNameTooLong(t *testing.T) {
+	long := strings.Repeat("a", 101)
+	err := validateDisplayName(long)
+	if err == nil {
+		t.Error("should reject display name over 100 chars")
+	}
+}
+
+func TestValidateDisplayNameBadChars(t *testing.T) {
+	err := validateDisplayName("name;drop")
+	if err == nil {
+		t.Error("should reject display name with special chars")
+	}
+}
+
 func TestHandleGovernorSensingPullbackTooHigh(t *testing.T) {
 	srv := newFullServer(t)
 	body := `{"pullbackSeconds":999999}`

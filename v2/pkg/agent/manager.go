@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/config"
-	"github.com/kubestellar/hive/v2/pkg/policies"
 )
 
 type ProcessState string
@@ -697,58 +696,11 @@ func (m *Manager) buildBootstrapPrompt(agent *AgentProcess) string {
 		filepath.Join(policiesRoot, "examples", "agents", agent.Name+".md"),
 		fmt.Sprintf("/opt/hive/examples/agents/%s.md", agent.Name),
 	)
-	var base string
-	var foundTemplate bool
-
-	// Try embedded defaults first for kick_template (most templates are embedded)
-	if agent.Config.KickTemplate != "" {
-		if data, err := m.readEmbeddedPolicy("defaults/" + agent.Config.KickTemplate); err == nil {
-			base = fmt.Sprintf("[agent:%s] [KICK]\n\n%s", agent.Name, string(data))
-			foundTemplate = true
-		}
-	}
-
-	// Fall back to filesystem paths
-	if !foundTemplate {
-		for _, p := range paths {
-			if _, err := os.Stat(p); err == nil {
-				if data, err := os.ReadFile(p); err == nil {
-					base = fmt.Sprintf("[agent:%s] [KICK]\n\n%s", agent.Name, string(data))
-					foundTemplate = true
-				}
-				break
-			}
-		}
-	}
-
-	if !foundTemplate {
-		base = fmt.Sprintf("[agent:%s] [BOOT] Read your policy file for instructions and begin your first pass.", agent.Name)
-	}
-
-	// ACMM fragment files: base rules + level-specific rules.
-	// These are read AFTER the agent policy so they override conflicting instructions.
-	// Skip for brainstorm agent — its kick template handles inception/ideation
-	// and ACMM fragments conflict by directing it to scan repos.
-	if agent.Name != "brainstorm" {
-		acmmFiles := m.findACMMFragments()
-		if len(acmmFiles) > 0 {
-			base += " THEN read these MANDATORY ACMM policy files (they override everything else):"
-			for _, f := range acmmFiles {
-				base += fmt.Sprintf(" %s", f)
-			}
-			base += "."
-		}
-	}
-	base += " Begin your first pass."
-
-	if agent.Name == "quality" {
-		if preamble := m.readCoveragePreamble(); preamble != "" {
-			base = preamble + " " + base
-		}
-	}
-
-	base = m.buildProjectPreamble(agent) + base
-	return base
+	// No boot prompt — the governor's first eval cycle (10s after startup)
+	// kicks all due agents via BuildKickMessages with fully substituted
+	// templates. Sending a boot prompt here caused unsubstituted ${ISSUE_LIST}
+	// and other vars to reach the agent.
+	return ""
 }
 
 // findACMMFragments returns paths to ACMM policy files the agent should read.
@@ -794,10 +746,6 @@ func (m *Manager) findACMMFragments() []string {
 	return files
 }
 
-
-func (m *Manager) readEmbeddedPolicy(path string) ([]byte, error) {
-	return policies.DefaultPolicies.ReadFile(path)
-}
 
 func (m *Manager) buildProjectPreamble(agent *AgentProcess) string {
 	p := m.project

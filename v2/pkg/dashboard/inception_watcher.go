@@ -132,18 +132,16 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		if len(inceptionBeads) > 0 {
 			w.checkForQuestions(inceptionBeads)
 		}
-		// Fallback: parse questions from the agent's tmux output (table or list).
+		// Parse questions from agent output — bd create commands and tables.
 		if state.Phase == knowledge.PhaseCapture && w.agentMgr != nil {
+			w.interceptQuestionsFromBuffer(state)
 			w.checkForQuestionsInOutput()
 		}
-		// Retry kick: if agent didn't get the inception prompt (reaping instead),
-		// re-send via SendKick. RestartWithBootstrap's $(cat file) fails ~70%.
+		// Retry kick if agent is stuck.
 		if state.Phase == knowledge.PhaseCapture && w.agentMgr != nil {
 			w.retryKickIfStale(state)
 		}
-		// Fallback: if the agent hasn't produced questions after the timeout,
-		// auto-generate default questions from the idea text so the lifecycle
-		// doesn't stall. Agent gets first shot during the timeout window.
+		// Fallback: auto-generate questions after timeout.
 		if state.Phase == knowledge.PhaseCapture {
 			if time.Since(state.StartedAt) > autoQuestionFallbackTimeout {
 				w.autoGenerateQuestions(state)
@@ -155,8 +153,11 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		// (SubmitAnswers advances to structure), so all beads created
 		// after StartedAt in the current inception are valid.
 		w.checkForFacts(ctx, inceptionBeads)
-		// Retry kick if agent isn't creating facts — same pattern as capture.
-		// The structure kick via SendKick can fail if the agent crashed.
+		// Intercept fact-like content from buffer
+		if state.Phase == knowledge.PhaseStructure && w.agentMgr != nil {
+			w.interceptFactsFromBuffer(ctx, state)
+		}
+		// Retry kick if agent isn't creating facts.
 		if state.Phase == knowledge.PhaseStructure && w.agentMgr != nil {
 			w.retryKickIfStale(state)
 		}
@@ -1041,6 +1042,77 @@ func (w *InceptionWatcher) tryExtractFactsFromPluk(ctx context.Context, state *k
 		"source", "pluk-raw-output",
 	)
 	w.plukFactLines = nil
+}
+
+// interceptFactsFromBuffer reads the tmux buffer and buffers fact-like
+// lines for extraction. If enough content is found and the agent has gone
+// idle (no new lines since last poll), triggers fact extraction immediately.
+func (w *InceptionWatcher) interceptFactsFromBuffer(ctx context.Context, state *knowledge.InceptionState) {
+	if len(state.FactSlugs) >= minFactsForAdvance {
+		return
+	}
+
+	lines, err := w.agentMgr.GetBufferOutput("brainstorm", outputParseLineCount)
+	if err != nil || len(lines) == 0 {
+		return
+	}
+
+	for _, line := range lines {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "vision") || strings.Contains(lower, "requirement") ||
+			strings.Contains(lower, "constraint") || strings.Contains(lower, "constitution") ||
+			strings.Contains(lower, "stakeholder") || strings.Contains(lower, "acceptance") ||
+			strings.Contains(lower, "architecture") || strings.Contains(lower, "testing") ||
+			strings.Contains(lower, "deployment") {
+			found := false
+			for _, existing := range w.plukFactLines {
+				if existing == line {
+					found = true
+					break
+				}
+			}
+			if !found && len(w.plukFactLines) < 200 {
+				w.plukFactLines = append(w.plukFactLines, line)
+			}
+		}
+	}
+}
+
+// interceptQuestionsFromBuffer reads the tmux output buffer directly and
+// parses bd create commands to extract questions. This bypasses pipe-pane
+// entirely — works regardless of Pluk process state.
+func (w *InceptionWatcher) interceptQuestionsFromBuffer(state *knowledge.InceptionState) {
+	if len(state.Questions) >= minQuestionsForAdvance {
+		return
+	}
+
+	lines, err := w.agentMgr.GetBufferOutput("brainstorm", outputParseLineCount)
+	if err != nil || len(lines) == 0 {
+		return
+	}
+
+	for _, line := range lines {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "bd create") && strings.Contains(lower, "--title") {
+			if q := w.parseQuestionFromBdCreate(line); q != nil {
+				// Check for duplicates
+				found := false
+				for _, existing := range w.plukQuestions {
+					if existing.Text == q.Text {
+						found = true
+						break
+					}
+				}
+				if !found {
+					w.plukQuestions = append(w.plukQuestions, *q)
+				}
+			}
+		}
+	}
+
+	if len(w.plukQuestions) >= minQuestionsForAdvance {
+		w.applyPlukQuestions(state)
+	}
 }
 
 // bdCreateTitleRe extracts the --title value from a bd create command line.

@@ -14,12 +14,13 @@ project:
   ai_author: your-bot-user               # GitHub username for AI commits
   primary_repo: repo-one                 # Main repo for priority routing
 
-# Agent CLAUDE.md policies from a git config repo (optional)
-policies:
-  repo: https://github.com/your-org/hive-config
-  path: agents/                           # Subdirectory within repo containing .md files
-  local_dir: /data/policies               # Where to clone locally
-  poll_interval: 5m                       # How often to git pull for changes
+# Agent CLAUDE.md policies from a git config repo (optional).
+# Uncomment and set to your own policy repo if you have custom agent prompts.
+# policies:
+#   repo: https://github.com/your-org/hive-config
+#   path: agents/
+#   local_dir: /data/policies
+#   poll_interval: 5m
 
 # Agent definitions — each agent runs as a child process.
 # All behavior metadata (color, sort, keywords, etc.) is optional and auto-populated

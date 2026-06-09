@@ -109,11 +109,10 @@ if [ "$(id -u)" = "0" ]; then
   ln -sfn /data/config/github-copilot /home/dev/.config/github-copilot
   ln -sfn /data/config/github-copilot /data/home/.config/github-copilot
   ln -sfn /data/home/.copilot /home/dev/.copilot
-  if [ "$DATA_OWNER" != "1001" ]; then
-    chmod -R g+rwX /data/home 2>/dev/null || true
-  fi
-  # setgid on .copilot so new files inherit group node (agents share this dir)
-  chmod g+s /data/home/.copilot 2>/dev/null || true
+  # Always set group-write + setgid on shared dirs — agent UIDs need write access.
+  # Critical on NFS where chown is skipped but agents create files as different UIDs.
+  chmod -R g+rwX /data/home 2>/dev/null || true
+  find /data/home -type d -exec chmod g+s {} + 2>/dev/null || true
   if [ "$DATA_OWNER" != "1001" ]; then
     chown -R dev:node /data/config /data/home 2>/dev/null || true
   fi

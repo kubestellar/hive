@@ -1610,10 +1610,13 @@ func writeMergeEligible(actionable *github.ActionableResult, hold github.HoldRes
 	}
 
 	type eligiblePR struct {
-		Number int    `json:"number"`
-		Repo   string `json:"repo"`
-		Title  string `json:"title"`
-		Author string `json:"author"`
+		Number    int      `json:"number"`
+		Repo      string   `json:"repo"`
+		Title     string   `json:"title"`
+		Author    string   `json:"author"`
+		Labels    []string `json:"labels,omitempty"`
+		Mergeable bool     `json:"mergeable"`
+		DCO       string   `json:"dco"`
 	}
 
 	var eligible []eligiblePR
@@ -1629,11 +1632,22 @@ func writeMergeEligible(actionable *github.ActionableResult, hold github.HoldRes
 		if !strings.Contains(fullRepo, "/") && org != "" {
 			fullRepo = org + "/" + fullRepo
 		}
+		dco := "unknown"
+		for _, l := range pr.Labels {
+			if l == "dco-signoff: yes" {
+				dco = "yes"
+			} else if l == "dco-signoff: no" {
+				dco = "no"
+			}
+		}
 		eligible = append(eligible, eligiblePR{
-			Number: pr.Number,
-			Repo:   fullRepo,
-			Title:  pr.Title,
-			Author: pr.Author,
+			Number:    pr.Number,
+			Repo:      fullRepo,
+			Title:     pr.Title,
+			Author:    pr.Author,
+			Labels:    pr.Labels,
+			Mergeable: pr.Mergeable,
+			DCO:       dco,
 		})
 	}
 

@@ -118,8 +118,13 @@ func (e *InceptionEngine) StartBrownfield(repoURL string) (*InceptionState, erro
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	repoURL = strings.TrimSpace(repoURL)
 	if repoURL == "" {
 		return nil, fmt.Errorf("repo URL is required")
+	}
+	const maxRepoURLLen = 2000
+	if len(repoURL) > maxRepoURLLen {
+		return nil, fmt.Errorf("repo URL must be at most %d characters", maxRepoURLLen)
 	}
 	if !strings.HasPrefix(repoURL, "https://") && !strings.HasPrefix(repoURL, "http://") {
 		return nil, fmt.Errorf("repo URL must start with https:// or http://")

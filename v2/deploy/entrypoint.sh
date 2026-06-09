@@ -268,14 +268,11 @@ with open('/var/run/hive/uid-map.json', 'w') as f:
 
   # Drop to non-root user for all runtime processes.
   # Claude Code refuses --dangerously-skip-permissions as root.
-  if command -v su-exec >/dev/null 2>&1; then
-    echo "[entrypoint] Dropping to dev user (su-exec)"
-    exec su-exec dev "$0" "$@"
-  elif command -v gosu >/dev/null 2>&1; then
-    echo "[entrypoint] Dropping to dev user (gosu)"
+  if command -v gosu >/dev/null 2>&1; then
+    echo "[entrypoint] Dropping to dev user"
     exec gosu dev "$0" "$@"
   else
-    echo "[entrypoint] WARN: neither su-exec nor gosu found, running as root"
+    echo "[entrypoint] WARN: gosu not found, running as root"
   fi
 fi
 

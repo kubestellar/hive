@@ -70,10 +70,21 @@ func (s *Server) handleInceptionScan(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		RepoURL string `json:"repo_url"`
+		Force   bool   `json:"force,omitempty"`
 	}
 	if err := readJSON(r, &req); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	if req.Force {
+		_ = s.deps.Inception.Reset()
+		if s.deps.AgentMgr != nil {
+			_ = s.deps.AgentMgr.Pause("brainstorm", "inception-force-reset", "forced reset before brownfield scan")
+		}
+		if store, ok := s.deps.BeadStores["brainstorm"]; ok {
+			s.clearInceptionBeads(store)
+		}
 	}
 
 	state, err := s.deps.Inception.StartBrownfield(req.RepoURL)

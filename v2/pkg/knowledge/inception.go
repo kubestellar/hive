@@ -1585,7 +1585,7 @@ func buildPyInit(name string, vision *Fact) string {
 	if vision != nil {
 		desc = vision.Title
 	}
-	return fmt.Sprintf(`"""%s"""\n\n__version__ = "0.1.0"\n`, desc)
+	return fmt.Sprintf("\"\"\"%s\"\"\"\n\n__version__ = \"0.1.0\"\n", desc)
 }
 
 func buildPyCLI(name string, vision *Fact) string {

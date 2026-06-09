@@ -423,7 +423,7 @@ func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *githu
 	b.WriteString("  1. Check beads (`bd list --status open`) for context from previous cycles\n")
 	b.WriteString("  2. Quick merges (10 min cap) — review PRs with passing CI. Ensure `Fixes #<issue>` in PR body. Merge with `--squash --admin` (always use --admin — tide labels cannot be self-applied). `@dependabot rebase` stale ones. Move on after 10 min.\n")
 	b.WriteString("  3. Fix blockers — find the ONE fix that unblocks the most PRs/issues. Clone, fix, push, merge.\n")
-	b.WriteString("  4. Work issues — dispatch 4-6 sub-agents IN PARALLEL (Copilot: /fleet, Claude Code: Agent tool, Goose: sub-agent sessions).\n")
+	b.WriteString("  4. Crank quick fixes — pick simplest issues, create PRs fast. Auto-qa (TODOs, spacing, types) are 5-min fixes. One PR per issue. Aim for 3-5 PRs per cycle. Don't over-investigate.\n")
 
 	return b.String()
 }

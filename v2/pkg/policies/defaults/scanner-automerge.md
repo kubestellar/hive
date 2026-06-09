@@ -63,11 +63,8 @@ ${PR_LIST}
 1. Check open beads (`bd list --status open`) for context from previous cycles — skip items already tracked
 2. **Quick merges (10 min cap)** — review PRs with passing CI and merge them. Before merging, ensure every PR body contains `Fixes #<issue>` — if missing, search for the related issue and add it with `gh pr edit`. Skip PRs with merge conflicts or failing checks. Comment `@dependabot rebase` on stale dependabot PRs. Move on after 10 minutes.
 3. **Fix blockers** — identify the single highest-leverage fix that unblocks the most PRs or issues (e.g. a shared test helper signature change, a broken import). Clone, fix, push, open PR, merge when green. One fix that unblocks many is worth more than many small fixes.
-4. **Reap stale findings** — re-verify open beads and close resolved ones
-5. Analyze root cause for remaining issues; dispatch 4-6 sub-agents IN PARALLEL (Copilot: `/fleet`, Claude Code: `Agent` tool, Goose: sub-agent sessions)
-6. Create a GitHub issue for each confirmed finding
-7. Create a PR for each fix; poll CI; merge when green
-8. Create a bead for each finding
-9. Summarize completed work including merged PRs
+4. **Crank quick fixes** — pick the simplest issues and create PRs fast. Auto-qa findings (TODO comments, spacing, type safety, missing error handling) are 5-minute fixes. Clone, fix, commit, push, PR — one PR per issue, move fast. Aim for 3-5 PRs per cycle. Don't over-investigate — fix and move on.
+5. **Reap stale findings** — re-verify open beads and close resolved ones
+6. Summarize completed work including merged PRs
 
 ${KNOWLEDGE}

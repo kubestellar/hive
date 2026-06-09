@@ -1016,13 +1016,19 @@ func (w *InceptionWatcher) autoGenerateFacts(ctx context.Context, state *knowled
 
 	var facts []knowledge.IdeationFact
 
-	// Vision fact from the idea text
-	facts = append(facts, knowledge.IdeationFact{
-		Title: "Project Vision",
-		Body:  state.IdeaText,
-		Type:  knowledge.FactVision,
-		Tags:  []string{"auto-generated"},
-	})
+	// Vision fact from the idea text (greenfield) or repo URL (brownfield)
+	visionBody := state.IdeaText
+	if visionBody == "" && state.RepoURL != "" {
+		visionBody = "Brownfield project from " + state.RepoURL
+	}
+	if visionBody != "" {
+		facts = append(facts, knowledge.IdeationFact{
+			Title: "Project Vision",
+			Body:  visionBody,
+			Type:  knowledge.FactVision,
+			Tags:  []string{"auto-generated"},
+		})
+	}
 
 	// Map question categories to fact types
 	categoryToFact := map[string]knowledge.FactType{

@@ -199,6 +199,7 @@ func cmdUpdate(args []string) {
 	claim := fs.Bool("claim", false, "Set status to in_progress")
 	status := fs.String("status", "", "Set status")
 	setMeta := fs.String("set-metadata", "", "Set metadata key=value")
+	unsetMeta := fs.String("unset-metadata", "", "Remove metadata key")
 	_ = fs.Parse(args[1:])
 
 	store := openStore()
@@ -245,7 +246,16 @@ func cmdUpdate(args []string) {
 		return
 	}
 
-	fmt.Fprintln(os.Stderr, "bd update: specify --claim, --status, or --set-metadata")
+	if *unsetMeta != "" {
+		if err := store.UnsetMetadata(id, *unsetMeta); err != nil {
+			fmt.Fprintf(os.Stderr, "bd update: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Removed metadata %s from bead %s\n", *unsetMeta, id)
+		return
+	}
+
+	fmt.Fprintln(os.Stderr, "bd update: specify --claim, --status, --set-metadata, or --unset-metadata")
 	os.Exit(1)
 }
 

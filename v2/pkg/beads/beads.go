@@ -141,7 +141,15 @@ func (s *Store) SetHiveID(id string) {
 // hiveIDMetadataKey is the metadata key used to record which hive instance created a bead.
 const hiveIDMetadataKey = "hive_id"
 
+var validBeadTypes = map[BeadType]bool{
+	TypeBug: true, TypeFeature: true, TypeTask: true,
+	TypeEpic: true, TypeChore: true, TypeDecision: true, TypeAdvisory: true,
+}
+
 func (s *Store) Create(title string, beadType BeadType, priority Priority, actor string, externalRef string) (*Bead, error) {
+	if !validBeadTypes[beadType] {
+		return nil, fmt.Errorf("invalid bead type %q", beadType)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

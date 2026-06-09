@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"unicode/utf8"
 
 	gh "github.com/google/go-github/v72/github"
 )
@@ -114,6 +115,10 @@ func truncateDigest(digest string) string {
 	lastNewline := strings.LastIndex(digest[:cutoff], "\n")
 	if lastNewline > 0 {
 		cutoff = lastNewline
+	}
+	// Ensure cutoff doesn't split a UTF-8 character
+	for cutoff > 0 && !utf8.RuneStart(digest[cutoff]) {
+		cutoff--
 	}
 	return digest[:cutoff] + fmt.Sprintf("\n\n---\n⚠️ *Digest truncated: %d → %d characters (GitHub limit: %d)*\n", len(digest), cutoff, githubCommentCharLimit)
 }

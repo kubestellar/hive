@@ -117,19 +117,44 @@ if [ "$(id -u)" = "0" ]; then
     chown -R dev:node /data/config /data/home 2>/dev/null || true
   fi
   chown dev:node /home/dev/.config 2>/dev/null || true
-  # inotify watcher: copilot CLI rewrites config.json with 0600 on every
-  # token refresh, locking out other agent UIDs. This watcher resets perms
-  # instantly on every write — sub-second response, no polling race.
+  # Copilot CLI rewrites config.json with 0600 on every token refresh,
+  # locking out other agent UIDs. Try inotify first (instant, works on
+  # local/block storage), fall back to polling (works on NFS where
+  # inotify events aren't delivered).
+  PERM_GUARD_STARTED=false
   if command -v inotifywait >/dev/null 2>&1; then
+    # Test if inotify works on this filesystem
+    touch /data/home/.copilot/.inotify-test 2>/dev/null
+    inotifywait -qq -t 1 -e close_write /data/home/.copilot/ &
+    INOTIFY_PID=$!
+    sleep 0.2
+    touch /data/home/.copilot/.inotify-test 2>/dev/null
+    sleep 0.5
+    if ! kill -0 "$INOTIFY_PID" 2>/dev/null; then
+      # inotify fired — use it
+      (
+        while inotifywait -qq -e close_write,moved_to /data/home/.copilot/ 2>/dev/null; do
+          chmod 660 /data/home/.copilot/config.json 2>/dev/null
+          chown dev:node /data/home/.copilot/config.json 2>/dev/null
+        done
+      ) &
+      PERM_GUARD_STARTED=true
+      echo "[entrypoint] inotify watcher: config.json perm guard active"
+    else
+      kill "$INOTIFY_PID" 2>/dev/null
+    fi
+    rm -f /data/home/.copilot/.inotify-test 2>/dev/null
+  fi
+  if [ "$PERM_GUARD_STARTED" = "false" ]; then
+    # Fallback: poll every 5 seconds (for NFS where inotify doesn't work)
     (
-      while inotifywait -qq -e close_write,moved_to /data/home/.copilot/ 2>/dev/null; do
+      while true; do
         chmod 660 /data/home/.copilot/config.json 2>/dev/null
         chown dev:node /data/home/.copilot/config.json 2>/dev/null
+        sleep 5
       done
     ) &
-    echo "[entrypoint] inotify watcher: config.json perm guard active"
-  else
-    echo "[entrypoint] WARN: inotifywait not found, config.json perm fix unavailable"
+    echo "[entrypoint] polling perm guard: config.json (inotify unavailable on this filesystem)"
   fi
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
 

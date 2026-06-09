@@ -1880,8 +1880,9 @@ const dashboardHTML = `<!DOCTYPE html>
           var branchName = h.gitBranch || 'v2';
           var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
           var isCurrent = _latestSHA && sha === _latestSHA;
-          var isUpgrading = _upgradingHives[h.id] && sha === _upgradingHives[h.id];
+          var isUpgrading = (_upgradingHives[h.id] && sha === _upgradingHives[h.id]) || (h.upgrading && !isCurrent);
           if (_upgradingHives[h.id] && sha !== _upgradingHives[h.id]) delete _upgradingHives[h.id];
+          if (isCurrent && h.upgrading) { h.upgrading = false; }
           var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
           var upgradeIcon = '';
           if (isUpgrading) {

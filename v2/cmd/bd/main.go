@@ -90,8 +90,8 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, `Usage: bd <command> [options]
 
 Commands:
-  list   [--json] [--status=<status>]     List beads
-  ready  [--json]                          List open/unblocked beads
+  list   [--json] [--status=<s>] [--actor=<a>]  List beads
+  ready  [--json] [--actor=<a>]                List open/unblocked beads
   create --title "..." --type <type> --priority <0-4> --actor <name> [--external-ref <ref>]
   update <id> --claim                      Claim a bead (set in_progress)
   update <id> --status <status>            Change status
@@ -124,6 +124,7 @@ func cmdList(args []string) {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	jsonOut := fs.Bool("json", false, "Output as JSON")
 	statusFilter := fs.String("status", "", "Filter by status")
+	actorFilter := fs.String("actor", "", "Filter by actor name")
 	_ = fs.Parse(args)
 
 	store := openStore()
@@ -131,6 +132,9 @@ func cmdList(args []string) {
 	if *statusFilter != "" {
 		s := beads.Status(*statusFilter)
 		filter.Status = &s
+	}
+	if *actorFilter != "" {
+		filter.Actor = actorFilter
 	}
 
 	results := store.List(filter)
@@ -146,11 +150,11 @@ func cmdList(args []string) {
 func cmdReady(args []string) {
 	fs := flag.NewFlagSet("ready", flag.ExitOnError)
 	jsonOut := fs.Bool("json", false, "Output as JSON")
+	actor := fs.String("actor", "", "Filter by actor name")
 	_ = fs.Parse(args)
 
 	store := openStore()
-	// Ready returns open beads; pass empty actor to get all.
-	results := store.Ready("")
+	results := store.Ready(*actor)
 	if *jsonOut {
 		printJSON(ensureSlice(results))
 	} else {

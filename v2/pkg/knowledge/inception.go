@@ -1465,6 +1465,7 @@ func buildGoCmdRoot(name string, vision *Fact) string {
 	if vision != nil {
 		desc = singleLine(vision.Title)
 	}
+	escapedDesc := strings.ReplaceAll(desc, `"`, `\"`)
 	return fmt.Sprintf(`package cmd
 
 import (
@@ -1488,7 +1489,7 @@ func Execute() {
 		os.Exit(1)
 	}
 }
-`, name, desc)
+`, name, escapedDesc)
 }
 
 func buildCargoToml(name string, vision *Fact) string {

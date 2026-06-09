@@ -351,8 +351,8 @@ func (s *Server) handleInceptionRenameWiki(w http.ResponseWriter, r *http.Reques
 		jsonError(w, fmt.Sprintf("name must be %d characters or fewer", maxWikiNameLen), http.StatusBadRequest)
 		return
 	}
-	if s.deps.Knowledge == nil {
-		jsonError(w, "knowledge not initialized", http.StatusServiceUnavailable)
+	if s.deps.Knowledge == nil || s.deps.Inception == nil {
+		jsonError(w, "knowledge or inception not initialized", http.StatusServiceUnavailable)
 		return
 	}
 	store := s.deps.Knowledge.GetVaultStore(s.deps.Inception.WikiDir())

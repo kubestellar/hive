@@ -2190,6 +2190,9 @@ func toPascalCase(s string) string {
 		}
 		b.WriteString(strings.ToUpper(w[:1]) + w[1:])
 	}
+	if b.Len() == 0 {
+		return "Unnamed"
+	}
 	return b.String()
 }
 
@@ -2207,5 +2210,9 @@ func toSnakeCase(s string) string {
 			filtered = append(filtered, w)
 		}
 	}
-	return strings.Join(filtered, "_")
+	result := strings.Join(filtered, "_")
+	if result == "" {
+		return "unnamed"
+	}
+	return result
 }

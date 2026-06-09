@@ -7029,13 +7029,13 @@ function burnAreaChart() {
     }
 
     function renderInceptionScaffold() {
+      setTimeout(loadInceptionScaffoldPreview, 100);
       return `
         <div style="max-width:700px;margin:0 auto">
-          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Your project facts are ready. Preview the scaffold output.</div>
-          <div id="inception-scaffold-preview" style="margin-bottom:16px"></div>
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Your scaffold is ready. Review the generated files below, then approve to complete.</div>
+          <div id="inception-scaffold-preview" style="margin-bottom:16px"><div style="text-align:center;color:var(--muted);padding:20px">Loading scaffold files...</div></div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
             <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Start Over</button>
-            <button onclick="loadInceptionScaffoldPreview()" style="padding:8px 20px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--fg);cursor:pointer;font-size:0.82rem">Preview Files</button>
             <button onclick="approveInception()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">Approve</button>
           </div>
         </div>`;

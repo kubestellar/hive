@@ -381,7 +381,10 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 		filename := slug + ".md"
 
 		conf := defaultConfidence(f.Type)
-		tags := append(f.Tags, "inception", string(f.Type))
+		tags := make([]string, len(f.Tags)+2)
+		copy(tags, f.Tags)
+		tags[len(f.Tags)] = "inception"
+		tags[len(f.Tags)+1] = string(f.Type)
 
 		var content strings.Builder
 		content.WriteString("---\n")

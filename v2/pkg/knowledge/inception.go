@@ -210,6 +210,9 @@ func (e *InceptionEngine) SubmitAnswers(answers map[string]string) (*InceptionSt
 	if e.state.Phase != PhaseClarify && e.state.Phase != PhaseStructure {
 		return nil, fmt.Errorf("cannot submit answers in phase %s", e.state.Phase)
 	}
+	if len(answers) == 0 {
+		return nil, fmt.Errorf("at least one answer is required")
+	}
 
 	// Validate answer keys match known question IDs
 	if len(e.state.Questions) > 0 {

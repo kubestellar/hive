@@ -298,7 +298,7 @@ func (s *Scheduler) buildReposSection() string {
 	return b.String()
 }
 
-const maxIssuesPerKick = 20
+const maxIssuesPerKick = 100
 
 // BuildAgentMessage constructs a kick prompt for the named agent using the
 // template resolution chain (config kick_template → convention → embedded → hardcoded).
@@ -365,7 +365,7 @@ func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *githu
 	b.WriteString("[agent:scanner]\n")
 	b.WriteString(fmt.Sprintf("YOUR WORK LIST (pre-filtered — hold/ADOPTERS/drafts excluded, classified):\n"))
 
-	scannerIssues := filterByLane(issues, "scanner")
+	scannerIssues := issues
 
 	b.WriteString(fmt.Sprintf("ACTIONABLE ISSUES (%d, oldest first):\n", len(scannerIssues)))
 	shown := 0

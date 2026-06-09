@@ -2140,14 +2140,21 @@ export function t(key: string): string {
 
 func buildMakefile(lang, name, projectType string) string {
 	var b strings.Builder
-	phony := ".PHONY: build test lint clean"
+	var targets []string
+	if lang != "javascript" && lang != "shell" {
+		targets = append(targets, "build")
+	}
+	targets = append(targets, "test", "lint")
+	if lang != "shell" {
+		targets = append(targets, "clean")
+	}
 	if projectType == "container" || projectType == "kubernetes" {
-		phony += " docker-build docker-push"
+		targets = append(targets, "docker-build", "docker-push")
 	}
 	if projectType == "kubernetes" {
-		phony += " deploy deploy-prod"
+		targets = append(targets, "deploy", "deploy-prod")
 	}
-	fmt.Fprintf(&b, "%s\n\n", phony)
+	fmt.Fprintf(&b, ".PHONY: %s\n\n", strings.Join(targets, " "))
 	switch lang {
 	case "go":
 		fmt.Fprintf(&b, "build:\n\tgo build -o bin/%s .\n\n", name)

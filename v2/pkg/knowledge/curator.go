@@ -287,8 +287,8 @@ func extractTitle(comment string) string {
 			continue
 		}
 		const maxTitleLen = 120
-		if len(trimmed) > maxTitleLen {
-			trimmed = trimmed[:maxTitleLen] + "..."
+		if runes := []rune(trimmed); len(runes) > maxTitleLen {
+			trimmed = string(runes[:maxTitleLen]) + "..."
 		}
 		return trimmed
 	}
@@ -326,8 +326,9 @@ func extractTags(comment string) []string {
 }
 
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
 }

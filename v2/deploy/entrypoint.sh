@@ -283,16 +283,12 @@ with open('/var/run/hive/uid-map.json', 'w') as f:
 
   # Drop to non-root user for all runtime processes.
   # Claude Code refuses --dangerously-skip-permissions as root.
-  # Use set +e around gosu — on some NFS/container combos gosu fails with EPERM.
-  if command -v gosu >/dev/null 2>&1; then
+  # Test gosu first — on some NFS/container combos it fails with EPERM.
+  if command -v gosu >/dev/null 2>&1 && gosu dev true 2>/dev/null; then
     echo "[entrypoint] Dropping to dev user"
-    set +e
     exec gosu dev "$0" "$@"
-    # If exec returns, gosu failed — continue as root
-    set -e
-    echo "[entrypoint] WARN: gosu failed (EPERM), continuing as root"
   else
-    echo "[entrypoint] WARN: gosu not found, running as root"
+    echo "[entrypoint] WARN: gosu unavailable or failed, continuing as root"
   fi
 fi
 

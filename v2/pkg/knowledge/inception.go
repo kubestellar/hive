@@ -1473,7 +1473,7 @@ func buildGitignore(lang string) string {
 	case "go":
 		return common + "# Go\n/bin/\n*.exe\ncoverage.out\n"
 	case "python":
-		return common + "# Python\n__pycache__/\n*.pyc\n*.egg-info/\ndist/\nbuild/\n.venv/\nvenv/\n.pytest_cache/\n"
+		return common + "# Python\n__pycache__/\n*.pyc\n*.egg-info/\ndist/\nbuild/\n.venv/\nvenv/\n.pytest_cache/\n.ruff_cache/\n"
 	case "typescript":
 		return common + "# Node\nnode_modules/\ndist/\ncoverage/\n*.tsbuildinfo\n"
 	case "javascript":

@@ -39,8 +39,9 @@ gh pr create --repo "$HIVE_REPO" \
 ```
 
 4. Wait for CI: `gh pr checks <pr-number> --repo "$HIVE_REPO"` — poll until checks pass
-5. Merge after checks pass: `gh pr merge <pr-number> --repo "$HIVE_REPO" --squash`
-6. Clean up: `git worktree remove /tmp/scanner-fix-<slug>`
+5. **Before merging any PR** — check the body for `Fixes #<number>`. If missing, search for a related issue by title/keywords and update the PR body with `Fixes #<issue>` so the issue auto-closes on merge. Use: `gh pr edit <number> --repo <repo> --body "<updated body with Fixes #issue>"`
+6. Merge after checks pass: `gh pr merge <pr-number> --repo "$HIVE_REPO" --squash`
+7. Clean up: `git worktree remove /tmp/scanner-fix-<slug>`
 
 ## Writing Beads
 
@@ -60,7 +61,7 @@ ${PR_LIST}
 ## Workflow
 
 1. Check open beads (`bd list --status open`) for context from previous cycles — skip items already tracked
-2. **Quick merges (10 min cap)** — review PRs with passing CI and merge them. Skip PRs with merge conflicts or failing checks. Comment `@dependabot rebase` on stale dependabot PRs. Move on after 10 minutes.
+2. **Quick merges (10 min cap)** — review PRs with passing CI and merge them. Before merging, ensure every PR body contains `Fixes #<issue>` — if missing, search for the related issue and add it with `gh pr edit`. Skip PRs with merge conflicts or failing checks. Comment `@dependabot rebase` on stale dependabot PRs. Move on after 10 minutes.
 3. **Fix blockers** — identify the single highest-leverage fix that unblocks the most PRs or issues (e.g. a shared test helper signature change, a broken import). Clone, fix, push, open PR, merge when green. One fix that unblocks many is worth more than many small fixes.
 4. **Reap stale findings** — re-verify open beads and close resolved ones
 5. Analyze root cause for remaining issues; dispatch 4-6 sub-agents IN PARALLEL (Copilot: `/fleet`, Claude Code: `Agent` tool, Goose: sub-agent sessions)

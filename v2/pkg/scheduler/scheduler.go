@@ -415,7 +415,7 @@ func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *githu
 
 	b.WriteString("\nWORKFLOW:\n")
 	b.WriteString("  1. Check beads (`bd list --status open`) for context from previous cycles\n")
-	b.WriteString("  2. Quick merges (10 min cap) — review PRs with passing CI and merge. `@dependabot rebase` stale ones. Move on after 10 min.\n")
+	b.WriteString("  2. Quick merges (10 min cap) — review PRs with passing CI. Before merging, ensure `Fixes #<issue>` is in the PR body (search for related issue if missing, add with `gh pr edit`). `@dependabot rebase` stale ones. Move on after 10 min.\n")
 	b.WriteString("  3. Fix blockers — find the ONE fix that unblocks the most PRs/issues. Clone, fix, push, merge.\n")
 	b.WriteString("  4. Work issues — dispatch 4-6 sub-agents IN PARALLEL (Copilot: /fleet, Claude Code: Agent tool, Goose: sub-agent sessions).\n")
 

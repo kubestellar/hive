@@ -71,6 +71,8 @@ func main() {
 		cmdClose(os.Args[2:])
 	case "reset":
 		cmdReset(os.Args[2:])
+	case "remember":
+		cmdRemember(os.Args[2:])
 	case "dolt":
 		cmdDolt(os.Args[2:])
 	case "init":
@@ -94,6 +96,8 @@ Commands:
   update <id> --claim                      Claim a bead (set in_progress)
   update <id> --status <status>            Change status
   update <id> --set-metadata key=value     Set metadata key
+  update <id> --unset-metadata key         Remove metadata key
+  remember "<fact>"                        Quick-add an advisory bead
   close  <id>                              Close a bead
   reset  [--reason "..."]                  Close all open/in_progress/blocked beads
   dolt   push                              No-op (data already on disk)
@@ -293,6 +297,21 @@ func cmdReset(args []string) {
 }
 
 // ---------- dolt push (no-op) ----------
+
+func cmdRemember(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "bd remember: requires a fact string")
+		os.Exit(1)
+	}
+	fact := strings.Join(args, " ")
+	store := openStore()
+	b, err := store.Create(fact, beads.TypeAdvisory, beads.Priority(4), "system", "")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "bd remember: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Remembered: %s (bead %s)\n", fact, b.ID)
+}
 
 func cmdDolt(args []string) {
 	if len(args) > 0 && args[0] == "push" {

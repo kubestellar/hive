@@ -224,7 +224,9 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 	out, err := cmd.CombinedOutput()
 
 	// Remove manifest immediately — it contains GitHub tokens in plaintext
-	os.Remove(manifestPath)
+	if rmErr := os.Remove(manifestPath); rmErr != nil {
+		logger.Error("SECURITY: failed to remove manifest with plaintext tokens", "path", manifestPath, "error", rmErr)
+	}
 
 	if err != nil {
 		logger.Warn("kubectl apply failed", "hive", h.ID, "output", string(out), "error", err)

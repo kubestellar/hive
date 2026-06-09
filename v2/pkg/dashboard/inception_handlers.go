@@ -387,7 +387,7 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	data, err := io.ReadAll(io.LimitReader(file, maxZipUploadBytes))
+	data, err := io.ReadAll(file)
 	if err != nil {
 		jsonError(w, "failed to read upload", http.StatusBadRequest)
 		return

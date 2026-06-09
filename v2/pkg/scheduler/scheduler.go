@@ -413,12 +413,10 @@ func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *githu
 		b.WriteString(knowledgeSection)
 	}
 
-	b.WriteString("\n⛔ NEVER run gh issue list, gh pr list, gh search issues — the work list above is your ONLY source.\n")
-	b.WriteString("MERGE DISCIPLINE: Review and merge ANY PR with green CI — your own, dependabot, other agents', or community PRs. Use `--squash --admin`. Prioritize dependabot and small PRs first for quick wins.\n")
-	b.WriteString("WORKFLOW:\n")
+	b.WriteString("\nWORKFLOW:\n")
 	b.WriteString("  1. Check beads (`bd list --status open`) for context from previous cycles\n")
-	b.WriteString("  2. Quick merges (10 min cap) — merge green PRs, `@dependabot rebase` stale ones, then MOVE ON\n")
-	b.WriteString("  3. Fix blockers — find the ONE fix that unblocks the most PRs/issues (broken test helper, missing import, etc). Clone, fix, push, merge.\n")
+	b.WriteString("  2. Quick merges (10 min cap) — review PRs with passing CI and merge. `@dependabot rebase` stale ones. Move on after 10 min.\n")
+	b.WriteString("  3. Fix blockers — find the ONE fix that unblocks the most PRs/issues. Clone, fix, push, merge.\n")
 	b.WriteString("  4. Work issues — dispatch 4-6 sub-agents IN PARALLEL (Copilot: /fleet, Claude Code: Agent tool, Goose: sub-agent sessions).\n")
 
 	return b.String()
@@ -466,16 +464,9 @@ func (s *Scheduler) buildSupervisorMessage(actionable *github.ActionableResult) 
 func (s *Scheduler) ghAuthInstructions() string {
 	return `## Project Authentication
 
-Your environment is pre-configured with GitHub access. The following variables
-are set automatically by the hive runtime — your role includes using them as-is:
-
-  export GH_TOKEN=$(cat /var/run/hive-metrics/gh-app-token.cache)
-  export SSL_CERT_FILE=/data/proxy-ca.pem
-  REAL_GH=$(find /data -name gh-real -type f 2>/dev/null | head -1)
-  [ -z "$REAL_GH" ] && REAL_GH=$(which gh 2>/dev/null)
-
-If gh fails, use curl with -k as a fallback:
-  curl -sk -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/...
+GitHub access is pre-configured in your environment. The GH_TOKEN and
+SSL_CERT_FILE variables are already set by the hive runtime. Use gh
+commands normally — authentication is handled automatically.
 
 `
 }

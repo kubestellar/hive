@@ -20,8 +20,15 @@ if [ -f "$HIVE_CONFIG_PATH" ] && [ -s "$HIVE_CONFIG_PATH" ] && [ ! -f "$HIVE_CON
   cp "$HIVE_CONFIG_PATH" "$HIVE_CONFIG_BACKUP"
   echo "[entrypoint] First boot — config seeded to PVC: $HIVE_CONFIG_BACKUP"
 elif [ -f "$HIVE_CONFIG_PATH" ] && [ -s "$HIVE_CONFIG_PATH" ] && [ -f "$HIVE_CONFIG_BACKUP" ] && [ -s "$HIVE_CONFIG_BACKUP" ]; then
-  # PVC backup exists — it is the source of truth (updated by Save())
-  echo "[entrypoint] PVC backup exists — config managed by Save()"
+  # PVC backup is the source of truth (updated by Save()).
+  # Try to copy it over the config path; if read-only (Docker bind mount),
+  # override HIVE_CONFIG so the Go binary reads from the backup directly.
+  if cp "$HIVE_CONFIG_BACKUP" "$HIVE_CONFIG_PATH" 2>/dev/null; then
+    echo "[entrypoint] PVC backup restored to config path"
+  else
+    export HIVE_CONFIG="$HIVE_CONFIG_BACKUP"
+    echo "[entrypoint] Config path is read-only — using PVC backup directly"
+  fi
 elif [ -f "$HIVE_CONFIG_PATH" ] && [ ! -s "$HIVE_CONFIG_PATH" ] && [ -f "$HIVE_CONFIG_BACKUP" ] && [ -s "$HIVE_CONFIG_BACKUP" ]; then
   # Config was wiped to 0 bytes (Watchtower recreation) but backup exists — restore
   cp "$HIVE_CONFIG_BACKUP" "$HIVE_CONFIG_PATH"

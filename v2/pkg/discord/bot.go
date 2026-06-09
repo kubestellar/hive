@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -282,7 +283,11 @@ func (b *Bot) cmdStatus() (string, error) {
 
 	result := strings.Join(lines, "\n")
 	if len(result) > discordMsgLimit {
-		result = result[:discordMsgLimit] + "…"
+		truncated := result[:discordMsgLimit]
+		for !utf8.ValidString(truncated) && len(truncated) > 0 {
+			truncated = truncated[:len(truncated)-1]
+		}
+		result = truncated + "…"
 	}
 	return result, nil
 }

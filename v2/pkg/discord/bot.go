@@ -779,7 +779,8 @@ func (b *Bot) dashboardGet(path string) ([]byte, error) {
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	const maxDiscordResponseBytes = 10 << 20 // 10 MiB
+	return io.ReadAll(io.LimitReader(resp.Body, maxDiscordResponseBytes))
 }
 
 func (b *Bot) dashboardPost(path string, body []byte) error {

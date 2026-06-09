@@ -179,6 +179,21 @@
     function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
     function hiveToast(msg, type) { var t = document.createElement('div'); t.style.cssText = 'position:fixed;top:70px;right:24px;z-index:200;padding:12px 20px;border-radius:8px;font-size:0.85rem;max-width:400px;color:#fff;background:' + (type === 'error' ? 'rgba(239,68,68,0.9)' : type === 'success' ? 'rgba(22,163,74,0.9)' : 'rgba(59,130,246,0.9)'); t.textContent = msg; document.body.appendChild(t); setTimeout(function() { t.remove(); }, 4000); }
 
+    function sparkline(points, color, w, h) {
+      if (!points || points.length < 2) return '';
+      var vals = points.map(function(p) { return p.v; });
+      var mn = Math.min.apply(null, vals);
+      var mx = Math.max.apply(null, vals);
+      var range = mx - mn || 1;
+      var sw = w || 60;
+      var sh = h || 16;
+      var step = sw / (vals.length - 1);
+      var pts = vals.map(function(v, i) {
+        return (i * step).toFixed(1) + ',' + (sh - ((v - mn) / range) * sh).toFixed(1);
+      }).join(' ');
+      return '<svg width="' + sw + '" height="' + sh + '" style="vertical-align:middle;margin-right:4px"><polyline points="' + pts + '" fill="none" stroke="' + (color || '#6b7280') + '" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
     function acmmBadge(level) {
       var names = {1:'Idea',2:'Measured',3:'CI/CD',4:'Auto PR',5:'Self-Governing',6:'Fully Autonomous'};
       var tips = {
@@ -290,8 +305,8 @@
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
           '<td>' + (h.agentCount || 0) + '</td>' +
           '<td>' + modeBadge(h.governorMode) + '</td>' +
-          '<td>' + (h.actionableIssues || 0) + '</td>' +
-          '<td>' + (h.actionablePRs || 0) + '</td>' +
+          '<td>' + sparkline(h.issueHistory, '#f59e0b', 50, 14) + (h.actionableIssues || 0) + '</td>' +
+          '<td>' + sparkline(h.prHistory, '#3b82f6', 50, 14) + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
           '<td>' + link + '</td>' +
           '<td style="white-space:nowrap">' +

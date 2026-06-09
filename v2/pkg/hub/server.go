@@ -66,6 +66,13 @@ type RegistryEntry struct {
 	Online             bool           `json:"online"`
 	Upgrading          bool           `json:"upgrading,omitempty"`
 	UpgradeTarget      string         `json:"upgradeTarget,omitempty"`
+	IssueHistory       []SparkPoint   `json:"issueHistory,omitempty"`
+	PRHistory          []SparkPoint   `json:"prHistory,omitempty"`
+}
+
+type SparkPoint struct {
+	T int64 `json:"t"`
+	V int   `json:"v"`
 }
 
 var safeNamePattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
@@ -331,6 +338,23 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 				entry.Upgrading = h.Upgrading
 				entry.UpgradeTarget = h.UpgradeTarget
 			}
+			// Sparkline history: sample every 15 min, keep 7 days (672 points)
+			const sparkSampleInterval = 15 * 60 // seconds
+			const sparkMaxPoints = 672
+			now := time.Now().Unix()
+			entry.IssueHistory = h.IssueHistory
+			entry.PRHistory = h.PRHistory
+			shouldSample := len(h.IssueHistory) == 0 || (now-h.IssueHistory[len(h.IssueHistory)-1].T) >= sparkSampleInterval
+			if shouldSample {
+				entry.IssueHistory = append(entry.IssueHistory, SparkPoint{T: now, V: entry.ActionableIssues})
+				entry.PRHistory = append(entry.PRHistory, SparkPoint{T: now, V: entry.ActionablePRs})
+				if len(entry.IssueHistory) > sparkMaxPoints {
+					entry.IssueHistory = entry.IssueHistory[len(entry.IssueHistory)-sparkMaxPoints:]
+				}
+				if len(entry.PRHistory) > sparkMaxPoints {
+					entry.PRHistory = entry.PRHistory[len(entry.PRHistory)-sparkMaxPoints:]
+				}
+			}
 			s.registry.Hives[i] = entry
 			found = true
 			break
@@ -351,6 +375,9 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		entry.RegisteredAt = time.Now().UTC().Format(time.RFC3339)
+		now := time.Now().Unix()
+		entry.IssueHistory = []SparkPoint{{T: now, V: entry.ActionableIssues}}
+		entry.PRHistory = []SparkPoint{{T: now, V: entry.ActionablePRs}}
 		s.registry.Hives = append(s.registry.Hives, entry)
 	}
 	s.registry.UpdatedAt = time.Now().UTC().Format(time.RFC3339)

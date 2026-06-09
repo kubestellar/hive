@@ -1663,6 +1663,21 @@ const dashboardHTML = `<!DOCTYPE html>
     });
 
     var ACMM_LABELS = {1:'L1 Idea',2:'L2 Measured',3:'L3 CI/CD',4:'L4 Auto PR',5:'L5 Self-Governing',6:'L6 Fully Autonomous'};
+    function sparkline(points, color, w, h) {
+      if (!points || points.length < 2) return '';
+      var vals = points.map(function(p) { return p.v; });
+      var mn = Math.min.apply(null, vals);
+      var mx = Math.max.apply(null, vals);
+      var range = mx - mn || 1;
+      var sw = w || 60;
+      var sh = h || 16;
+      var step = sw / (vals.length - 1);
+      var pts = vals.map(function(v, i) {
+        return (i * step).toFixed(1) + ',' + (sh - ((v - mn) / range) * sh).toFixed(1);
+      }).join(' ');
+      return '<svg width="' + sw + '" height="' + sh + '" style="vertical-align:middle;margin-right:4px"><polyline points="' + pts + '" fill="none" stroke="' + (color || '#6b7280') + '" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
     function acmmBadge(level) {
       var l = level || 0;
       var tips = {1:'L1 Idea — Advisory only.',2:'L2 Measured — Can open issues.',3:'L3 CI/CD — Hold-gated PRs.',4:'L4 Auto PR — Merge on green CI.',5:'L5 Self-Governing — Full autonomy.',6:'L6 Fully Autonomous — Multi-loop.'};
@@ -1906,8 +1921,8 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
           '<td>' + (h.agentCount || 0) + '</td>' +
           '<td>' + modeCell + '</td>' +
-          '<td>' + (h.actionableIssues || 0) + '</td>' +
-          '<td>' + (h.actionablePRs || 0) + '</td>' +
+          '<td>' + sparkline(h.issueHistory, '#f59e0b', 50, 14) + (h.actionableIssues || 0) + '</td>' +
+          '<td>' + sparkline(h.prHistory, '#3b82f6', 50, 14) + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
           '</tr>';
       }).join('');

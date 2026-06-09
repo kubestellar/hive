@@ -478,7 +478,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "CONTRIBUTING.md",
-		Content: buildContributing(constitution),
+		Content: buildContributing(projectName, constitution),
 		Purpose: "contributing",
 		IsNew:   true,
 	})
@@ -1147,7 +1147,7 @@ func buildShellTestStubs(acceptance []Fact) string {
 	return b.String()
 }
 
-func buildContributing(constitution *Fact) string {
+func buildContributing(projectName string, constitution *Fact) string {
 	var b strings.Builder
 	b.WriteString("# Contributing\n\n")
 	b.WriteString("Thank you for your interest in contributing!\n\n")
@@ -1156,17 +1156,17 @@ func buildContributing(constitution *Fact) string {
 		lang := inferLanguage(constitution)
 		switch lang {
 		case "go":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\ngo mod download\ngo build ./...\ngo test ./...\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\ngo mod download\ngo build ./...\ngo test ./...\n```\n\n", projectName)
 		case "python":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\npython -m venv .venv && source .venv/bin/activate\npip install -e '.[dev]'\npytest\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\npython -m venv .venv && source .venv/bin/activate\npip install -e '.[dev]'\npytest\n```\n\n", projectName)
 		case "typescript", "javascript":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nnpm install\nnpm test\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\nnpm install\nnpm test\n```\n\n", projectName)
 		case "rust":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\ncargo build\ncargo test\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\ncargo build\ncargo test\n```\n\n", projectName)
 		case "java":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nmvn compile\nmvn test\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\nmvn compile\nmvn test\n```\n\n", projectName)
 		case "shell":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nchmod +x *.sh\nbash test.sh\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\nchmod +x *.sh\nbash test.sh\n```\n\n", projectName)
 		default:
 			b.WriteString("TODO: Add development setup instructions.\n\n")
 		}

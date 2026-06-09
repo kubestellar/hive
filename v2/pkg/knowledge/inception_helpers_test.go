@@ -78,7 +78,7 @@ func TestToPascalCase(t *testing.T) {
 		{"single", "Single"},
 		{"UPPER case", "UPPERCase"},
 		{"with-special!chars", "Withspecialchars"},
-		{"", ""},
+		{"", "Unnamed"},
 	}
 	for _, tt := range tests {
 		got := toPascalCase(tt.input)
@@ -97,7 +97,7 @@ func TestToSnakeCase(t *testing.T) {
 		{"MY PROJECT", "my_project"},
 		{"single", "single"},
 		{"with-special!chars", "withspecialchars"},
-		{"", ""},
+		{"", "unnamed"},
 	}
 	for _, tt := range tests {
 		got := toSnakeCase(tt.input)

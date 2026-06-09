@@ -736,7 +736,9 @@ func (e *InceptionEngine) IncrementAutoFactCount(count int) {
 	defer e.mu.Unlock()
 	if e.state != nil {
 		e.state.AutoFactCount += count
-		_ = e.saveState()
+		if err := e.saveState(); err != nil {
+			e.logger.Warn("failed to persist auto fact count", "count", count, "error", err)
+		}
 	}
 }
 
@@ -745,7 +747,9 @@ func (e *InceptionEngine) IncrementAutoQuestionCount(count int) {
 	defer e.mu.Unlock()
 	if e.state != nil {
 		e.state.AutoQuestionCount += count
-		_ = e.saveState()
+		if err := e.saveState(); err != nil {
+			e.logger.Warn("failed to persist auto question count", "count", count, "error", err)
+		}
 	}
 }
 

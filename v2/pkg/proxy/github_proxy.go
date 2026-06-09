@@ -582,7 +582,8 @@ func (p *GitHubProxy) tunnelDirect(conn net.Conn, r *http.Request) {
 	const tunnelDialTimeout = 10 * time.Second
 	upstream, err := net.DialTimeout("tcp", r.Host, tunnelDialTimeout)
 	if err != nil {
-		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\n\r\ndial %s: %v\n", r.Host, err)
+		p.logger.Warn("proxy: CONNECT dial failed", "host", r.Host, "error", err)
+		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\n\r\nconnection failed\n")
 		return
 	}
 	defer upstream.Close()

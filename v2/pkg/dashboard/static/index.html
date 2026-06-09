@@ -3358,7 +3358,7 @@
           <div class="gov-stat" title="${holdTooltip}"><div class="label">on hold</div><div class="spark-row"><span class="val" style="color:${HOLD_COLOR}">${holdTotal}</span>${holdSpark}</div></div>
           <div class="gov-stat" title="When the governor will next evaluate mode and kick agents based on cadence schedules."><div class="label">next run</div><div class="val">${escapeHtml(gov.nextKick || '—')}</div></div>
         </div>
-        <div class="temp-gauge">
+        <div class="temp-gauge" style="cursor:pointer" onclick="openConfigDialog('governor',null,'Thresholds')" title="Click to adjust governor thresholds">
           <div class="temp-gauge-label"><span>Issues: ${issueCount}</span><span>max ${maxQ}</span></div>
           <div class="temp-gauge-track" style="background:linear-gradient(to right, #238636 0%, #238636 ${CLASSIC_THRESH_QUIET/maxQ*100}%, #1f6feb ${CLASSIC_THRESH_QUIET/maxQ*100}%, #1f6feb ${CLASSIC_THRESH_BUSY/maxQ*100}%, #d29922 ${CLASSIC_THRESH_BUSY/maxQ*100}%, #d29922 ${CLASSIC_THRESH_SURGE/maxQ*100}%, #f85149 ${CLASSIC_THRESH_SURGE/maxQ*100}%, #f85149 100%)">
             <div class="temp-gauge-glow" style="width:100%"></div>
@@ -3424,7 +3424,7 @@
         const cChip = agentData && agentData.cli ? cliChip(agentData.cli, cliPinned, aname) : '?';
         const mChip = agentData && agentData.model ? modelChip(agentData.model, agentData.govReason, modelPinned, aname) : '';
         const displayLabel = (agentData && agentData.displayName) || aname;
-        return `<tr><td>${nameDot}${displayLabel}${pauseBadge}</td>${cells}<td>${cChip}</td><td>${mChip}</td></tr>`;
+        return `<tr style="cursor:pointer" onclick="openConfigDialog('agent','${aname}','Cadences')" title="Click to adjust ${displayLabel} cadences"><td>${nameDot}${displayLabel}${pauseBadge}</td>${cells}<td onclick="event.stopPropagation()">${cChip}</td><td onclick="event.stopPropagation()">${mChip}</td></tr>`;
       }).join('');
       const headers = modes.map(m => {
         const isActive = m === currentMode;

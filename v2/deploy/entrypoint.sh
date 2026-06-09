@@ -109,13 +109,16 @@ if [ "$(id -u)" = "0" ]; then
   ln -sfn /data/config/github-copilot /home/dev/.config/github-copilot
   ln -sfn /data/config/github-copilot /data/home/.config/github-copilot
   ln -sfn /data/home/.copilot /home/dev/.copilot
-  # Always set group-write + setgid on shared dirs — agent UIDs need write access.
-  # Critical on NFS where chown is skipped but agents create files as different UIDs.
-  chmod -R g+rwX /data/home 2>/dev/null || true
-  find /data/home -type d -exec chmod g+s {} + 2>/dev/null || true
-  if [ "$DATA_OWNER" != "1001" ]; then
-    chown -R dev:node /data/config /data/home 2>/dev/null || true
-  fi
+  # Set group-write + setgid on shared dirs in the background — on NFS with
+  # thousands of copilot cache files this can take minutes and must not block startup.
+  (
+    chmod -R g+rwX /data/home 2>/dev/null
+    find /data/home -type d -exec chmod g+s {} + 2>/dev/null
+    if [ "$DATA_OWNER" != "1001" ]; then
+      chown -R dev:node /data/config /data/home 2>/dev/null
+    fi
+    echo "[entrypoint] background perm fix complete"
+  ) &
   chown dev:node /home/dev/.config 2>/dev/null || true
   # Copilot CLI rewrites config.json with 0600 on every token refresh,
   # locking out other agent UIDs. Run inotify (if available) AND polling

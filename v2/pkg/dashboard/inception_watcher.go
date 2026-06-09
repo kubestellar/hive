@@ -284,10 +284,10 @@ func (w *InceptionWatcher) findInceptionBeads() []*beads.Bead {
 
 func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 	var questions []knowledge.Question
+	seenIDs := make(map[string]int)
 	for _, b := range inceptionBeads {
 		cat := b.Meta("category")
 		if cat == "" {
-			// Detect question beads by title prefix when metadata is missing
 			if strings.HasPrefix(b.Title, "Clarification:") || strings.HasPrefix(b.Title, "clarification:") {
 				cat = "general"
 			} else {
@@ -297,6 +297,10 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 		qID := b.Meta("question_id")
 		if qID == "" {
 			qID = cat
+		}
+		seenIDs[qID]++
+		if seenIDs[qID] > 1 {
+			qID = fmt.Sprintf("%s-%d", qID, seenIDs[qID])
 		}
 
 		title := b.Title

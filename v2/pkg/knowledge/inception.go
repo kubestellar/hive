@@ -464,7 +464,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	// Core documentation
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "README.md",
-		Content: buildReadme(e.state.IdeaText, vision, constitution, requirements, constraints, stakeholders),
+		Content: buildReadme(projectName, e.state.IdeaText, vision, constitution, requirements, constraints, stakeholders),
 		Purpose: "readme",
 		IsNew:   true,
 	})
@@ -916,7 +916,7 @@ func defaultConfidence(ft FactType) float64 {
 
 // --- scaffold builders ---
 
-func buildReadme(ideaText string, vision, constitution *Fact, reqs, constraints, stakeholders []Fact) string {
+func buildReadme(projectName, ideaText string, vision, constitution *Fact, reqs, constraints, stakeholders []Fact) string {
 	var b strings.Builder
 
 	title := "Project"
@@ -980,17 +980,17 @@ func buildReadme(ideaText string, vision, constitution *Fact, reqs, constraints,
 		lang := inferLanguage(constitution)
 		switch lang {
 		case "go":
-			b.WriteString("```bash\ngo build -o bin/ .\n./bin/<project>\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngo build -o bin/ .\n./bin/%s\n```\n\n", projectName)
 		case "python":
-			b.WriteString("```bash\npip install -e .\npython -m <project>\n```\n\n")
+			fmt.Fprintf(&b, "```bash\npip install -e .\npython -m %s\n```\n\n", pyPackageName(projectName))
 		case "typescript", "javascript":
 			b.WriteString("```bash\nnpm install\nnpm run dev\n```\n\n")
 		case "rust":
-			b.WriteString("```bash\ncargo build --release\n./target/release/<project>\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ncargo build --release\n./target/release/%s\n```\n\n", projectName)
 		case "java":
-			b.WriteString("```bash\nmvn package\njava -jar target/<project>.jar\n```\n\n")
+			fmt.Fprintf(&b, "```bash\nmvn package\njava -jar target/%s.jar\n```\n\n", projectName)
 		case "shell":
-			b.WriteString("```bash\nchmod +x *.sh\n./<project>.sh\n```\n\n")
+			fmt.Fprintf(&b, "```bash\nchmod +x *.sh\n./%s.sh\n```\n\n", projectName)
 		default:
 			b.WriteString("TODO: Add setup instructions.\n\n")
 		}

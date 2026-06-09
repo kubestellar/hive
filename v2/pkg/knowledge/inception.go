@@ -1702,6 +1702,7 @@ func buildPackageJSON(name string, vision *Fact) string {
   "name": "%s",
   "version": "0.1.0",
   "description": "%s",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

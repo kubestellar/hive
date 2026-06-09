@@ -112,6 +112,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("PUT /api/saas/hives/{id}/auto-upgrade", s.requireAuth(s.handleToggleAutoUpgrade))
 	s.mux.HandleFunc("GET /api/saas/hive-config/{hiveID}", s.requireAuth(s.handleProxyHiveConfig))
 	s.mux.HandleFunc("GET /api/saas/latest-sha", s.handleLatestSHA)
+	s.mux.HandleFunc("POST /api/saas/hub/upgrade", s.requireAdmin(s.handleHubSelfUpgrade))
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
 	s.mux.HandleFunc("POST /api/saas/user-token", s.requireAuth(s.handleUserToken))
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/access", s.requireAuth(s.handleAccessList))
@@ -689,6 +690,20 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("audit: hosted hive deleted", "hive_id", id, "by", username)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status":"deleted"}`))
+}
+
+func (s *HubServer) handleHubSelfUpgrade(w http.ResponseWriter, r *http.Request) {
+	username := s.getAuthUser(r)
+	s.logger.Info("audit: hub self-upgrade triggered", "by", username)
+	cmd := exec.Command("kubectl", "rollout", "restart", "deployment/hive-hub", "-n", "hive-hub")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		s.logger.Warn("hub self-upgrade failed", "output", string(out))
+		http.Error(w, `{"error":"hub upgrade failed — check logs"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"upgrading"}`))
 }
 
 func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
@@ -1724,6 +1739,7 @@ const dashboardHTML = `<!DOCTYPE html>
         var resp = await fetch('/api/auth/user');
         var data = await resp.json();
         if (data.authenticated) {
+          _isAdmin = !!data.hub_admin;
           var roleText = data.hub_admin ? 'Hub Admin' : 'User';
           document.getElementById('nav-user').innerHTML =
             '<img src="' + esc(data.avatar_url) + '" class="nav-avatar" title="' + esc(data.login) + ' — ' + roleText + '">' +
@@ -1733,7 +1749,7 @@ const dashboardHTML = `<!DOCTYPE html>
       } catch(e) {}
     }
 
-    var _userQuota = 0, _userUsed = 0;
+    var _userQuota = 0, _userUsed = 0, _isAdmin = false;
     var _latestSHA = '';
     var _allDashHives = [];
     var _dashSortKey = '', _dashSortAsc = true;
@@ -1773,8 +1789,15 @@ const dashboardHTML = `<!DOCTYPE html>
           var el = document.getElementById('hub-version');
           if (el) {
             var isCurrent = _latestSHA && hubHash === _latestSHA;
+            var hubUpgradeBtn = '';
+            if (!isCurrent && _latestSHA && _isAdmin && !_hubUpgrading) {
+              hubUpgradeBtn = ' <button id="hub-upgrade-btn" onclick="upgradeHub(\'' + esc(hubHash) + '\')" style="padding:2px 8px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem;margin-left:6px;white-space:nowrap">Upgrade</button>';
+            } else if (_hubUpgrading) {
+              hubUpgradeBtn = ' <span style="display:inline-block;padding:2px 8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:0.65rem;margin-left:6px;white-space:nowrap;opacity:0.8"><span style="display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:3px"></span>Upgrading</span>';
+            }
+            if (isCurrent && _hubUpgrading) { _hubUpgrading = false; }
             el.innerHTML = '<span style="font-family:monospace;font-size:0.7rem;color:var(--muted)">' + esc(hubHash) + '</span>' +
-              (isCurrent ? '<span style="color:var(--green);margin-left:3px" title="hub is on latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="hub is behind latest ' + esc(_latestSHA) + '">↑</span>');
+              (isCurrent ? '<span style="color:var(--green);margin-left:3px" title="hub is on latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="hub is behind latest ' + esc(_latestSHA) + '">↑</span>') + hubUpgradeBtn;
           }
         }
         var canCreate = _userQuota < 0 || _userQuota > _userUsed;
@@ -1922,6 +1945,22 @@ const dashboardHTML = `<!DOCTYPE html>
         if (!resp.ok) { hiveToast(data.error || 'Failed', 'error'); loadHives(); return; }
         hiveToast(id + ' auto-upgrade ' + (enabled ? 'enabled' : 'disabled'), 'success');
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); loadHives(); }
+    }
+
+    var _hubUpgrading = false;
+    async function upgradeHub(currentSHA) {
+      var toSHA = _latestSHA ? _latestSHA.substring(0, 7) : 'latest';
+      var fromSHA = currentSHA ? currentSHA.substring(0, 7) : '?';
+      if (!await hiveConfirm('Upgrade Hive Hub?<br><br><span style="font-family:monospace;font-size:0.85rem;color:var(--muted)">' + fromSHA + '</span> → <span style="font-family:monospace;font-size:0.85rem;color:var(--green)">' + toSHA + '</span>', true)) return;
+      var btn = document.getElementById('hub-upgrade-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:3px"></span>Upgrading'; btn.style.opacity = '0.6'; }
+      try {
+        var resp = await fetch('/api/saas/hub/upgrade', {method: 'POST'});
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Hub upgrade failed', 'error'); return; }
+        _hubUpgrading = true;
+        hiveToast('Hub upgrade started — page will refresh when ready', 'success');
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
     var _upgradingHives = {};

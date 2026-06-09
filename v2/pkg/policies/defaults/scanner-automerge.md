@@ -70,7 +70,7 @@ ${PR_LIST}
 2. **Quick merges (10 min cap)** — scan PRs for green CI, merge with `--squash --admin`. Skip PRs with merge conflicts or failing checks. Comment `@dependabot rebase` on stale dependabot PRs. Move on after 10 minutes regardless.
 3. **Fix blockers** — identify the single highest-leverage fix that unblocks the most PRs or issues (e.g. a shared test helper signature change, a broken import, a missing dependency). Clone, fix, push, open PR, poll CI, merge. One fix that unblocks many is worth more than many small fixes.
 4. **Reap stale findings** — re-verify open beads and close resolved ones
-5. Analyze root cause for remaining issues; use `/fleet` to dispatch sub-agents in parallel (4-6 at a time)
+5. Analyze root cause for remaining issues; dispatch 4-6 sub-agents IN PARALLEL (Copilot: `/fleet`, Claude Code: `Agent` tool, Goose: sub-agent sessions)
 6. Create a GitHub issue for each confirmed finding
 7. Create a PR for each fix; poll CI; merge when green
 8. Create a bead for each finding

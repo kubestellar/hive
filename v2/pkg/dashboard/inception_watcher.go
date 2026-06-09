@@ -235,10 +235,11 @@ func inferFactType(title string) string {
 		return "vision"
 	case strings.Contains(lower, "constitution") || strings.Contains(lower, "principles") || strings.Contains(lower, "code style") || strings.Contains(lower, "architecture"):
 		return "constitution"
+	case strings.Contains(lower, "constraint") || strings.Contains(lower, "boundary") || strings.Contains(lower, "limitation") ||
+		strings.Contains(lower, "must not") || strings.Contains(lower, "should not") || strings.Contains(lower, "do not"):
+		return "constraint"
 	case strings.Contains(lower, "requirement") || strings.Contains(lower, "must") || strings.Contains(lower, "feature"):
 		return "requirement"
-	case strings.Contains(lower, "constraint") || strings.Contains(lower, "boundary") || strings.Contains(lower, "limitation") || strings.Contains(lower, "must not"):
-		return "constraint"
 	case strings.Contains(lower, "stakeholder") || strings.Contains(lower, "user") || strings.Contains(lower, "audience"):
 		return "stakeholder"
 	case strings.Contains(lower, "acceptance") || strings.Contains(lower, "success") || strings.Contains(lower, "criteria") || strings.Contains(lower, "test"):
@@ -1015,13 +1016,19 @@ func (w *InceptionWatcher) autoGenerateFacts(ctx context.Context, state *knowled
 
 	var facts []knowledge.IdeationFact
 
-	// Vision fact from the idea text
-	facts = append(facts, knowledge.IdeationFact{
-		Title: "Project Vision",
-		Body:  state.IdeaText,
-		Type:  knowledge.FactVision,
-		Tags:  []string{"auto-generated"},
-	})
+	// Vision fact from the idea text (greenfield) or repo URL (brownfield)
+	visionBody := state.IdeaText
+	if visionBody == "" && state.RepoURL != "" {
+		visionBody = "Brownfield project from " + state.RepoURL
+	}
+	if visionBody != "" {
+		facts = append(facts, knowledge.IdeationFact{
+			Title: "Project Vision",
+			Body:  visionBody,
+			Type:  knowledge.FactVision,
+			Tags:  []string{"auto-generated"},
+		})
+	}
 
 	// Map question categories to fact types
 	categoryToFact := map[string]knowledge.FactType{

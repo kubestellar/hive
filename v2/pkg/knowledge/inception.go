@@ -2115,12 +2115,15 @@ func truncateSlug(s string) string {
 }
 
 func repoBaseName(url string) string {
+	url = strings.TrimSuffix(url, "/")
 	url = strings.TrimSuffix(url, ".git")
 	parts := strings.Split(url, "/")
-	if len(parts) == 0 {
-		return "repo"
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] != "" {
+			return parts[i]
+		}
 	}
-	return parts[len(parts)-1]
+	return "repo"
 }
 
 func inferLanguage(constitution *Fact) string {

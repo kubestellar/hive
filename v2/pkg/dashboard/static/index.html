@@ -6646,41 +6646,37 @@ function burnAreaChart() {
       const panel = document.getElementById('inception-panel');
       if (!panel) return;
 
-      if (!_inceptionState) {
+      if (!_inceptionState || !_inceptionState.phase) {
         panel.innerHTML = renderInceptionModeSelect();
-        return;
+      } else {
+        switch (_inceptionState.phase) {
+          case 'capture':
+            if (_inceptionState.idea_text) {
+              panel.innerHTML = renderInceptionProgress('idea') + renderInceptionWorking();
+            } else {
+              panel.innerHTML = _inceptionState.mode === 'greenfield'
+                ? renderInceptionCapture()
+                : renderInceptionScanProgress();
+            }
+            break;
+          case 'clarify':
+            panel.innerHTML = renderInceptionProgress('clarify') + renderInceptionClarify();
+            break;
+          case 'structure':
+            panel.innerHTML = renderInceptionProgress('structure') + renderInceptionStructure();
+            break;
+          case 'scaffold':
+            panel.innerHTML = renderInceptionProgress('scaffold') + renderInceptionScaffold();
+            break;
+          case 'complete':
+            panel.innerHTML = renderInceptionProgress('complete') + renderInceptionComplete();
+            setTimeout(loadInceptionCompleteFiles, 100);
+            break;
+          default:
+            panel.innerHTML = renderInceptionModeSelect();
+        }
       }
-
-      switch (_inceptionState.phase) {
-        case 'capture':
-          if (_inceptionState.idea_text) {
-            panel.innerHTML = renderInceptionProgress('idea') + renderInceptionWorking();
-            startInceptionPoll();
-          } else {
-            panel.innerHTML = _inceptionState.mode === 'greenfield'
-              ? renderInceptionCapture()
-              : renderInceptionScanProgress();
-          }
-          break;
-        case 'clarify':
-          panel.innerHTML = renderInceptionProgress('clarify') + renderInceptionClarify();
-          startInceptionPoll();
-          break;
-        case 'structure':
-          panel.innerHTML = renderInceptionProgress('structure') + renderInceptionStructure();
-          startInceptionPoll();
-          break;
-        case 'scaffold':
-          panel.innerHTML = renderInceptionProgress('scaffold') + renderInceptionScaffold();
-          startInceptionPoll();
-          break;
-        case 'complete':
-          panel.innerHTML = renderInceptionProgress('complete') + renderInceptionComplete();
-          setTimeout(loadInceptionCompleteFiles, 100);
-          break;
-        default:
-          panel.innerHTML = renderInceptionModeSelect();
-      }
+      if (!_inceptionPollTimer) startInceptionPoll();
     }
 
     function renderInceptionProgress(phase) {
@@ -6946,6 +6942,11 @@ function burnAreaChart() {
       return h;
     }
 
+    function _inceptionStateKey(s) {
+      if (!s) return 'inactive';
+      return (s.idea_slug || '') + ':' + (s.phase || '');
+    }
+
     async function pollInceptionActivity() {
       try {
         const r = await fetch('/api/pane/brainstorm?lines=500&source=buffer', {headers: _inceptionAuthHeaders()});
@@ -6953,18 +6954,22 @@ function burnAreaChart() {
         const data = await r.json();
         const lines = data.lines || [];
         const el = document.getElementById('inception-activity');
-        if (!el) { stopInceptionPoll(); return; }
-        el.textContent = lines.join('\n') || 'Waiting for brainstorm agent...';
-        if (_inceptionTailing) el.scrollTop = el.scrollHeight;
+        if (el) {
+          el.textContent = lines.join('\n') || 'Waiting for brainstorm agent...';
+          if (_inceptionTailing) el.scrollTop = el.scrollHeight;
+        }
       } catch (e) { /* ignore poll errors */ }
 
       try {
         const sr = await fetch('/api/inception/state', {headers: _inceptionAuthHeaders()});
         const sd = await sr.json();
-        if (sd.ok && sd.state && sd.state.phase !== _inceptionState.phase) {
-          _inceptionState = sd.state;
-          stopInceptionPoll();
+        if (!sd.ok) return;
+        var oldKey = _inceptionStateKey(_inceptionState);
+        var newKey = _inceptionStateKey(sd.state);
+        if (oldKey !== newKey) {
+          _inceptionState = sd.state || {};
           renderInception();
+          if (typeof renderKnowledge === 'function') renderKnowledge();
         }
       } catch (e) { /* ignore */ }
     }

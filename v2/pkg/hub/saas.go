@@ -836,6 +836,31 @@ func (s *HubServer) handleToggleAutoUpgrade(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	s.logger.Info("audit: auto-upgrade toggled", "hive_id", id, "auto_upgrade", body.AutoUpgrade, "by", username)
+
+	// If enabling auto-upgrade and hive is behind, trigger immediately
+	if body.AutoUpgrade {
+		latestSHA := getLatestSHA()
+		if latestSHA != "" {
+			s.mu.RLock()
+			var currentSHA string
+			for _, reg := range s.registry.Hives {
+				if reg.ID == id {
+					currentSHA = reg.GitHash
+					break
+				}
+			}
+			s.mu.RUnlock()
+			if currentSHA != "" && currentSHA != latestSHA {
+				s.logger.Info("audit: auto-upgrade initial trigger", "hive_id", id, "from", currentSHA, "to", latestSHA)
+				ns := "hive-hosted-" + id
+				cmd := exec.Command("kubectl", "rollout", "restart", "deployment/hive", "-n", ns)
+				if out, err := cmd.CombinedOutput(); err != nil {
+					s.logger.Warn("auto-upgrade initial trigger failed", "hive", id, "output", string(out))
+				}
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"ok":true,"auto_upgrade":%t}`, body.AutoUpgrade)
 }

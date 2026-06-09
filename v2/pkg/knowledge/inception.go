@@ -670,7 +670,6 @@ func (e *InceptionEngine) ReadIdeaFact(ctx context.Context) (*Fact, error) {
 	return e.api.ReadFact(ctx, e.state.IdeaSlug)
 }
 
-// Reset clears the inception state so the user can start over.
 // SetWikiName persists a vanity name for the inception wiki.
 func (e *InceptionEngine) SetWikiName(name string) {
 	e.mu.Lock()

@@ -56,14 +56,14 @@ func TestBuildClaudeMDNil(t *testing.T) {
 
 func TestBuildContributing(t *testing.T) {
 	constitution := &Fact{Body: "TypeScript React application"}
-	got := buildContributing(constitution)
+	got := buildContributing("myproject", constitution)
 	if !strings.Contains(got, "Contributing") {
 		t.Error("should contain Contributing header")
 	}
 }
 
 func TestBuildContributingNil(t *testing.T) {
-	got := buildContributing(nil)
+	got := buildContributing("myproject", nil)
 	if got == "" {
 		t.Error("should produce output with nil constitution")
 	}

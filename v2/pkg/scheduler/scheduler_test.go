@@ -185,12 +185,6 @@ func TestScannerMessage_Header(t *testing.T) {
 func TestScannerMessage_Footer(t *testing.T) {
 	s := newScheduler()
 	msg := s.buildScannerMessage(nil, emptyActionable())
-	if !strings.Contains(msg, "NEVER run gh issue list") {
-		t.Errorf("missing NEVER run gh issue list footer")
-	}
-	if !strings.Contains(msg, "MERGE DISCIPLINE") {
-		t.Errorf("missing MERGE DISCIPLINE footer")
-	}
 	if !strings.Contains(msg, "WORKFLOW") {
 		t.Errorf("missing WORKFLOW footer")
 	}

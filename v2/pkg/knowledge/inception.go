@@ -586,7 +586,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
-				Path: "test.sh", Content: buildShellTestStubs(acceptance), Purpose: "test_stub", IsNew: true,
+				Path: "test.sh", Content: buildShellTestStubs(deduplicateFactTitles(acceptance)), Purpose: "test_stub", IsNew: true,
 			})
 		}
 	}

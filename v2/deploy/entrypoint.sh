@@ -109,16 +109,31 @@ if [ "$(id -u)" = "0" ]; then
   ln -sfn /data/config/github-copilot /home/dev/.config/github-copilot
   ln -sfn /data/config/github-copilot /data/home/.config/github-copilot
   ln -sfn /data/home/.copilot /home/dev/.copilot
-  # Set group-write + setgid on shared dirs in the background — on NFS with
-  # thousands of copilot cache files this can take minutes and must not block startup.
-  (
-    chmod -R g+rwX /data/home 2>/dev/null
-    find /data/home -type d -exec chmod g+s {} + 2>/dev/null
-    if [ "$DATA_OWNER" != "1001" ]; then
-      chown -R dev:node /data/config /data/home 2>/dev/null
-    fi
-    echo "[entrypoint] background perm fix complete"
-  ) &
+  # Set group-write + setgid on shared dirs — skip if already done (saves 100s+ on NFS).
+  # The polling perm guard handles ongoing config.json fixes regardless.
+  NEED_PERM_FIX=false
+  if [ -d "/data/home/.copilot" ]; then
+    COPILOT_PERMS=$(stat -c '%a' "/data/home/.copilot" 2>/dev/null || echo "755")
+    case "$COPILOT_PERMS" in
+      27[0-9][0-9]|37[0-9][0-9]) ;; # already has group-write + setgid
+      *) NEED_PERM_FIX=true ;;
+    esac
+  else
+    NEED_PERM_FIX=true
+  fi
+  if [ "$NEED_PERM_FIX" = "true" ]; then
+    echo "[entrypoint] Fixing /data/home perms in background..."
+    (
+      chmod -R g+rwX /data/home 2>/dev/null
+      find /data/home -type d -exec chmod g+s {} + 2>/dev/null
+      if [ "$DATA_OWNER" != "1001" ]; then
+        chown -R dev:node /data/config /data/home 2>/dev/null
+      fi
+      echo "[entrypoint] background perm fix complete"
+    ) &
+  else
+    echo "[entrypoint] /data/home perms OK — skipping"
+  fi
   chown dev:node /home/dev/.config 2>/dev/null || true
   # Copilot CLI rewrites config.json with 0600 on every token refresh,
   # locking out other agent UIDs. Run inotify (if available) AND polling

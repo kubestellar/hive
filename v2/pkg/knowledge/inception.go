@@ -1557,11 +1557,27 @@ func buildPomXml(name string, vision *Fact) string {
     <groupId>com.example</groupId>
     <artifactId>%s</artifactId>
     <version>0.1.0</version>
+    <packaging>jar</packaging>
     <name>%s</name>
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
     </properties>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>App</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
 `, xmlEscape(name), xmlEscape(desc))
 }

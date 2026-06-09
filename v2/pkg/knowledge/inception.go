@@ -669,7 +669,21 @@ func (e *InceptionEngine) AdvanceToComplete() error {
 func (e *InceptionEngine) GetState() *InceptionState {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.state
+	if e.state == nil {
+		return nil
+	}
+	cp := *e.state
+	cp.Questions = append([]Question(nil), e.state.Questions...)
+	cp.FactSlugs = append([]string(nil), e.state.FactSlugs...)
+	cp.Answers = make(map[string]string, len(e.state.Answers))
+	for k, v := range e.state.Answers {
+		cp.Answers[k] = v
+	}
+	if e.state.PhaseChangedAt != nil {
+		t := *e.state.PhaseChangedAt
+		cp.PhaseChangedAt = &t
+	}
+	return &cp
 }
 
 // ReadIdeaFact returns the seed idea fact for the current inception.

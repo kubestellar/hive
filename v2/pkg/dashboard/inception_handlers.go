@@ -282,6 +282,9 @@ func (s *Server) handleInceptionIdeationFacts(w http.ResponseWriter, r *http.Req
 		facts = s.deps.Inception.GatherFactsPublic(s.deps.Ctx)
 	}
 
+	if facts == nil {
+		facts = []knowledge.Fact{}
+	}
 	jsonResponse(w, map[string]interface{}{
 		"ok":    true,
 		"facts": facts,
@@ -411,7 +414,10 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wikiDir := s.deps.Inception.WikiDir()
-	os.MkdirAll(wikiDir, 0o755)
+	if err := os.MkdirAll(wikiDir, 0o755); err != nil {
+		jsonError(w, "failed to create wiki directory", http.StatusInternalServerError)
+		return
+	}
 
 	imported := 0
 	for _, f := range zr.File {

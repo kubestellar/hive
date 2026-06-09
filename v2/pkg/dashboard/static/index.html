@@ -6832,6 +6832,21 @@ function burnAreaChart() {
         document.head.appendChild(styleEl);
       }
 
+      if (_inceptionState && _inceptionState.idea_text) {
+        var ideaText = escapeHtml(_inceptionState.idea_text);
+        html += '<div style="';
+        html += 'margin-top:12px;padding:10px 14px;';
+        html += 'background:' + (isDark ? '#1c2333' : '#f6f8fa') + ';';
+        html += 'border:1px solid ' + COLORS.border + ';';
+        html += 'border-radius:6px;';
+        html += 'font-size:13px;color:' + COLORS.text + ';';
+        html += 'line-height:1.4;';
+        html += '">';
+        html += '<span style="color:' + COLORS.muted + ';font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Idea</span><br>';
+        html += ideaText;
+        html += '</div>';
+      }
+
       return html;
     }
 

@@ -608,12 +608,12 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 
 	if projectType == "kubernetes" {
 		result.Files = append(result.Files,
-			ScaffoldFile{Path: "deploy/kustomization.yaml", Content: buildKustomization(projectName), Purpose: "kustomize", IsNew: true},
+			ScaffoldFile{Path: "deploy/kustomization.yaml", Content: buildKustomization(), Purpose: "kustomize", IsNew: true},
 			ScaffoldFile{Path: "deploy/base/deployment.yaml", Content: buildK8sDeployment(projectName), Purpose: "k8s_deployment", IsNew: true},
 			ScaffoldFile{Path: "deploy/base/service.yaml", Content: buildK8sService(projectName), Purpose: "k8s_service", IsNew: true},
 			ScaffoldFile{Path: "deploy/base/configmap.yaml", Content: buildK8sConfigMap(projectName), Purpose: "k8s_configmap", IsNew: true},
 			ScaffoldFile{Path: "deploy/base/secret.yaml", Content: buildK8sSecret(projectName), Purpose: "k8s_secret", IsNew: true},
-			ScaffoldFile{Path: "deploy/base/kustomization.yaml", Content: buildK8sBaseKustomization(projectName), Purpose: "kustomize_base", IsNew: true},
+			ScaffoldFile{Path: "deploy/base/kustomization.yaml", Content: buildK8sBaseKustomization(), Purpose: "kustomize_base", IsNew: true},
 			ScaffoldFile{Path: "deploy/overlays/dev/kustomization.yaml", Content: buildK8sOverlayKustomization(projectName, "dev"), Purpose: "kustomize_dev", IsNew: true},
 			ScaffoldFile{Path: "deploy/overlays/prod/kustomization.yaml", Content: buildK8sOverlayKustomization(projectName, "prod"), Purpose: "kustomize_prod", IsNew: true},
 		)
@@ -1782,8 +1782,8 @@ CMD ["node", "dist/index.js"]
 	}
 }
 
-func buildKustomization(name string) string {
-	return fmt.Sprintf(`apiVersion: kustomize.config.k8s.io/v1beta1
+func buildKustomization() string {
+	return `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
@@ -1792,7 +1792,7 @@ resources:
 # Use overlays for environment-specific config:
 #   kubectl apply -k deploy/overlays/dev
 #   kubectl apply -k deploy/overlays/prod
-`)
+`
 }
 
 func buildK8sDeployment(name string) string {
@@ -1885,7 +1885,7 @@ data: {}
 `, name, name)
 }
 
-func buildK8sBaseKustomization(name string) string {
+func buildK8sBaseKustomization() string {
 	return `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 

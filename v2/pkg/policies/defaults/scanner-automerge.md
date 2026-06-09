@@ -61,7 +61,7 @@ ${PR_LIST}
 ## Workflow
 
 1. Check open beads (`bd list --status open`) for context from previous cycles — skip items already tracked
-2. **Quick merges (10 min cap)** — review PRs with passing CI and merge them. Before merging, ensure every PR body contains `Fixes #<issue>` — if missing, search for the related issue and add it with `gh pr edit`. Skip PRs with merge conflicts or failing checks. Comment `@dependabot rebase` on stale dependabot PRs. Move on after 10 minutes.
+2. **Quick merges + cleanup (10 min cap)** — review PRs with passing CI and merge them. Before merging, ensure every PR body contains `Fixes #<issue>` — if missing, search for the related issue and add it with `gh pr edit`. Close stale draft PRs that have been stuck >48h with `needs-rebase` + `dco-signoff: no`, or whose fix was already merged in another PR. Comment `@dependabot rebase` on stale dependabot PRs. Move on after 10 minutes.
 3. **Fix blockers** — identify the single highest-leverage fix that unblocks the most PRs or issues (e.g. a shared test helper signature change, a broken import). Clone, fix, push, open PR, merge when green. One fix that unblocks many is worth more than many small fixes.
 4. **Crank quick fixes** — use `/fleet` (Copilot), `Agent` tool (Claude Code), or sub-agent sessions (Goose) to fix the remaining issues in parallel. One PR per issue, move fast.
 5. **Reap stale findings** — re-verify open beads and close resolved ones

@@ -651,7 +651,9 @@ func main() {
 	// Skip stale inceptions (> 10 min old) — these are leftovers from
 	// previous runs that would interfere with new inceptions.
 	const staleInceptionThreshold = 10 * time.Minute
-	if state := inceptionEngine.GetState(); state != nil && state.Phase == knowledge.PhaseCapture {
+	if state := inceptionEngine.GetState(); state != nil &&
+		state.Phase != knowledge.PhaseComplete &&
+		state.Phase != knowledge.PhaseScaffold {
 		if time.Since(state.StartedAt) < staleInceptionThreshold {
 			msg := sched.BuildAgentMessage("brainstorm", nil, nil)
 			if err := agentMgr.RestartWithBootstrap(ctx, "brainstorm", msg); err != nil {

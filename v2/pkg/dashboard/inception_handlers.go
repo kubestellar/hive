@@ -472,6 +472,13 @@ func (s *Server) kickBrainstorm() {
 		}
 	}
 
+	// Unpause brainstorm if it was paused (e.g., by a force-reset that
+	// preceded this start). Without this, the governor re-pauses the
+	// agent on its next eval cycle and the inception stalls in capture.
+	if s.deps.AgentMgr != nil {
+		_ = s.deps.AgentMgr.Resume(s.deps.Ctx, "brainstorm", "inception-start", "inception started — agent needed")
+	}
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {

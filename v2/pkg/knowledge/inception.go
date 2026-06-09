@@ -483,6 +483,13 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		IsNew:   true,
 	})
 
+	result.Files = append(result.Files, ScaffoldFile{
+		Path:    "CLAUDE.md",
+		Content: buildClaudeMD(constitution, constraints),
+		Purpose: "claude_md",
+		IsNew:   true,
+	})
+
 	// CI/CD — multi-tiered: PR checks, nightly full suite
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    ".github/workflows/ci.yml",

@@ -204,9 +204,9 @@ func (s *Scheduler) formatIssueList(issues []github.Issue) string {
 			break
 		}
 		title := issue.Title
-		const maxTitleLen = 60
-		if len(title) > maxTitleLen {
-			title = title[:maxTitleLen]
+		const maxTitleRunes = 60
+		if runes := []rune(title); len(runes) > maxTitleRunes {
+			title = string(runes[:maxTitleRunes])
 		}
 		b.WriteString(fmt.Sprintf("  %dm %s#%d [%s] %s\n",
 			issue.AgeMinutes, issue.Repo, issue.Number,
@@ -223,9 +223,9 @@ func (s *Scheduler) formatPRList(actionable *github.ActionableResult) string {
 	var b strings.Builder
 	for _, pr := range actionable.PRs.Items {
 		title := pr.Title
-		const maxPRTitleLen = 70
-		if len(title) > maxPRTitleLen {
-			title = title[:maxPRTitleLen]
+		const maxPRTitleRunes = 70
+		if runes := []rune(title); len(runes) > maxPRTitleRunes {
+			title = string(runes[:maxPRTitleRunes])
 		}
 		b.WriteString(fmt.Sprintf("  %s#%d by @%s %s\n", pr.Repo, pr.Number, pr.Author, title))
 	}
@@ -388,9 +388,9 @@ func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *githu
 			tracker = " [TRACKER]"
 		}
 		title := issue.Title
-		const maxTitleLen = 60
-		if len(title) > maxTitleLen {
-			title = title[:maxTitleLen]
+		const maxTitleRunes = 60
+		if runes := []rune(title); len(runes) > maxTitleRunes {
+			title = string(runes[:maxTitleRunes])
 		}
 		b.WriteString(fmt.Sprintf("  %dm %s#%d [%s/%s] [%s] %s%s\n",
 			issue.AgeMinutes, issue.Repo, issue.Number,
@@ -403,9 +403,9 @@ func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *githu
 	b.WriteString(fmt.Sprintf("ACTIONABLE PRs (%d):\n", actionable.PRs.Count))
 	for _, pr := range actionable.PRs.Items {
 		title := pr.Title
-		const maxPRTitleLen = 70
-		if len(title) > maxPRTitleLen {
-			title = title[:maxPRTitleLen]
+		const maxPRTitleRunes = 70
+		if runes := []rune(title); len(runes) > maxPRTitleRunes {
+			title = string(runes[:maxPRTitleRunes])
 		}
 		b.WriteString(fmt.Sprintf("  %s#%d by @%s %s\n", pr.Repo, pr.Number, pr.Author, title))
 	}
@@ -526,9 +526,9 @@ func (s *Scheduler) buildQualityMessage(issues []github.Issue, actionable *githu
 				break
 			}
 			title := issue.Title
-			const maxTitleLen = 60
-			if len(title) > maxTitleLen {
-				title = title[:maxTitleLen]
+			const maxTitleRunes = 60
+			if runes := []rune(title); len(runes) > maxTitleRunes {
+				title = string(runes[:maxTitleRunes])
 			}
 			b.WriteString(fmt.Sprintf("  %s#%d [%s] %s\n",
 				issue.Repo, issue.Number,
@@ -584,9 +584,9 @@ func (s *Scheduler) buildArchitectMessage(issues []github.Issue, actionable *git
 				break
 			}
 			title := issue.Title
-			const maxTitleLen = 60
-			if len(title) > maxTitleLen {
-				title = title[:maxTitleLen]
+			const maxTitleRunes = 60
+			if runes := []rune(title); len(runes) > maxTitleRunes {
+				title = string(runes[:maxTitleRunes])
 			}
 			b.WriteString(fmt.Sprintf("  %s#%d [%s] %s\n",
 				issue.Repo, issue.Number,

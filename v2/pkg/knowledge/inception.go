@@ -990,8 +990,10 @@ func buildReadme(projectName, ideaText string, vision, constitution *Fact, reqs,
 			fmt.Fprintf(&b, "```bash\ngo build -o bin/ .\n./bin/%s\n```\n\n", projectName)
 		case "python":
 			fmt.Fprintf(&b, "```bash\npip install -e .\npython -m %s\n```\n\n", pyPackageName(projectName))
-		case "typescript", "javascript":
+		case "typescript":
 			b.WriteString("```bash\nnpm install\nnpm run dev\n```\n\n")
+		case "javascript":
+			b.WriteString("```bash\nnpm install\nnpm start\n```\n\n")
 		case "rust":
 			fmt.Fprintf(&b, "```bash\ncargo build --release\n./target/release/%s\n```\n\n", projectName)
 		case "java":
@@ -1023,8 +1025,10 @@ func buildClaudeMD(constitution *Fact, constraints []Fact) string {
 		b.WriteString("```bash\ngo build ./...\ngo test ./...\ngo vet ./...\n```\n\n")
 	case "python":
 		b.WriteString("```bash\npip install -e '.[dev]'\npytest\nruff check .\n```\n\n")
-	case "typescript", "javascript":
+	case "typescript":
 		b.WriteString("```bash\nnpm install\nnpm run build\nnpm test\nnpm run lint\n```\n\n")
+	case "javascript":
+		b.WriteString("```bash\nnpm install\nnpm test\nnpm run lint\n```\n\n")
 	case "rust":
 		b.WriteString("```bash\ncargo build\ncargo test\ncargo clippy -- -D warnings\n```\n\n")
 	case "java":
@@ -1218,8 +1222,10 @@ func buildCIConfig(constitution *Fact) string {
 	switch lang {
 	case "go":
 		return goCI()
-	case "typescript", "javascript":
+	case "typescript":
 		return tsCI()
+	case "javascript":
+		return jsCI()
 	case "python":
 		return pythonCI()
 	case "rust":
@@ -1273,6 +1279,28 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run build
+      - run: npm run lint
+      - run: npm test
+`
+}
+
+func jsCI() string {
+	return `name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
       - run: npm run lint
       - run: npm test
 `

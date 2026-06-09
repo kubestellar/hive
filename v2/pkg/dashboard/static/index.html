@@ -1886,7 +1886,7 @@
 
   <div id="inception-section" style="margin-top: 16px; margin-bottom: 24px;">
     <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">💡 Project Inception</h2>
-    <div id="inception-panel"></div>
+    <div id="inception-panel" style="height:420px;overflow-y:auto;overflow-x:hidden;"></div>
   </div>
 
   <div id="knowledge-section" style="margin-top: 16px; margin-bottom: 24px;">
@@ -6650,8 +6650,6 @@ function burnAreaChart() {
         panel.innerHTML = renderInceptionModeSelect();
         return;
       }
-
-      panel.style.minHeight = '320px';
 
       switch (_inceptionState.phase) {
         case 'capture':

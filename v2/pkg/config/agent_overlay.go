@@ -60,6 +60,9 @@ func (c *Config) MergeAgentOverrides(overlays map[string]AgentConfig) {
 
 // SaveAgentFile writes a single agent config to dir/<name>.yaml.
 func SaveAgentFile(dir, name string, agent AgentConfig) error {
+	if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return fmt.Errorf("invalid agent name %q", name)
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating agent overlay dir: %w", err)
 	}
@@ -87,6 +90,9 @@ func SaveAgentFile(dir, name string, agent AgentConfig) error {
 
 // RemoveAgentFile deletes dir/<name>.yaml.
 func RemoveAgentFile(dir, name string) error {
+	if strings.Contains(name, "..") || strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return fmt.Errorf("invalid agent name %q", name)
+	}
 	path := filepath.Join(dir, name+".yaml")
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("removing agent file %s: %w", path, err)

@@ -281,7 +281,7 @@ func TestBuildK8sSecret(t *testing.T) {
 }
 
 func TestBuildK8sBaseKustomization(t *testing.T) {
-	got := buildK8sBaseKustomization("myproject")
+	got := buildK8sBaseKustomization()
 	if got == "" {
 		t.Error("should produce output")
 	}

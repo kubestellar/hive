@@ -314,7 +314,7 @@ func TestBuildDockerfile(t *testing.T) {
 }
 
 func TestBuildKustomization(t *testing.T) {
-	got := buildKustomization("myproject")
+	got := buildKustomization()
 	if !strings.Contains(got, "apiVersion") {
 		t.Error("should contain apiVersion")
 	}

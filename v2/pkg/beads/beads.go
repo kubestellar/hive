@@ -304,7 +304,9 @@ func (s *Store) SetMetadata(id, key, value string) error {
 
 func (s *Store) UnsetMetadata(id, key string) error {
 	return s.Update(id, func(b *Bead) {
-		delete(b.Metadata, key)
+		if b.Metadata != nil {
+			delete(b.Metadata, key)
+		}
 	})
 }
 

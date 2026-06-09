@@ -1183,6 +1183,9 @@ type AccessRequest struct {
 }
 
 func loadAccessRequests(hiveID string) []AccessRequest {
+	if strings.Contains(hiveID, "..") || strings.Contains(hiveID, "/") || strings.Contains(hiveID, "\\") {
+		return nil
+	}
 	path := filepath.Join(saasHivesDir, hiveID, "requests.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -1194,6 +1197,10 @@ func loadAccessRequests(hiveID string) []AccessRequest {
 }
 
 func saveAccessRequests(hiveID string, reqs []AccessRequest) {
+	if strings.Contains(hiveID, "..") || strings.Contains(hiveID, "/") || strings.Contains(hiveID, "\\") {
+		slog.Warn("saveAccessRequests: invalid hiveID", "hiveID", hiveID)
+		return
+	}
 	dir := filepath.Join(saasHivesDir, hiveID)
 	os.MkdirAll(dir, 0o755)
 	data, err := json.MarshalIndent(reqs, "", "  ")

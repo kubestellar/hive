@@ -98,6 +98,9 @@ func loadSaaSHive(id string) *SaaSHive {
 }
 
 func saveSaaSHive(h *SaaSHive) error {
+	if strings.Contains(h.ID, "..") || strings.Contains(h.ID, "/") || strings.Contains(h.ID, "\\") {
+		return fmt.Errorf("invalid hive ID for save: %q", h.ID)
+	}
 	dir := filepath.Join(saasHivesDir, h.ID)
 	os.MkdirAll(dir, 0o755)
 	data, err := json.MarshalIndent(h, "", "  ")

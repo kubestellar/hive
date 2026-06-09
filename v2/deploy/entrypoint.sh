@@ -146,12 +146,12 @@ if [ "$(id -u)" = "0" ]; then
 
   # Write .bashrc so agent shells auto-source GH_TOKEN and SSL_CERT_FILE
   # without needing credential instructions in the kick prompt.
-  cat > /data/home/.bashrc <<'BASHRC'
+  cat > /data/home/.bashrc <<'BASHRC' 2>/dev/null || true
 # Hive agent shell environment
 export GH_TOKEN=$(cat /var/run/hive-metrics/gh-app-token.cache 2>/dev/null)
 export SSL_CERT_FILE=/data/proxy-ca.pem
 BASHRC
-  chmod 644 /data/home/.bashrc
+  chmod 644 /data/home/.bashrc 2>/dev/null || true
 
   # ── Per-agent UID isolation ──────────────────────────────────────────
   # Extract agent names from config + pack YAML, create system users,

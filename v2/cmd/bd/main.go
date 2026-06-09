@@ -213,6 +213,13 @@ func cmdUpdate(args []string) {
 	}
 
 	if *status != "" {
+		validStatuses := map[string]bool{
+			"open": true, "in_progress": true, "blocked": true, "done": true, "closed": true,
+		}
+		if !validStatuses[*status] {
+			fmt.Fprintf(os.Stderr, "bd update: invalid status %q (valid: open, in_progress, blocked, done, closed)\n", *status)
+			os.Exit(1)
+		}
 		if err := store.Update(id, func(b *beads.Bead) {
 			b.Status = beads.Status(*status)
 		}); err != nil {

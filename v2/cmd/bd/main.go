@@ -344,8 +344,9 @@ func printTable(items []*beads.Bead) {
 
 	for _, b := range items {
 		title := b.Title
-		if len(title) > titleColWidth {
-			title = title[:titleColWidth-3] + "..."
+		runes := []rune(title)
+		if len(runes) > titleColWidth {
+			title = string(runes[:titleColWidth-3]) + "..."
 		}
 		fmt.Printf("%-*s %-*s %-*s %-*s %s\n",
 			idColWidth, b.ID,

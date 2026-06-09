@@ -1475,8 +1475,10 @@ func buildGitignore(lang string) string {
 		return common + "# Go\n/bin/\n*.exe\ncoverage.out\n"
 	case "python":
 		return common + "# Python\n__pycache__/\n*.pyc\n*.egg-info/\ndist/\nbuild/\n.venv/\nvenv/\n.pytest_cache/\n"
-	case "typescript", "javascript":
+	case "typescript":
 		return common + "# Node\nnode_modules/\ndist/\ncoverage/\n*.tsbuildinfo\n"
+	case "javascript":
+		return common + "# Node\nnode_modules/\ncoverage/\n"
 	case "rust":
 		return common + "# Rust\n/target/\n"
 	case "java":
@@ -2158,11 +2160,15 @@ func buildMakefile(lang, name, projectType string) string {
 		b.WriteString("test:\n\tpytest\n\n")
 		b.WriteString("lint:\n\truff check .\n\n")
 		b.WriteString("clean:\n\trm -rf dist/ build/ *.egg-info/\n\n")
-	case "typescript", "javascript":
+	case "typescript":
 		b.WriteString("build:\n\tnpm run build\n\n")
 		b.WriteString("test:\n\tnpm test\n\n")
 		b.WriteString("lint:\n\tnpm run lint\n\n")
 		b.WriteString("clean:\n\trm -rf dist/ node_modules/\n\n")
+	case "javascript":
+		b.WriteString("test:\n\tnpm test\n\n")
+		b.WriteString("lint:\n\tnpm run lint\n\n")
+		b.WriteString("clean:\n\trm -rf node_modules/\n\n")
 	case "rust":
 		b.WriteString("build:\n\tcargo build --release\n\n")
 		b.WriteString("test:\n\tcargo test\n\n")
@@ -2292,8 +2298,10 @@ func inferTestPath(constitution *Fact) string {
 	switch lang {
 	case "go":
 		return "main_test.go"
-	case "typescript", "javascript":
+	case "typescript":
 		return "src/__tests__/acceptance.test.ts"
+	case "javascript":
+		return "src/__tests__/acceptance.test.js"
 	case "python":
 		return "tests/test_acceptance.py"
 	default:

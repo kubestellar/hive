@@ -415,7 +415,11 @@ func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *githu
 
 	b.WriteString("\n⛔ NEVER run gh issue list, gh pr list, gh search issues — the work list above is your ONLY source.\n")
 	b.WriteString("MERGE DISCIPLINE: Review and merge ANY PR with green CI — your own, dependabot, other agents', or community PRs. Use `--squash --admin`. Prioritize dependabot and small PRs first for quick wins.\n")
-	b.WriteString("WORKFLOW: Dispatch sub-agents for each issue (Agent tool). 4-6 agents IN PARALLEL.\n")
+	b.WriteString("WORKFLOW:\n")
+	b.WriteString("  1. Check beads (`bd list --status open`) for context from previous cycles\n")
+	b.WriteString("  2. Quick merges (10 min cap) — merge green PRs, `@dependabot rebase` stale ones, then MOVE ON\n")
+	b.WriteString("  3. Fix blockers — find the ONE fix that unblocks the most PRs/issues (broken test helper, missing import, etc). Clone, fix, push, merge.\n")
+	b.WriteString("  4. Work issues — dispatch sub-agents for remaining issues (Agent tool). 4-6 agents IN PARALLEL.\n")
 
 	return b.String()
 }

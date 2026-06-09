@@ -2476,7 +2476,7 @@
     function _saveSidebarLayout(groups) {
       _sidebarLayout = { groups };
       fetch('/api/config/sidebar', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: _inceptionAuthHeaders(),
         body: JSON.stringify({ groups })
       }).catch(() => {});
       const lastData = window._lastStatus || {};
@@ -3536,7 +3536,7 @@
 
     function toggleBudgetIgnore() {
       budgetIgnored = !budgetIgnored;
-      fetch('/api/budget-ignore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ignored: budgetIgnored }) })
+      fetch('/api/budget-ignore', { method: 'POST', headers: _inceptionAuthHeaders(), body: JSON.stringify({ ignored: budgetIgnored }) })
         .then(r => r.json()).then(d => { budgetIgnored = d.ignored; renderAll(); });
     }
 
@@ -4452,7 +4452,7 @@ function burnAreaChart() {
       }
       try {
         await fetch('/api/nous/mode', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ mode, force }),
         });
         fetchNousStatus();
@@ -4462,7 +4462,7 @@ function burnAreaChart() {
     async function nousSetScope(scope) {
       try {
         await fetch('/api/nous/scope', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ scope }),
         });
         fetchNousStatus();
@@ -4731,7 +4731,7 @@ function burnAreaChart() {
       const repoGoal = document.getElementById('nc-repo-goal')?.value;
       try {
         const r = await fetch('/api/nous/config/goals', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ governorGoal: govGoal, repoGoal: repoGoal }),
         });
         if (!r.ok) errors.push('goals: ' + (await r.json()).error);
@@ -4744,7 +4744,7 @@ function burnAreaChart() {
       const autoDnm = document.getElementById('nc-auto-dnm')?.checked || false;
       try {
         const r = await fetch('/api/nous/config/output', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ mode: outputMode, autoHold, autoDoNotMerge: autoDnm }),
         });
         if (!r.ok) errors.push('output: ' + (await r.json()).error);
@@ -4755,7 +4755,7 @@ function burnAreaChart() {
       const repos = Array.from(activeRepoPills).map(p => p.dataset.repo);
       try {
         const r = await fetch('/api/nous/config/repos', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ repos }),
         });
         if (!r.ok) errors.push('repos: ' + (await r.json()).error);
@@ -4767,7 +4767,7 @@ function burnAreaChart() {
       const ffBurn = document.getElementById('nc-ff-burn')?.value;
       try {
         const r = await fetch('/api/nous/config/fast-fail', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ queueDepthMax: Number(ffQueue), mttrMaxMinutes: Number(ffMttr), budgetBurnRateMaxPct: Number(ffBurn) }),
         });
         if (!r.ok) errors.push('fast-fail: ' + (await r.json()).error);
@@ -4779,7 +4779,7 @@ function burnAreaChart() {
       const schedCool = document.getElementById('nc-sched-cool')?.value;
       try {
         const r = await fetch('/api/nous/config/schedule', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ experimentDurationHours: Number(schedDur), baselineHours: Number(schedBase), cooldownHours: Number(schedCool) }),
         });
         if (!r.ok) errors.push('schedule: ' + (await r.json()).error);
@@ -4789,7 +4789,7 @@ function burnAreaChart() {
       const enabledKnobs = Array.from(document.querySelectorAll('[data-knob]:checked')).map(cb => cb.dataset.knob);
       try {
         const r = await fetch('/api/nous/config/controllables', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ enabled: enabledKnobs }),
         });
         if (!r.ok) errors.push('controllables: ' + (await r.json()).error);
@@ -4800,7 +4800,7 @@ function burnAreaChart() {
       const prinDecay = document.getElementById('nc-prin-decay')?.value;
       try {
         const r = await fetch('/api/nous/config/principles', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ confidenceThreshold: Number(prinThresh), decayRatePerWeek: Number(prinDecay) }),
         });
         if (!r.ok) errors.push('principles: ' + (await r.json()).error);
@@ -5134,7 +5134,7 @@ function burnAreaChart() {
 
       try {
         const r = await fetch('/api/knowledge/vaults', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ path, name: name || '' }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to connect vault'); return; }
@@ -5428,7 +5428,7 @@ function burnAreaChart() {
 
       try {
         const r = await fetch('/api/knowledge/create', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ title, body, layer, type, confidence: conf, tags }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to create'); return; }
@@ -5497,7 +5497,7 @@ function burnAreaChart() {
 
       try {
         const r = await fetch('/api/knowledge/' + encodeURIComponent(f.layer) + '/' + encodeURIComponent(f.slug), {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ title, body, type, status, confidence: conf, tags }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to update'); return; }
@@ -5525,7 +5525,7 @@ function burnAreaChart() {
       if (reason === null) return;
       try {
         const r = await fetch('/api/knowledge/promote', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ slug, from_layer: fromLayer, to_layer: toLayer, reason, promoter: 'dashboard' }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to promote'); return; }
@@ -5596,7 +5596,7 @@ function burnAreaChart() {
 
       try {
         const r = await fetch('/api/knowledge/import', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ content, layer, format }),
         });
         const data = await r.json();
@@ -5741,7 +5741,7 @@ function burnAreaChart() {
 
       try {
         const r = await fetch('/api/knowledge/git-sources', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ url, name, subpath: subpath || '', branch: branch || 'main', layer }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to add git source'); return; }
@@ -5758,7 +5758,7 @@ function burnAreaChart() {
       if (!(await hiveConfirm('Remove git source ' + url + (subpath ? ' (' + subpath + ')' : '') + '?'))) return;
       try {
         const r = await fetch('/api/knowledge/git-sources', {
-          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          method: 'DELETE', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ url, subpath }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to remove'); return; }
@@ -5776,7 +5776,7 @@ function burnAreaChart() {
 
       try {
         const r = await fetch('/api/knowledge/subscriptions', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ url, name: name || url, layer }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to add'); return; }
@@ -5789,7 +5789,7 @@ function burnAreaChart() {
       if (!(await hiveConfirm('Remove subscription to ' + url + '?'))) return;
       try {
         const r = await fetch('/api/knowledge/subscriptions', {
-          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          method: 'DELETE', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ url }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to remove'); return; }
@@ -5935,7 +5935,7 @@ function burnAreaChart() {
 
       try {
         const r = await fetch('/api/knowledge/vaults', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ path, name: name || '' }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to connect vault'); return; }
@@ -5948,7 +5948,7 @@ function burnAreaChart() {
       if (!(await hiveConfirm('Disconnect vault at ' + path + '?'))) return;
       try {
         const r = await fetch('/api/knowledge/vaults', {
-          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          method: 'DELETE', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ path }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to disconnect'); return; }
@@ -5960,7 +5960,7 @@ function burnAreaChart() {
     async function kbReindexVault(path) {
       try {
         const r = await fetch('/api/knowledge/vaults/reindex', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ path }),
         });
         if (!r.ok) { const e = await r.json(); await hiveAlert(e.error || 'Failed to reindex'); return; }
@@ -6323,7 +6323,7 @@ function burnAreaChart() {
       try {
         const res = await fetch(`/api/contributors/${contributorId}/trust`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ tier: tier }),
         });
         if (!res.ok) { const err = await res.json().catch(() => ({})); await hiveAlert('Failed to change tier: ' + (err.error || res.statusText)); return; }
@@ -6635,7 +6635,7 @@ function burnAreaChart() {
 
     async function loadInceptionState() {
       try {
-        const r = await fetch('/api/inception/state');
+        const r = await fetch('/api/inception/state', {headers: _inceptionAuthHeaders()});
         const data = await r.json();
         _inceptionState = data.active ? data.state : null;
         renderInception();
@@ -6651,6 +6651,8 @@ function burnAreaChart() {
         return;
       }
 
+      panel.style.minHeight = '320px';
+
       switch (_inceptionState.phase) {
         case 'capture':
           if (_inceptionState.idea_text) {
@@ -6664,6 +6666,7 @@ function burnAreaChart() {
           break;
         case 'clarify':
           panel.innerHTML = renderInceptionProgress('clarify') + renderInceptionClarify();
+          startInceptionPoll();
           break;
         case 'structure':
           panel.innerHTML = renderInceptionProgress('structure') + renderInceptionStructure();
@@ -6671,6 +6674,7 @@ function burnAreaChart() {
           break;
         case 'scaffold':
           panel.innerHTML = renderInceptionProgress('scaffold') + renderInceptionScaffold();
+          startInceptionPoll();
           break;
         case 'complete':
           panel.innerHTML = renderInceptionProgress('complete') + renderInceptionComplete();
@@ -6937,9 +6941,16 @@ function burnAreaChart() {
       if (_inceptionPollTimer) { clearInterval(_inceptionPollTimer); _inceptionPollTimer = null; }
     }
 
+    function _inceptionAuthHeaders() {
+      var h = {'Content-Type': 'application/json'};
+      var t = localStorage.getItem('hive-token');
+      if (t) h['Authorization'] = 'Bearer ' + t;
+      return h;
+    }
+
     async function pollInceptionActivity() {
       try {
-        const r = await fetch('/api/pane/brainstorm?lines=500&source=buffer');
+        const r = await fetch('/api/pane/brainstorm?lines=500&source=buffer', {headers: _inceptionAuthHeaders()});
         if (!r.ok) return;
         const data = await r.json();
         const lines = data.lines || [];
@@ -6950,7 +6961,7 @@ function burnAreaChart() {
       } catch (e) { /* ignore poll errors */ }
 
       try {
-        const sr = await fetch('/api/inception/state');
+        const sr = await fetch('/api/inception/state', {headers: _inceptionAuthHeaders()});
         const sd = await sr.json();
         if (sd.ok && sd.state && sd.state.phase !== _inceptionState.phase) {
           _inceptionState = sd.state;
@@ -7054,7 +7065,7 @@ function burnAreaChart() {
       if (!container) return;
       container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">Loading scaffold files...</div>';
       try {
-        const r = await fetch('/api/inception/scaffold');
+        const r = await fetch('/api/inception/scaffold', {headers: _inceptionAuthHeaders()});
         const data = await r.json();
         if (!data.ok || !data.scaffold || !data.scaffold.files || data.scaffold.files.length === 0) {
           container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">No scaffold files generated. The brainstorm agent may not have produced KB facts.</div>';
@@ -7137,7 +7148,7 @@ function burnAreaChart() {
       try {
         const r = await fetch('/api/inception/scan', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ repo_url: url })
         });
         const data = await r.json();
@@ -7153,7 +7164,7 @@ function burnAreaChart() {
       try {
         const r = await fetch('/api/inception/start', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ idea })
         });
         const data = await r.json();
@@ -7172,7 +7183,7 @@ function burnAreaChart() {
       try {
         const r = await fetch('/api/inception/answer', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ answers })
         });
         const data = await r.json();
@@ -7186,7 +7197,7 @@ function burnAreaChart() {
       if (!preview) return;
       preview.innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Loading...</div>';
       try {
-        const r = await fetch('/api/inception/scaffold');
+        const r = await fetch('/api/inception/scaffold', {headers: _inceptionAuthHeaders()});
         const data = await r.json();
         if (!data.ok || !data.scaffold) { preview.innerHTML = '<div style="color:var(--muted)">No scaffold available yet.</div>'; return; }
         let html = '';
@@ -7204,7 +7215,7 @@ function burnAreaChart() {
 
     async function loadInceptionIdeationFacts() {
       try {
-        const r = await fetch('/api/inception/ideation-facts');
+        const r = await fetch('/api/inception/ideation-facts', {headers: _inceptionAuthHeaders()});
         const data = await r.json();
         if (data.ok && data.facts && data.facts.length > 0) {
           let msg = 'Ideation Facts (' + data.facts.length + '):\n\n';
@@ -7218,7 +7229,7 @@ function burnAreaChart() {
 
     async function approveInception() {
       try {
-        const r = await fetch('/api/inception/approve', { method: 'POST' });
+        const r = await fetch('/api/inception/approve', { method: 'POST', headers: _inceptionAuthHeaders() });
         const data = await r.json();
         if (data.ok) { _inceptionState.phase = 'complete'; renderInception(); }
         else alert(data.error || 'Failed to approve');
@@ -7236,7 +7247,7 @@ function burnAreaChart() {
     async function clearInception() {
       stopInceptionPoll();
       try {
-        const hasFilesResp = await fetch('/api/inception/has-files');
+        const hasFilesResp = await fetch('/api/inception/has-files', {headers: _inceptionAuthHeaders()});
         const hasFilesData = await hasFilesResp.json();
         if (hasFilesData.has_files) {
           const choice = confirm('Download existing scaffold before clearing?');
@@ -7244,7 +7255,7 @@ function burnAreaChart() {
             await downloadInceptionZip();
           }
         }
-        await fetch('/api/inception/reset', { method: 'POST' });
+        await fetch('/api/inception/reset', { method: 'POST', headers: _inceptionAuthHeaders() });
         _inceptionState = null;
         renderInception();
       } catch (e) { alert('Error: ' + e.message); }
@@ -8194,7 +8205,7 @@ function burnAreaChart() {
 
       showACMMLoading('Switching to Level ' + level + '…');
       try {
-        const res = await fetch('/api/packs/level', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }) });
+        const res = await fetch('/api/packs/level', { method: 'PUT', headers: _inceptionAuthHeaders(), body: JSON.stringify({ level }) });
         const data = await res.json();
         hideACMMLoading();
         if (!res.ok) {
@@ -8990,7 +9001,7 @@ function burnAreaChart() {
       try {
         const res = await fetch('/api/hive-id', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ id: newId }),
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -9505,7 +9516,7 @@ function burnAreaChart() {
       const copyFrom = copySelect ? copySelect.value : '';
       const payload = copyFrom ? { name, copyFrom } : { name };
       fetch('/api/config/governor/agents', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: _inceptionAuthHeaders(),
         body: JSON.stringify(payload)
       }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then(() => {
@@ -9592,7 +9603,7 @@ function burnAreaChart() {
         try {
           const res = await fetch('/api/agents', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: _inceptionAuthHeaders(),
             body: JSON.stringify({ name, agent })
           });
           const data = await res.json();
@@ -9621,14 +9632,14 @@ function burnAreaChart() {
           if (_configState.type === 'governor' && section === 'general' && values.hiveId !== undefined) {
             const idRes = await fetch('/api/hive-id', {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              headers: _inceptionAuthHeaders(),
               body: JSON.stringify({ id: values.hiveId })
             });
             if (!idRes.ok) throw new Error('HTTP ' + idRes.status);
           } else {
             const res = await fetch(`${base}/${section}`, {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              headers: _inceptionAuthHeaders(),
               body: JSON.stringify(values)
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -9841,7 +9852,7 @@ function burnAreaChart() {
       try {
         const resp = await fetch('/api/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: _inceptionAuthHeaders(),
           body: JSON.stringify({ query: q, history: chatContext.slice(0, -1) }),
         });
         const data = await resp.json();

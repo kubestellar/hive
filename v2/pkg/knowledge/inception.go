@@ -549,7 +549,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		}
 	case "javascript":
 		result.Files = append(result.Files,
-			ScaffoldFile{Path: "package.json", Content: buildPackageJSON(projectName, vision), Purpose: "package_json", IsNew: true},
+			ScaffoldFile{Path: "package.json", Content: buildJSPackageJSON(projectName, vision), Purpose: "package_json", IsNew: true},
 			ScaffoldFile{Path: "src/index.js", Content: buildJSIndex(projectName, vision), Purpose: "main", IsNew: true},
 		)
 		if len(acceptance) > 0 {
@@ -1680,6 +1680,29 @@ func buildPackageJSON(name string, vision *Fact) string {
   "devDependencies": {
     "typescript": "^5.0.0",
     "tsx": "^4.0.0",
+    "vitest": "^2.0.0",
+    "eslint": "^9.0.0"
+  }
+}
+`, jsonEscape(name), jsonEscape(desc))
+}
+
+func buildJSPackageJSON(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`{
+  "name": "%s",
+  "version": "0.1.0",
+  "description": "%s",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
     "vitest": "^2.0.0",
     "eslint": "^9.0.0"
   }

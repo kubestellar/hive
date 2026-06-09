@@ -1271,6 +1271,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
+      - run: ruff check .
       - run: pytest
 `
 }

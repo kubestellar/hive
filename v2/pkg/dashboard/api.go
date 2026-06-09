@@ -2487,11 +2487,6 @@ func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(body.Repos) == 0 {
-		jsonError(w, "repos list must not be empty", http.StatusBadRequest)
-		return
-	}
-
 	org := s.deps.Config.Project.Org
 	stripped := make([]string, 0, len(body.Repos))
 	for _, repo := range body.Repos {

@@ -1084,6 +1084,8 @@ func runEvalCycle(
 		atomicWrite("/data/last-actionable.json", data)
 	}
 
+	writeMergeEligible(actionable, actionable.Hold, logger)
+
 	shaResult, shaErr := ghClient.EnforceSHAHold(ctx, github.SHAHoldConfig{
 		PrimaryRepo:     cfg.Project.PrimaryRepo,
 		AIAuthor:        cfg.Project.AIAuthor,
@@ -1596,6 +1598,56 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 			}
 		}
 	}
+}
+
+const mergeEligiblePath = "/var/run/hive-metrics/merge-eligible.json"
+
+func writeMergeEligible(actionable *github.ActionableResult, hold github.HoldResult, logger *slog.Logger) {
+	holdSet := make(map[string]bool)
+	for _, h := range hold.Items {
+		key := fmt.Sprintf("%s/%d", h.Repo, h.Number)
+		holdSet[key] = true
+	}
+
+	type eligiblePR struct {
+		Number int    `json:"number"`
+		Repo   string `json:"repo"`
+		Title  string `json:"title"`
+		Author string `json:"author"`
+	}
+
+	var eligible []eligiblePR
+	for _, pr := range actionable.PRs.Items {
+		if pr.Draft {
+			continue
+		}
+		if !pr.Mergeable {
+			continue
+		}
+		key := fmt.Sprintf("%s/%d", pr.Repo, pr.Number)
+		if holdSet[key] {
+			continue
+		}
+		eligible = append(eligible, eligiblePR{
+			Number: pr.Number,
+			Repo:   pr.Repo,
+			Title:  pr.Title,
+			Author: pr.Author,
+		})
+	}
+
+	payload := map[string]any{
+		"generated_at":   time.Now().UTC().Format(time.RFC3339),
+		"merge_eligible": eligible,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		logger.Warn("failed to marshal merge-eligible", "error", err)
+		return
+	}
+	_ = os.MkdirAll("/var/run/hive-metrics", 0o755)
+	atomicWrite(mergeEligiblePath, data)
+	logger.Info("merge-eligible.json updated", "eligible", len(eligible), "total_prs", len(actionable.PRs.Items))
 }
 
 func atomicWrite(path string, data []byte) {

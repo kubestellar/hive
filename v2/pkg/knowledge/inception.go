@@ -478,7 +478,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "CONTRIBUTING.md",
-		Content: buildContributing(constitution),
+		Content: buildContributing(projectName, constitution),
 		Purpose: "contributing",
 		IsNew:   true,
 	})
@@ -1147,7 +1147,7 @@ func buildShellTestStubs(acceptance []Fact) string {
 	return b.String()
 }
 
-func buildContributing(constitution *Fact) string {
+func buildContributing(projectName string, constitution *Fact) string {
 	var b strings.Builder
 	b.WriteString("# Contributing\n\n")
 	b.WriteString("Thank you for your interest in contributing!\n\n")
@@ -1156,17 +1156,17 @@ func buildContributing(constitution *Fact) string {
 		lang := inferLanguage(constitution)
 		switch lang {
 		case "go":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\ngo mod download\ngo build ./...\ngo test ./...\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\ngo mod download\ngo build ./...\ngo test ./...\n```\n\n", projectName)
 		case "python":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\npython -m venv .venv && source .venv/bin/activate\npip install -e '.[dev]'\npytest\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\npython -m venv .venv && source .venv/bin/activate\npip install -e '.[dev]'\npytest\n```\n\n", projectName)
 		case "typescript", "javascript":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nnpm install\nnpm test\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\nnpm install\nnpm test\n```\n\n", projectName)
 		case "rust":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\ncargo build\ncargo test\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\ncargo build\ncargo test\n```\n\n", projectName)
 		case "java":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nmvn compile\nmvn test\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\nmvn compile\nmvn test\n```\n\n", projectName)
 		case "shell":
-			b.WriteString("```bash\ngit clone <repo-url>\ncd <project>\nchmod +x *.sh\nbash test.sh\n```\n\n")
+			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\nchmod +x *.sh\nbash test.sh\n```\n\n", projectName)
 		default:
 			b.WriteString("TODO: Add development setup instructions.\n\n")
 		}
@@ -1465,6 +1465,7 @@ func buildGoCmdRoot(name string, vision *Fact) string {
 	if vision != nil {
 		desc = singleLine(vision.Title)
 	}
+	escapedDesc := strings.ReplaceAll(desc, `"`, `\"`)
 	return fmt.Sprintf(`package cmd
 
 import (
@@ -1488,7 +1489,7 @@ func Execute() {
 		os.Exit(1)
 	}
 }
-`, name, desc)
+`, name, escapedDesc)
 }
 
 func buildCargoToml(name string, vision *Fact) string {
@@ -1920,19 +1921,25 @@ patches:
 }
 
 func buildNightlyCI(lang string) string {
-	var testCmd string
+	var setupStep, testCmd string
 	switch lang {
 	case "go":
+		setupStep = "      - uses: actions/setup-go@v5\n        with:\n          go-version: stable\n"
 		testCmd = "go test -race -cover -count=3 ./..."
 	case "python":
+		setupStep = "      - uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n      - run: pip install -e '.[dev]'\n"
 		testCmd = "pytest --tb=long -v"
 	case "rust":
+		setupStep = "      - uses: dtolnay/rust-toolchain@stable\n"
 		testCmd = "cargo test -- --nocapture"
 	case "java":
+		setupStep = "      - uses: actions/setup-java@v4\n        with:\n          distribution: temurin\n          java-version: '21'\n"
 		testCmd = "mvn verify -P integration-test"
 	case "shell":
+		setupStep = ""
 		testCmd = "bash test.sh"
 	default:
+		setupStep = "      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n      - run: npm ci\n"
 		testCmd = "npm test -- --reporter=verbose"
 	}
 	return fmt.Sprintf(`name: Nightly
@@ -1946,7 +1953,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Full test suite
+%s      - name: Full test suite
         run: %s
       - name: Upload results
         if: always()
@@ -1954,7 +1961,7 @@ jobs:
         with:
           name: nightly-results
           path: coverage*
-`, testCmd)
+`, setupStep, testCmd)
 }
 
 func buildI18nFile(locale, name string) string {

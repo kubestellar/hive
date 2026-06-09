@@ -101,14 +101,14 @@ func TestBuildReadmeWithAllFacts(t *testing.T) {
 		{Title: "Team B", Body: "Frontend"},
 	}
 
-	got := buildReadme("build a tool", vision, constitution, reqs, constraints, stakeholders)
+	got := buildReadme("build a tool", "build a tool", vision, constitution, reqs, constraints, stakeholders)
 	if got == "" {
 		t.Error("should produce README")
 	}
 }
 
 func TestBuildReadmeNoVision(t *testing.T) {
-	got := buildReadme("idea text", nil, nil, nil, nil, nil)
+	got := buildReadme("idea text", "idea text", nil, nil, nil, nil, nil)
 	if got == "" {
 		t.Error("should produce README with defaults")
 	}

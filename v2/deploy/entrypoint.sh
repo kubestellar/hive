@@ -127,6 +127,15 @@ if [ "$(id -u)" = "0" ]; then
   fi
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
 
+  # Write .bashrc so agent shells auto-source GH_TOKEN and SSL_CERT_FILE
+  # without needing credential instructions in the kick prompt.
+  cat > /data/home/.bashrc <<'BASHRC'
+# Hive agent shell environment
+export GH_TOKEN=$(cat /var/run/hive-metrics/gh-app-token.cache 2>/dev/null)
+export SSL_CERT_FILE=/data/proxy-ca.pem
+BASHRC
+  chmod 644 /data/home/.bashrc
+
   # ── Per-agent UID isolation ──────────────────────────────────────────
   # Extract agent names from config + pack YAML, create system users,
   # write UID map, and set up iptables to force all outbound :443

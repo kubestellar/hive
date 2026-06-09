@@ -1450,7 +1450,7 @@ func buildGitignore(lang string) string {
 	case "typescript", "javascript":
 		return common + "# Node\nnode_modules/\ndist/\ncoverage/\n*.tsbuildinfo\n"
 	case "rust":
-		return common + "# Rust\n/target/\nCargo.lock\n"
+		return common + "# Rust\n/target/\n"
 	case "java":
 		return common + "# Java\ntarget/\n*.class\n*.jar\n.gradle/\nbuild/\n"
 	case "shell":

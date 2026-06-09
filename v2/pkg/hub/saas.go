@@ -283,6 +283,9 @@ func loadSaaSUser(username string) *SaaSUser {
 }
 
 func saveSaaSUser(u *SaaSUser) error {
+	if strings.Contains(u.GitHubUsername, "..") || strings.Contains(u.GitHubUsername, "/") || strings.Contains(u.GitHubUsername, "\\") {
+		return fmt.Errorf("invalid username for save: %q", u.GitHubUsername)
+	}
 	os.MkdirAll(saasUsersDir, 0o755)
 	data, err := json.MarshalIndent(u, "", "  ")
 	if err != nil {

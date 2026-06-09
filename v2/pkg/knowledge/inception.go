@@ -1921,19 +1921,25 @@ patches:
 }
 
 func buildNightlyCI(lang string) string {
-	var testCmd string
+	var setupStep, testCmd string
 	switch lang {
 	case "go":
+		setupStep = "      - uses: actions/setup-go@v5\n        with:\n          go-version: stable\n"
 		testCmd = "go test -race -cover -count=3 ./..."
 	case "python":
+		setupStep = "      - uses: actions/setup-python@v5\n        with:\n          python-version: '3.12'\n      - run: pip install -e '.[dev]'\n"
 		testCmd = "pytest --tb=long -v"
 	case "rust":
+		setupStep = "      - uses: dtolnay/rust-toolchain@stable\n"
 		testCmd = "cargo test -- --nocapture"
 	case "java":
+		setupStep = "      - uses: actions/setup-java@v4\n        with:\n          distribution: temurin\n          java-version: '21'\n"
 		testCmd = "mvn verify -P integration-test"
 	case "shell":
+		setupStep = ""
 		testCmd = "bash test.sh"
 	default:
+		setupStep = "      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n      - run: npm ci\n"
 		testCmd = "npm test -- --reporter=verbose"
 	}
 	return fmt.Sprintf(`name: Nightly
@@ -1947,7 +1953,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Full test suite
+%s      - name: Full test suite
         run: %s
       - name: Upload results
         if: always()
@@ -1955,7 +1961,7 @@ jobs:
         with:
           name: nightly-results
           path: coverage*
-`, testCmd)
+`, setupStep, testCmd)
 }
 
 func buildI18nFile(locale, name string) string {

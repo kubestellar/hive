@@ -1149,9 +1149,10 @@ func buildGoTestStubs(acceptance []Fact) string {
 	var b strings.Builder
 	b.WriteString("package main\n\nimport \"testing\"\n\n")
 	for _, a := range acceptance {
-		funcName := "Test" + toPascalCase(a.Title)
+		title := singleLine(a.Title)
+		funcName := "Test" + toPascalCase(title)
 		fmt.Fprintf(&b, "func %s(t *testing.T) {\n", funcName)
-		fmt.Fprintf(&b, "\tt.Skip(\"TODO: %s\")\n", strings.ReplaceAll(a.Title, `"`, `\"`))
+		fmt.Fprintf(&b, "\tt.Skip(\"TODO: %s\")\n", strings.ReplaceAll(title, `"`, `\"`))
 		b.WriteString("}\n\n")
 	}
 	return b.String()
@@ -1162,7 +1163,7 @@ func buildTSTestStubs(acceptance []Fact) string {
 	b.WriteString("import { describe, it } from 'vitest';\n\n")
 	b.WriteString("describe('acceptance criteria', () => {\n")
 	for _, a := range acceptance {
-		fmt.Fprintf(&b, "  it.todo('%s');\n", strings.ReplaceAll(a.Title, "'", "\\'"))
+		fmt.Fprintf(&b, "  it.todo('%s');\n", strings.ReplaceAll(singleLine(a.Title), "'", "\\'"))
 	}
 	b.WriteString("});\n")
 	return b.String()
@@ -1172,8 +1173,9 @@ func buildPythonTestStubs(acceptance []Fact) string {
 	var b strings.Builder
 	b.WriteString("import pytest\n\n")
 	for _, a := range acceptance {
-		funcName := "test_" + toSnakeCase(a.Title)
-		fmt.Fprintf(&b, "@pytest.mark.skip(reason=\"TODO: %s\")\n", strings.ReplaceAll(a.Title, `"`, `\"`))
+		title := singleLine(a.Title)
+		funcName := "test_" + toSnakeCase(title)
+		fmt.Fprintf(&b, "@pytest.mark.skip(reason=\"TODO: %s\")\n", strings.ReplaceAll(title, `"`, `\"`))
 		fmt.Fprintf(&b, "def %s():\n    pass\n\n", funcName)
 	}
 	return b.String()
@@ -1183,8 +1185,9 @@ func buildRustTestStubs(acceptance []Fact) string {
 	var b strings.Builder
 	b.WriteString("#[cfg(test)]\nmod tests {\n\n")
 	for _, a := range acceptance {
-		funcName := toSnakeCase(a.Title)
-		fmt.Fprintf(&b, "    #[test]\n    #[ignore = \"TODO: %s\"]\n", strings.ReplaceAll(a.Title, `"`, `\"`))
+		title := singleLine(a.Title)
+		funcName := toSnakeCase(title)
+		fmt.Fprintf(&b, "    #[test]\n    #[ignore = \"TODO: %s\"]\n", strings.ReplaceAll(title, `"`, `\"`))
 		fmt.Fprintf(&b, "    fn %s() {\n        todo!()\n    }\n\n", funcName)
 	}
 	b.WriteString("}\n")
@@ -1196,8 +1199,9 @@ func buildJavaTestStubs(acceptance []Fact) string {
 	b.WriteString("import org.junit.jupiter.api.Disabled;\nimport org.junit.jupiter.api.Test;\n\n")
 	b.WriteString("class AppTest {\n\n")
 	for _, a := range acceptance {
-		funcName := "test" + toPascalCase(a.Title)
-		fmt.Fprintf(&b, "    @Test\n    @Disabled(\"TODO: %s\")\n", strings.ReplaceAll(a.Title, `"`, `\"`))
+		title := singleLine(a.Title)
+		funcName := "test" + toPascalCase(title)
+		fmt.Fprintf(&b, "    @Test\n    @Disabled(\"TODO: %s\")\n", strings.ReplaceAll(title, `"`, `\"`))
 		fmt.Fprintf(&b, "    void %s() {\n        // TODO: implement\n    }\n\n", funcName)
 	}
 	b.WriteString("}\n")
@@ -1228,15 +1232,16 @@ func buildShellTestStubs(acceptance []Fact) string {
 	b.WriteString("#!/usr/bin/env bash\nset -euo pipefail\n\n")
 	b.WriteString("PASS=0\nFAIL=0\n\n")
 	for _, a := range acceptance {
-		funcName := toSnakeCase(a.Title)
+		title := singleLine(a.Title)
+		funcName := toSnakeCase(title)
 		fmt.Fprintf(&b, "test_%s() {\n", funcName)
-		safeTitle := strings.NewReplacer(`"`, `\"`, `$`, `\$`, "`", "\\`").Replace(a.Title)
+		safeTitle := strings.NewReplacer(`"`, `\"`, `$`, `\$`, "`", "\\`").Replace(title)
 		fmt.Fprintf(&b, "    echo \"SKIP: %s\"\n", safeTitle)
 		b.WriteString("    PASS=$((PASS+1))\n}\n\n")
 	}
 	b.WriteString("# Run all tests\n")
 	for _, a := range acceptance {
-		fmt.Fprintf(&b, "test_%s\n", toSnakeCase(a.Title))
+		fmt.Fprintf(&b, "test_%s\n", toSnakeCase(singleLine(a.Title)))
 	}
 	b.WriteString("\necho \"$PASS passed, $FAIL failed\"\n")
 	return b.String()

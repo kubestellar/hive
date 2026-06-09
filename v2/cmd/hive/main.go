@@ -1621,9 +1621,6 @@ func writeMergeEligible(actionable *github.ActionableResult, hold github.HoldRes
 		if pr.Draft {
 			continue
 		}
-		if !pr.Mergeable {
-			continue
-		}
 		key := fmt.Sprintf("%s/%d", pr.Repo, pr.Number)
 		if holdSet[key] {
 			continue

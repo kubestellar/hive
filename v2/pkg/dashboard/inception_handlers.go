@@ -492,9 +492,10 @@ func (s *Server) kickBrainstorm() {
 		// reset CLI context, then the inception prompt. No restart needed.
 		// This avoids the shell initialization race that causes the
 		// alternating responsive/unresponsive pattern.
+		const clearToKickDelay = 1 * time.Second // wait for /clear to take effect before sending kick
 		clearErr := s.deps.AgentMgr.SendKick("brainstorm", "/clear")
 		if clearErr == nil {
-			time.Sleep(1 * time.Second)
+			time.Sleep(clearToKickDelay)
 			if err := s.deps.AgentMgr.SendKick("brainstorm", msg); err != nil {
 				s.logger.Warn("SendKick after /clear failed, trying RestartWithBootstrap", "error", err)
 				if err2 := s.deps.AgentMgr.RestartWithBootstrap(s.deps.Ctx, "brainstorm", msg); err2 != nil {

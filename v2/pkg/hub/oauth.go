@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	ghAuthorizeURL = "https://github.com/login/oauth/authorize"
-	ghTokenURL     = "https://github.com/login/oauth/access_token"
-	ghUserURL      = "https://api.github.com/user"
-	oauthTimeout   = 10 * time.Second
+	ghAuthorizeURL   = "https://github.com/login/oauth/authorize"
+	ghTokenURL       = "https://github.com/login/oauth/access_token"
+	ghUserURL        = "https://api.github.com/user"
+	oauthTimeout     = 10 * time.Second
+	cookieMaxAgeDays = 7 // login session cookie lifetime
 )
 
 func (s *HubServer) registerOAuth() {
@@ -126,7 +127,7 @@ func (s *HubServer) handleOAuthCallback(w http.ResponseWriter, r *http.Request) 
 		Value:    user.Login,
 		Path:     "/",
 		Domain:   ".hive.kubestellar.io",
-		MaxAge:   86400 * 7,
+		MaxAge:   86400 * cookieMaxAgeDays,
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,

@@ -3674,7 +3674,7 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 		okResponse(w, map[string]string{"token": "(not set)", "configured": "false"})
 		return
 	}
-	okResponse(w, map[string]string{"token": token, "configured": "true"})
+	okResponse(w, map[string]string{"token": maskToken(token), "configured": "true"})
 }
 
 // maskToken replaces all but the last 4 characters with bullet characters.

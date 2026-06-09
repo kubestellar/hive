@@ -58,13 +58,15 @@ app.use((req, res, next) => {
   next();
 });
 
-const PUBLIC_POST_PATHS = ['/api/contribute/register'];
+const PUBLIC_PATHS = [
+  '/api/health',
+  '/api/openapi.json',
+  '/api/contribute/register',
+];
 app.use((req, res, next) => {
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-    if (PUBLIC_POST_PATHS.some(p => req.url.startsWith(p))) return next();
-    return requireAuth(req, res, next);
-  }
-  next();
+  if (!req.url.startsWith('/api/')) return next();
+  if (PUBLIC_PATHS.some(p => req.url.startsWith(p))) return next();
+  return requireAuth(req, res, next);
 });
 
 const apiProxy = createProxyMiddleware({

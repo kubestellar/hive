@@ -117,7 +117,7 @@ func TestBuildReadmeNoVision(t *testing.T) {
 func TestBuildContributingAllLanguages(t *testing.T) {
 	langs := []string{"Go project", "TypeScript app", "Python service", "Rust crate", "Java app", "Shell scripts"}
 	for _, body := range langs {
-		got := buildContributing(&Fact{Body: body})
+		got := buildContributing("myproject", &Fact{Body: body})
 		if got == "" {
 			t.Errorf("buildContributing(%q) should produce output", body)
 		}

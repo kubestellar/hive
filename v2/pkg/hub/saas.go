@@ -113,6 +113,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hive-config/{hiveID}", s.requireAuth(s.handleProxyHiveConfig))
 	s.mux.HandleFunc("GET /api/saas/latest-sha", s.handleLatestSHA)
 	s.mux.HandleFunc("POST /api/saas/hub/upgrade", s.requireAdmin(s.handleHubSelfUpgrade))
+	s.mux.HandleFunc("PUT /api/saas/hub/auto-upgrade", s.requireAdmin(s.handleHubAutoUpgrade))
 	s.mux.HandleFunc("GET /api/saas/auth-check", s.handleSaaSAuthCheck)
 	s.mux.HandleFunc("POST /api/saas/user-token", s.requireAuth(s.handleUserToken))
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/access", s.requireAuth(s.handleAccessList))
@@ -509,6 +510,7 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		"is_admin":       user.GitHubUsername == hubAdminUsername,
 		"latest_sha":     getLatestSHA(),
 		"hub_git_hash":   s.hubGitHash,
+		"hub_auto_upgrade": isHubAutoUpgrade(),
 	})
 }
 
@@ -690,6 +692,47 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("audit: hosted hive deleted", "hive_id", id, "by", username)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status":"deleted"}`))
+}
+
+const hubAutoUpgradePath = "/data/saas/hub-auto-upgrade"
+
+func isHubAutoUpgrade() bool {
+	data, err := os.ReadFile(hubAutoUpgradePath)
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(data)) == "true"
+}
+
+func (s *HubServer) handleHubAutoUpgrade(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		AutoUpgrade bool `json:"auto_upgrade"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+		return
+	}
+	val := "false"
+	if body.AutoUpgrade {
+		val = "true"
+	}
+	os.WriteFile(hubAutoUpgradePath, []byte(val), 0644)
+	s.logger.Info("audit: hub auto-upgrade toggled", "enabled", body.AutoUpgrade, "by", s.getAuthUser(r))
+
+	// If enabling and hub is behind, trigger immediately
+	if body.AutoUpgrade {
+		latestSHA := getLatestSHA()
+		if latestSHA != "" && latestSHA != s.hubGitHash {
+			s.logger.Info("audit: hub auto-upgrade initial trigger", "from", s.hubGitHash, "to", latestSHA)
+			cmd := exec.Command("kubectl", "rollout", "restart", "deployment/hive-hub", "-n", "hive-hub")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				s.logger.Warn("hub auto-upgrade failed", "output", string(out))
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"ok":true,"auto_upgrade":%t}`, body.AutoUpgrade)
 }
 
 func (s *HubServer) handleHubSelfUpgrade(w http.ResponseWriter, r *http.Request) {
@@ -907,6 +950,14 @@ func (s *HubServer) StartLatestSHAPoller() {
 		newSHA := getLatestSHA()
 		if oldSHA != "" && newSHA != "" && oldSHA != newSHA {
 			s.triggerAutoUpgrades(newSHA)
+			// Hub auto-upgrade
+			if isHubAutoUpgrade() && newSHA != s.hubGitHash {
+				s.logger.Info("audit: hub auto-upgrade triggered", "from", s.hubGitHash, "to", newSHA)
+				cmd := exec.Command("kubectl", "rollout", "restart", "deployment/hive-hub", "-n", "hive-hub")
+				if out, err := cmd.CombinedOutput(); err != nil {
+					s.logger.Warn("hub auto-upgrade failed", "output", string(out))
+				}
+			}
 		}
 	}
 }
@@ -1797,6 +1848,7 @@ const dashboardHTML = `<!DOCTYPE html>
         _allDashHives = data.hives || [];
         _hiveRegistry = data.hives || [];
         _latestSHA = data.latest_sha || _latestSHA;
+        if (data.hub_auto_upgrade !== undefined) _hubAutoUpgrade = data.hub_auto_upgrade;
         var shaEl = document.getElementById('latest-image-sha');
         if (shaEl && _latestSHA) shaEl.textContent = 'Latest image: ' + _latestSHA;
         var hubHash = data.hub_git_hash || '';
@@ -1811,8 +1863,12 @@ const dashboardHTML = `<!DOCTYPE html>
               hubUpgradeBtn = ' <span style="display:inline-block;padding:2px 8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:0.65rem;margin-left:6px;white-space:nowrap;opacity:0.8"><span style="display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:3px"></span>Upgrading</span>';
             }
             if (isCurrent && _hubUpgrading) { _hubUpgrading = false; }
+            var hubAutoCheck = '';
+            if (_isAdmin) {
+              hubAutoCheck = ' <label style="margin-left:6px;font-size:0.6rem;color:var(--muted);cursor:pointer;white-space:nowrap" title="Auto-upgrade hub when a new image is available"><input type="checkbox" ' + (_hubAutoUpgrade ? 'checked' : '') + ' onchange="toggleHubAutoUpgrade(this.checked)" style="vertical-align:middle;margin-right:2px;cursor:pointer">auto</label>';
+            }
             el.innerHTML = '<span style="font-family:monospace;font-size:0.7rem;color:var(--muted)">' + esc(hubHash) + '</span>' +
-              (isCurrent ? '<span style="color:var(--green);margin-left:3px" title="hub is on latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="hub is behind latest ' + esc(_latestSHA) + '">↑</span>') + hubUpgradeBtn;
+              (isCurrent ? '<span style="color:var(--green);margin-left:3px" title="hub is on latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="hub is behind latest ' + esc(_latestSHA) + '">↑</span>') + hubUpgradeBtn + hubAutoCheck;
           }
         }
         var canCreate = _userQuota < 0 || _userQuota > _userUsed;
@@ -1964,6 +2020,20 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     var _hubUpgrading = false;
+    var _hubAutoUpgrade = false;
+    async function toggleHubAutoUpgrade(enabled) {
+      try {
+        var resp = await fetch('/api/saas/hub/auto-upgrade', {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({auto_upgrade: enabled})
+        });
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Failed', 'error'); return; }
+        _hubAutoUpgrade = enabled;
+        hiveToast('Hub auto-upgrade ' + (enabled ? 'enabled' : 'disabled'), 'success');
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
+    }
     async function upgradeHub(currentSHA) {
       var toSHA = _latestSHA ? _latestSHA.substring(0, 7) : 'latest';
       var fromSHA = currentSHA ? currentSHA.substring(0, 7) : '?';

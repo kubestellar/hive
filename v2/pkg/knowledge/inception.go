@@ -338,6 +338,11 @@ func (e *InceptionEngine) clearWikiVault() {
 	}
 	if len(entries) > 0 {
 		e.logger.Info("inception wiki cleared on new start", "files", len(entries))
+		if e.api != nil {
+			if err := e.api.ReindexVault(vaultDir); err != nil {
+				e.logger.Debug("reindex after wiki clear", "error", err)
+			}
+		}
 	}
 }
 

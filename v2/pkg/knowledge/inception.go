@@ -174,6 +174,9 @@ func (e *InceptionEngine) SetQuestions(questions []Question) error {
 	if e.state == nil {
 		return fmt.Errorf("no inception in progress")
 	}
+	if e.state.Phase != PhaseCapture {
+		return fmt.Errorf("cannot set questions in phase %s — must be in capture phase", e.state.Phase)
+	}
 
 	if len(questions) == 0 {
 		return fmt.Errorf("at least one question is required")

@@ -131,7 +131,13 @@ func (s *Scheduler) substituteTemplate(template string, actionable *github.Actio
 	}
 	now := time.Now().Local()
 
-	issueList := s.formatIssueList(filterByLane(issues, agentName))
+	var agentIssuesForList []github.Issue
+	if agentName == "scanner" {
+		agentIssuesForList = issues
+	} else {
+		agentIssuesForList = filterByLane(issues, agentName)
+	}
+	issueList := s.formatIssueList(agentIssuesForList)
 	prList := s.formatPRList(actionable)
 
 	reposList := strings.Join(s.cfg.Project.Repos, ", ")

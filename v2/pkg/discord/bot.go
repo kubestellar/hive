@@ -75,13 +75,15 @@ type CommandHandler func(ctx context.Context, args string) (string, error)
 type Config struct {
 	Token        string
 	ChannelID    string
-	DashboardURL string
+	DashboardURL   string
+	DashboardToken string
 }
 
 type Bot struct {
-	token        string
-	channelID    string
-	dashboardURL string
+	token          string
+	channelID      string
+	dashboardURL   string
+	dashboardToken string
 	commands     map[string]CommandHandler
 	agentNames   []string
 	mu           sync.RWMutex
@@ -127,9 +129,10 @@ type budgetSnapshot struct {
 
 func NewBot(cfg Config, logger *slog.Logger) *Bot {
 	return &Bot{
-		token:        cfg.Token,
-		channelID:    cfg.ChannelID,
-		dashboardURL: cfg.DashboardURL,
+		token:          cfg.Token,
+		channelID:      cfg.ChannelID,
+		dashboardURL:   cfg.DashboardURL,
+		dashboardToken: cfg.DashboardToken,
 		commands:     make(map[string]CommandHandler),
 		logger:       logger,
 		client: &http.Client{
@@ -789,6 +792,9 @@ func (b *Bot) dashboardPost(path string, body []byte) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if b.dashboardToken != "" {
+		req.Header.Set("Authorization", "Bearer "+b.dashboardToken)
+	}
 
 	resp, err := b.client.Do(req)
 	if err != nil {

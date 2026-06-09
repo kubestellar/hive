@@ -845,9 +845,10 @@ func main() {
 
 	if cfg.Notifications.Discord != nil && cfg.Notifications.Discord.BotToken != "" && cfg.Notifications.Discord.ChannelID != "" {
 		discordBot := discord.NewBot(discord.Config{
-			Token:        cfg.Notifications.Discord.BotToken,
-			ChannelID:    cfg.Notifications.Discord.ChannelID,
-			DashboardURL: fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port),
+			Token:          cfg.Notifications.Discord.BotToken,
+			ChannelID:      cfg.Notifications.Discord.ChannelID,
+			DashboardURL:   fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port),
+			DashboardToken: os.Getenv("HIVE_DASHBOARD_TOKEN"),
 		}, logger)
 		var agentNameList []string
 		for name := range cfg.EnabledAgents() {

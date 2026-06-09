@@ -244,7 +244,7 @@ func inferFactType(title string) string {
 	case strings.Contains(lower, "acceptance") || strings.Contains(lower, "success") || strings.Contains(lower, "criteria") || strings.Contains(lower, "test"):
 		return "acceptance"
 	}
-	return "requirement"
+	return ""
 }
 
 func (w *InceptionWatcher) findInceptionBeads() []*beads.Bead {

@@ -1084,7 +1084,7 @@ func runEvalCycle(
 		atomicWrite("/data/last-actionable.json", data)
 	}
 
-	writeMergeEligible(actionable, actionable.Hold, logger)
+	writeMergeEligible(actionable, actionable.Hold, cfg.Project.Org, logger)
 
 	shaResult, shaErr := ghClient.EnforceSHAHold(ctx, github.SHAHoldConfig{
 		PrimaryRepo:     cfg.Project.PrimaryRepo,
@@ -1602,7 +1602,7 @@ func persistState(agentMgr *agent.Manager, gov *governor.Governor, cfg *config.C
 
 const mergeEligiblePath = "/var/run/hive-metrics/merge-eligible.json"
 
-func writeMergeEligible(actionable *github.ActionableResult, hold github.HoldResult, logger *slog.Logger) {
+func writeMergeEligible(actionable *github.ActionableResult, hold github.HoldResult, org string, logger *slog.Logger) {
 	holdSet := make(map[string]bool)
 	for _, h := range hold.Items {
 		key := fmt.Sprintf("%s/%d", h.Repo, h.Number)
@@ -1625,9 +1625,13 @@ func writeMergeEligible(actionable *github.ActionableResult, hold github.HoldRes
 		if holdSet[key] {
 			continue
 		}
+		fullRepo := pr.Repo
+		if !strings.Contains(fullRepo, "/") && org != "" {
+			fullRepo = org + "/" + fullRepo
+		}
 		eligible = append(eligible, eligiblePR{
 			Number: pr.Number,
-			Repo:   pr.Repo,
+			Repo:   fullRepo,
 			Title:  pr.Title,
 			Author: pr.Author,
 		})

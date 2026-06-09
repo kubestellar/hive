@@ -1016,6 +1016,23 @@ func buildClaudeMD(constitution *Fact, constraints []Fact) string {
 
 	b.WriteString("# Project Guidelines\n\n")
 
+	lang := inferLanguage(constitution)
+	b.WriteString("## Build & Test\n\n")
+	switch lang {
+	case "go":
+		b.WriteString("```bash\ngo build ./...\ngo test ./...\ngo vet ./...\n```\n\n")
+	case "python":
+		b.WriteString("```bash\npip install -e '.[dev]'\npytest\nruff check .\n```\n\n")
+	case "typescript", "javascript":
+		b.WriteString("```bash\nnpm install\nnpm run build\nnpm test\nnpm run lint\n```\n\n")
+	case "rust":
+		b.WriteString("```bash\ncargo build\ncargo test\ncargo clippy -- -D warnings\n```\n\n")
+	case "java":
+		b.WriteString("```bash\nmvn compile\nmvn test\n```\n\n")
+	case "shell":
+		b.WriteString("```bash\nbash test.sh\nshellcheck *.sh\n```\n\n")
+	}
+
 	if constitution != nil {
 		b.WriteString("## Principles\n\n")
 		b.WriteString(constitution.Body)

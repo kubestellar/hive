@@ -567,10 +567,13 @@ func plukSendKick(session, message string) error {
 }
 
 func readJSON(r *http.Request, v interface{}) error {
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxInceptionBodyBytes))
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxInceptionBodyBytes+1))
 	if err != nil {
 		return err
 	}
 	defer r.Body.Close()
+	if int64(len(body)) > maxInceptionBodyBytes {
+		return fmt.Errorf("request body exceeds %d bytes", maxInceptionBodyBytes)
+	}
 	return json.Unmarshal(body, v)
 }

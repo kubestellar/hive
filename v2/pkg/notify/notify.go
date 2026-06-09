@@ -77,7 +77,8 @@ func (n *Notifier) sendNtfy(title, message string, priority Priority) {
 		return
 	}
 
-	req.Header.Set("Title", title)
+	safeTitle := strings.NewReplacer("\r", "", "\n", " ").Replace(title)
+	req.Header.Set("Title", safeTitle)
 	req.Header.Set("Priority", string(priority))
 
 	resp, err := n.client.Do(req)

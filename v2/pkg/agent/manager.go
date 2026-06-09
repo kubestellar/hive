@@ -1395,24 +1395,9 @@ func (m *Manager) SendKick(name string, message string) error {
 	return nil
 }
 
-// tmuxSendLiteral sends text literally (no key interpretation) via -l flag.
-func (m *Manager) tmuxSendLiteral(session, text string) {
-	_ = exec.Command("tmux", "send-keys", "-t", session, "-l", text).Run()
-}
-
 // tmuxSendLiteralForAgent sends text using the agent's tmux socket.
 func (m *Manager) tmuxSendLiteralForAgent(agent *AgentProcess, text string) {
 	_ = m.tmuxCmd(agent, "send-keys", "-t", agent.tmuxSession, "-l", text).Run()
-}
-
-// tmuxSendEnters sends multiple Enter presses with delays between each (old hive: 3x, 300ms apart).
-func (m *Manager) tmuxSendEnters(session string) {
-	for i := 0; i < enterCount; i++ {
-		_ = exec.Command("tmux", "send-keys", "-t", session, "Enter").Run()
-		if i < enterCount-1 {
-			time.Sleep(enterDelay)
-		}
-	}
 }
 
 // tmuxSendEntersForAgent sends Enter presses using the agent's tmux socket.

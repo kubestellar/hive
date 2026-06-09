@@ -550,7 +550,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	case "javascript":
 		result.Files = append(result.Files,
 			ScaffoldFile{Path: "package.json", Content: buildPackageJSON(projectName, vision), Purpose: "package_json", IsNew: true},
-			ScaffoldFile{Path: "src/index.js", Content: buildTSIndex(projectName, vision), Purpose: "main", IsNew: true},
+			ScaffoldFile{Path: "src/index.js", Content: buildJSIndex(projectName, vision), Purpose: "main", IsNew: true},
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
@@ -1715,6 +1715,23 @@ func buildTSIndex(name string, vision *Fact) string {
  */
 
 export function main(): void {
+  console.log("TODO: implement main logic");
+}
+
+main();
+`, desc)
+}
+
+func buildJSIndex(name string, vision *Fact) string {
+	desc := name
+	if vision != nil {
+		desc = vision.Title
+	}
+	return fmt.Sprintf(`/**
+ * %s
+ */
+
+function main() {
   console.log("TODO: implement main logic");
 }
 

@@ -1846,8 +1846,16 @@ FROM eclipse-temurin:21-jre
 COPY --from=builder /app/target/%s-*.jar /app/%s.jar
 ENTRYPOINT ["java", "-jar", "/app/%s.jar"]
 `, name, name, name)
+	case "javascript":
+		return `FROM node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY src/ src/
+CMD ["node", "src/index.js"]
+`
 	default:
-		return fmt.Sprintf(`FROM node:22-alpine AS builder
+		return `FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -1860,7 +1868,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json .
 CMD ["node", "dist/index.js"]
-`)
+`
 	}
 }
 

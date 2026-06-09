@@ -255,6 +255,9 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 	if e.state == nil {
 		return fmt.Errorf("no inception in progress")
 	}
+	if e.state.Phase != PhaseStructure {
+		return fmt.Errorf("facts already recorded (phase: %s)", e.state.Phase)
+	}
 
 	if len(facts) == 0 {
 		return fmt.Errorf("at least one fact is required")

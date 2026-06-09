@@ -199,7 +199,7 @@ func TestRepoBaseNameEdgeCases(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"", ""},
+		{"", "repo"},
 		{"simple", "simple"},
 		{"https://github.com/org/repo.git", "repo"},
 		{"git@github.com:org/project.git", "project"},

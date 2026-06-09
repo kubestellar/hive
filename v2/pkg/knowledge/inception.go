@@ -996,7 +996,7 @@ func buildReadme(projectName, ideaText string, vision, constitution *Fact, reqs,
 		case "rust":
 			fmt.Fprintf(&b, "```bash\ncargo build --release\n./target/release/%s\n```\n\n", projectName)
 		case "java":
-			fmt.Fprintf(&b, "```bash\nmvn package\njava -jar target/%s.jar\n```\n\n", projectName)
+			fmt.Fprintf(&b, "```bash\nmvn package\njava -jar target/%s-0.1.0.jar\n```\n\n", projectName)
 		case "shell":
 			fmt.Fprintf(&b, "```bash\nchmod +x *.sh\n./%s.sh\n```\n\n", projectName)
 		default:

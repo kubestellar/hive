@@ -948,9 +948,14 @@ func (w *InceptionWatcher) recordAndAdvanceFacts(ctx context.Context, facts []kn
 
 func (w *InceptionWatcher) supplementFactsFromQA(existing []knowledge.IdeationFact, state *knowledge.InceptionState) []knowledge.IdeationFact {
 	originalCount := len(existing)
-	existingTypes := make(map[knowledge.FactType]bool)
+
+	existingTitles := make(map[string]bool)
+	hasVision := false
 	for _, f := range existing {
-		existingTypes[f.Type] = true
+		existingTitles[f.Title] = true
+		if f.Type == knowledge.FactVision {
+			hasVision = true
+		}
 	}
 
 	categoryToFact := map[string]knowledge.FactType{
@@ -963,8 +968,7 @@ func (w *InceptionWatcher) supplementFactsFromQA(existing []knowledge.IdeationFa
 		"storage":     knowledge.FactRequirement,
 	}
 
-	if !existingTypes[knowledge.FactVision] && state.IdeaText != "" {
-		existingTypes[knowledge.FactVision] = true
+	if !hasVision && state.IdeaText != "" {
 		existing = append(existing, knowledge.IdeationFact{
 			Title: "Project Vision",
 			Body:  state.IdeaText,
@@ -978,14 +982,14 @@ func (w *InceptionWatcher) supplementFactsFromQA(existing []knowledge.IdeationFa
 		if !ok || strings.TrimSpace(answer) == "" {
 			continue
 		}
+		if existingTitles[q.Text] {
+			continue
+		}
+		existingTitles[q.Text] = true
 		factType, mapped := categoryToFact[q.Category]
 		if !mapped {
 			factType = knowledge.FactRequirement
 		}
-		if existingTypes[factType] {
-			continue
-		}
-		existingTypes[factType] = true
 		existing = append(existing, knowledge.IdeationFact{
 			Title: q.Text,
 			Body:  answer,

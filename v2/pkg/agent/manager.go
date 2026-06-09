@@ -96,6 +96,14 @@ type Manager struct {
 	uidMap           *UIDMap
 }
 
+func truncateStr(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes]) + "..."
+}
+
 // SetACMMLevel updates the cached ACMM level used by agentMode() when
 // launching agents. Call this whenever the ACMM level changes.
 func (m *Manager) SetACMMLevel(level int) {
@@ -433,9 +441,7 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 		agent.LastKickMessage = bootstrapPrompt
 		snippet := bootstrapPrompt
 		const maxBootstrapSnippet = 200
-		if len(snippet) > maxBootstrapSnippet {
-			snippet = snippet[:maxBootstrapSnippet] + "..."
-		}
+		snippet = truncateStr(snippet, maxBootstrapSnippet)
 		agent.KickHistory = append(agent.KickHistory, KickRecord{Timestamp: now, Agent: agent.Name, Snippet: snippet})
 		m.logger.Info("audit: agent kicked",
 			"name", agent.Name,
@@ -919,9 +925,7 @@ func (m *Manager) logOutputSignals(agent, line string) {
 		if strings.Contains(line, pattern) {
 			preview := line
 			const maxPreviewLen = 200
-			if len(preview) > maxPreviewLen {
-				preview = preview[:maxPreviewLen] + "..."
-			}
+			preview = truncateStr(preview, maxPreviewLen)
 			m.logger.Info("agent output signal",
 				"agent", agent,
 				"event", event,
@@ -1372,9 +1376,7 @@ func (m *Manager) SendKick(name string, message string) error {
 
 	snippet := message
 	const maxSnippetLen = 120
-	if len(snippet) > maxSnippetLen {
-		snippet = snippet[:maxSnippetLen] + "..."
-	}
+	snippet = truncateStr(snippet, maxSnippetLen)
 	record := KickRecord{Timestamp: now, Agent: name, Snippet: snippet}
 	if len(agent.KickHistory) >= kickHistoryCapacity {
 		agent.KickHistory = agent.KickHistory[1:]
@@ -1384,7 +1386,7 @@ func (m *Manager) SendKick(name string, message string) error {
 	kickPreview := message
 	const maxKickPreviewLen = 200
 	if len(kickPreview) > maxKickPreviewLen {
-		kickPreview = kickPreview[:maxKickPreviewLen] + "..."
+		kickPreview = truncateStr(kickPreview, maxKickPreviewLen)
 	}
 	m.logger.Info("audit: agent kicked",
 		"name", name,

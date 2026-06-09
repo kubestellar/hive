@@ -54,13 +54,14 @@ RUN curl -sL -o /tmp/su-exec.c https://raw.githubusercontent.com/ncopa/su-exec/m
 # node:24-slim already has group 1000 (node), so reuse it
 RUN useradd -m -u 1001 -g node -s /bin/bash dev
 
-# --- Layer 2: ttyd (stable, infrequent releases) ---
+# --- Layer 2: ttyd (pinned version for reproducible builds) ---
+ARG TTYD_VERSION=1.7.7
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then TTYD_ARCH=x86_64; \
     elif [ "$ARCH" = "aarch64" ]; then TTYD_ARCH=aarch64; \
     else TTYD_ARCH=x86_64; fi && \
     curl -sL -o /usr/local/bin/ttyd \
-      "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.${TTYD_ARCH}" && \
+      "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.${TTYD_ARCH}" && \
     chmod +x /usr/local/bin/ttyd
 
 # --- Layer 2b: GitHub CLI (off-PATH — only snapshot publisher uses it) ---

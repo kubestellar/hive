@@ -616,7 +616,8 @@ var plainHTTPClient = &http.Client{
 func (p *GitHubProxy) forwardPlainDirect(conn net.Conn, r *http.Request) {
 	resp, err := plainHTTPClient.Transport.RoundTrip(r)
 	if err != nil {
-		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\n\r\n%s\n", err.Error())
+		p.logger.Warn("proxy: plain HTTP forward failed", "url", r.URL.String(), "error", err)
+		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\n\r\nupstream request failed\n")
 		return
 	}
 	defer resp.Body.Close()

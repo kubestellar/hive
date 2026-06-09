@@ -419,7 +419,7 @@ func (s *Scheduler) buildScannerMessage(issues []github.Issue, actionable *githu
 	b.WriteString("  1. Check beads (`bd list --status open`) for context from previous cycles\n")
 	b.WriteString("  2. Quick merges (10 min cap) — merge green PRs, `@dependabot rebase` stale ones, then MOVE ON\n")
 	b.WriteString("  3. Fix blockers — find the ONE fix that unblocks the most PRs/issues (broken test helper, missing import, etc). Clone, fix, push, merge.\n")
-	b.WriteString("  4. Work issues — use `/fleet` to dispatch sub-agents for remaining issues. 4-6 agents IN PARALLEL.\n")
+	b.WriteString("  4. Work issues — dispatch 4-6 sub-agents IN PARALLEL (Copilot: /fleet, Claude Code: Agent tool, Goose: sub-agent sessions).\n")
 
 	return b.String()
 }

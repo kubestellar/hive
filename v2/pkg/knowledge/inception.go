@@ -1578,7 +1578,7 @@ dev = ["pytest", "ruff"]
 
 [build-system]
 requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 `, tomlEscape(name), tomlEscape(desc), tomlEscape(name), pyPackageName(name))
 }
 

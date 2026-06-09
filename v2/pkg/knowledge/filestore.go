@@ -221,9 +221,9 @@ func (s *FileStore) Search(query string, limit int) []Fact {
 	facts := make([]Fact, len(matches))
 	for i, m := range matches {
 		snippet := m.page.Body
-		const maxSnippetLen = 200
-		if len(snippet) > maxSnippetLen {
-			snippet = snippet[:maxSnippetLen] + "…"
+		const maxSnippetRunes = 200
+		if runes := []rune(snippet); len(runes) > maxSnippetRunes {
+			snippet = string(runes[:maxSnippetRunes]) + "…"
 		}
 		facts[i] = Fact{
 			Slug:       m.page.Slug,
@@ -325,9 +325,9 @@ func (s *FileStore) ListPages(tagFilter string) []Fact {
 			}
 		}
 		snippet := p.Body
-		const maxSnippetLen = 200
-		if len(snippet) > maxSnippetLen {
-			snippet = snippet[:maxSnippetLen] + "…"
+		const maxSnippetRunes = 200
+		if runes := []rune(snippet); len(runes) > maxSnippetRunes {
+			snippet = string(runes[:maxSnippetRunes]) + "…"
 		}
 		facts = append(facts, Fact{
 			Slug:       p.Slug,

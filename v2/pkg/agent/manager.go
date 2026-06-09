@@ -952,10 +952,10 @@ func (m *Manager) checkKickRefusal(agent *AgentProcess, line string) {
 	for _, pattern := range kickRefusalPatterns {
 		if strings.Contains(lower, strings.ToLower(pattern)) {
 			agent.KickRefused = true
-			const maxReasonLen = 200
+			const maxReasonRunes = 200
 			reason := line
-			if len(reason) > maxReasonLen {
-				reason = reason[:maxReasonLen]
+			if runes := []rune(reason); len(runes) > maxReasonRunes {
+				reason = string(runes[:maxReasonRunes])
 			}
 			agent.KickRefusalReason = reason
 			m.logger.Warn("agent refused kick",

@@ -79,8 +79,9 @@ var safeNamePattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 func sanitizeField(s string) string {
 	s = html.EscapeString(strings.TrimSpace(s))
-	if len(s) > 200 {
-		s = s[:200]
+	const maxSanitizedRunes = 200
+	if runes := []rune(s); len(runes) > maxSanitizedRunes {
+		s = string(runes[:maxSanitizedRunes])
 	}
 	return s
 }

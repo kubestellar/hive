@@ -271,8 +271,9 @@ func (b *Bot) cmdStatus() (string, error) {
 		}
 		cadence := a.Cadence
 		doing := ""
-		if a.Doing != "" && len(a.Doing) > 80 {
-			doing = " — " + a.Doing[:80]
+		const maxDoingRunes = 80
+		if a.Doing != "" && len([]rune(a.Doing)) > maxDoingRunes {
+			doing = " — " + string([]rune(a.Doing)[:maxDoingRunes])
 		} else if a.Doing != "" {
 			doing = " — " + a.Doing
 		}
@@ -494,8 +495,9 @@ func (b *Bot) diffAgents(prev, cur *statusSnapshot) {
 		if old.Busy != agent.Busy {
 			doing := ""
 			if agent.Doing != "" {
-				if len(agent.Doing) > 100 {
-					doing = " — " + agent.Doing[:100]
+				const maxDoingRunes2 = 100
+				if len([]rune(agent.Doing)) > maxDoingRunes2 {
+					doing = " — " + string([]rune(agent.Doing)[:maxDoingRunes2])
 				} else {
 					doing = " — " + agent.Doing
 				}
@@ -510,8 +512,9 @@ func (b *Bot) diffAgents(prev, cur *statusSnapshot) {
 						lines = lines[:3]
 					}
 					s := strings.Join(lines, "\n")
-					if len(s) > 300 {
-						s = s[:300]
+					const maxSnippetRunes = 300
+					if len([]rune(s)) > maxSnippetRunes {
+						s = string([]rune(s)[:maxSnippetRunes])
 					}
 					summary = "\n```\n" + s + "\n```"
 				}

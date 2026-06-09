@@ -7183,6 +7183,8 @@ function burnAreaChart() {
         const el = document.getElementById('inception-q-' + q.id);
         if (el) answers[q.id] = el.value.trim();
       });
+      const btn = document.querySelector('#inception-panel button[onclick*="submitInceptionAnswers"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; btn.style.opacity = '0.6'; }
       try {
         const r = await fetch('/api/inception/answer', {
           method: 'POST',
@@ -7191,8 +7193,8 @@ function burnAreaChart() {
         });
         const data = await r.json();
         if (data.ok) { _inceptionState = data.state; renderInception(); }
-        else alert(data.error || 'Failed to submit answers');
-      } catch (e) { alert('Error: ' + e.message); }
+        else { alert(data.error || 'Failed to submit answers'); if (btn) { btn.disabled = false; btn.textContent = 'Submit'; btn.style.opacity = '1'; } }
+      } catch (e) { alert('Error: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Submit'; btn.style.opacity = '1'; } }
     }
 
     async function loadInceptionScaffoldPreview() {

@@ -1431,8 +1431,8 @@ func (s *Server) loadAgentRestrictions(name string) map[string]interface{} {
 				// Truncate very long lines to keep the response manageable
 				const maxPolicyLen = 200
 				entry := stripped
-				if len(entry) > maxPolicyLen {
-					entry = entry[:maxPolicyLen] + "..."
+				if runes := []rune(entry); len(runes) > maxPolicyLen {
+					entry = string(runes[:maxPolicyLen]) + "..."
 				}
 				policyRestrictions = append(policyRestrictions, restriction{
 					Pattern: entry,

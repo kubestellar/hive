@@ -1063,6 +1063,7 @@ func buildClaudeMD(constitution *Fact, constraints []Fact) string {
 
 func buildTestStubs(acceptance []Fact, constitution *Fact) string {
 	lang := inferLanguage(constitution)
+	acceptance = deduplicateFactTitles(acceptance)
 
 	switch lang {
 	case "go":
@@ -1078,6 +1079,20 @@ func buildTestStubs(acceptance []Fact, constitution *Fact) string {
 	default:
 		return buildGoTestStubs(acceptance)
 	}
+}
+
+func deduplicateFactTitles(facts []Fact) []Fact {
+	seen := make(map[string]int)
+	var result []Fact
+	for _, f := range facts {
+		key := toSnakeCase(f.Title)
+		seen[key]++
+		if seen[key] > 1 {
+			f.Title = fmt.Sprintf("%s (%d)", f.Title, seen[key])
+		}
+		result = append(result, f)
+	}
+	return result
 }
 
 func buildGoTestStubs(acceptance []Fact) string {

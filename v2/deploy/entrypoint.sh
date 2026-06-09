@@ -156,7 +156,6 @@ if [ "$(id -u)" = "0" ]; then
     done
   ) &
   echo "[entrypoint] polling perm guard active (5s)"
-  fi
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
 
   # Write .bashrc so agent shells auto-source GH_TOKEN and SSL_CERT_FILE

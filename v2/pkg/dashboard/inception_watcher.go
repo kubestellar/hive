@@ -390,6 +390,8 @@ func (w *InceptionWatcher) runPlukSubscriber(ctx context.Context) {
 	}
 
 	scanner := bufio.NewScanner(f)
+	const plukMaxLineBytes = 1 << 20 // 1 MiB — agent output can exceed 64KB default
+	scanner.Buffer(make([]byte, 0, plukMaxLineBytes), plukMaxLineBytes)
 	const pollInterval = 500 * time.Millisecond
 
 	for {

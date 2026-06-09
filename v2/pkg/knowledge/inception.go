@@ -388,11 +388,15 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 
 		var content strings.Builder
 		content.WriteString("---\n")
-		fmt.Fprintf(&content, "title: \"%s\"\n", strings.ReplaceAll(f.Title, `"`, `\"`))
+		fmt.Fprintf(&content, "title: \"%s\"\n", strings.ReplaceAll(singleLine(f.Title), `"`, `\"`))
 		fmt.Fprintf(&content, "type: %s\n", string(f.Type))
 		fmt.Fprintf(&content, "confidence: %.2f\n", conf)
 		if len(tags) > 0 {
-			fmt.Fprintf(&content, "tags: [%s]\n", strings.Join(tags, ", "))
+			quoted := make([]string, len(tags))
+			for i, t := range tags {
+				quoted[i] = fmt.Sprintf("%q", t)
+			}
+			fmt.Fprintf(&content, "tags: [%s]\n", strings.Join(quoted, ", "))
 		}
 		content.WriteString("---\n\n")
 		content.WriteString(f.Body)

@@ -535,6 +535,8 @@ func (s *HubServer) handleCreateHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const maxCreateHiveBodyBytes = 64 * 1024 // 64 KiB — includes app private key
+	r.Body = http.MaxBytesReader(w, r.Body, maxCreateHiveBodyBytes)
 	var req CreateHiveRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)

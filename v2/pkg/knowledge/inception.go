@@ -143,6 +143,7 @@ func (e *InceptionEngine) StartBrownfield(repoURL string) (*InceptionState, erro
 	e.state = &InceptionState{
 		Phase:     PhaseCapture,
 		Mode:      InceptionBrownfield,
+		IdeaText:  "Brownfield scan: " + repoURL,
 		IdeaSlug:  slug,
 		RepoURL:   repoURL,
 		WikiName:  wikiName,
@@ -198,6 +199,8 @@ func (e *InceptionEngine) SetQuestions(questions []Question) error {
 
 	e.state.Questions = questions
 	e.state.Phase = PhaseClarify
+	now := time.Now()
+	e.state.PhaseChangedAt = &now
 
 	return e.saveState()
 }
@@ -238,7 +241,9 @@ func (e *InceptionEngine) SubmitAnswers(answers map[string]string) (*InceptionSt
 		}
 	}
 
-	e.state.Answers = answers
+	for k, v := range answers {
+		e.state.Answers[k] = v
+	}
 	if e.state.Phase == PhaseClarify {
 		e.state.Phase = PhaseStructure
 		now := time.Now()
@@ -298,11 +303,14 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 			continue
 		}
 
+		tags := make([]string, len(f.Tags)+1)
+		copy(tags, f.Tags)
+		tags[len(f.Tags)] = "inception"
 		err := e.api.CreateFact(ctx, CreateFactRequest{
 			Title:      f.Title,
 			Body:       f.Body,
 			Type:       string(f.Type),
-			Tags:       append(f.Tags, "inception"),
+			Tags:       tags,
 			Layer:      string(LayerProject),
 			Confidence: conf,
 		})
@@ -319,6 +327,8 @@ func (e *InceptionEngine) RecordFacts(ctx context.Context, facts []IdeationFact)
 	}
 
 	e.state.Phase = PhaseScaffold
+	now := time.Now()
+	e.state.PhaseChangedAt = &now
 
 	e.writeFactsToVault(facts)
 
@@ -658,6 +668,8 @@ func (e *InceptionEngine) AdvanceToComplete() error {
 	}
 
 	e.state.Phase = PhaseComplete
+	now := time.Now()
+	e.state.PhaseChangedAt = &now
 	e.logger.Info("inception complete",
 		"mode", e.state.Mode,
 		"facts", len(e.state.FactSlugs),

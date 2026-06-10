@@ -9165,11 +9165,19 @@ function burnAreaChart() {
     }
 
     function renderGovRepos(repos) {
-      const list = repos.map((r, i) =>
-        `<div class="config-list-item"><span>${esc(r)}</span><button class="remove-item" onclick="removeListItem('repos','list',${i})">✕</button></div>`
-      ).join('');
+      const primary = _configState.data.primaryRepo || '';
+      const list = repos.map((r, i) => {
+        const isDefault = r === primary;
+        const starStyle = isDefault
+          ? 'color:#f59e0b;cursor:pointer;font-size:1rem;margin-right:6px'
+          : 'color:var(--muted);cursor:pointer;font-size:1rem;margin-right:6px;opacity:0.4';
+        const starTitle = isDefault
+          ? 'Default repo (advisory issue lives here)'
+          : 'Set as default repo for advisory issue';
+        return `<div class="config-list-item" style="align-items:center"><span onclick="setDefaultRepo('${esc(r)}')" style="${starStyle}" title="${starTitle}">${isDefault ? '★' : '☆'}</span><span style="flex:1">${esc(r)}</span><button class="remove-item" onclick="removeListItem('repos','list',${i})">&#x2715;</button></div>`;
+      }).join('');
       return `
-        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">GitHub repositories monitored by this hive (org/repo format).</p>
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">GitHub repositories monitored by this hive. Click the star to set the default repo where the advisory issue is maintained.</p>
         <div class="config-list">
           ${list || '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">No repos configured</div>'}
           <div class="config-list-add">
@@ -9177,6 +9185,13 @@ function burnAreaChart() {
             <button onclick="addListItem('repos','list','cfg-repo-input')" title="Add this repository to the monitored list">+ Add</button>
           </div>
         </div>`;
+    }
+
+    function setDefaultRepo(repo) {
+      _configState.data.primaryRepo = repo;
+      markDirty('repos', 'primaryRepo', repo);
+      markDirty('repos', 'repos', _configState.data.repos || []);
+      renderConfigTab('Repos');
     }
 
     function renderGovBudget(b) {

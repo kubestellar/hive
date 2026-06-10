@@ -39,7 +39,8 @@ type Dependencies struct {
 	SkipReloadFunc   func()
 	ReInitFunc       func()
 	SetUserClient    func(token string)
-	EnumerateFunc    func()
+	EnumerateFunc      func()
+	AdvisoryResetFunc  func(newPrimaryRepo string)
 }
 
 type NousState struct {

@@ -710,6 +710,19 @@ func main() {
 		EnumerateFunc: func() {
 			runEvalCycle(ctx, cfg, ghClient, gov, sched, agentMgr, dashSrv, notifier, beadStores, tokenCollector, metricsCollector, nousState, &lastActionable, advisoryStore, advisoryIssues, &userGHClient, nil, logger)
 		},
+		AdvisoryResetFunc: func(newPrimaryRepo string) {
+			logger.Info("advisory reset: primary repo changed, creating new advisory issue", "repo", newPrimaryRepo)
+			if ghClient != nil {
+				num, err := ghClient.EnsureAdvisoryIssue(ctx, newPrimaryRepo)
+				if err != nil {
+					logger.Error("failed to create advisory issue on new primary repo", "repo", newPrimaryRepo, "error", err)
+				} else {
+					advisoryIssues[newPrimaryRepo] = num
+					os.Setenv("HIVE_ADVISORY_ISSUE", fmt.Sprintf("%d", num))
+					logger.Info("advisory issue ready on new primary repo", "repo", newPrimaryRepo, "number", num)
+				}
+			}
+		},
 	})
 
 	if brainstormBeads, ok := beadStores["brainstorm"]; ok {

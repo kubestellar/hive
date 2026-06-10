@@ -167,8 +167,17 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 			w.retryKickIfStale(state)
 		}
 		// Fallback: auto-generate questions after timeout.
+		// Use the agent's last kick time (not StartedAt) so the agent gets
+		// the full timeout window after it's actually kicked, not from when
+		// the API call was made.
 		if state.Phase == knowledge.PhaseCapture {
-			if time.Since(state.StartedAt) > autoQuestionFallbackTimeout {
+			kickTime := state.StartedAt
+			if w.agentMgr != nil {
+				if proc, err := w.agentMgr.GetStatus("brainstorm"); err == nil && proc != nil && proc.LastKick != nil {
+					kickTime = *proc.LastKick
+				}
+			}
+			if time.Since(kickTime) > autoQuestionFallbackTimeout {
 				w.autoGenerateQuestions(state)
 			}
 		}

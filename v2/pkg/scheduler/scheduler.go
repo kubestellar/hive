@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -159,6 +160,8 @@ func (s *Scheduler) substituteTemplate(template string, actionable *github.Actio
 
 	inceptionIdea, inceptionPhase, inceptionMode, inceptionAnswers, inceptionSlug, inceptionRepoURL := s.inceptionVars()
 
+	mergeEligibleList := s.buildMergeEligibleList()
+
 	replacer := strings.NewReplacer(
 		"${AGENT_NAME}", agentName,
 		"${AGENT_DISPLAY_NAME}", displayName,
@@ -189,6 +192,7 @@ func (s *Scheduler) substituteTemplate(template string, actionable *github.Actio
 		"${INCEPTION_ANSWERS}", inceptionAnswers,
 		"${INCEPTION_SLUG}", inceptionSlug,
 		"${INCEPTION_REPO_URL}", inceptionRepoURL,
+		"${MERGE_ELIGIBLE}", mergeEligibleList,
 	)
 	return replacer.Replace(template)
 }
@@ -464,6 +468,30 @@ func (s *Scheduler) buildSupervisorMessage(actionable *github.ActionableResult) 
 		actionable.Hold.Total, actionable.Issues.SLAViolations))
 
 	b.WriteString("\nBeads: ~/supervisor-beads\n")
+	return b.String()
+}
+
+const mergeEligiblePath = "/var/run/hive-metrics/merge-eligible.json"
+
+func (s *Scheduler) buildMergeEligibleList() string {
+	data, err := os.ReadFile(mergeEligiblePath)
+	if err != nil {
+		return "(none)\n"
+	}
+	var payload struct {
+		Items []struct {
+			Number int    `json:"number"`
+			Repo   string `json:"repo"`
+			Title  string `json:"title"`
+		} `json:"merge_eligible"`
+	}
+	if json.Unmarshal(data, &payload) != nil || len(payload.Items) == 0 {
+		return "(none)\n"
+	}
+	var b strings.Builder
+	for _, pr := range payload.Items {
+		b.WriteString(fmt.Sprintf("  #%d %s — %s\n", pr.Number, pr.Repo, pr.Title))
+	}
 	return b.String()
 }
 

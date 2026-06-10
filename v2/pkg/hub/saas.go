@@ -953,7 +953,7 @@ func (s *HubServer) StartLatestSHAPoller() {
 		oldSHA := getLatestSHA()
 		fetchSHA(s.logger)
 		newSHA := getLatestSHA()
-		if oldSHA != "" && newSHA != "" && oldSHA != newSHA {
+		if newSHA != "" && (oldSHA != newSHA || oldSHA == "") {
 			s.triggerAutoUpgrades(newSHA)
 			// Hub auto-upgrade
 			if isHubAutoUpgrade() && newSHA != s.hubGitHash {
@@ -1021,10 +1021,12 @@ func fetchSHA(logger *slog.Logger) {
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := client.Do(req)
 	if err != nil {
+		logger.Warn("SHA poll: GitHub Actions API request failed", "error", err)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		logger.Warn("SHA poll: GitHub Actions API non-200", "status", resp.StatusCode)
 		return
 	}
 	var result struct {
@@ -1034,6 +1036,7 @@ func fetchSHA(logger *slog.Logger) {
 		} `json:"workflow_runs"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		logger.Warn("SHA poll: failed to decode response", "error", err)
 		return
 	}
 	for _, run := range result.Runs {
@@ -1043,11 +1046,12 @@ func fetchSHA(logger *slog.Logger) {
 				latestSHAMu.Lock()
 				latestSHACache = sha
 				latestSHAMu.Unlock()
-				logger.Debug("latest image SHA from successful build", "sha", sha)
+				logger.Info("SHA poll: latest image", "sha", sha)
 				return
 			}
 		}
 	}
+	logger.Warn("SHA poll: no matching Docker/Build workflow run found")
 }
 
 func (s *HubServer) handleProxyHiveConfig(w http.ResponseWriter, r *http.Request) {

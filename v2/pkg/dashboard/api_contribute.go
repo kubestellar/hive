@@ -152,6 +152,9 @@ func loadContributorProfile(username string) (*ContributorProfile, error) {
 }
 
 func saveContributorProfile(p *ContributorProfile) error {
+	if strings.Contains(p.GitHubUsername, "..") || strings.Contains(p.GitHubUsername, "/") || strings.Contains(p.GitHubUsername, "\\") {
+		return fmt.Errorf("invalid username for save")
+	}
 	ensureDir(getContributorsDir())
 	data, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {

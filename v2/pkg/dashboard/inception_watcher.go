@@ -26,8 +26,8 @@ const (
 	minFactsForAdvance           = 3
 	targetFactCount              = 8
 	factEnrichmentGracePeriod    = 15 * time.Second
-	autoFactFallbackTimeout      = 45 * time.Second
-	autoQuestionFallbackTimeout  = 45 * time.Second
+	autoFactFallbackTimeout      = 90 * time.Second
+	autoQuestionFallbackTimeout  = 90 * time.Second
 )
 
 // InceptionWatcher polls brainstorm beads and bridges them into the inception

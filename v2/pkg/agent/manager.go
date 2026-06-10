@@ -580,6 +580,32 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 				}
 			}
 
+			// Detect copilot hung on expired token: if the agent has been
+			// running long enough and the pane shows no CLI prompt, the
+			// expired gho_ token is causing a hang through the MITM proxy.
+			// Clear the token so the next launch shows the /login prompt.
+			if agent.Config.Backend == "copilot" && agent.StartedAt != nil &&
+				time.Since(*agent.StartedAt).Seconds() >= expiredTokenHangTimeoutSec &&
+				!paneShowsCLIReady(filtered) && configHasTokens() {
+				sinceLastRestart := time.Since(agent.lastTokenRestart).Seconds()
+				if sinceLastRestart >= float64(tokenRestartCooldownSec) {
+					m.logger.Warn("copilot hung with no CLI prompt, clearing expired token",
+						"agent", agent.Name,
+						"uptime_sec", int(time.Since(*agent.StartedAt).Seconds()),
+					)
+					if err := clearExpiredTokens(); err != nil {
+						m.logger.Warn("failed to clear expired tokens", "error", err)
+					}
+					agent.lastTokenRestart = time.Now()
+					go func() {
+						if err := m.Restart(ctx, agent.Name); err != nil {
+							m.logger.Warn("expired-token restart failed", "agent", agent.Name, "error", err)
+						}
+					}()
+					return
+				}
+			}
+
 			if prevLines == nil {
 				if agent.OutputBuffer.Count() == 0 {
 					for _, l := range filtered {
@@ -1708,7 +1734,8 @@ func backendBinary(backend string) (string, error) {
 const (
 	sharedCopilotConfigPath    = "/data/home/.copilot/config.json"
 	sharedConfigDesiredMode    = 0o660
-	tokenRestartCooldownSec    = 60 // minimum seconds between token-triggered restarts per agent
+	tokenRestartCooldownSec    = 60  // minimum seconds between token-triggered restarts per agent
+	expiredTokenHangTimeoutSec = 45  // blank pane after this many seconds triggers token purge + restart
 )
 
 // loginPromptPatterns are substrings that indicate an agent is stuck on the
@@ -1755,6 +1782,60 @@ func configHasTokens() bool {
 		return false
 	}
 	return len(tokensMap) > 0
+}
+
+// clearExpiredTokens removes stored copilot tokens from config.json.
+// An expired gho_ token causes copilot to hang during auth through the
+// MITM proxy instead of falling through to the /login prompt.
+func clearExpiredTokens() error {
+	data, err := os.ReadFile(sharedCopilotConfigPath)
+	if err != nil {
+		return err
+	}
+	var cleaned []byte
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		cleaned = append(cleaned, []byte(line+"\n")...)
+	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(cleaned, &cfg); err != nil {
+		return err
+	}
+	cfg["copilotTokens"] = map[string]interface{}{}
+	cfg["loggedInUsers"] = []interface{}{}
+	delete(cfg, "lastLoggedInUser")
+	out, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	content := "// User settings belong in settings.json.\n// This file is managed automatically.\n" + string(out)
+	return os.WriteFile(sharedCopilotConfigPath, []byte(content), sharedConfigDesiredMode)
+}
+
+// cliReadyIndicators prove copilot finished startup.
+var cliReadyIndicators = []string{
+	"❯",
+	"/ commands",
+	"? help",
+	"/login",
+	"sign in",
+	"Sign in",
+}
+
+// paneShowsCLIReady returns true if the pane shows any indicator that
+// copilot finished initializing (prompt, help text, or login request).
+func paneShowsCLIReady(lines []string) bool {
+	for _, line := range lines {
+		for _, ind := range cliReadyIndicators {
+			if strings.Contains(line, ind) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // paneShowsLoginPrompt returns true if any line in the pane output matches a

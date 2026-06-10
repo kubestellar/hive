@@ -2006,11 +2006,17 @@ func (s *Server) handleGovernorConfigGet(w http.ResponseWriter, r *http.Request)
 		notifications["hasDiscord"] = cfg.Notifications.Discord.Webhook != ""
 	}
 
+	primaryRepo := cfg.Project.PrimaryRepo
+	if primaryRepo != "" && org != "" && !strings.Contains(primaryRepo, "/") {
+		primaryRepo = org + "/" + primaryRepo
+	}
+
 	jsonResponse(w, map[string]interface{}{
-		"agents":     agents,
-		"thresholds": thresholds,
-		"labels":     cfg.Governor.Labels.Exempt,
-		"repos":      repos,
+		"agents":      agents,
+		"thresholds":  thresholds,
+		"labels":      cfg.Governor.Labels.Exempt,
+		"repos":       repos,
+		"primaryRepo": primaryRepo,
 		"budget": map[string]interface{}{
 			"totalTokens": cfg.Governor.Budget.TotalTokens,
 			"periodDays":  cfg.Governor.Budget.PeriodDays,
@@ -2480,35 +2486,55 @@ func (s *Server) handleGovernorRemoveAgent(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) handleGovernorRepos(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Repos []string `json:"repos"`
+		Repos       []string `json:"repos"`
+		PrimaryRepo *string  `json:"primaryRepo,omitempty"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body", http.StatusBadRequest)
 		return
 	}
 
-	if len(body.Repos) == 0 {
+	if len(body.Repos) == 0 && body.PrimaryRepo == nil {
 		jsonError(w, "at least one repo is required", http.StatusBadRequest)
 		return
 	}
 	org := s.deps.Config.Project.Org
-	stripped := make([]string, 0, len(body.Repos))
-	for _, repo := range body.Repos {
-		repo = sanitizeString(repo)
-		if repo == "" || strings.Contains(repo, "..") || strings.ContainsAny(repo, "<>\"';&|") {
-			jsonError(w, fmt.Sprintf("invalid repo name: %s", repo), http.StatusBadRequest)
-			return
+
+	if len(body.Repos) > 0 {
+		stripped := make([]string, 0, len(body.Repos))
+		for _, repo := range body.Repos {
+			repo = sanitizeString(repo)
+			if repo == "" || strings.Contains(repo, "..") || strings.ContainsAny(repo, "<>\"';&|") {
+				jsonError(w, fmt.Sprintf("invalid repo name: %s", repo), http.StatusBadRequest)
+				return
+			}
+			if org != "" && strings.HasPrefix(repo, org+"/") {
+				stripped = append(stripped, strings.TrimPrefix(repo, org+"/"))
+			} else {
+				stripped = append(stripped, repo)
+			}
 		}
-		if org != "" && strings.HasPrefix(repo, org+"/") {
-			stripped = append(stripped, strings.TrimPrefix(repo, org+"/"))
-		} else {
-			stripped = append(stripped, repo)
+		s.deps.Config.Project.Repos = stripped
+		if s.deps.GHClient != nil {
+			s.deps.GHClient.SetRepos(stripped)
 		}
 	}
-	s.deps.Config.Project.Repos = stripped
-	if s.deps.GHClient != nil {
-		s.deps.GHClient.SetRepos(stripped)
+
+	if body.PrimaryRepo != nil {
+		newPrimary := sanitizeString(*body.PrimaryRepo)
+		if org != "" && strings.HasPrefix(newPrimary, org+"/") {
+			newPrimary = strings.TrimPrefix(newPrimary, org+"/")
+		}
+		oldPrimary := s.deps.Config.Project.PrimaryRepo
+		s.deps.Config.Project.PrimaryRepo = newPrimary
+		if newPrimary != oldPrimary {
+			s.logger.Info("primary repo changed", "from", oldPrimary, "to", newPrimary)
+			if s.deps.AdvisoryResetFunc != nil {
+				go s.deps.AdvisoryResetFunc(newPrimary)
+			}
+		}
 	}
+
 	if err := s.saveConfig(); err != nil { s.logger.Error("failed to persist config", "error", err) }
 	if s.deps.EnumerateFunc != nil {
 		go s.deps.EnumerateFunc()

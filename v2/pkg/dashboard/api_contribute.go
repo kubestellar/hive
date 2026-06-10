@@ -137,6 +137,9 @@ func ensureDir(dir string) {
 }
 
 func loadContributorProfile(username string) (*ContributorProfile, error) {
+	if strings.Contains(username, "..") || strings.Contains(username, "/") || strings.Contains(username, "\\") {
+		return nil, fmt.Errorf("invalid username")
+	}
 	data, err := os.ReadFile(filepath.Join(getContributorsDir(), username+".json"))
 	if err != nil {
 		return nil, err

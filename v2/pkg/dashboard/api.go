@@ -2190,6 +2190,9 @@ func (s *Server) handleGovernorLabels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.deps.Config.Governor.Labels.Exempt = body.Labels
+	if s.deps.GHClient != nil {
+		s.deps.GHClient.SetExemptLabels(body.Labels)
+	}
 	if err := s.saveConfig(); err != nil {
 		s.logger.Error("failed to persist config after label update", "error", err)
 	}

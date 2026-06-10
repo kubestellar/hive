@@ -15,11 +15,12 @@ import (
 )
 
 type Client struct {
-	client  *gh.Client
-	org     string
-	reposMu sync.RWMutex
-	repos   []string
-	logger  *slog.Logger
+	client       *gh.Client
+	org          string
+	reposMu      sync.RWMutex
+	repos        []string
+	exemptLabels []string
+	logger       *slog.Logger
 }
 
 type Issue struct {
@@ -96,7 +97,7 @@ type IssueCluster struct {
 }
 
 var holdSubstrings = []string{"hold", "on-hold", "hold/review"}
-var exemptPrefixes = []string{"LFX", "do-not-merge"}
+var defaultExemptPrefixes = []string{"LFX", "do-not-merge"}
 var exemptFiles = []string{"ADOPTERS.md", "ADOPTERS.MD"}
 
 const slaThresholdMinutes = 30
@@ -248,7 +249,7 @@ func (c *Client) fetchIssues(ctx context.Context, repo string, now time.Time) (a
 			continue
 		}
 
-		if isExempt(labels) {
+		if c.isExempt(labels) {
 			continue
 		}
 
@@ -297,7 +298,7 @@ func (c *Client) fetchPRs(ctx context.Context, repo string) (actionable []PullRe
 			continue
 		}
 
-		if isExempt(labels) {
+		if c.isExempt(labels) {
 			continue
 		}
 
@@ -362,10 +363,18 @@ func isHeld(labels []string) bool {
 	return false
 }
 
-func isExempt(labels []string) bool {
+func (c *Client) SetExemptLabels(labels []string) {
+	c.exemptLabels = labels
+}
+
+func (c *Client) isExempt(labels []string) bool {
+	exempts := c.exemptLabels
+	if len(exempts) == 0 {
+		exempts = defaultExemptPrefixes
+	}
 	for _, label := range labels {
-		for _, prefix := range exemptPrefixes {
-			if strings.HasPrefix(label, prefix) {
+		for _, exempt := range exempts {
+			if strings.EqualFold(label, exempt) || strings.HasPrefix(label, exempt) {
 				return true
 			}
 		}

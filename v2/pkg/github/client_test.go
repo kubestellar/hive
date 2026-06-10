@@ -521,25 +521,51 @@ func TestIsHeld(t *testing.T) {
 }
 
 func TestIsExempt(t *testing.T) {
-	tests := []struct {
-		labels []string
-		want   bool
-	}{
-		{[]string{"LFX mentorship"}, true},
-		{[]string{"LFX"}, true},
-		{[]string{"LFXsomething"}, true},
-		{[]string{"bug", "LFX mentorship"}, true},
-		{[]string{"bug", "enhancement"}, false},
-		{[]string{}, false},
-		{nil, false},
-		{[]string{"lfx"}, false}, // case-sensitive prefix
-	}
-	for _, tt := range tests {
-		got := isExempt(tt.labels)
-		if got != tt.want {
-			t.Errorf("isExempt(%v) = %v, want %v", tt.labels, got, tt.want)
+	c := &Client{}
+
+	t.Run("defaults", func(t *testing.T) {
+		tests := []struct {
+			labels []string
+			want   bool
+		}{
+			{[]string{"LFX mentorship"}, true},
+			{[]string{"LFX"}, true},
+			{[]string{"LFXsomething"}, true},
+			{[]string{"bug", "LFX mentorship"}, true},
+			{[]string{"bug", "enhancement"}, false},
+			{[]string{}, false},
+			{nil, false},
 		}
-	}
+		for _, tt := range tests {
+			got := c.isExempt(tt.labels)
+			if got != tt.want {
+				t.Errorf("isExempt(%v) = %v, want %v", tt.labels, got, tt.want)
+			}
+		}
+	})
+
+	t.Run("custom exempt labels", func(t *testing.T) {
+		c.SetExemptLabels([]string{"hold", "do-not-merge", "kind/enhancement", "status/discussing"})
+		tests := []struct {
+			labels []string
+			want   bool
+		}{
+			{[]string{"hold"}, true},
+			{[]string{"kind/enhancement", "area/dx"}, true},
+			{[]string{"status/discussing"}, true},
+			{[]string{"do-not-merge"}, true},
+			{[]string{"kind/bug"}, false},
+			{[]string{"status/queued"}, false},
+			{[]string{}, false},
+			{nil, false},
+		}
+		for _, tt := range tests {
+			got := c.isExempt(tt.labels)
+			if got != tt.want {
+				t.Errorf("isExempt(%v) = %v, want %v", tt.labels, got, tt.want)
+			}
+		}
+	})
 }
 
 func TestIsTracker(t *testing.T) {

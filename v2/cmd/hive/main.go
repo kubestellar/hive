@@ -157,6 +157,9 @@ func main() {
 		}
 		ghClient = github.NewClient(ghToken, cfg.Project.Org, cfg.Project.Repos, logger)
 	}
+	if len(cfg.Governor.Labels.Exempt) > 0 {
+		ghClient.SetExemptLabels(cfg.Governor.Labels.Exempt)
+	}
 	// Load user token for advisory posting (comments on issues as the logged-in user)
 	var userGHClient atomic.Pointer[github.Client]
 	if tokenData, err := os.ReadFile("/data/gh-user-token"); err == nil {
@@ -408,6 +411,9 @@ func main() {
 		if saved.ConfigOverrides != nil {
 			applyConfigOverrides(cfg, saved.ConfigOverrides)
 			ghClient.SetRepos(cfg.Project.Repos)
+			if len(cfg.Governor.Labels.Exempt) > 0 {
+				ghClient.SetExemptLabels(cfg.Governor.Labels.Exempt)
+			}
 			if uc := userGHClient.Load(); uc != nil {
 				uc.SetRepos(cfg.Project.Repos)
 			}

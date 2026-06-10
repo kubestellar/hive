@@ -7021,16 +7021,55 @@ function burnAreaChart() {
     }
 
     function renderInceptionScaffold() {
-      setTimeout(loadInceptionScaffoldPreview, 100);
+      setTimeout(loadInceptionScaffoldSummary, 100);
       return `
         <div style="max-width:700px;margin:0 auto">
           <div style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Your scaffold is ready. Review the generated files below, then approve to complete.</div>
-          <div id="inception-scaffold-preview" style="margin-bottom:16px"><div style="text-align:center;color:var(--muted);padding:20px">Loading scaffold files...</div></div>
+          <div id="inception-scaffold-summary" style="margin-bottom:16px"><div style="text-align:center;color:var(--muted);padding:20px">Loading scaffold summary...</div></div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
             <button onclick="resetInception()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;font-size:0.82rem">Start Over</button>
             <button onclick="approveInception()" style="padding:8px 24px;border:none;border-radius:6px;background:var(--blue, #58a6ff);color:#0d1117;cursor:pointer;font-size:0.82rem;font-weight:600">Approve</button>
           </div>
         </div>`;
+    }
+
+    async function loadInceptionScaffoldSummary() {
+      const container = document.getElementById('inception-scaffold-summary');
+      if (!container) return;
+      try {
+        const r = await fetch('/api/inception/scaffold', {headers: _inceptionAuthHeaders()});
+        const data = await r.json();
+        if (!data.ok || !data.scaffold || !data.scaffold.files || data.scaffold.files.length === 0) {
+          container.innerHTML = '<div style="color:var(--muted)">No scaffold files generated.</div>';
+          return;
+        }
+        const files = data.scaffold.files;
+        const dirs = new Set();
+        const exts = {};
+        files.forEach(f => {
+          const parts = f.path.split('/');
+          if (parts.length > 1) dirs.add(parts[0]);
+          const ext = f.path.includes('.') ? f.path.split('.').pop() : 'other';
+          exts[ext] = (exts[ext] || 0) + 1;
+        });
+        let html = '<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:16px">';
+        html += '<div style="font-size:0.9rem;font-weight:600;margin-bottom:12px">📦 Scaffold Summary</div>';
+        html += '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px">';
+        html += '<div><span style="font-size:1.2rem;font-weight:700">' + files.length + '</span> <span style="color:var(--muted);font-size:0.8rem">files</span></div>';
+        html += '<div><span style="font-size:1.2rem;font-weight:700">' + dirs.size + '</span> <span style="color:var(--muted);font-size:0.8rem">directories</span></div>';
+        const totalChars = files.reduce((sum, f) => sum + f.content.length, 0);
+        html += '<div><span style="font-size:1.2rem;font-weight:700">' + (totalChars > 1000 ? (totalChars/1000).toFixed(1)+'K' : totalChars) + '</span> <span style="color:var(--muted);font-size:0.8rem">chars</span></div>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">';
+        Object.entries(exts).sort((a,b) => b[1]-a[1]).forEach(([ext,count]) => {
+          html += '<span style="padding:2px 8px;background:var(--bg);border:1px solid var(--border);border-radius:12px;font-size:0.72rem;color:var(--muted)">.' + escapeHtml(ext) + ' ×' + count + '</span>';
+        });
+        html += '</div>';
+        html += '<details><summary style="cursor:pointer;font-size:0.8rem;color:var(--blue, #58a6ff)">View file tree</summary>';
+        html += '<div style="margin-top:8px">' + renderFileTree(files) + '</div>';
+        html += '</details></div>';
+        container.innerHTML = html;
+      } catch (e) { container.innerHTML = '<div style="color:var(--error)">Error: ' + escapeHtml(e.message) + '</div>'; }
     }
 
     function renderInceptionComplete() {

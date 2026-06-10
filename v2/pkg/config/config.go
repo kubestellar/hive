@@ -650,8 +650,8 @@ func (c *Config) applyDefaults() {
 
 	if len(c.Governor.Labels.Exempt) == 0 {
 		c.Governor.Labels.Exempt = []string{
-			"nightly-tests", "LFX", "do-not-merge", "meta-tracker",
-			"auto-qa-tuning-report", "hold", "adopters",
+			"nightly-tests", "LFX", "meta-tracker",
+			"auto-qa-tuning-report", "adopters",
 			"changes-requested", "waiting-on-author",
 		}
 	}

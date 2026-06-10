@@ -146,6 +146,7 @@ func TestEnumerateActionable_BasicCounts(t *testing.T) {
 	defer server.Close()
 
 	c := newTestClient(t, server, org, []string{repo})
+	c.SetExemptLabels([]string{"LFX"})
 	result, err := c.EnumerateActionable(context.Background())
 	if err != nil {
 		t.Fatalf("EnumerateActionable: %v", err)
@@ -521,25 +522,48 @@ func TestIsHeld(t *testing.T) {
 }
 
 func TestIsExempt(t *testing.T) {
-	tests := []struct {
-		labels []string
-		want   bool
-	}{
-		{[]string{"LFX mentorship"}, true},
-		{[]string{"LFX"}, true},
-		{[]string{"LFXsomething"}, true},
-		{[]string{"bug", "LFX mentorship"}, true},
-		{[]string{"bug", "enhancement"}, false},
-		{[]string{}, false},
-		{nil, false},
-		{[]string{"lfx"}, false}, // case-sensitive prefix
-	}
-	for _, tt := range tests {
-		got := isExempt(tt.labels)
-		if got != tt.want {
-			t.Errorf("isExempt(%v) = %v, want %v", tt.labels, got, tt.want)
+	t.Run("permanent labels always exempt", func(t *testing.T) {
+		c := &Client{}
+		tests := []struct {
+			labels []string
+			want   bool
+		}{
+			{[]string{"do-not-merge"}, true},
+			{[]string{"do-not-merge/hold"}, true},
+			{[]string{"bug", "enhancement"}, false},
+			{[]string{}, false},
+			{nil, false},
 		}
-	}
+		for _, tt := range tests {
+			got := c.isExempt(tt.labels)
+			if got != tt.want {
+				t.Errorf("isExempt(%v) = %v, want %v", tt.labels, got, tt.want)
+			}
+		}
+	})
+
+	t.Run("configured exempt labels", func(t *testing.T) {
+		c := &Client{}
+		c.SetExemptLabels([]string{"kind/enhancement", "status/discussing"})
+		tests := []struct {
+			labels []string
+			want   bool
+		}{
+			{[]string{"kind/enhancement", "area/dx"}, true},
+			{[]string{"status/discussing"}, true},
+			{[]string{"do-not-merge"}, true},
+			{[]string{"kind/bug"}, false},
+			{[]string{"status/queued"}, false},
+			{[]string{}, false},
+			{nil, false},
+		}
+		for _, tt := range tests {
+			got := c.isExempt(tt.labels)
+			if got != tt.want {
+				t.Errorf("isExempt(%v) = %v, want %v", tt.labels, got, tt.want)
+			}
+		}
+	})
 }
 
 func TestIsTracker(t *testing.T) {
@@ -687,6 +711,7 @@ func TestEnumerateActionable_AllExemptIssues(t *testing.T) {
 	defer server.Close()
 
 	c := newTestClient(t, server, org, []string{repo})
+	c.SetExemptLabels([]string{"LFX"})
 	result, err := c.EnumerateActionable(context.Background())
 	if err != nil {
 		t.Fatalf("EnumerateActionable: %v", err)

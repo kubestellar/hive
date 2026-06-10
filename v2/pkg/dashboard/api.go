@@ -2015,6 +2015,7 @@ func (s *Server) handleGovernorConfigGet(w http.ResponseWriter, r *http.Request)
 		"agents":      agents,
 		"thresholds":  thresholds,
 		"labels":      cfg.Governor.Labels.Exempt,
+		"holdLabels":  github.HoldLabels,
 		"repos":       repos,
 		"primaryRepo": primaryRepo,
 		"budget": map[string]interface{}{
@@ -2189,7 +2190,29 @@ func (s *Server) handleGovernorLabels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.deps.Config.Governor.Labels.Exempt = body.Labels
+	filtered := make([]string, 0, len(body.Labels))
+	for _, l := range body.Labels {
+		isPermanent := false
+		for _, h := range github.HoldLabels {
+			if l == h {
+				isPermanent = true
+				break
+			}
+		}
+		for _, p := range github.PermanentExemptLabels {
+			if l == p {
+				isPermanent = true
+				break
+			}
+		}
+		if !isPermanent {
+			filtered = append(filtered, l)
+		}
+	}
+	s.deps.Config.Governor.Labels.Exempt = filtered
+	if s.deps.GHClient != nil {
+		s.deps.GHClient.SetExemptLabels(filtered)
+	}
 	if err := s.saveConfig(); err != nil {
 		s.logger.Error("failed to persist config after label update", "error", err)
 	}

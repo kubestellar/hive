@@ -332,12 +332,15 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 			if entry.SnapshotURL == "" {
 				entry.SnapshotURL = h.SnapshotURL
 			}
-			if h.Upgrading && h.UpgradeTarget != "" && entry.GitHash == h.UpgradeTarget {
-				entry.Upgrading = false
-				entry.UpgradeTarget = ""
-			} else if h.Upgrading {
-				entry.Upgrading = h.Upgrading
-				entry.UpgradeTarget = h.UpgradeTarget
+			if h.Upgrading && h.UpgradeTarget != "" {
+				if entry.GitHash != h.GitHash && entry.GitHash != "" {
+					// SHA changed from pre-upgrade value — upgrade completed (or surpassed)
+					entry.Upgrading = false
+					entry.UpgradeTarget = ""
+				} else {
+					entry.Upgrading = true
+					entry.UpgradeTarget = h.UpgradeTarget
+				}
 			}
 			// Sparkline history: sample every 15 min, keep 7 days (672 points)
 			const sparkSampleInterval = 15 * 60 // seconds

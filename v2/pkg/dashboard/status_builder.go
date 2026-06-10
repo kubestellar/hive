@@ -997,8 +997,29 @@ const (
 	// cgroupCPUStat is the cgroup v2 file for CPU accounting.
 	cgroupCPUStat = "/sys/fs/cgroup/cpu.stat"
 
+	// cgroupV1MemUsage is the cgroup v1 file for current memory usage.
+	cgroupV1MemUsage = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+
+	// cgroupV1MemLimit is the cgroup v1 file for memory limit.
+	cgroupV1MemLimit = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+
+	// cgroupV1CPUUsage is the cgroup v1 file for accumulated CPU time (nanoseconds).
+	cgroupV1CPUUsage = "/sys/fs/cgroup/cpuacct/cpuacct.usage"
+
+	// nanosPerMicro converts nanoseconds to microseconds.
+	nanosPerMicro = 1000
+
 	// maxCgroupMemBytes is the sentinel value cgroups uses to indicate "no limit".
 	maxCgroupMemBytes = 1 << 62
+
+	// cgroupV1UnlimitedMemBytes is the cgroup v1 sentinel for "no limit".
+	cgroupV1UnlimitedMemBytes int64 = 9223372036854771712
+
+	// maxReasonableDiskBytes caps disk reporting to filter out virtual filesystems (e.g., OCI NFS reporting 8 EiB).
+	maxReasonableDiskBytes = 100 * 1024 * 1024 * 1024 * 1024
+
+	// rootFSPath is the fallback mount point when /data reports unreasonable values.
+	rootFSPath = "/"
 )
 
 // collectSystemResources gathers disk, memory, and CPU usage.
@@ -1010,8 +1031,15 @@ func collectSystemResources() *SystemResources {
 
 	// --- Disk ---
 	var stat syscall.Statfs_t
-	if err := syscall.Statfs(dataVolumePath, &stat); err == nil {
+	diskPath := dataVolumePath
+	if err := syscall.Statfs(diskPath, &stat); err == nil {
 		totalBytes := stat.Blocks * uint64(stat.Bsize)
+		// OCI NFS can report ~8 EiB; fall back to root filesystem.
+		if totalBytes > maxReasonableDiskBytes {
+			diskPath = rootFSPath
+			_ = syscall.Statfs(diskPath, &stat)
+			totalBytes = stat.Blocks * uint64(stat.Bsize)
+		}
 		freeBytes := stat.Bavail * uint64(stat.Bsize)
 		usedBytes := totalBytes - freeBytes
 		res.DiskTotalGB = roundTo(float64(totalBytes)/bytesPerGB, 1)
@@ -1021,12 +1049,16 @@ func collectSystemResources() *SystemResources {
 		}
 	}
 
-	// --- Memory (cgroup v2) ---
+	// --- Memory (cgroup v2, with v1 fallback) ---
 	memCurrent := readCgroupInt64(cgroupMemCurrent)
+	if memCurrent < 0 {
+		memCurrent = readCgroupInt64(cgroupV1MemUsage)
+	}
 	memMax := readCgroupInt64(cgroupMemMax)
-	// When no memory limit is set (Docker without --memory), memory.max contains
-	// "max" which readCgroupInt64 returns as -1. Fall back to host total memory.
-	if memMax <= 0 || memMax >= maxCgroupMemBytes {
+	if memMax < 0 {
+		memMax = readCgroupInt64(cgroupV1MemLimit)
+	}
+	if memMax <= 0 || memMax >= maxCgroupMemBytes || memMax == cgroupV1UnlimitedMemBytes {
 		memMax = readProcMemTotalBytes()
 	}
 	if memCurrent > 0 && memMax > 0 {
@@ -1035,13 +1067,17 @@ func collectSystemResources() *SystemResources {
 		res.MemPct = roundTo(float64(memCurrent)/float64(memMax)*pctMultiplierSysRes, 1)
 	}
 
-	// --- CPU (cgroup v2, sampled) ---
-	// usage_usec accumulates total CPU time across all cores. To get a 0-100%
-	// value we divide by (wall-clock time * number of CPUs).
+	// --- CPU (cgroup v2, with v1 fallback, sampled) ---
 	usec1 := readCgroupCPUUsageUsec(cgroupCPUStat)
+	if usec1 < 0 {
+		usec1 = readCgroupV1CPUUsageUsec(cgroupV1CPUUsage)
+	}
 	if usec1 >= 0 {
 		time.Sleep(cpuSampleDelayMs * time.Millisecond)
 		usec2 := readCgroupCPUUsageUsec(cgroupCPUStat)
+		if usec2 < 0 {
+			usec2 = readCgroupV1CPUUsageUsec(cgroupV1CPUUsage)
+		}
 		if usec2 > usec1 {
 			deltaUsec := float64(usec2 - usec1)
 			deltaSec := float64(cpuSampleDelayMs) / 1000.0
@@ -1123,6 +1159,20 @@ func readCgroupCPUUsageUsec(path string) int64 {
 		}
 	}
 	return -1
+}
+
+// readCgroupV1CPUUsageUsec reads cgroup v1 cpuacct.usage (nanoseconds) and
+// converts to microseconds for compatibility with the v2 sampling logic.
+func readCgroupV1CPUUsageUsec(path string) int64 {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return -1
+	}
+	nanos, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		return -1
+	}
+	return nanos / nanosPerMicro
 }
 
 // roundTo rounds f to the specified number of decimal places.

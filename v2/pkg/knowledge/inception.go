@@ -1727,7 +1727,7 @@ build-backend = "setuptools.build_meta"
 func buildPyInit(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	safeDesc := strings.ReplaceAll(singleLine(desc), `"""`, `\"\"\"`)
 	return fmt.Sprintf("\"\"\"%s\"\"\"\n\n__version__ = \"0.1.0\"\n", safeDesc)
@@ -1736,7 +1736,7 @@ func buildPyInit(name string, vision *Fact) string {
 func buildPyCLI(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	safeDesc := strings.ReplaceAll(singleLine(desc), `"""`, `\"\"\"`)
 	return fmt.Sprintf(`"""CLI entry point for %s."""
@@ -1768,7 +1768,7 @@ if __name__ == "__main__":
 func buildPackageJSON(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`{
   "name": "%s",
@@ -1795,7 +1795,7 @@ func buildPackageJSON(name string, vision *Fact) string {
 func buildJSPackageJSON(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`{
   "name": "%s",
@@ -1836,7 +1836,7 @@ func buildTSConfig() string {
 func buildTSIndex(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`/**
  * %s
@@ -1853,7 +1853,7 @@ main();
 func buildJSIndex(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`/**
  * %s

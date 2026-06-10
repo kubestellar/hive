@@ -26,7 +26,7 @@ const (
 	minFactsForAdvance           = 3
 	targetFactCount              = 8
 	factEnrichmentGracePeriod    = 15 * time.Second
-	autoFactFallbackTimeout      = 30 * time.Second
+	autoFactFallbackTimeout      = 45 * time.Second
 	autoQuestionFallbackTimeout  = 45 * time.Second
 )
 
@@ -198,10 +198,17 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		// Fallback: if the agent hasn't produced fact beads after the
 		// timeout, auto-generate facts from the user's Q&A so the
 		// lifecycle doesn't stall. Agent gets first shot.
+		// Use agent's last kick time so the agent gets the full timeout
+		// window after it's actually kicked for structure phase.
 		if state.Phase == knowledge.PhaseStructure {
 			structureStart := state.StartedAt
 			if state.PhaseChangedAt != nil {
 				structureStart = *state.PhaseChangedAt
+			}
+			if w.agentMgr != nil {
+				if proc, err := w.agentMgr.GetStatus("brainstorm"); err == nil && proc != nil && proc.LastKick != nil && proc.LastKick.After(structureStart) {
+					structureStart = *proc.LastKick
+				}
 			}
 			if time.Since(structureStart) > autoFactFallbackTimeout {
 				w.autoGenerateFacts(ctx, state)

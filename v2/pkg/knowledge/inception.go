@@ -1838,6 +1838,7 @@ func buildTSIndex(name string, vision *Fact) string {
 	if vision != nil {
 		desc = singleLine(vision.Title)
 	}
+	desc = strings.ReplaceAll(desc, "*/", "* /")
 	return fmt.Sprintf(`/**
  * %s
  */
@@ -1855,6 +1856,7 @@ func buildJSIndex(name string, vision *Fact) string {
 	if vision != nil {
 		desc = singleLine(vision.Title)
 	}
+	desc = strings.ReplaceAll(desc, "*/", "* /")
 	return fmt.Sprintf(`/**
  * %s
  */

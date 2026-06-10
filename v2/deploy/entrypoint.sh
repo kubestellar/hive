@@ -149,13 +149,22 @@ if [ "$(id -u)" = "0" ]; then
     echo "[entrypoint] inotify perm guard active"
   fi
   (
+    CYCLE=0
     while true; do
+      # Fast cycle: fix config.json every 5s (copilot rewrites it with 600)
       chmod 660 /data/home/.copilot/config.json 2>/dev/null
       chown dev:node /data/home/.copilot/config.json 2>/dev/null
+      # Slow cycle: fix entire /data/home tree every 5 min (new dirs from agents)
+      CYCLE=$((CYCLE + 1))
+      if [ "$CYCLE" -ge 60 ]; then
+        chmod -R g+rwX /data/home/.cache /data/home/.copilot 2>/dev/null
+        find /data/home/.cache -type d -exec chmod g+s {} + 2>/dev/null
+        CYCLE=0
+      fi
       sleep 5
     done
   ) &
-  echo "[entrypoint] polling perm guard active (5s)"
+  echo "[entrypoint] polling perm guard active (config.json 5s, cache 5m)"
   echo "[entrypoint] CLI config: /data/home (shared, group-writable for agent UIDs)"
 
   # Write .bashrc so agent shells auto-source GH_TOKEN and SSL_CERT_FILE

@@ -181,10 +181,17 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 				w.plukMu.Lock()
 				lastActivity := w.plukLastActivity
 				w.plukMu.Unlock()
-				agentIdle := lastActivity.IsZero() || time.Since(lastActivity) > agentIdleThreshold
-				if agentIdle {
+				if lastActivity.IsZero() {
+					// No pluk events yet — agent still bootstrapping.
+					// Only fall back after 2x the timeout (agent never started).
+					if time.Since(w.captureSeenAt) > autoQuestionFallbackTimeout*2 {
+						w.autoGenerateQuestions(state)
+					}
+				} else if time.Since(lastActivity) > agentIdleThreshold {
+					// Agent was active but went idle — fall back.
 					w.autoGenerateQuestions(state)
 				}
+				// else: agent is actively producing output — keep waiting.
 			}
 		}
 	case knowledge.PhaseStructure:
@@ -212,8 +219,11 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 				w.plukMu.Lock()
 				lastActivity := w.plukLastActivity
 				w.plukMu.Unlock()
-				agentIdle := lastActivity.IsZero() || time.Since(lastActivity) > agentIdleThreshold
-				if agentIdle {
+				if lastActivity.IsZero() {
+					if time.Since(w.structureSeenAt) > autoFactFallbackTimeout*2 {
+						w.autoGenerateFacts(ctx, state)
+					}
+				} else if time.Since(lastActivity) > agentIdleThreshold {
 					w.autoGenerateFacts(ctx, state)
 				}
 			}

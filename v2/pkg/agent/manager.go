@@ -1735,7 +1735,7 @@ const (
 	sharedCopilotConfigPath    = "/data/home/.copilot/config.json"
 	sharedConfigDesiredMode    = 0o660
 	tokenRestartCooldownSec    = 60  // minimum seconds between token-triggered restarts per agent
-	expiredTokenHangTimeoutSec = 45  // blank pane after this many seconds triggers token purge + restart
+	expiredTokenHangTimeoutSec = 180 // blank pane after this many seconds triggers token purge + restart
 )
 
 // loginPromptPatterns are substrings that indicate an agent is stuck on the
@@ -1823,6 +1823,10 @@ var cliReadyIndicators = []string{
 	"/login",
 	"sign in",
 	"Sign in",
+	"Copilot v",
+	"Tip: /init",
+	"Loading:",
+	"● Loading",
 }
 
 // paneShowsCLIReady returns true if the pane shows any indicator that

@@ -1,0 +1,145 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive-error-pages
+  namespace: ingress-nginx
+data:
+  error.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta http-equiv="refresh" content="5">
+      <title>Hive — Restarting</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: #0d1117;
+          color: #e6edf3;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+        }
+        .container {
+          text-align: center;
+          max-width: 480px;
+          padding: 40px 24px;
+        }
+        .bee { font-size: 64px; margin-bottom: 24px; }
+        h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 12px; }
+        p { font-size: 0.95rem; color: #8b949e; line-height: 1.6; margin-bottom: 24px; }
+        .spinner {
+          width: 32px; height: 32px;
+          border: 3px solid #30363d;
+          border-top-color: #f0b429;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          margin: 0 auto 16px;
+        }
+        .hint { font-size: 0.75rem; color: #484f58; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="bee">🐝</div>
+        <h1>Hive is restarting</h1>
+        <p>This hive instance is upgrading or restarting. It will be back in a few seconds.</p>
+        <div class="spinner"></div>
+        <div class="hint">This page refreshes automatically.</div>
+      </div>
+    </body>
+    </html>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive-error-pages-nginx
+  namespace: ingress-nginx
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      location / {
+        root /usr/share/nginx/html;
+        try_files /error.html =404;
+      }
+      location /healthz {
+        return 200 "ok";
+        add_header Content-Type text/plain;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hive-error-pages
+  namespace: ingress-nginx
+  labels:
+    app: hive-error-pages
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hive-error-pages
+  template:
+    metadata:
+      labels:
+        app: hive-error-pages
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1-alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+      volumes:
+        - name: html
+          configMap:
+            name: hive-error-pages
+        - name: conf
+          configMap:
+            name: hive-error-pages-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-error-pages
+  namespace: ingress-nginx
+  labels:
+    app: hive-error-pages
+spec:
+  selector:
+    app: hive-error-pages
+  ports:
+    - port: 80
+      targetPort: 8080

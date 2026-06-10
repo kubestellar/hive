@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,8 +10,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/config"
@@ -2239,6 +2242,12 @@ func (m *Manager) RestartWithBootstrap(ctx context.Context, name, prompt string)
 		}
 	}
 
+	if agent.UID > 0 {
+		killed := killAgentProcesses(agent.UID, m.logger)
+		m.logger.Info("killed orphaned agent processes",
+			"name", name, "uid", agent.UID, "killed", killed)
+	}
+
 	_ = m.tmuxCmd(agent, "kill-session", "-t", agent.tmuxSession).Run()
 
 	agent.RestartCount++
@@ -2288,6 +2297,60 @@ func (m *Manager) RestartThenSendKick(ctx context.Context, name, message string)
 	return m.SendKick(name, message)
 }
 
+// killAgentProcesses finds all processes owned by the given UID via /proc and
+// sends SIGKILL to each. Hung copilot binaries ignore SIGINT, so brute-force
+// cleanup is needed to prevent orphan accumulation on the shared SQLite store.
+func killAgentProcesses(uid int, logger *slog.Logger) int {
+	const procPath = "/proc"
+	entries, err := os.ReadDir(procPath)
+	if err != nil {
+		logger.Warn("failed to read /proc for process cleanup", "uid", uid, "error", err)
+		return 0
+	}
+
+	killed := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil {
+			continue
+		}
+
+		statusPath := filepath.Join(procPath, entry.Name(), "status")
+		f, err := os.Open(statusPath)
+		if err != nil {
+			continue
+		}
+
+		ownerUID := -1
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "Uid:") {
+				fields := strings.Fields(line)
+				if len(fields) >= 2 {
+					if parsed, err := strconv.Atoi(fields[1]); err == nil {
+						ownerUID = parsed
+					}
+				}
+				break
+			}
+		}
+		f.Close()
+
+		if ownerUID != uid {
+			continue
+		}
+
+		if err := syscall.Kill(pid, syscall.SIGKILL); err == nil {
+			killed++
+		}
+	}
+	return killed
+}
+
 func (m *Manager) Restart(ctx context.Context, name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -2302,6 +2365,12 @@ func (m *Manager) Restart(ctx context.Context, name string) error {
 		if agent.cancel != nil {
 			agent.cancel()
 		}
+	}
+
+	if agent.UID > 0 {
+		killed := killAgentProcesses(agent.UID, m.logger)
+		m.logger.Info("killed orphaned agent processes",
+			"name", name, "uid", agent.UID, "killed", killed)
 	}
 
 	_ = m.tmuxCmd(agent, "kill-session", "-t", agent.tmuxSession).Run()

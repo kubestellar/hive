@@ -7205,16 +7205,36 @@ function burnAreaChart() {
         const r = await fetch('/api/inception/scaffold', {headers: _inceptionAuthHeaders()});
         const data = await r.json();
         if (!data.ok || !data.scaffold) { preview.innerHTML = '<div style="color:var(--muted)">No scaffold available yet.</div>'; return; }
-        let html = '';
-        (data.scaffold.files || []).forEach(f => {
-          html += `<details style="margin-bottom:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-            <summary style="padding:8px 12px;background:var(--card-bg);cursor:pointer;font-size:0.82rem;font-weight:600">
-              ${escapeHtml(f.path)} <span style="font-weight:normal;color:var(--muted);font-size:0.72rem">${f.is_new ? 'new' : 'amendment'}</span>
-            </summary>
-            <pre style="padding:12px;margin:0;font-size:0.75rem;overflow-x:auto;background:var(--bg);border-top:1px solid var(--border)">${escapeHtml(f.content)}</pre>
-          </details>`;
+        const files = data.scaffold.files || [];
+        const tree = {};
+        files.forEach(f => {
+          const parts = f.path.split('/');
+          const name = parts.pop();
+          let node = tree;
+          parts.forEach(dir => { if (!node[dir]) node[dir] = {}; node = node[dir]; });
+          node['__file_' + name] = f;
         });
-        preview.innerHTML = html || '<div style="color:var(--muted)">No files generated.</div>';
+        function renderNode(node, depth) {
+          let out = '';
+          const pad = depth * 16;
+          const dirs = Object.keys(node).filter(k => !k.startsWith('__file_')).sort();
+          const fkeys = Object.keys(node).filter(k => k.startsWith('__file_')).sort();
+          dirs.forEach(dir => {
+            out += `<div style="padding:2px 0 2px ${pad}px;font-size:0.82rem;color:var(--muted)">📁 ${escapeHtml(dir)}/</div>`;
+            out += renderNode(node[dir], depth + 1);
+          });
+          fkeys.forEach(k => {
+            const f = node[k];
+            out += `<details style="margin:2px 0 2px ${pad}px;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+              <summary style="padding:6px 10px;background:var(--card-bg);cursor:pointer;font-size:0.82rem;font-weight:600">
+                📄 ${escapeHtml(f.path.split('/').pop())} <span style="font-weight:normal;color:var(--muted);font-size:0.72rem">${f.is_new ? 'new' : 'amendment'}</span>
+              </summary>
+              <pre style="padding:12px;margin:0;font-size:0.75rem;overflow-x:auto;background:var(--bg);border-top:1px solid var(--border)">${escapeHtml(f.content)}</pre>
+            </details>`;
+          });
+          return out;
+        }
+        preview.innerHTML = renderNode(tree, 0) || '<div style="color:var(--muted)">No files generated.</div>';
       } catch (e) { preview.innerHTML = '<div style="color:var(--error)">Error: ' + escapeHtml(e.message) + '</div>'; }
     }
 

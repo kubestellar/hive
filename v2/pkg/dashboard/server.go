@@ -140,6 +140,7 @@ type FrontendAgent struct {
 	NeedsRestart     bool   `json:"needsRestart,omitempty"`
 	ProxyViolations  int    `json:"proxyViolations"`
 	OnDemand         bool   `json:"onDemand,omitempty"`
+	LastError        string `json:"lastError,omitempty"`
 }
 
 type FrontendGovernor struct {

@@ -26,8 +26,9 @@ const (
 	minFactsForAdvance           = 3
 	targetFactCount              = 8
 	factEnrichmentGracePeriod    = 15 * time.Second
-	autoFactFallbackTimeout      = 90 * time.Second
-	autoQuestionFallbackTimeout  = 90 * time.Second
+	autoFactFallbackTimeout      = 60 * time.Second  // minimum time before fact fallback can fire
+	autoQuestionFallbackTimeout  = 60 * time.Second  // minimum time before fallback can fire
+	agentIdleThreshold           = 30 * time.Second  // agent must be idle this long before fallback
 )
 
 // InceptionWatcher polls brainstorm beads and bridges them into the inception
@@ -55,6 +56,7 @@ type InceptionWatcher struct {
 	plukMu              sync.Mutex
 	plukFactLines       []string
 	plukIdleInStructure bool
+	plukLastActivity    time.Time // last time pluk saw agent output
 	plukQuestions       []knowledge.Question
 	plukBdCreateLines   []string
 }
@@ -170,13 +172,19 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		if state.Phase == knowledge.PhaseCapture && w.agentMgr != nil {
 			w.retryKickIfStale(state)
 		}
-		// Fallback: auto-generate questions after timeout.
-		// Use captureSeenAt (when watcher first polled this inception) instead
-		// of StartedAt (API call time) — gives the agent the full timeout
-		// window after the kick actually fires.
+		// Fallback: auto-generate questions if the agent is idle.
+		// Only fires if: (1) minimum time has elapsed, AND (2) pluk shows
+		// no agent activity for agentIdleThreshold. This lets the agent
+		// take as long as it needs while actively working.
 		if state.Phase == knowledge.PhaseCapture {
 			if !w.captureSeenAt.IsZero() && time.Since(w.captureSeenAt) > autoQuestionFallbackTimeout {
-				w.autoGenerateQuestions(state)
+				w.plukMu.Lock()
+				lastActivity := w.plukLastActivity
+				w.plukMu.Unlock()
+				agentIdle := lastActivity.IsZero() || time.Since(lastActivity) > agentIdleThreshold
+				if agentIdle {
+					w.autoGenerateQuestions(state)
+				}
 			}
 		}
 	case knowledge.PhaseStructure:
@@ -193,17 +201,21 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		if state.Phase == knowledge.PhaseStructure && w.agentMgr != nil {
 			w.retryKickIfStale(state)
 		}
-		// Fallback: if the agent hasn't produced fact beads after the
-		// timeout, auto-generate facts from the user's Q&A so the
-		// lifecycle doesn't stall. Agent gets first shot.
-		// Use structureSeenAt (when watcher first polled structure phase)
-		// so the agent gets the full timeout after the kick fires.
+		// Fallback: auto-generate facts if the agent is idle.
+		// Same activity-based approach as questions — wait for minimum
+		// time, then only fall back if pluk shows no agent activity.
 		if state.Phase == knowledge.PhaseStructure {
 			if w.structureSeenAt.IsZero() {
 				w.structureSeenAt = time.Now()
 			}
 			if time.Since(w.structureSeenAt) > autoFactFallbackTimeout {
-				w.autoGenerateFacts(ctx, state)
+				w.plukMu.Lock()
+				lastActivity := w.plukLastActivity
+				w.plukMu.Unlock()
+				agentIdle := lastActivity.IsZero() || time.Since(lastActivity) > agentIdleThreshold
+				if agentIdle {
+					w.autoGenerateFacts(ctx, state)
+				}
 			}
 		}
 	}
@@ -438,6 +450,9 @@ func (w *InceptionWatcher) runPlukSubscriber(ctx context.Context) {
 func (w *InceptionWatcher) handlePlukEvent(event plukEvent) {
 	w.plukMu.Lock()
 	defer w.plukMu.Unlock()
+
+	// Track any agent activity for idle detection
+	w.plukLastActivity = time.Now()
 
 	state := w.inception.GetState()
 	if state == nil {

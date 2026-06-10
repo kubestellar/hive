@@ -236,6 +236,17 @@ func TestRegression_Bug50_IdeationFactsFallbackToWiki(t *testing.T) {
 	client := newAPIClient()
 	client.post("/api/inception/reset", nil)
 	client.post("/api/inception/start", map[string]string{"idea": "fallback facts test"})
+	// Advance to clarify by setting questions
+	client.post("/api/inception/questions", map[string]interface{}{
+		"questions": []map[string]string{
+			{"id": "q1", "text": "What language?", "category": "tech", "default": "Go"},
+		},
+	})
+	// Advance to structure by submitting answers
+	client.post("/api/inception/answer", map[string]interface{}{
+		"answers": map[string]string{"q1": "Go"},
+	})
+	// Now record facts (requires structure phase)
 	client.post("/api/inception/facts", map[string]interface{}{
 		"facts": []map[string]string{
 			{"type": "vision", "title": "Test Vision", "body": "A test project vision statement"},

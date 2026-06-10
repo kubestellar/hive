@@ -1622,7 +1622,7 @@ func Execute() {
 func buildCargoToml(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`[package]
 name = "%s"
@@ -1649,7 +1649,7 @@ fn main() {
 func buildPomXml(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -1701,7 +1701,7 @@ public class App {
 func buildPyprojectToml(name string, vision *Fact) string {
 	desc := name
 	if vision != nil {
-		desc = vision.Title
+		desc = singleLine(vision.Title)
 	}
 	return fmt.Sprintf(`[project]
 name = "%s"
@@ -1729,7 +1729,8 @@ func buildPyInit(name string, vision *Fact) string {
 	if vision != nil {
 		desc = vision.Title
 	}
-	return fmt.Sprintf("\"\"\"%s\"\"\"\n\n__version__ = \"0.1.0\"\n", desc)
+	safeDesc := strings.ReplaceAll(singleLine(desc), `"""`, `\"\"\"`)
+	return fmt.Sprintf("\"\"\"%s\"\"\"\n\n__version__ = \"0.1.0\"\n", safeDesc)
 }
 
 func buildPyCLI(name string, vision *Fact) string {
@@ -1737,6 +1738,7 @@ func buildPyCLI(name string, vision *Fact) string {
 	if vision != nil {
 		desc = vision.Title
 	}
+	safeDesc := strings.ReplaceAll(singleLine(desc), `"""`, `\"\"\"`)
 	return fmt.Sprintf(`"""CLI entry point for %s."""
 
 import click
@@ -1760,7 +1762,7 @@ def run(path: str):
 
 if __name__ == "__main__":
     main()
-`, name, desc)
+`, safeDesc, safeDesc)
 }
 
 func buildPackageJSON(name string, vision *Fact) string {

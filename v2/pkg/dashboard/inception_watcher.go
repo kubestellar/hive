@@ -1091,8 +1091,28 @@ func (w *InceptionWatcher) autoGenerateQuestions(state *knowledge.InceptionState
 		return
 	}
 
+	// Infer default language from the idea text
+	langDefault := "Go"
+	ideaLower := strings.ToLower(state.IdeaText)
+	switch {
+	case strings.Contains(ideaLower, "java") && !strings.Contains(ideaLower, "javascript"):
+		langDefault = "Java"
+	case strings.Contains(ideaLower, "python"):
+		langDefault = "Python"
+	case strings.Contains(ideaLower, "rust"):
+		langDefault = "Rust"
+	case strings.Contains(ideaLower, "typescript"):
+		langDefault = "TypeScript"
+	case strings.Contains(ideaLower, "javascript"):
+		langDefault = "JavaScript"
+	case strings.Contains(ideaLower, "ruby"):
+		langDefault = "Ruby"
+	case strings.Contains(ideaLower, "shell") || strings.Contains(ideaLower, "bash"):
+		langDefault = "Shell/Bash"
+	}
+
 	defaults := []knowledge.Question{
-		{ID: "language", Text: "What programming language or runtime should this use?", Category: "language", Default: "Go"},
+		{ID: "language", Text: "What programming language or runtime should this use?", Category: "language", Default: langDefault},
 		{ID: "users", Text: "Who are the primary users and how will they interact with it?", Category: "users", Default: "Developers via CLI"},
 		{ID: "features", Text: "What are the 2-3 must-have features?", Category: "features", Default: "Core functionality as described"},
 		{ID: "constraints", Text: "What constraints or limitations should be respected?", Category: "constraints", Default: "Keep it simple and well-tested"},

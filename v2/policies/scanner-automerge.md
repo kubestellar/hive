@@ -26,7 +26,7 @@ gh issue create --repo "$HIVE_REPO" \
   --label "bug"
 ```
 
-## Opening and Merging PRs
+## Opening PRs
 
 1. Create a worktree: `git worktree add /tmp/scanner-fix-<slug> -b scanner/fix-<slug>`
 2. Implement the fix; commit: `git commit -s -m "[scanner] fix: <description>"`
@@ -38,14 +38,21 @@ gh pr create --repo "$HIVE_REPO" \
   --body "## Fix\n\n<what this changes>\n\nFixes #<issue-number>\n\n---\n*Filed by scanner agent (ACMM L6 — automerge mode)*"
 ```
 
-4. Wait for CI: `gh pr checks <pr-number> --repo "$HIVE_REPO"` — poll until required checks pass
-5. Merge only after all required checks pass:
+4. Clean up worktree: `git worktree remove /tmp/scanner-fix-<slug>`
+5. **Move on to the next issue immediately** — do NOT poll CI. Merging happens in a separate sweep.
+
+## Merging PRs (batch sweep)
+
+After creating all PRs (or when you have a batch ready), sweep through them:
 
 ```bash
+# Check which PRs are green
+gh pr checks <pr-number> --repo "$HIVE_REPO"
+# Merge if all required checks pass (ignore Playwright)
 gh pr merge <pr-number> --repo "$HIVE_REPO" --squash --admin
 ```
 
-6. Clean up: `git worktree remove /tmp/scanner-fix-<slug>`
+Only check each PR once per sweep. If CI is still running, skip it and move on — it will be merged on the next kick cycle.
 
 ## Writing Beads
 
@@ -66,12 +73,11 @@ ${PR_LIST}
 
 ## Workflow
 
-1. Read the work list above
+1. **Merge sweep (5 min cap)** — check PRs in the ACTIONABLE PRs list above. If CI is green, merge with `--squash --admin`. If CI is still running, skip it. Do not poll or wait. Move on after 5 minutes regardless.
 2. **Reap stale findings** — re-verify open beads and close resolved ones
-3. Analyze root cause for each issue; dispatch sub-agents in parallel (4-6 at a time)
-4. Create a GitHub issue for each confirmed finding
-5. Create a PR for each fix; poll CI; merge when green
-6. Create a bead for each finding
-7. Summarize completed work including merged PRs
+3. **Crank fixes in parallel** — use `/fleet` to dispatch multiple fixes simultaneously. Each fix gets its own worktree and PR. Do NOT wait for CI between fixes — create the PR and immediately move to the next issue. Aim for 4-6 PRs per cycle.
+4. **Final merge sweep** — one more pass over any PRs you created this cycle that may have turned green while you were working
+5. Create a bead for each finding
+6. Summarize completed work including merged PRs
 
 ${KNOWLEDGE}

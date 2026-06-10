@@ -26,7 +26,7 @@ gh issue create --repo "$HIVE_REPO" \
   --label "bug"
 ```
 
-## Opening and Merging PRs
+## Opening PRs
 
 1. Create a worktree: `git worktree add /tmp/scanner-fix-<slug> -b scanner/fix-<slug>`
 2. Implement the fix; commit: `git commit -s -m "[scanner] fix: <description>"`
@@ -38,10 +38,22 @@ gh pr create --repo "$HIVE_REPO" \
   --body "## Fix\n\n<what this changes>\n\nFixes #<issue-number>\n\n---\n*Filed by scanner agent (ACMM L6 — automerge mode)*"
 ```
 
-4. Wait for CI: `gh pr checks <pr-number> --repo "$HIVE_REPO"` — poll until checks pass
-5. **Before merging any PR** — check the body for `Fixes #<number>`. If missing, search for a related issue by title/keywords and update the PR body with `Fixes #<issue>` so the issue auto-closes on merge. Use: `gh pr edit <number> --repo <repo> --body "<updated body with Fixes #issue>"`
-6. Merge after checks pass: `gh pr merge <pr-number> --repo "$HIVE_REPO" --squash --admin`. Always use `--admin` — tide/prow labels cannot be self-applied, so bypass branch protection directly.
-7. Clean up: `git worktree remove /tmp/scanner-fix-<slug>`
+4. **Before merging any PR** — check the body for `Fixes #<number>`. If missing, search for a related issue by title/keywords and update the PR body with `Fixes #<issue>` so the issue auto-closes on merge. Use: `gh pr edit <number> --repo <repo> --body "<updated body with Fixes #issue>"`
+5. Clean up worktree: `git worktree remove /tmp/scanner-fix-<slug>`
+6. **Move on to the next issue immediately** — do NOT poll CI. Merging happens in a separate sweep.
+
+## Merging PRs (batch sweep)
+
+After creating all PRs (or when you have a batch ready), sweep through them:
+
+```bash
+# Check which PRs are green
+gh pr checks <pr-number> --repo "$HIVE_REPO"
+# Merge if all required checks pass (ignore Playwright)
+gh pr merge <pr-number> --repo "$HIVE_REPO" --squash --admin
+```
+
+Only check each PR once per sweep. If CI is still running, skip it and move on — it will be merged on the next kick cycle. Always use `--admin` — tide/prow labels cannot be self-applied, so bypass branch protection directly.
 
 ## Writing Beads
 
@@ -60,11 +72,11 @@ ${PR_LIST}
 
 ## Workflow
 
-1. Check open beads (`bd list --status open`) for context from previous cycles — skip items already tracked
-2. **Quick merges + cleanup (10 min cap)** — review PRs with passing CI and merge them. Before merging, ensure every PR body contains `Fixes #<issue>` — if missing, search for the related issue and add it with `gh pr edit`. Close stale draft PRs that have been stuck >48h with `needs-rebase` + `dco-signoff: no`, or whose fix was already merged in another PR. Comment `@dependabot rebase` on stale dependabot PRs. Move on after 10 minutes.
-3. **Fix blockers** — identify the single highest-leverage fix that unblocks the most PRs or issues (e.g. a shared test helper signature change, a broken import). Clone, fix, push, open PR, merge when green. One fix that unblocks many is worth more than many small fixes.
-4. **Crank quick fixes** — use `/fleet` (Copilot), `Agent` tool (Claude Code), or sub-agent sessions (Goose) to fix the remaining issues in parallel. One PR per issue, move fast.
-5. **Reap stale findings** — re-verify open beads and close resolved ones
+1. **Merge sweep (5 min cap)** — check PRs in the ACTIONABLE PRs list above plus any you created in prior cycles. If CI is green, merge with `--squash --admin`. Before merging, ensure every PR body contains `Fixes #<issue>` — if missing, search for the related issue and add it with `gh pr edit`. Close stale draft PRs stuck >48h with `needs-rebase` + `dco-signoff: no`. Comment `@dependabot rebase` on stale dependabot PRs. If CI is still running, skip it — do not poll or wait. Move on after 5 minutes regardless.
+2. **Fix blockers** — identify the single highest-leverage fix that unblocks the most PRs or issues (e.g. a shared test helper signature change, a broken import). Clone, fix, push, open PR. Do NOT wait for CI — move on.
+3. **Crank fixes in parallel** — use `/fleet` to dispatch multiple fixes simultaneously. Each fix gets its own worktree and PR. Do NOT wait for CI between fixes — create the PR and immediately move to the next issue. Aim for 4-6 PRs per cycle.
+4. **Final merge sweep** — one more pass over any PRs you created this cycle that may have turned green while you were working
+5. **Reap stale findings** — re-verify open beads (`bd list --status open`) and close resolved ones
 6. Summarize completed work including merged PRs
 
 ${KNOWLEDGE}

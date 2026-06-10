@@ -1342,6 +1342,7 @@ func TestFetchPRs_ExemptPR(t *testing.T) {
 	defer server.Close()
 
 	c := newTestClient(t, server, org, []string{repo})
+	c.SetExemptLabels([]string{"LFX"})
 	result, err := c.EnumerateActionable(context.Background())
 	if err != nil {
 		t.Fatalf("error: %v", err)

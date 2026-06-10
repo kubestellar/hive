@@ -8399,7 +8399,7 @@ function burnAreaChart() {
         case 'General': return renderGovGeneral();
         case 'Agents': return renderGovAgents(d.agents || []);
         case 'Thresholds': return renderGovThresholds(d.thresholds || {});
-        case 'Labels': return renderGovLabels(d.labels || []);
+        case 'Labels': return renderGovLabels(d.labels || [], d.holdLabels || []);
         case 'Repos': return renderGovRepos(d.repos || []);
         case 'Budget': return renderGovBudget(d.budget || {});
         case 'Notifications': return renderGovNotifications(d.notifications || {});
@@ -9159,16 +9159,23 @@ function burnAreaChart() {
       }
     }
 
-    function renderGovLabels(labels) {
+    function renderGovLabels(labels, holdLabels) {
+      const permanentLabels = (holdLabels || []).concat(['do-not-merge']);
+      const staticList = permanentLabels.map(l =>
+        `<div class="config-list-item" style="opacity:0.7"><span>${esc(l)}</span><span style="font-size:0.65rem;color:var(--muted);margin-left:auto;margin-right:8px">permanent</span></div>`
+      ).join('');
       const list = labels.map((l, i) =>
         `<div class="config-list-item"><span>${esc(l)}</span><button class="remove-item" onclick="removeListItem('labels','list',${i})">✕</button></div>`
       ).join('');
       return `
-        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Labels that exempt issues from the actionable count.</p>
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px">Labels that filter issues from the actionable issues list and PRs from the mergeable PRs list. Agents receive these filtered lists as variable substitutions in their kick prompts.</p>
+        <p style="font-size:0.7rem;color:var(--muted);margin-bottom:8px;font-style:italic">Permanent labels cannot be removed. Hold labels also appear in the On Hold section of the dashboard.</p>
         <div class="config-list">
-          ${list || '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">No exempt labels</div>'}
+          ${staticList}
+          <div style="border-top:1px solid var(--border);margin:6px 0"></div>
+          ${list || '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">No additional exempt labels</div>'}
           <div class="config-list-add">
-            <input type="text" id="cfg-label-input" placeholder="label name" title="GitHub label name to exempt from the actionable issue count. Issues with this label will not affect governor mode transitions.">
+            <input type="text" id="cfg-label-input" placeholder="label name" title="GitHub label name to exempt from actionable issues and mergeable PRs.">
             <button onclick="addListItem('labels','list','cfg-label-input')" title="Add this label to the exempt list">+ Add</button>
           </div>
         </div>`;

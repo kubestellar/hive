@@ -96,8 +96,8 @@ type IssueCluster struct {
 	Issues []Issue `json:"issues"`
 }
 
-var holdSubstrings = []string{"hold", "on-hold", "hold/review"}
-var defaultExemptPrefixes = []string{"LFX", "do-not-merge"}
+var HoldLabels = []string{"hold", "on-hold", "hold/review"}
+var PermanentExemptLabels = []string{"do-not-merge"}
 var exemptFiles = []string{"ADOPTERS.md", "ADOPTERS.MD"}
 
 const slaThresholdMinutes = 30
@@ -354,7 +354,7 @@ func safeGetLogin(u *gh.User) string {
 func isHeld(labels []string) bool {
 	for _, label := range labels {
 		lower := strings.ToLower(label)
-		for _, sub := range holdSubstrings {
+		for _, sub := range HoldLabels {
 			if strings.Contains(lower, sub) {
 				return true
 			}
@@ -368,12 +368,13 @@ func (c *Client) SetExemptLabels(labels []string) {
 }
 
 func (c *Client) isExempt(labels []string) bool {
-	exempts := c.exemptLabels
-	if len(exempts) == 0 {
-		exempts = defaultExemptPrefixes
-	}
 	for _, label := range labels {
-		for _, exempt := range exempts {
+		for _, perm := range PermanentExemptLabels {
+			if strings.EqualFold(label, perm) || strings.HasPrefix(label, perm) {
+				return true
+			}
+		}
+		for _, exempt := range c.exemptLabels {
 			if strings.EqualFold(label, exempt) || strings.HasPrefix(label, exempt) {
 				return true
 			}

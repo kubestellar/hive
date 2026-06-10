@@ -2017,6 +2017,10 @@ func (m *Manager) agentEnvPairs(agent *AgentProcess) []agentEnvPair {
 	if agent.Config.BeadsDir != "" {
 		vars = append(vars, agentEnvPair{"BD_DIR", agent.Config.BeadsDir, false})
 	}
+	// SSL_CERT_FILE and GIT_SSL_CAINFO ensure git push and curl work
+	// through the MITM proxy without needing .bashrc sourcing.
+	vars = append(vars, agentEnvPair{"SSL_CERT_FILE", proxyCACertPath, false})
+	vars = append(vars, agentEnvPair{"GIT_SSL_CAINFO", proxyCACertPath, false})
 	if agent.UID > 0 {
 		vars = append(vars, agentEnvPair{"HOME", "/data/home", false})
 	}

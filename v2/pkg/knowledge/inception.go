@@ -492,6 +492,15 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	stakeholders := filterFactsByType(facts, FactStakeholder)
 
 	lang := inferLanguage(constitution)
+	// Cross-check: if the idea text explicitly names a language and the
+	// constitution disagrees, trust the idea text — the agent may have
+	// produced a constitution that doesn't match the user's intent.
+	if e.state != nil && e.state.IdeaText != "" {
+		ideaLang := inferLanguageFromText(e.state.IdeaText)
+		if ideaLang != "" && ideaLang != lang {
+			lang = ideaLang
+		}
+	}
 	projectName := inferProjectName(vision, e.state)
 
 	// Core documentation
@@ -2334,6 +2343,27 @@ func truncateSlug(s string) string {
 		s = s[:maxSlugInputLen]
 	}
 	return s
+}
+
+func inferLanguageFromText(text string) string {
+	lower := strings.ToLower(text)
+	switch {
+	case strings.Contains(lower, "python"):
+		return "python"
+	case strings.Contains(lower, "typescript"):
+		return "typescript"
+	case strings.Contains(lower, "javascript") && !strings.Contains(lower, "typescript"):
+		return "javascript"
+	case strings.Contains(lower, "rust"):
+		return "rust"
+	case strings.Contains(lower, "java") && !strings.Contains(lower, "javascript"):
+		return "java"
+	case strings.Contains(lower, "go ") || strings.Contains(lower, "go cli") || strings.Contains(lower, "golang"):
+		return "go"
+	case strings.Contains(lower, "shell") || strings.Contains(lower, "bash"):
+		return "shell"
+	}
+	return ""
 }
 
 func repoBaseName(url string) string {

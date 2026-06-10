@@ -49,6 +49,8 @@ type InceptionWatcher struct {
 	rateLimitedUntil  time.Time
 	ctx               context.Context
 	factGraceStart    time.Time
+	captureSeenAt     time.Time // when watcher first saw this inception in capture phase
+	structureSeenAt   time.Time // when watcher first saw this inception in structure phase
 
 	plukMu              sync.Mutex
 	plukFactLines       []string
@@ -138,6 +140,8 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.lastKickRetry = time.Time{}
 		w.rateLimitedUntil = time.Time{}
 		w.factGraceStart = time.Time{}
+		w.captureSeenAt = time.Now()
+		w.structureSeenAt = time.Time{}
 		w.plukMu.Lock()
 		w.plukFactLines = nil
 		w.plukQuestions = nil
@@ -167,17 +171,11 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 			w.retryKickIfStale(state)
 		}
 		// Fallback: auto-generate questions after timeout.
-		// Use the agent's last kick time (not StartedAt) so the agent gets
-		// the full timeout window after it's actually kicked, not from when
-		// the API call was made.
+		// Use captureSeenAt (when watcher first polled this inception) instead
+		// of StartedAt (API call time) — gives the agent the full timeout
+		// window after the kick actually fires.
 		if state.Phase == knowledge.PhaseCapture {
-			kickTime := state.StartedAt
-			if w.agentMgr != nil {
-				if proc, err := w.agentMgr.GetStatus("brainstorm"); err == nil && proc != nil && proc.LastKick != nil {
-					kickTime = *proc.LastKick
-				}
-			}
-			if time.Since(kickTime) > autoQuestionFallbackTimeout {
+			if !w.captureSeenAt.IsZero() && time.Since(w.captureSeenAt) > autoQuestionFallbackTimeout {
 				w.autoGenerateQuestions(state)
 			}
 		}
@@ -198,19 +196,13 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		// Fallback: if the agent hasn't produced fact beads after the
 		// timeout, auto-generate facts from the user's Q&A so the
 		// lifecycle doesn't stall. Agent gets first shot.
-		// Use agent's last kick time so the agent gets the full timeout
-		// window after it's actually kicked for structure phase.
+		// Use structureSeenAt (when watcher first polled structure phase)
+		// so the agent gets the full timeout after the kick fires.
 		if state.Phase == knowledge.PhaseStructure {
-			structureStart := state.StartedAt
-			if state.PhaseChangedAt != nil {
-				structureStart = *state.PhaseChangedAt
+			if w.structureSeenAt.IsZero() {
+				w.structureSeenAt = time.Now()
 			}
-			if w.agentMgr != nil {
-				if proc, err := w.agentMgr.GetStatus("brainstorm"); err == nil && proc != nil && proc.LastKick != nil && proc.LastKick.After(structureStart) {
-					structureStart = *proc.LastKick
-				}
-			}
-			if time.Since(structureStart) > autoFactFallbackTimeout {
+			if time.Since(w.structureSeenAt) > autoFactFallbackTimeout {
 				w.autoGenerateFacts(ctx, state)
 			}
 		}

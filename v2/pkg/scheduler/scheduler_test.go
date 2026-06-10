@@ -311,10 +311,11 @@ func TestScannerMessage_TitleExactly60CharsNotTruncated(t *testing.T) {
 	}
 }
 
-func TestScannerMessage_MaxIssuesPerKickTruncatesAt20(t *testing.T) {
+func TestScannerMessage_MaxIssuesPerKickTruncatesAtLimit(t *testing.T) {
 	s := newScheduler()
+	issueCount := maxIssuesPerKick + 10
 	var issues []github.Issue
-	for i := 1; i <= 25; i++ {
+	for i := 1; i <= issueCount; i++ {
 		issues = append(issues, makeIssue("org/repo", i, "issue title", "scanner", i, nil, false))
 	}
 	msg := s.buildScannerMessage(issues, emptyActionable())
@@ -322,7 +323,7 @@ func TestScannerMessage_MaxIssuesPerKickTruncatesAt20(t *testing.T) {
 	// Count how many "org/repo#" occurrences appear (each issue line has one).
 	count := strings.Count(msg, "org/repo#")
 	if count != maxIssuesPerKick {
-		t.Errorf("expected %d issue lines, got %d", maxIssuesPerKick, count)
+		t.Errorf("expected %d issue lines (truncated at maxIssuesPerKick), got %d", maxIssuesPerKick, count)
 	}
 }
 
@@ -391,7 +392,7 @@ func TestScannerMessage_NoSLAViolationWhenZero(t *testing.T) {
 	}
 }
 
-func TestScannerMessage_FiltersByLane(t *testing.T) {
+func TestScannerMessage_ShowsAllLanes(t *testing.T) {
 	s := newScheduler()
 	issues := []github.Issue{
 		makeIssue("org/repo", 1, "scanner issue", "scanner", 5, nil, false),
@@ -399,15 +400,15 @@ func TestScannerMessage_FiltersByLane(t *testing.T) {
 		makeIssue("org/repo", 3, "outreach issue", "outreach", 5, nil, false),
 	}
 	msg := s.buildScannerMessage(issues, emptyActionable())
-	// Only scanner-lane issues (and empty-lane) should appear in the issue list.
+	// Scanner sees ALL issues (not lane-filtered) — it's the triage agent.
 	if !strings.Contains(msg, "org/repo#1") {
 		t.Errorf("expected scanner-lane issue #1 in scanner message")
 	}
-	if strings.Contains(msg, "org/repo#2") {
-		t.Errorf("unexpected ci-maintainer-lane issue #2 in scanner message")
+	if !strings.Contains(msg, "org/repo#2") {
+		t.Errorf("expected ci-maintainer-lane issue #2 in scanner message (scanner sees all)")
 	}
-	if strings.Contains(msg, "org/repo#3") {
-		t.Errorf("unexpected outreach-lane issue #3 in scanner message")
+	if !strings.Contains(msg, "org/repo#3") {
+		t.Errorf("expected outreach-lane issue #3 in scanner message (scanner sees all)")
 	}
 }
 

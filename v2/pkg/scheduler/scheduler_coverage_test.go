@@ -53,14 +53,15 @@ func TestFormatIssueList_TruncatesTitle(t *testing.T) {
 
 func TestFormatIssueList_MaxIssues(t *testing.T) {
 	s := newScheduler()
-	issues := make([]github.Issue, 25) // more than maxIssuesPerKick=20
+	issueCount := maxIssuesPerKick + 10
+	issues := make([]github.Issue, issueCount)
 	for i := range issues {
 		issues[i] = github.Issue{Repo: "r", Number: i + 1, Title: "issue", Labels: []string{}}
 	}
 	result := s.formatIssueList(issues)
 	lines := strings.Split(strings.TrimSpace(result), "\n")
-	if len(lines) > 20 {
-		t.Errorf("expected at most 20 lines, got %d", len(lines))
+	if len(lines) > maxIssuesPerKick {
+		t.Errorf("expected at most %d lines, got %d", maxIssuesPerKick, len(lines))
 	}
 }
 

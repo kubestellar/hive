@@ -2017,6 +2017,8 @@ func (m *Manager) agentEnvPairs(agent *AgentProcess) []agentEnvPair {
 	if agent.Config.BeadsDir != "" {
 		vars = append(vars, agentEnvPair{"BD_DIR", agent.Config.BeadsDir, false})
 	}
+	// GIT_SSL_CAINFO only — NOT SSL_CERT_FILE (that breaks Copilot API TLS)
+	vars = append(vars, agentEnvPair{"GIT_SSL_CAINFO", proxyCACertPath, false})
 	if agent.UID > 0 {
 		vars = append(vars, agentEnvPair{"HOME", "/data/home", false})
 	}

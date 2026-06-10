@@ -76,6 +76,7 @@ type AgentProcess struct {
 	cancel context.CancelFunc
 	forceRelaunch       bool
 	BootstrapOverride   string // when set, replaces buildBootstrapPrompt output
+	LastError           string // captured from bare copilot diagnostic launch
 	lastTokenRestart    time.Time // cooldown for auto-restart after token detection
 }
 
@@ -583,28 +584,20 @@ func (m *Manager) pollTmuxOutputForAgent(agent *AgentProcess, ctx context.Contex
 				}
 			}
 
-			// Detect copilot hung on expired token: if the agent has been
-			// running long enough and the pane shows no CLI prompt, the
-			// expired gho_ token is causing a hang through the MITM proxy.
-			// Clear the token so the next launch shows the /login prompt.
+			// Detect copilot hung: if running long enough with no CLI prompt,
+			// launch bare `copilot` to diagnose the error. Only clear the
+			// token if the diagnostic shows an auth error.
 			if agent.Config.Backend == "copilot" && agent.StartedAt != nil &&
 				time.Since(*agent.StartedAt).Seconds() >= expiredTokenHangTimeoutSec &&
-				!paneShowsCLIReady(filtered) && configHasTokens() {
+				!paneShowsCLIReady(filtered) {
 				sinceLastRestart := time.Since(agent.lastTokenRestart).Seconds()
 				if sinceLastRestart >= float64(tokenRestartCooldownSec) {
-					m.logger.Warn("copilot hung with no CLI prompt, clearing expired token",
+					m.logger.Warn("copilot hung with no CLI prompt, running diagnostic",
 						"agent", agent.Name,
 						"uptime_sec", int(time.Since(*agent.StartedAt).Seconds()),
 					)
-					if err := clearExpiredTokens(); err != nil {
-						m.logger.Warn("failed to clear expired tokens", "error", err)
-					}
 					agent.lastTokenRestart = time.Now()
-					go func() {
-						if err := m.Restart(ctx, agent.Name); err != nil {
-							m.logger.Warn("expired-token restart failed", "agent", agent.Name, "error", err)
-						}
-					}()
+					go m.runCopilotDiagnostic(ctx, agent)
 					return
 				}
 			}
@@ -1856,6 +1849,92 @@ func paneShowsLoginPrompt(lines []string) bool {
 		}
 	}
 	return false
+}
+
+const (
+	diagnosticTimeoutSec = 20
+	diagnosticPollSec    = 2
+)
+
+// authErrorPatterns indicate the token is bad and should be cleared.
+var authErrorPatterns = []string{
+	"Bad credentials",
+	"401 Unauthorized",
+	"token found but could not be validated",
+	"Failed to fetch OAuth user login",
+	"re-authenticate",
+}
+
+func (m *Manager) runCopilotDiagnostic(ctx context.Context, agent *AgentProcess) {
+	m.tmuxSendKeysForAgent(agent, "C-c", "")
+	time.Sleep(paneCaptureSleep)
+	killAgentProcesses(agent.UID, m.logger)
+	_ = m.tmuxCmd(agent, "kill-session", "-t", agent.tmuxSession).Run()
+
+	if err := m.ensureTmuxSession(agent); err != nil {
+		m.logger.Warn("diagnostic: failed to create tmux session", "agent", agent.Name, "error", err)
+		return
+	}
+
+	binary, err := backendBinary("copilot")
+	if err != nil {
+		m.logger.Warn("diagnostic: copilot binary not found", "error", err)
+		return
+	}
+	m.tmuxSendLiteralForAgent(agent, fmt.Sprintf("HOME=/data/home %s", binary))
+	time.Sleep(textToEnterDelay)
+	m.tmuxSendEntersForAgent(agent)
+
+	m.logger.Info("diagnostic: launched bare copilot to capture error", "agent", agent.Name)
+
+	deadline := time.After(time.Duration(diagnosticTimeoutSec) * time.Second)
+	ticker := time.NewTicker(time.Duration(diagnosticPollSec) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-deadline:
+			m.logger.Warn("diagnostic: timed out waiting for copilot error output", "agent", agent.Name)
+			agent.LastError = "copilot hung with no output (diagnostic timed out)"
+			agent.State = StateFailed
+			return
+		case <-ticker.C:
+			output := m.captureTmuxPaneForAgent(agent)
+			if output == "" {
+				continue
+			}
+			isAuthError := false
+			for _, pat := range authErrorPatterns {
+				if strings.Contains(output, pat) {
+					isAuthError = true
+					break
+				}
+			}
+			if isAuthError {
+				m.logger.Warn("diagnostic: auth error detected, clearing token",
+					"agent", agent.Name, "output_snippet", truncateStr(output, 200))
+				agent.LastError = "auth token expired or invalid"
+				if err := clearExpiredTokens(); err != nil {
+					m.logger.Warn("diagnostic: failed to clear tokens", "error", err)
+				}
+			} else if paneShowsCLIReady(strings.Split(output, "\n")) {
+				m.logger.Info("diagnostic: copilot started successfully in bare mode", "agent", agent.Name)
+				agent.LastError = ""
+			} else {
+				continue
+			}
+
+			killAgentProcesses(agent.UID, m.logger)
+			_ = m.tmuxCmd(agent, "kill-session", "-t", agent.tmuxSession).Run()
+			agent.forceRelaunch = true
+			if err := m.Restart(ctx, agent.Name); err != nil {
+				m.logger.Warn("diagnostic: restart failed", "agent", agent.Name, "error", err)
+			}
+			return
+		}
+	}
 }
 
 // fixSharedConfigPerms ensures /data/home/.copilot/config.json is group-readable

@@ -230,6 +230,7 @@ func buildAgents(statuses map[string]*agent.AgentProcess, cfg *config.Config, go
 			LiveSummary:   liveSummary,
 			DetailSummary: detailSummary,
 			StatsConfig:   loadStatsConfig(name),
+			LastError:     proc.LastError,
 		}
 
 		acmmLevel := 0

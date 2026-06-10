@@ -885,16 +885,23 @@ func main() {
 	if len(onDemandFromPack) > 0 {
 		logger.Info("on-demand agents from pack definitions", "agents", onDemandFromPack)
 	}
+	const agentLaunchDelaySec = 15
+	agentIndex := 0
 	for name, ac := range cfg.EnabledAgents() {
 		isOnDemand := ac.OnDemand || onDemandFromPack[name]
 		if isOnDemand {
 			logger.Info("skipping on-demand agent at startup", "name", name)
 			continue
 		}
+		if agentIndex > 0 {
+			logger.Info("staggering agent launch", "name", name, "delay_sec", agentLaunchDelaySec)
+			time.Sleep(time.Duration(agentLaunchDelaySec) * time.Second)
+		}
 		logger.Info("audit: starting agent", "name", name, "trigger", "startup")
 		if err := agentMgr.Start(ctx, name); err != nil {
 			logger.Warn("failed to start agent", "name", name, "error", err)
 		}
+		agentIndex++
 	}
 
 	// Start hub heartbeat push if configured (env var or config)

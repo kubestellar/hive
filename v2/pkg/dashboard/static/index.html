@@ -6988,7 +6988,7 @@ function burnAreaChart() {
       questions.forEach(q => {
         html += `<div style="margin-bottom:16px">
           <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px">${escapeHtml(q.text)}</label>
-          <input type="text" id="inception-q-${escapeHtml(q.id)}" value="${escapeHtml(q.default || '')}"
+          <input type="text" id="inception-q-${q.id}" value="${escapeHtml(q.default || '')}"
             style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);color:var(--fg);font-size:0.82rem" />
           <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">${escapeHtml(q.category || '')}</div>
         </div>`;

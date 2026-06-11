@@ -57,6 +57,7 @@ type InceptionWatcher struct {
 	plukFactLines       []string
 	plukIdleInStructure bool
 	plukLastActivity    time.Time // last time pluk saw agent output
+	plukEventCount      int       // total pluk events processed
 	plukQuestions       []knowledge.Question
 	plukBdCreateLines   []string
 }
@@ -186,10 +187,19 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 					// No pluk events yet — agent still bootstrapping.
 					// Only fall back after 2x the timeout (agent never started).
 					if time.Since(w.captureSeenAt) > autoQuestionFallbackTimeout*2 {
+						w.logger.Info("question fallback: no pluk events (bootstrap timeout)",
+							"elapsed", time.Since(w.captureSeenAt).Round(time.Second),
+							"pluk_events", w.plukEventCount,
+						)
 						w.autoGenerateQuestions(state)
 					}
 				} else if time.Since(lastActivity) > agentIdleThreshold {
 					// Agent was active but went idle — fall back.
+					w.logger.Info("question fallback: agent idle",
+						"idle_duration", time.Since(lastActivity).Round(time.Second),
+						"elapsed", time.Since(w.captureSeenAt).Round(time.Second),
+						"pluk_events", w.plukEventCount,
+					)
 					w.autoGenerateQuestions(state)
 				}
 				// else: agent is actively producing output — keep waiting.
@@ -464,6 +474,13 @@ func (w *InceptionWatcher) handlePlukEvent(event plukEvent) {
 
 	// Track any agent activity for idle detection
 	w.plukLastActivity = time.Now()
+	w.plukEventCount++
+	if w.plukEventCount%50 == 1 {
+		w.logger.Info("pluk event received",
+			"count", w.plukEventCount,
+			"type", event.Type,
+		)
+	}
 
 	state := w.inception.GetState()
 	if state == nil {

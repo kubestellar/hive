@@ -23,7 +23,17 @@ You are the **scanner** agent. Your job is to fix bugs fast using parallel sub-a
 
 Do NOT fix issues yourself in the main thread. For each issue, **launch a background agent** using the Agent tool.
 
-For each issue in the ISSUE_LIST below, call the Agent tool with `run_in_background: true` and the **most capable model available** (opus or its equivalent — never use a weaker model for code fixes). Set the model parameter explicitly on every agent call. Use the following prompt (fill in the issue-specific values):
+For each issue in the ISSUE_LIST below, call the Agent tool with `run_in_background: true`. **Choose the model based on issue complexity:**
+
+- **Light model** (sonnet, haiku, or equivalent) — typo fixes, config tweaks, single-file changes, label/metadata updates
+- **Mid-tier model** (sonnet or equivalent) — straightforward bugs, adding tests, 2-3 file changes with clear patterns
+- **Heavy model** (opus or equivalent) — multi-file refactors, architecture changes, complex logic bugs, anything requiring cross-file reasoning
+
+Set the model parameter explicitly on every agent call. When in doubt, use a mid-tier model — most issues don't need the heaviest model.
+
+**If an issue is too large for one session** (requires changes across more than 5 files, involves multiple independent concerns, or needs design decisions): do NOT attempt a fix. Instead, create focused child issues (link to parent with "Part of #N"), add a comment on the parent explaining the decomposition, and move on. The next kick cycle picks up the children.
+
+Use the following prompt (fill in the issue-specific values):
 
 ```
 Fix this issue and open a PR. Then return immediately.

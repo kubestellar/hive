@@ -482,6 +482,12 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 		}
 	}
 
+	// Goose 1.37 requires --instructions or --text to stay interactive.
+	// Without bootstrap, use --instructions - (read from TTY).
+	if backend == "goose" && bootstrapPrompt == "" {
+		launchCmd += " --instructions -"
+	}
+
 	if !agent.forceRelaunch && m.tmuxPaneHasCLIForAgent(agent) {
 		m.logger.Info("CLI already running in tmux pane, skipping launch", "name", agent.Name, "session", agent.tmuxSession)
 		now := time.Now()
@@ -1079,6 +1085,14 @@ func (m *Manager) waitForCLIReadyForAgent(agent *AgentProcess) bool {
 // waitForInputPromptForAgent polls until the CLI shows its input prompt (❯)
 // using the agent's tmux socket.
 
+func truncateHead(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "..."
+}
+
 func truncateTail(s string, n int) string {
 	runes := []rune(s)
 	if len(runes) <= n {
@@ -1105,7 +1119,7 @@ func (m *Manager) waitForInputPromptForAgent(agent *AgentProcess) bool {
 				"has_goose_ready", strings.Contains(output, "goose is ready"),
 				"has_enter", strings.Contains(output, "> Enter to send"),
 				"has_arrow", strings.Contains(output, "❯"),
-				"tail_200", truncateTail(output, 200))
+				"head_500", truncateHead(output, 500), "tail_500", truncateTail(output, 500))
 			return false
 		case <-ticker.C:
 			output := m.captureTmuxPaneForAgent(agent)

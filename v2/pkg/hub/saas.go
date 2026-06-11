@@ -123,6 +123,8 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/requests", s.requireAuth(s.handleGetRequests))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/requests/{username}/approve", s.requireAuth(s.handleApproveRequest))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/requests/{username}/deny", s.requireAuth(s.handleDenyRequest))
+	s.mux.HandleFunc("PUT /api/saas/hives/{id}/approve-access/{username}", s.requireAuth(s.handleApproveAccess))
+	s.mux.HandleFunc("DELETE /api/saas/hives/{id}/deny-access/{username}", s.requireAuth(s.handleDenyAccess))
 	s.mux.HandleFunc("GET /api/saas/access-status", s.handleAccessStatus)
 	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
@@ -393,11 +395,12 @@ func (s *HubServer) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request
 
 type MyHiveEntry struct {
 	RegistryEntry
-	Role                string `json:"role"`
-	ProvError           string `json:"provError,omitempty"`
-	ProvStatus          string `json:"provStatus,omitempty"`
-	AutoUpgrade         bool   `json:"autoUpgrade"`
-	PendingRequestCount int    `json:"pendingRequestCount,omitempty"`
+	Role                string                 `json:"role"`
+	ProvError           string                 `json:"provError,omitempty"`
+	ProvStatus          string                 `json:"provStatus,omitempty"`
+	AutoUpgrade         bool                   `json:"autoUpgrade"`
+	PendingRequestCount int                    `json:"pendingRequestCount,omitempty"`
+	PendingRequests     []PendingAccessRequest `json:"pending_requests,omitempty"`
 }
 
 func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
@@ -515,13 +518,17 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		}
 		if h.Role == "owner" || h.Role == "read-write" || isAdmin {
 			reqs := loadAccessRequests(h.ID)
-			count := 0
+			var pending []PendingAccessRequest
 			for _, req := range reqs {
 				if req.Status == "pending" {
-					count++
+					pending = append(pending, PendingAccessRequest{
+						Username:    req.Username,
+						RequestedAt: req.RequestedAt,
+					})
 				}
 			}
-			result[i].PendingRequestCount = count
+			result[i].PendingRequestCount = len(pending)
+			result[i].PendingRequests = pending
 		}
 	}
 
@@ -1482,6 +1489,87 @@ func (s *HubServer) handleDenyRequest(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "denied"})
 }
 
+func (s *HubServer) handleApproveAccess(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("id")
+	targetUsername := r.PathValue("username")
+	approver := s.getAuthUser(r)
+
+	h := loadSaaSHive(hiveID)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+
+	approverUser := loadSaaSUser(approver)
+	if approverUser == nil {
+		http.Error(w, `{"error":"not authorized"}`, http.StatusForbidden)
+		return
+	}
+	approverRole := approverUser.Hives[hiveID]
+	if approverRole != "owner" && approver != hubAdminUsername {
+		http.Error(w, `{"error":"only the owner can approve access"}`, http.StatusForbidden)
+		return
+	}
+
+	reqs := loadAccessRequests(hiveID)
+	found := false
+	for i := range reqs {
+		if reqs[i].Username == targetUsername && reqs[i].Status == "pending" {
+			reqs[i].Status = "approved"
+			found = true
+		}
+	}
+	if !found {
+		http.Error(w, `{"error":"no pending request for this user"}`, http.StatusNotFound)
+		return
+	}
+	saveAccessRequests(hiveID, reqs)
+
+	const defaultApproveRole = "read"
+	target := ensureSaaSUser(targetUsername)
+	target.Hives[hiveID] = defaultApproveRole
+	saveSaaSUser(target)
+
+	s.logger.Info("audit: access approved via PUT", "hive", hiveID, "target", targetUsername, "by", approver)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
+func (s *HubServer) handleDenyAccess(w http.ResponseWriter, r *http.Request) {
+	hiveID := r.PathValue("id")
+	targetUsername := r.PathValue("username")
+	denier := s.getAuthUser(r)
+
+	h := loadSaaSHive(hiveID)
+	if h == nil {
+		http.Error(w, `{"error":"hive not found"}`, http.StatusNotFound)
+		return
+	}
+
+	denierUser := loadSaaSUser(denier)
+	if denierUser == nil {
+		http.Error(w, `{"error":"not authorized"}`, http.StatusForbidden)
+		return
+	}
+	denierRole := denierUser.Hives[hiveID]
+	if denierRole != "owner" && denier != hubAdminUsername {
+		http.Error(w, `{"error":"only the owner can deny access"}`, http.StatusForbidden)
+		return
+	}
+
+	reqs := loadAccessRequests(hiveID)
+	for i := range reqs {
+		if reqs[i].Username == targetUsername && reqs[i].Status == "pending" {
+			reqs[i].Status = "denied"
+		}
+	}
+	saveAccessRequests(hiveID, reqs)
+
+	s.logger.Info("audit: access denied via DELETE", "hive", hiveID, "target", targetUsername, "by", denier)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
 func (s *HubServer) handleUserToken(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		HiveID   string `json:"hive_id"`
@@ -2018,6 +2106,7 @@ const dashboardHTML = `<!DOCTYPE html>
         }
         renderHives(data.hives || []);
         renderPendingBanner(data.hives || []);
+        renderUserAccessBanner();
         loadPublicHives(data.hives || []);
       } catch(e) {
         if (!_allDashHives.length) {
@@ -2109,7 +2198,13 @@ const dashboardHTML = `<!DOCTYPE html>
           ? '<span style="color:var(--accent);white-space:nowrap">⏳ Provisioning</span>'
           : modeBadge(h.governorMode);
         var contributeUrl = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io/contribute' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? h.dashboardUrl + '/contribute' : '');
-        var contributeCell = contributeUrl ? '<a href="' + contributeUrl + '" target="_blank" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;text-decoration:none">Contribute</a>' : '';
+        var contributeCell = '';
+        if (h.role === 'owner') {
+          var dashHref = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? esc(h.dashboardUrl) : '');
+          if (dashHref) contributeCell = '<a href="' + dashHref + '" target="_blank" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;text-decoration:none">Dashboard</a>';
+        } else if (h.role === 'read' || h.role === 'read-write') {
+          if (contributeUrl) contributeCell = '<a href="' + contributeUrl + '" target="_blank" style="padding:2px 8px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.65rem;white-space:nowrap;text-decoration:none">Contribute</a>';
+        }
         var actions = '';
         if (canConvert) {
           actions = '<button onclick="openConvert(this)" data-hive-id="' + esc(h.id) + '" data-dash-url="' + esc(h.dashboardUrl||'') + '" data-org="' + esc(h.org) + '" data-repos="' + esc((h.repos||[]).join(', ')) + '" data-primary="' + esc(h.primaryRepo) + '" data-level="' + (h.acmmLevel||1) + '" data-name="' + esc(h.name||'') + '" style="padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;white-space:nowrap">Convert to Hosted</button>';
@@ -2162,7 +2257,26 @@ const dashboardHTML = `<!DOCTYPE html>
         var pendingBadge = (h.pendingRequestCount > 0 && (h.role === 'owner' || h.role === 'read-write'))
           ? '<span style="position:absolute;top:-2px;right:-2px;background:var(--blue);color:#fff;border-radius:50%;width:16px;height:16px;font-size:0.6rem;display:flex;align-items:center;justify-content:center;font-weight:700">' + h.pendingRequestCount + '</span>'
           : '';
+        var pendingPill = '';
+        if (h.pendingRequestCount > 0 && (h.role === 'owner' || h.role === 'read-write')) {
+          pendingPill = '<a href="#" onclick="togglePendingRow(\'' + esc(h.id) + '\');return false" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:4px;font-size:0.7rem;text-decoration:none;cursor:pointer;white-space:nowrap">&#x1F514; ' + h.pendingRequestCount + ' pending</a>';
+        }
+        var TOTAL_COLUMNS = 14;
+        var pendingExpandRow = '';
+        if (h.pendingRequestCount > 0 && (h.role === 'owner' || h.role === 'read-write') && (h.pending_requests || []).length > 0) {
+          var prItems = (h.pending_requests || []).map(function(pr) {
+            var avatar = '<img src="https://github.com/' + esc(pr.username) + '.png" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px">';
+            return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">' +
+              '<div>' + avatar + '<span style="font-size:0.85rem">' + esc(pr.username) + '</span></div>' +
+              '<div style="display:flex;gap:4px">' +
+              '<button onclick="inlineApproveAccess(\'' + esc(h.id) + '\',\'' + esc(pr.username) + '\',this)" style="padding:2px 8px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem">Approve</button>' +
+              '<button onclick="inlineDenyAccess(\'' + esc(h.id) + '\',\'' + esc(pr.username) + '\',this)" style="padding:2px 8px;background:var(--red);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.65rem">Deny</button>' +
+              '</div></div>';
+          }).join('');
+          pendingExpandRow = '<tr id="pending-row-' + esc(h.id) + '" style="display:none"><td colspan="' + TOTAL_COLUMNS + '"><div style="padding:8px 16px;background:rgba(59,130,246,0.05);border-radius:6px;margin:4px 0">' + prItems + '</div></td></tr>';
+        }
         return '<tr>' +
+          '<td style="white-space:nowrap">' + contributeCell + (pendingPill ? '<div style="margin-top:4px">' + pendingPill + '</div>' : '') + '</td>' +
           '<td class="hive-menu-cell" style="position:relative;width:30px;text-align:center;overflow:visible"><span style="cursor:pointer;font-size:1.1rem;color:var(--muted);user-select:none">⋮</span>' + pendingBadge + '<div class="hive-menu-dropdown" style="display:none;position:absolute;left:0;bottom:auto;background:#1c2128;border:1px solid #30363d;border-radius:8px;min-width:160px;padding:4px 0;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,0.5)">' + menuItems.join('') + '</div></td>' +
           '<td style="text-align:left;line-height:1.4">' + (function() { var dh = isHosted ? 'https://' + esc(h.id) + '.hive.kubestellar.io' : (h.dashboardUrl && !h.dashboardUrl.includes('localhost') ? esc(h.dashboardUrl) : ''); var displayName = h.name || h.id; var parts = displayName.split('/'); var orgName = parts.length > 1 ? parts[0] : ''; var repoName = parts.length > 1 ? parts.slice(1).join('/') : displayName; var rp = h.org && h.primaryRepo ? h.org + '/' + h.primaryRepo : ''; var ghIcon = rp ? '<a href="https://github.com/' + esc(rp) + '" target="_blank" style="opacity:0.5;vertical-align:middle" title="' + esc(rp) + '"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>' : ''; var link = function(text, bold) { var s = bold ? 'font-weight:700;color:inherit' : 'color:#6b7280;font-weight:400'; return dh ? '<a href="' + dh + '" target="_blank" style="' + s + ';text-decoration:none">' + esc(text) + '</a>' : '<span style="' + s + '">' + esc(text) + '</span>'; }; var line1 = dot + ' ' + link(orgName || repoName, true); var line2 = orgName ? '<div style="padding-left:18px;font-size:0.8rem">' + link(repoName, false) + ' ' + ghIcon + ' ' + roleBadge(h.role) + '</div>' : '<div style="padding-left:18px">' + ghIcon + ' ' + roleBadge(h.role) + '</div>'; return line1 + line2; })() + '</td>' +
           '<td>' + typeBadge + '</td>' +
@@ -2175,11 +2289,11 @@ const dashboardHTML = `<!DOCTYPE html>
           '<td>' + sparkline(h.issueHistory, '#f59e0b', 50, 14) + (h.actionableIssues || 0) + '</td>' +
           '<td>' + sparkline(h.prHistory, '#3b82f6', 50, 14) + (h.actionablePRs || 0) + '</td>' +
           '<td>' + (h.activeContributors || 0) + '</td>' +
-          '</tr>';
+          '</tr>' + pendingExpandRow;
       }).join('');
       document.getElementById('hives-container').innerHTML =
         '<div class="table-wrap"><table class="hive-table"><thead><tr>' +
-        '<th></th><th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Public</th><th>Version</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th>' +
+        '<th></th><th></th><th onclick="sortDashHives(\'name\')" style="cursor:pointer">Hive ⇅</th><th onclick="sortDashHives(\'hiveType\')" style="cursor:pointer">Type ⇅</th><th>Public</th><th>Version</th><th>Repos</th><th onclick="sortDashHives(\'acmmLevel\')" style="cursor:pointer">ACMM ⇅</th><th onclick="sortDashHives(\'agentCount\')" style="cursor:pointer">Agents ⇅</th><th onclick="sortDashHives(\'governorMode\')" style="cursor:pointer">Mode ⇅</th><th onclick="sortDashHives(\'actionableIssues\')" style="cursor:pointer">Issues ⇅</th><th onclick="sortDashHives(\'actionablePRs\')" style="cursor:pointer">PRs ⇅</th><th onclick="sortDashHives(\'activeContributors\')" style="cursor:pointer">Contributors ⇅</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table></div>';
       setTimeout(function() {
         var tw = document.querySelector('.table-wrap');
@@ -2282,6 +2396,35 @@ const dashboardHTML = `<!DOCTYPE html>
       } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
     }
 
+    function togglePendingRow(hiveId) {
+      var row = document.getElementById('pending-row-' + hiveId);
+      if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
+    }
+
+    async function inlineApproveAccess(hiveId, username, btn) {
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(hiveId) + '/approve-access/' + encodeURIComponent(username), {method: 'PUT'});
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Approve failed', 'error'); btn.disabled = false; btn.textContent = 'Approve'; return; }
+        hiveToast(username + ' approved', 'success');
+        loadHives();
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); btn.disabled = false; btn.textContent = 'Approve'; }
+    }
+
+    async function inlineDenyAccess(hiveId, username, btn) {
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(hiveId) + '/deny-access/' + encodeURIComponent(username), {method: 'DELETE'});
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Deny failed', 'error'); btn.disabled = false; btn.textContent = 'Deny'; return; }
+        hiveToast(username + ' denied', 'success');
+        loadHives();
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); btn.disabled = false; btn.textContent = 'Deny'; }
+    }
+
     function renderPendingBanner(hives) {
       var existing = document.getElementById('pending-banner');
       if (existing) existing.remove();
@@ -2294,6 +2437,39 @@ const dashboardHTML = `<!DOCTYPE html>
       banner.innerHTML = '<span style="font-size:1.1rem">📬</span><span style="font-size:0.85rem;color:var(--text)">' + total + ' pending access request' + (total > 1 ? 's' : '') + ' across ' + pending.length + ' hive' + (pending.length > 1 ? 's' : '') + '. Open <strong>Permissions</strong> on each hive to approve or deny.</span>';
       var container = document.getElementById('hives-container');
       container.parentNode.insertBefore(banner, container);
+    }
+
+    async function renderUserAccessBanner() {
+      var existing = document.getElementById('user-access-banner');
+      if (existing) existing.remove();
+      try {
+        var resp = await fetch('/api/saas/access-status');
+        var data = await resp.json();
+        var hives = data.hives || {};
+        var pendingIds = [];
+        var acceptedIds = [];
+        for (var hid in hives) {
+          var info = hives[hid];
+          if (info.status === 'pending') pendingIds.push(hid);
+          if (info.status === 'accepted' && info.role !== 'owner') acceptedIds.push(hid);
+        }
+        if (!pendingIds.length && !acceptedIds.length) return;
+        var container = document.getElementById('hives-container');
+        var banner = document.createElement('div');
+        banner.id = 'user-access-banner';
+        banner.style.cssText = 'margin-bottom:16px';
+        var html = '';
+        if (pendingIds.length) {
+          html += '<div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">' +
+            '<span style="font-size:1.1rem">&#x1F514;</span><span style="font-size:0.85rem;color:var(--text)">Access pending: <strong>' + pendingIds.map(esc).join(', ') + '</strong></span></div>';
+        }
+        if (acceptedIds.length) {
+          html += '<div style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">' +
+            '<span style="font-size:1.1rem">&#x2705;</span><span style="font-size:0.85rem;color:var(--text)">Access granted: <strong>' + acceptedIds.map(esc).join(', ') + '</strong> — Start contributing!</span></div>';
+        }
+        banner.innerHTML = html;
+        container.parentNode.insertBefore(banner, container);
+      } catch(e) {}
     }
 
     async function init() {

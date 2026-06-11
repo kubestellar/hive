@@ -319,7 +319,7 @@ data:
       token: "${HIVE_GITHUB_TOKEN}"
 {{- end}}
     dashboard:
-      port: 3001
+      port: 3002
     hub:
       enabled: true
       url: https://hive.kubestellar.io
@@ -494,7 +494,9 @@ metadata:
   namespace: {{.Namespace}}
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/auth-url: "https://hive.kubestellar.io/api/saas/auth-check?hive={{.ID}}"
+    nginx.ingress.kubernetes.io/auth-url: "https://hive.kubestellar.io/api/saas/auth-check?hive={{.ID}}&uri=$request_uri"
+    nginx.ingress.kubernetes.io/custom-http-errors: "502,503"
+    nginx.ingress.kubernetes.io/default-backend: hive-error-pages
     nginx.ingress.kubernetes.io/auth-signin: "https://hive.kubestellar.io/login?redirect=$scheme://$http_host$request_uri"
     nginx.ingress.kubernetes.io/auth-response-headers: "X-Hive-User,X-Hive-Role"
 spec:

@@ -1904,6 +1904,13 @@ const dashboardHTML = `<!DOCTYPE html>
   <script>
     function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
+    function dismissBanner(key, btn) {
+      var dismissed = JSON.parse(localStorage.getItem('hive-dismissed-banners') || '{}');
+      dismissed[key] = Date.now();
+      localStorage.setItem('hive-dismissed-banners', JSON.stringify(dismissed));
+      btn.parentNode.remove();
+    }
+
     function hiveToast(msg, type) {
       var t = document.createElement('div');
       t.className = 'hive-toast ' + (type || 'info');
@@ -1998,6 +2005,7 @@ const dashboardHTML = `<!DOCTYPE html>
         if (ck.detail) line += ': ' + ck.detail;
         lines.push(line);
       }
+      if (h.githubAppRequired) { lines.push('✕ GitHub App not installed'); st = 'degraded'; c = colors.degraded; ic = icons.degraded; statusLabel = 'Degraded'; lines[0] = statusLabel; }
       if (!checks.length) lines.push('No check data');
       return '<span title="' + esc(lines.join('\n')) + '" style="display:inline-flex;align-items:center;gap:4px;cursor:help;white-space:pre-line"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + c + '"></span><span style="font-size:0.7rem;color:' + c + ';font-weight:600">' + ic + '</span></span>';
     }
@@ -2459,14 +2467,22 @@ const dashboardHTML = `<!DOCTYPE html>
         banner.id = 'user-access-banner';
         banner.style.cssText = 'margin-bottom:16px';
         var html = '';
-        var dismissBtn = '<button onclick="this.parentNode.remove()" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 4px" title="Dismiss">&times;</button>';
+        var dismissed = JSON.parse(localStorage.getItem('hive-dismissed-banners') || '{}');
         if (pendingIds.length) {
-          html += '<div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">' +
-            '<span style="font-size:1.1rem">&#x1F514;</span><span style="flex:1;font-size:0.85rem;color:var(--text)">Access pending: <strong>' + pendingIds.map(esc).join(', ') + '</strong></span>' + dismissBtn + '</div>';
+          var pKey = 'pending:' + pendingIds.sort().join(',');
+          if (!dismissed[pKey]) {
+            html += '<div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">' +
+              '<span style="font-size:1.1rem">&#x1F514;</span><span style="flex:1;font-size:0.85rem;color:var(--text)">Access pending: <strong>' + pendingIds.map(esc).join(', ') + '</strong></span>' +
+              '<button onclick="dismissBanner(\'' + pKey.replace(/'/g,'') + '\',this)" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 4px" title="Dismiss">&times;</button></div>';
+          }
         }
         if (acceptedIds.length) {
-          html += '<div style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">' +
-            '<span style="font-size:1.1rem">&#x2705;</span><span style="flex:1;font-size:0.85rem;color:var(--text)">Access granted: <strong>' + acceptedIds.map(esc).join(', ') + '</strong> — Start contributing!</span>' + dismissBtn + '</div>';
+          var aKey = 'accepted:' + acceptedIds.sort().join(',');
+          if (!dismissed[aKey]) {
+            html += '<div style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">' +
+              '<span style="font-size:1.1rem">&#x2705;</span><span style="flex:1;font-size:0.85rem;color:var(--text)">Access granted: <strong>' + acceptedIds.map(esc).join(', ') + '</strong> — Start contributing!</span>' +
+              '<button onclick="dismissBanner(\'' + aKey.replace(/'/g,'') + '\',this)" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 4px" title="Dismiss">&times;</button></div>';
+          }
         }
         banner.innerHTML = html;
         container.parentNode.insertBefore(banner, container);

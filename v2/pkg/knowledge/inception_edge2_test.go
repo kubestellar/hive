@@ -2,6 +2,8 @@ package knowledge
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -629,5 +631,117 @@ func TestInferProjectTypeFalsePositives(t *testing.T) {
 	viteFact := &Fact{Body: "Build with Vite and React"}
 	if got := inferProjectType(viteFact, nil, nil); got != "ui" {
 		t.Errorf("Vite project should be ui, got %q", got)
+	}
+}
+
+func TestWriteFactsToVaultInvalidDir(t *testing.T) {
+	// Create engine with a path that can't be created
+	e := NewInceptionEngine("/dev/null/impossible", nil, nil)
+	e.mu.Lock()
+	e.state = &InceptionState{
+		Phase:    PhaseStructure,
+		IdeaText: "test",
+	}
+	e.mu.Unlock()
+
+	// Should not panic — just log a warning
+	e.writeFactsToVault([]IdeationFact{
+		{Title: "Test", Body: "Body", Type: FactVision},
+	})
+}
+
+func TestSaveStateInvalidDir(t *testing.T) {
+	e := NewInceptionEngine("/dev/null/impossible", nil, nil)
+	e.mu.Lock()
+	e.state = &InceptionState{
+		Phase:    PhaseCapture,
+		IdeaText: "test",
+		Answers:  make(map[string]string),
+	}
+	e.mu.Unlock()
+
+	// saveState should return error, not panic
+	err := e.saveState()
+	if err == nil {
+		t.Error("saveState to invalid path should return error")
+	}
+}
+
+func TestParseInceptionFactFileEdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr bool
+	}{
+		{"normal", "---\ntitle: Test\ntype: requirement\nconfidence: 0.8\n---\nBody text", false},
+		{"no frontmatter", "Just body text without frontmatter", false},
+		{"empty", "", false},
+		{"unclosed frontmatter", "---\ntitle: Test\nno closing delimiter", false},
+		{"empty frontmatter", "---\n---\nBody after empty frontmatter", false},
+		{"special chars in title", "---\ntitle: \"Test with \\\"quotes\\\"\"\ntype: vision\n---\nBody", false},
+		{"missing title", "---\ntype: requirement\n---\nBody", false},
+		{"invalid confidence", "---\nconfidence: notanumber\n---\nBody", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Should never panic
+			title, body, factType, confidence := parseInceptionFactFile(tt.content, "test.md")
+			_ = title
+			_ = body
+			_ = factType
+			_ = confidence
+		})
+	}
+}
+
+func TestGatherFactsEmptyWiki(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("Test")
+
+	// Wiki dir doesn't exist yet
+	facts := e.GatherFactsPublic(context.Background())
+	// Should return some facts (at least the idea fact)
+	// or nil if wiki doesn't exist
+	_ = facts // just verify no panic
+}
+
+func TestGatherFactsWithFiles(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("Test idea")
+
+	// Write some wiki files
+	wikiDir := e.WikiDir()
+	os.MkdirAll(wikiDir, 0o755)
+	os.WriteFile(filepath.Join(wikiDir, "vision-test.md"), []byte("---\ntitle: Test Vision\ntype: vision\nconfidence: 0.9\n---\nA test project"), 0o644)
+	os.WriteFile(filepath.Join(wikiDir, "req-feature.md"), []byte("---\ntitle: Feature X\ntype: requirement\n---\nMust have feature X"), 0o644)
+	os.WriteFile(filepath.Join(wikiDir, "not-markdown.txt"), []byte("should be ignored"), 0o644)
+
+	facts := e.GatherFactsPublic(context.Background())
+	if len(facts) != 2 {
+		t.Errorf("expected 2 facts (skipping .txt), got %d", len(facts))
+	}
+
+	// Check fact types parsed correctly
+	hasVision := false
+	hasReq := false
+	for _, f := range facts {
+		if f.Type == FactVision {
+			hasVision = true
+			if f.Confidence != 0.9 {
+				t.Errorf("vision confidence = %f, want 0.9", f.Confidence)
+			}
+		}
+		if f.Type == FactRequirement {
+			hasReq = true
+		}
+	}
+	if !hasVision {
+		t.Error("should have a vision fact")
+	}
+	if !hasReq {
+		t.Error("should have a requirement fact")
 	}
 }

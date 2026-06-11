@@ -510,7 +510,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	if e.state != nil && e.state.IdeaText != "" {
 		ideaLang := inferLanguageFromText(e.state.IdeaText)
 		if ideaLang != "" && ideaLang != lang {
-			e.logger.Info("scaffold language cross-check override", "idea_lang", ideaLang, "constitution_lang", lang, "idea", e.state.IdeaText[:50])
+			e.logger.Info("scaffold language cross-check override", "idea_lang", ideaLang, "constitution_lang", lang, "idea", e.state.IdeaText[:min(50, len(e.state.IdeaText))])
 			lang = ideaLang
 		}
 	}

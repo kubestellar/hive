@@ -7754,14 +7754,10 @@ function burnAreaChart() {
       dismissToast(toast, `${agent} model → ${model}`, 'success');
     }
 
-    const PIN_OVERRIDE_TTL_MS = 8000;
+    const PIN_OVERRIDE_TTL_MS = 60000;
     const _pinOverrides = {};
     async function togglePin(agent, dimension, currentlyPinned) {
       const action = currentlyPinned ? 'unpin' : 'pin';
-      const res = await fetch(`/api/${action}/${agent}/${dimension}`, { method: 'POST' });
-      const data = await res.json();
-      if (!data.ok) { showToast(`${action} failed: ` + (data.error || 'unknown'), 'error'); return; }
-      showToast(`${agent} ${dimension} ${action}ned`, 'success');
       const nowPinned = !currentlyPinned;
       const key = `${agent}:${dimension}`;
       _pinOverrides[key] = { value: nowPinned, expires: Date.now() + PIN_OVERRIDE_TTL_MS };
@@ -7770,6 +7766,16 @@ function burnAreaChart() {
       renderAgents(agents);
       const lastData = window._lastStatus || {};
       renderGovernor(lastData.governor || {}, lastData.cadenceMatrix || [], lastData);
+      const res = await fetch(`/api/${action}/${agent}/${dimension}`, { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) {
+        showToast(`${action} failed: ` + (data.error || 'unknown'), 'error');
+        delete _pinOverrides[key];
+        fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
+        return;
+      }
+      showToast(`${agent} ${dimension} ${action}ned`, 'success');
+      fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
     }
     function applyPinOverrides(agents) {
       const now = Date.now();

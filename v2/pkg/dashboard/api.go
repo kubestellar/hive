@@ -527,7 +527,10 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mode := r.URL.Query().Get("mode")
-	if mode != "classic" {
+	if mode == "classic" {
+		mode = "dark"
+	}
+	if mode != "dark" {
 		mode = "light"
 	}
 	snapshotFile := fmt.Sprintf("/data/snapshots/snapshot-%s.html", mode)
@@ -540,7 +543,7 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 	needsRebuild := err != nil || time.Since(info.ModTime()) > staleThreshold
 
 	if needsRebuild {
-		s.buildSnapshot("/data/snapshots/snapshot-classic.html", "classic")
+		s.buildSnapshot("/data/snapshots/snapshot-dark.html", "dark")
 		s.buildSnapshot("/data/snapshots/snapshot-light.html", "light")
 	}
 
@@ -554,8 +557,8 @@ func (s *Server) handleSnapshotPage(w http.ResponseWriter, r *http.Request) {
 		`href="/live/hive/light"`,
 		`href="/snapshot?mode=light"`, -1))
 	data = []byte(strings.Replace(string(data),
-		`href="/live/hive/classic"`,
-		`href="/snapshot?mode=classic"`, -1))
+		`href="/live/hive/dark"`,
+		`href="/snapshot?mode=dark"`, -1))
 	data = []byte(strings.Replace(string(data),
 		`href="/live/hive"`,
 		`href="/snapshot"`, -1))

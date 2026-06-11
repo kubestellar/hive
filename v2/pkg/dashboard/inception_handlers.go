@@ -424,8 +424,10 @@ func (s *Server) handleInceptionImport(w http.ResponseWriter, r *http.Request) {
 		if f.FileInfo().IsDir() {
 			continue
 		}
-		baseName := filepath.Base(f.Name)
-		if !strings.HasSuffix(baseName, ".md") {
+		// Normalize backslash paths (zip files from Windows use \)
+		cleanName := strings.ReplaceAll(f.Name, "\\", "/")
+		baseName := filepath.Base(cleanName)
+		if strings.Contains(baseName, "..") || !strings.HasSuffix(baseName, ".md") {
 			continue
 		}
 		const maxFileBytes = 1 << 20 // 1 MiB per file

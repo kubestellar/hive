@@ -1126,7 +1126,7 @@ func (m *Manager) waitForInputPromptForAgent(agent *AgentProcess) bool {
 			return false
 		case <-ticker.C:
 			output := m.captureTmuxPaneForAgent(agent)
-			if strings.Contains(output, "❯") || strings.Contains(output, "goose is ready") || strings.Contains(output, "> Enter to send") {
+			if strings.Contains(output, "❯") || strings.Contains(output, "goose is ready") || strings.Contains(output, "> Enter to send") || strings.Contains(output, "\n>\n") {
 				return true
 			}
 		}
@@ -1147,7 +1147,7 @@ func (m *Manager) waitForInputPrompt(session string) bool {
 			return false
 		case <-ticker.C:
 			output := m.captureTmuxPane(session)
-			if strings.Contains(output, "❯") || strings.Contains(output, "goose is ready") || strings.Contains(output, "> Enter to send") {
+			if strings.Contains(output, "❯") || strings.Contains(output, "goose is ready") || strings.Contains(output, "> Enter to send") || strings.Contains(output, "\n>\n") {
 				return true
 			}
 		}

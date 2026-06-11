@@ -7289,7 +7289,7 @@ function burnAreaChart() {
 
     async function downloadInceptionZip() {
       try {
-        const r = await fetch('/api/inception/download');
+        const r = await fetch('/api/inception/download', {headers: _inceptionAuthHeaders()});
         if (!r.ok) { alert('Download failed'); return; }
         const blob = await r.blob();
         const url = URL.createObjectURL(blob);

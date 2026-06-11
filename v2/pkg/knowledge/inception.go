@@ -1295,7 +1295,7 @@ func buildShellTestStubs(acceptance []Fact) string {
 		title := singleLine(a.Title)
 		funcName := toSnakeCase(title)
 		fmt.Fprintf(&b, "test_%s() {\n", funcName)
-		safeTitle := strings.NewReplacer(`"`, `\"`, `$`, `\$`, "`", "\\`").Replace(title)
+		safeTitle := strings.NewReplacer(`\`, `\\`, `"`, `\"`, `$`, `\$`, "`", "\\`").Replace(title)
 		fmt.Fprintf(&b, "    echo \"SKIP: %s\"\n", safeTitle)
 		b.WriteString("    PASS=$((PASS+1))\n}\n\n")
 	}

@@ -67,6 +67,10 @@ type Server struct {
 
 	ready   bool
 	readyAt time.Time
+
+	githubAppMu         sync.RWMutex
+	githubAppRequired   bool
+	githubAppInstallURL string
 }
 
 // StatusPayload matches the JSON contract the dashboard frontend render() expects.
@@ -88,8 +92,10 @@ type StatusPayload struct {
 	ACMMLevel        int                 `json:"acmmLevel"`
 	ACMMPackAgents   []string            `json:"acmmPackAgents"`
 	AdvisoryDigest   any                 `json:"advisoryDigest,omitempty"`
-	ContributorPool  *ContributorPoolStatus `json:"contributorPool,omitempty"`
-	SystemResources  *SystemResources    `json:"systemResources,omitempty"`
+	ContributorPool    *ContributorPoolStatus `json:"contributorPool,omitempty"`
+	SystemResources    *SystemResources    `json:"systemResources,omitempty"`
+	GitHubAppRequired  bool                `json:"githubAppRequired,omitempty"`
+	GitHubAppInstallURL string             `json:"githubAppInstallURL,omitempty"`
 }
 
 type FrontendAgent struct {
@@ -388,6 +394,11 @@ func (s *Server) UpdateStatus(status *StatusPayload) {
 	}
 	status.ContributorPool = s.BuildContributorPoolStatus()
 
+	s.githubAppMu.RLock()
+	status.GitHubAppRequired = s.githubAppRequired
+	status.GitHubAppInstallURL = s.githubAppInstallURL
+	s.githubAppMu.RUnlock()
+
 	s.statusMu.Lock()
 	status.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	s.status = status
@@ -403,6 +414,25 @@ func (s *Server) UpdateStatus(status *StatusPayload) {
 	}
 
 	s.broadcastFrame(fmt.Sprintf("data: %s\n\n", data))
+}
+
+const GitHubAppInstallURL = "https://github.com/apps/hive-hub/installations/select_target_repositories"
+
+func (s *Server) SetGitHubAppRequired(required bool) {
+	s.githubAppMu.Lock()
+	defer s.githubAppMu.Unlock()
+	s.githubAppRequired = required
+	if required {
+		s.githubAppInstallURL = GitHubAppInstallURL
+	} else {
+		s.githubAppInstallURL = ""
+	}
+}
+
+func (s *Server) IsGitHubAppRequired() bool {
+	s.githubAppMu.RLock()
+	defer s.githubAppMu.RUnlock()
+	return s.githubAppRequired
 }
 
 // BroadcastAgentStatus sends a lightweight agent-only SSE event on a fast

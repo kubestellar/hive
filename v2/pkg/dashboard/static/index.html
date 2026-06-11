@@ -563,6 +563,11 @@
     .gh-auth-banner .gh-auth-btn { background: #238636; color: #fff; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
     .gh-auth-banner .gh-auth-btn:hover { background: #2ea043; }
     .gh-auth-banner .gh-auth-user { color: #58a6ff; font-weight: 600; }
+    .gh-app-install-banner { background: #7f1d1d; border: 1px solid #dc2626; border-radius: 8px; padding: 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+    .gh-app-install-banner .gh-app-title { font-weight: 600; margin-bottom: 4px; color: #fff; }
+    .gh-app-install-banner .gh-app-desc { font-size: 0.85rem; color: #fca5a5; }
+    .gh-app-install-banner .gh-app-btn { padding: 8px 16px; background: #dc2626; color: #fff; border-radius: 6px; font-weight: 600; text-decoration: none; white-space: nowrap; border: none; cursor: pointer; font-size: 0.85rem; }
+    .gh-app-install-banner .gh-app-btn:hover { background: #ef4444; }
     .gh-auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center; }
     .gh-auth-modal { background: #fff; border-radius: 12px; padding: 32px; max-width: 420px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
     .gh-auth-modal h3 { margin: 0 0 8px; font-size: 1.2rem; color: #1a1a2e; }
@@ -1924,6 +1929,14 @@
     <div id="logs-output" style="background: #1a1a2e; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; line-height: 1.5; padding: 14px; border-radius: 8px; max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"></div>
   </div>
 
+  <div id="gh-app-install-banner" class="gh-app-install-banner" style="display:none">
+    <span style="font-size:1.5rem">&#9888;&#65039;</span>
+    <div style="flex:1">
+      <div class="gh-app-title">GitHub App Not Installed</div>
+      <div class="gh-app-desc">This hive cannot create issues or advisory reports. Install the Hive Hub GitHub App on your repository to enable full functionality.</div>
+    </div>
+    <a id="gh-app-install-link" href="" target="_blank" rel="noopener" class="gh-app-btn">Install GitHub App</a>
+  </div>
   <div id="oc-gov-strip-outer" class="oc-gov-strip"></div>
   <div id="oc-agent-detail" class="oc-agent-detail"></div>
   <div class="agents" id="agents"></div>
@@ -3267,6 +3280,18 @@
           if (prev) prev.focus();
         }
         el.querySelectorAll('.doing').forEach(d => { d.scrollTop = d.scrollHeight; });
+      }
+    }
+
+    function renderGitHubAppBanner(data) {
+      var banner = document.getElementById('gh-app-install-banner');
+      if (!banner) return;
+      if (data.githubAppRequired && data.githubAppInstallURL) {
+        var link = document.getElementById('gh-app-install-link');
+        if (link) link.href = data.githubAppInstallURL;
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
       }
     }
 
@@ -6572,6 +6597,7 @@ function burnAreaChart() {
         }
       }
       renderGhRateLimits(data.ghRateLimits || {});
+      renderGitHubAppBanner(data);
       if (!_dropdownOpen && !_configModalOpen) {
         applyPinOverrides(data.agents || []);
         renderAgents(data.agents || []);

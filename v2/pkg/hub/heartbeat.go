@@ -61,7 +61,8 @@ type HeartbeatPayload struct {
 	Version      string             `json:"version"`
 	GitHash      string             `json:"git_hash"`
 	GitBranch    string             `json:"git_branch,omitempty"`
-	Timestamp    string             `json:"timestamp"`
+	Timestamp          string         `json:"timestamp"`
+	GitHubAppRequired  bool           `json:"github_app_required,omitempty"`
 }
 
 type StatusCollector func() *HeartbeatPayload

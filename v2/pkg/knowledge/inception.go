@@ -858,6 +858,12 @@ func (e *InceptionEngine) loadState() {
 		e.logger.Warn("corrupt inception state", "path", path, "error", err)
 		return
 	}
+	if state.Answers == nil {
+		state.Answers = make(map[string]string)
+	}
+	if state.FactSlugs == nil {
+		state.FactSlugs = []string{}
+	}
 	e.state = &state
 	e.logger.Info("inception state loaded",
 		"phase", state.Phase,

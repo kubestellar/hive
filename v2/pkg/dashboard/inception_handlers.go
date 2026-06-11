@@ -183,7 +183,7 @@ func (s *Server) handleInceptionRecordFacts(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := s.deps.Inception.RecordFacts(s.deps.Ctx, req.Facts); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

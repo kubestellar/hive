@@ -761,3 +761,59 @@ func TestContainsWordPerformance(t *testing.T) {
 		t.Error("should find 'go' at end of long string")
 	}
 }
+
+func TestSubmitAnswersInvalidKey(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("A Go tool")
+	e.mu.Lock()
+	e.state.Phase = PhaseClarify
+	e.state.Questions = []Question{
+		{ID: "q1", Text: "What?"},
+		{ID: "q2", Text: "Who?"},
+	}
+	e.mu.Unlock()
+
+	// Answer with non-existent key
+	_, err := e.SubmitAnswers(map[string]string{"nonexistent": "value"})
+	if err == nil {
+		t.Error("should reject answer key not matching any question ID")
+	}
+
+	// Mix valid and invalid keys
+	_, err = e.SubmitAnswers(map[string]string{"q1": "good", "bad_key": "bad"})
+	if err == nil {
+		t.Error("should reject if ANY key doesn't match")
+	}
+
+	// Valid keys should work
+	state, err := e.SubmitAnswers(map[string]string{"q1": "answer1", "q2": "answer2"})
+	if err != nil {
+		t.Fatalf("valid keys should work: %v", err)
+	}
+	if state.Phase != PhaseStructure {
+		t.Errorf("should advance to structure, got %s", state.Phase)
+	}
+}
+
+func TestSubmitAnswersPartialOK(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("A Go tool")
+	e.mu.Lock()
+	e.state.Phase = PhaseClarify
+	e.state.Questions = []Question{
+		{ID: "q1", Text: "What?"},
+		{ID: "q2", Text: "Who?"},
+	}
+	e.mu.Unlock()
+
+	// Only answer one question (partial) — should be accepted
+	state, err := e.SubmitAnswers(map[string]string{"q1": "just one"})
+	if err != nil {
+		t.Fatalf("partial answers should be accepted: %v", err)
+	}
+	if state.Answers["q1"] != "just one" {
+		t.Error("answer not recorded")
+	}
+}

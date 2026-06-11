@@ -394,8 +394,9 @@
       var area = document.getElementById('contrib-access-area');
 
       if (!_isLoggedIn) {
+        var loginRedirect = '/login?redirect=' + encodeURIComponent('/dashboard?request_hive=' + encodeURIComponent(id));
         area.innerHTML = '<p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">Login with GitHub to request access or contribute.</p>' +
-          '<a href="/login" style="padding:8px 16px;background:var(--accent);color:#000;border-radius:6px;font-size:0.85rem;font-weight:600;text-decoration:none;display:inline-block">Login with GitHub</a>';
+          '<a href="' + loginRedirect + '" style="padding:8px 16px;background:var(--accent);color:#000;border-radius:6px;font-size:0.85rem;font-weight:600;text-decoration:none;display:inline-block">Login with GitHub</a>';
         return;
       }
 

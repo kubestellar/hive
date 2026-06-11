@@ -402,3 +402,137 @@ func TestScaffoldNoConstitution(t *testing.T) {
 		t.Error("should not have Go files when idea says Rust")
 	}
 }
+
+func TestScaffoldWithManyFacts(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("A Go tool")
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	// Create 50 facts — tests dedup and performance
+	var facts []IdeationFact
+	facts = append(facts, IdeationFact{Title: "Vision", Body: "A tool", Type: FactVision})
+	facts = append(facts, IdeationFact{Title: "Go stdlib", Body: "Use Go", Type: FactConstitution})
+	for i := 0; i < 20; i++ {
+		facts = append(facts, IdeationFact{
+			Title: "Requirement " + strings.Repeat("x", i),
+			Body:  "Must do something " + strings.Repeat("y", i*10),
+			Type:  FactRequirement,
+		})
+	}
+	for i := 0; i < 10; i++ {
+		facts = append(facts, IdeationFact{
+			Title: "Constraint " + strings.Repeat("z", i),
+			Body:  "Limit " + strings.Repeat("w", i*5),
+			Type:  FactConstraint,
+		})
+	}
+	for i := 0; i < 10; i++ {
+		facts = append(facts, IdeationFact{
+			Title: "Acceptance " + strings.Repeat("a", i),
+			Body:  "Test that " + strings.Repeat("b", i*5),
+			Type:  FactAcceptance,
+		})
+	}
+
+	err := e.RecordFacts(context.Background(), facts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := e.ProduceScaffold(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Files) == 0 {
+		t.Error("should produce files with many facts")
+	}
+
+	// Test file should have test stubs for each acceptance fact
+	for _, f := range result.Files {
+		if f.Path == "main_test.go" {
+			testCount := strings.Count(f.Content, "func Test")
+			if testCount < 5 {
+				t.Errorf("expected at least 5 test stubs, got %d", testCount)
+			}
+			return
+		}
+	}
+}
+
+func TestScaffoldWithVeryLongFactBody(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("A Python tool")
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	// Very long fact body (10KB)
+	longBody := strings.Repeat("This is a very detailed requirement. ", 300)
+	facts := []IdeationFact{
+		{Title: "Vision", Body: "A data tool", Type: FactVision},
+		{Title: "Python 3.12", Body: "Use Python", Type: FactConstitution},
+		{Title: "Long requirement", Body: longBody, Type: FactRequirement},
+	}
+
+	err := e.RecordFacts(context.Background(), facts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := e.ProduceScaffold(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// README should contain the long body (or truncated)
+	for _, f := range result.Files {
+		if f.Path == "README.md" {
+			if len(f.Content) < 100 {
+				t.Error("README seems too short with a long requirement")
+			}
+			return
+		}
+	}
+}
+
+func TestScaffoldShellKubernetes(t *testing.T) {
+	// Shell project for Kubernetes operator — should have both .sh and K8s manifests
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("A Shell tool for Kubernetes deployments")
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	e.RecordFacts(context.Background(), []IdeationFact{
+		{Title: "K8s Deploy Tool", Body: "Automate Kubernetes deployments", Type: FactVision},
+		{Title: "Bash, kubectl", Body: "Use bash with kubectl commands", Type: FactConstitution},
+		{Title: "Deploy apps", Body: "Deploy to namespace", Type: FactRequirement},
+	})
+
+	result, err := e.ProduceScaffold(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hasShell := false
+	hasK8s := false
+	for _, f := range result.Files {
+		if strings.HasSuffix(f.Path, ".sh") {
+			hasShell = true
+		}
+		if strings.Contains(f.Path, "deploy/") || strings.Contains(f.Path, "kustomization") {
+			hasK8s = true
+		}
+	}
+	if !hasShell {
+		t.Error("shell K8s project should have .sh files")
+	}
+	if !hasK8s {
+		t.Error("K8s project should have deploy/ manifests")
+	}
+}

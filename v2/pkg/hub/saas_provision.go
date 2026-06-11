@@ -24,8 +24,8 @@ const (
 	provisionTimeout      = 5 * time.Minute
 	cpuRequest            = "500m"
 	cpuLimit              = "2000m"
-	memRequest            = "1Gi"
-	memLimit              = "4Gi"
+	memRequest            = "2Gi"
+	memLimit              = "8Gi"
 	nfsStorageCapacity    = "50Gi"
 	nfsMountTargetIP      = "10.0.10.30"
 	nfsExportPathPrefix   = "/hive-"
@@ -33,19 +33,25 @@ const (
 	rolloutMaxUnavailable = 0
 )
 
+type PendingAccessRequest struct {
+	Username    string `json:"username"`
+	RequestedAt string `json:"requested_at"`
+}
+
 type SaaSHive struct {
-	ID          string `json:"id"`
-	Owner       string `json:"owner"`
-	ProjectName string `json:"project_name"`
-	Org         string `json:"org"`
-	Repos       []string `json:"repos"`
-	PrimaryRepo string `json:"primary_repo"`
-	ACMMLevel   int    `json:"acmm_level"`
-	Status      string `json:"status"`
-	CreatedAt   string `json:"created_at"`
-	Subdomain   string `json:"subdomain"`
-	Error       string `json:"error,omitempty"`
-	AutoUpgrade bool   `json:"auto_upgrade"`
+	ID              string                 `json:"id"`
+	Owner           string                 `json:"owner"`
+	ProjectName     string                 `json:"project_name"`
+	Org             string                 `json:"org"`
+	Repos           []string               `json:"repos"`
+	PrimaryRepo     string                 `json:"primary_repo"`
+	ACMMLevel       int                    `json:"acmm_level"`
+	Status          string                 `json:"status"`
+	CreatedAt       string                 `json:"created_at"`
+	Subdomain       string                 `json:"subdomain"`
+	Error           string                 `json:"error,omitempty"`
+	AutoUpgrade     bool                   `json:"auto_upgrade"`
+	PendingRequests []PendingAccessRequest `json:"pending_requests,omitempty"`
 }
 
 type CreateHiveRequest struct {

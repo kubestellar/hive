@@ -6958,6 +6958,10 @@ function burnAreaChart() {
       } catch (e) { /* ignore poll errors */ }
 
       try {
+        // Don't clobber the textarea while the user is typing their idea
+        if (_inceptionState && _inceptionState.phase === 'capture' && !_inceptionState.idea_text) {
+          return;
+        }
         const sr = await fetch('/api/inception/state', {headers: _inceptionAuthHeaders()});
         const sd = await sr.json();
         if (!sd.ok) return;

@@ -483,9 +483,12 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	}
 
 	// Goose 1.37 requires --instructions or --text to stay interactive.
-	// Without bootstrap, use --instructions - (read from TTY).
+	// Without bootstrap, use a minimal --text prompt so goose output is
+	// visible to tmux capture-pane (--instructions - uses hidden TUI).
 	if backend == "goose" && bootstrapPrompt == "" {
-		launchCmd += " --instructions -"
+		minimalPrompt := fmt.Sprintf("/tmp/.hive-bootstrap-%s.txt", agent.Name)
+		os.WriteFile(minimalPrompt, []byte("You are an AI agent. Wait for instructions from the supervisor."), 0o644)
+		launchCmd += fmt.Sprintf(" --text \"$(cat %s)\"", minimalPrompt)
 	}
 
 	if !agent.forceRelaunch && m.tmuxPaneHasCLIForAgent(agent) {

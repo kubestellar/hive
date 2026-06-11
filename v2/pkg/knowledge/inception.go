@@ -2589,15 +2589,15 @@ func inferLanguage(constitution *Fact) string {
 	case strings.Contains(body, "typescript") || strings.Contains(body, "react") || strings.Contains(body, "angular") ||
 		strings.Contains(body, "vue") || strings.Contains(body, "next.js") || strings.Contains(body, "nest"):
 		return "typescript"
-	case strings.Contains(body, "python") || strings.Contains(body, "pytest") || strings.Contains(body, "pip") ||
+	case strings.Contains(body, "python") || strings.Contains(body, "pytest") || containsWord(body, "pip") ||
 		strings.Contains(body, "django") || strings.Contains(body, "flask") || strings.Contains(body, "fastapi") ||
 		strings.Contains(body, "sqlalchemy") || strings.Contains(body, "poetry"):
 		return "python"
 	case strings.Contains(body, "javascript") || strings.Contains(body, "vitest") ||
-		strings.Contains(body, "express") || strings.Contains(body, "webpack") || strings.Contains(body, "vite"):
+		strings.Contains(body, "express") || strings.Contains(body, "webpack") || containsWord(body, "vite"):
 		return "javascript"
 	case containsWord(body, "rust") || strings.Contains(body, "cargo") || strings.Contains(body, "tokio") ||
-		strings.Contains(body, "actix") || strings.Contains(body, "warp") || strings.Contains(body, "axum"):
+		strings.Contains(body, "actix") || containsWord(body, "warp") || strings.Contains(body, "axum"):
 		return "rust"
 	case containsWord(body, "java") || strings.Contains(body, "maven") || strings.Contains(body, "gradle") ||
 		strings.Contains(body, "spring") || strings.Contains(body, "kotlin") || strings.Contains(body, "quarkus"):

@@ -463,3 +463,24 @@ func TestConcurrentGetState(t *testing.T) {
 		<-done
 	}
 }
+
+func TestInferLanguageSubstringFalsePositives(t *testing.T) {
+	tests := []struct {
+		body    string
+		notWant string
+		desc    string
+	}{
+		{"My favorite build tool", "javascript", "favorite contains vite"},
+		{"Send an invite to the team", "javascript", "invite contains vite"},
+		{"Build a pipeline for data", "python", "pipeline contains pip"},
+		// "warp speed" — "warp" is a standalone word and a Rust framework.
+		// This is an inherent ambiguity, not a substring bug. Accepted as-is.
+	}
+	for _, tt := range tests {
+		fact := &Fact{Body: tt.body}
+		got := inferLanguage(fact)
+		if got == tt.notWant {
+			t.Errorf("inferLanguage(%q) = %q — false positive: %s", tt.body, got, tt.desc)
+		}
+	}
+}

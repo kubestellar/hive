@@ -1266,9 +1266,8 @@ border-bottom:1px solid rgba(255,255,255,0.05);transition:background .15s;align-
 font-size:.75rem;font-weight:500;border:1px solid;text-transform:capitalize}
 
 /* ── Stats ── */
-.stats-cell{text-align:right;font-variant-numeric:tabular-nums}
+.stats-cell{text-align:center;font-variant-numeric:tabular-nums}
 .stats-cell .completed{font-weight:600;font-size:.875rem;color:#4ade80}
-.stats-cell .failed{font-size:.75rem;color:#f87171;margin-top:2px}
 
 /* ── Breakdown pills ── */
 .pills{display:flex;flex-wrap:wrap;gap:6px}
@@ -1303,7 +1302,7 @@ border-radius:8px;border:1px solid rgba(255,255,255,0.05);padding:24px}
 @media(max-width:639px){
   .row .rank-cell{display:inline-flex;margin-right:8px}
   .row .contributor{flex:1}
-  .row .stats-cell{padding-left:44px}
+  .row .stats-cell{text-align:center}
   .row .pills{padding-left:44px}
   .row .reg-date{padding-left:44px}
 }
@@ -1508,9 +1507,9 @@ function buildRow(e, isAgent) {
     +     hoverCard
     +   '</div>'
     + '</div>'
-    + '<div class="stats-cell" style="text-align:center"><span style="color:#60a5fa;font-size:.875rem">' + (e.findings > 0 ? e.findings.toLocaleString() : '0') + '</span></div>'
-    + '<div class="stats-cell" style="text-align:center"><div class="completed">' + e.completed.toLocaleString() + '</div></div>'
-    + '<div style="display:flex;justify-content:center"><span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + tierLabel + '</span></div>'
+    + '<div class="stats-cell"><span style="color:#60a5fa;font-size:.875rem;font-weight:600">' + (e.findings > 0 ? e.findings.toLocaleString() : '0') + '</span></div>'
+    + '<div class="stats-cell"><div class="completed">' + e.completed.toLocaleString() + '</div></div>'
+    + '<div class="stats-cell"><span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + tierLabel + '</span></div>'
     + '</div>';
 }
 

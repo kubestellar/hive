@@ -603,7 +603,7 @@ func (s *HubServer) mergeLeaderboards() []LeaderboardEntry {
 			continue
 		}
 		for _, lb := range h.Leaderboard {
-			if lb.GitHubUsername == "" {
+			if lb.GitHubUsername == "" || lb.TrustTier == "agent" {
 				continue
 			}
 			if existing, ok := merged[lb.GitHubUsername]; ok {

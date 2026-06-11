@@ -331,15 +331,14 @@
           
           '<td style="white-space:nowrap">' + avatar + '<a href="https://github.com/' + esc(e.github_username) + '" target="_blank">' + esc(e.github_username) + '</a></td>' +
           '<td style="font-size:0.8rem;color:var(--muted)">' + esc(e.hive_name || '') + '</td>' +
-          '<td>' + (e.tasks_completed || 0) + '</td>' +
-          '<td>' + (e.tasks_failed || 0) + '</td>' +
-          '<td><span class="acmm-badge acmm-2">' + esc(e.trust_tier || 'newcomer') + '</span></td>' +
+          '<td style="text-align:center">' + (e.tasks_completed || 0) + '</td>' +
+          '<td style="text-align:center"><span class="acmm-badge acmm-2">' + esc(e.trust_tier || 'newcomer') + '</span></td>' +
           '<td>' + taskText + '</td>' +
           '</tr>';
       }).join('');
       document.getElementById('leaderboard-container').innerHTML =
         '<table class="hive-table"><thead><tr>' +
-        '<th>Contributor</th><th>Hive</th><th>Completed</th><th>Failed</th><th>Tier</th><th>Current Task</th>' +
+        '<th>Contributor</th><th>Hive</th><th style="text-align:center">Completed</th><th style="text-align:center">Tier</th><th>Current Task</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
     }
 

@@ -622,3 +622,41 @@ func TestScaffoldMakefileMatchesLanguage(t *testing.T) {
 		})
 	}
 }
+
+func TestTestStubsBackslashEscaping(t *testing.T) {
+	acceptance := []Fact{
+		{Title: `Handle C:\path\to\file`, Body: "File paths"},
+		{Title: `Test with "quotes" and 'apostrophes'`, Body: "Quotes"},
+		{Title: `Backslash at end\`, Body: "Trailing"},
+	}
+
+	// Go stubs
+	goStubs := buildGoTestStubs(acceptance)
+	if strings.Contains(goStubs, `C:\p`) && !strings.Contains(goStubs, `C:\\p`) {
+		t.Error("Go stubs: backslash not escaped")
+	}
+
+	// TS stubs
+	tsStubs := buildTSTestStubs(acceptance)
+	if strings.Contains(tsStubs, `C:\p`) && !strings.Contains(tsStubs, `C:\\p`) {
+		t.Error("TS stubs: backslash not escaped")
+	}
+
+	// Python stubs
+	pyStubs := buildPythonTestStubs(acceptance)
+	if strings.Contains(pyStubs, `C:\p`) && !strings.Contains(pyStubs, `C:\\p`) {
+		t.Error("Python stubs: backslash not escaped")
+	}
+
+	// Rust stubs
+	rsStubs := buildRustTestStubs(acceptance)
+	if strings.Contains(rsStubs, `C:\p`) && !strings.Contains(rsStubs, `C:\\p`) {
+		t.Error("Rust stubs: backslash not escaped")
+	}
+
+	// Java stubs
+	javaStubs := buildJavaTestStubs(acceptance)
+	if strings.Contains(javaStubs, `C:\p`) && !strings.Contains(javaStubs, `C:\\p`) {
+		t.Error("Java stubs: backslash not escaped")
+	}
+}

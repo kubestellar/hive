@@ -138,3 +138,53 @@ func FuzzBuildGoMain(f *testing.F) {
 		}
 	})
 }
+
+func FuzzBuildAllTestStubs(f *testing.F) {
+	f.Add("Normal title")
+	f.Add(`Title with "quotes"`)
+	f.Add(`Title with 'apostrophes'`)
+	f.Add("Title with \\ backslash")
+	f.Add("Title with \n newline")
+	f.Add(`Title with """ triple`)
+	f.Add("C:\\Users\\path\\file")
+	f.Add("$HOME expansion")
+	f.Add("`backtick` command")
+	f.Add("")
+
+	f.Fuzz(func(t *testing.T, title string) {
+		facts := []Fact{{Title: title, Body: "test body"}}
+
+		// All 6 builders must not panic
+		_ = buildGoTestStubs(facts)
+		_ = buildTSTestStubs(facts)
+		_ = buildPythonTestStubs(facts)
+		_ = buildRustTestStubs(facts)
+		_ = buildJavaTestStubs(facts)
+		_ = buildShellTestStubs(facts)
+	})
+}
+
+func FuzzBuildAllScaffoldFiles(f *testing.F) {
+	f.Add("myproject", "A cool tool")
+	f.Add("x", "")
+	f.Add("test-project", `Has "quotes" and <html>`)
+	f.Add("proj", "Line1\nLine2")
+
+	f.Fuzz(func(t *testing.T, name, desc string) {
+		vision := &Fact{Title: desc, Body: desc}
+		constitution := &Fact{Body: "Go project"}
+
+		_ = buildReadme(name, "go", desc, vision, constitution, nil, nil, nil)
+		_ = buildClaudeMD("go", constitution, nil)
+		_ = buildContributing(name, "go", constitution)
+		_ = buildAgentsMD(constitution, nil, nil, vision)
+		_ = buildCIConfig("go")
+		_ = buildNightlyCI("go")
+		_ = buildGitignore("go")
+		_ = buildMakefile("go", name, "cli")
+		_ = buildGoMain(name, vision)
+		_ = buildGoCmdRoot(name, vision)
+		_ = buildGoMod(name)
+		_ = buildDockerfile("go", name)
+	})
+}

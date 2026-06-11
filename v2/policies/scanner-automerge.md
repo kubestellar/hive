@@ -35,26 +35,41 @@ Set the model parameter explicitly on every agent call. When in doubt, use a mid
 
 **If an issue is too large for one session** (requires changes across more than 5 files, involves multiple independent concerns, or needs design decisions): do NOT attempt a fix. Instead, create focused child issues (link to parent with "Part of #N"), add a comment on the parent explaining the decomposition, and move on. The next kick cycle picks up the children.
 
-Use the following prompt (fill in the issue-specific values):
+### Step 1: Group Related Issues
+
+Before dispatching agents, scan the ISSUE_LIST and **group related issues** that should be fixed together in a single PR. Issues are related if they:
+- Touch the same file or component
+- Share a root cause (e.g., same missing import, same broken pattern)
+- Are part of the same feature gap (e.g., multiple cards missing the same hook)
+
+Each group gets **one agent** that opens **one PR** closing all issues in the group. Unrelated issues stay as single-issue agents. This reduces PR noise and produces more coherent fixes.
+
+### Step 2: Dispatch Agents
+
+Use the following prompt template. For grouped issues, list all issues and use the lowest issue number for the branch name.
 
 ```
-Fix this issue and open a PR. Then return immediately.
+Fix these issues and open a single PR. Then return immediately.
 
-ISSUE: <org>/<repo>#<number> — <title>
+ISSUES:
+- <org>/<repo>#<number1> — <title1>
+- <org>/<repo>#<number2> — <title2>
+(list all issues in the group, or just one if ungrouped)
+
 REPO: <org>/<repo>
 
 Steps:
-1. git worktree add /tmp/scanner-fix-<number> -b scanner/fix-<number> origin/main
-2. Read the issue: gh issue view <number> --repo <org>/<repo>
-3. Verify the bug exists in code — read files, confirm the pattern
-4. If invalid or already fixed: comment with evidence, close as "not planned", clean up worktree, and return
+1. git worktree add /tmp/scanner-fix-<lowest-number> -b scanner/fix-<lowest-number> origin/main
+2. Read each issue: gh issue view <number> --repo <org>/<repo>
+3. Verify the bugs exist in code — read files, confirm the patterns
+4. If any issue is invalid or already fixed: comment with evidence, close as "not planned"
 5. Before changing anything, read the surrounding code and nearby files to understand the project's patterns and conventions. Use existing utilities, follow established naming and style — do not introduce new abstractions or deviate from how the codebase already solves similar problems. The existing code is the reference model.
-6. Implement the fix in the worktree
+6. Implement all fixes in the worktree
 7. git add the changed files
-8. git commit -s -m "[scanner] fix: <short description>"
-9. git push -u origin scanner/fix-<number>
-10. gh pr create --repo <org>/<repo> --title "[scanner] fix: <short description>" --body "Fixes #<number>"
-11. git worktree remove /tmp/scanner-fix-<number>
+8. git commit -s -m "[scanner] fix: <short description covering all issues>"
+9. git push -u origin scanner/fix-<lowest-number>
+10. gh pr create --repo <org>/<repo> --title "[scanner] fix: <short description>" --body "Fixes #<n1>, Fixes #<n2>, Fixes #<n3>" (repeat Fixes keyword for each issue)
+11. git worktree remove /tmp/scanner-fix-<lowest-number>
 12. Return immediately — do NOT wait for CI, do NOT merge, do NOT run build or lint
 ```
 
@@ -75,7 +90,7 @@ Skip any with failing checks or hold labels. If the list is empty, skip this ste
 ## Workflow
 
 1. **Merge sweep** — process MERGE-ELIGIBLE list (5 min cap)
-2. **Dispatch fixes** — launch one background agent per issue using the Agent tool with `run_in_background: true`
+2. **Group + dispatch fixes** — group related issues, launch one background agent per group using the Agent tool with `run_in_background: true`
 3. **Final merge sweep** — re-check MERGE-ELIGIBLE plus any new PRs from sub-agents
 4. **Beads + summary** — create beads, report PRs opened/merged/pending
 

@@ -26,7 +26,11 @@ const (
 	cpuLimit              = "2000m"
 	memRequest            = "1Gi"
 	memLimit              = "4Gi"
-	pvcSize               = "10Gi"
+	nfsStorageCapacity    = "50Gi"
+	nfsMountTargetIP      = "10.0.10.30"
+	nfsExportPathPrefix   = "/hive-"
+	rolloutMaxSurge       = 1
+	rolloutMaxUnavailable = 0
 )
 
 type SaaSHive struct {
@@ -182,11 +186,16 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 			}
 			return strings.Join(lines, "\n")
 		}(),
-		"CPURequest":      cpuRequest,
-		"CPULimit":        cpuLimit,
-		"MemRequest":      memRequest,
-		"MemLimit":        memLimit,
-		"PVCSize":         pvcSize,
+		"CPURequest":           cpuRequest,
+		"CPULimit":             cpuLimit,
+		"MemRequest":           memRequest,
+		"MemLimit":             memLimit,
+		"NFSStorageCapacity":   nfsStorageCapacity,
+		"NFSMountTargetIP":     nfsMountTargetIP,
+		"NFSExportPath":        nfsExportPathPrefix + h.ID,
+		"PVName":               "hive-" + h.ID + "-fss-pv",
+		"RolloutMaxSurge":      rolloutMaxSurge,
+		"RolloutMaxUnavailable": rolloutMaxUnavailable,
 		"DashboardToken": func() string {
 			const tokenBytes = 32
 			b := make([]byte, tokenBytes)
@@ -342,17 +351,32 @@ stringData:
 {{- end}}
 ---
 apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{.PVName}}
+spec:
+  capacity:
+    storage: {{.NFSStorageCapacity}}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    server: {{.NFSMountTargetIP}}
+    path: {{.NFSExportPath}}
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: hive-data
   namespace: {{.Namespace}}
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
-      storage: {{.PVCSize}}
-  storageClassName: oci-bv
+      storage: {{.NFSStorageCapacity}}
+  volumeName: {{.PVName}}
+  storageClassName: ""
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -364,8 +388,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+      maxSurge: {{.RolloutMaxSurge}}
+      maxUnavailable: {{.RolloutMaxUnavailable}}
   selector:
     matchLabels:
       app: hive

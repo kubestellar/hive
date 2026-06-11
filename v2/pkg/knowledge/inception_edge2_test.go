@@ -225,3 +225,33 @@ func TestInferLanguageFromTextEdgeCases(t *testing.T) {
 		}
 	}
 }
+
+func TestInferLanguageFalsePositives(t *testing.T) {
+	tests := []struct {
+		body string
+		want string
+	}{
+		// Words containing "rust" should NOT match Rust
+		{"Build a trustworthy service", "go"},
+		{"Handle frustrated users gracefully", "go"},
+		// But actual Rust should match
+		{"Build with Rust and tokio", "rust"},
+		{"Use Cargo for dependency management", "rust"},
+		// Words containing "java" should NOT match Java (unless it IS java)
+		{"A Java Spring Boot service", "java"},
+		// Words containing "shell" should NOT match Shell
+		{"Protect against shellshock vulnerabilities", "go"},
+		{"A nutshell guide to APIs", "go"},
+		// But actual shell should match
+		{"Write a bash automation script", "shell"},
+		// "pip" inside "pipeline" should still match python (it's a framework keyword)
+		{"Build a data pipeline with pip", "python"},
+	}
+	for _, tt := range tests {
+		fact := &Fact{Body: tt.body}
+		got := inferLanguage(fact)
+		if got != tt.want {
+			t.Errorf("inferLanguage(%q) = %q, want %q", tt.body, got, tt.want)
+		}
+	}
+}

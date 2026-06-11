@@ -2318,6 +2318,36 @@ public class I18n {
     }
 }
 `, "src/i18n/I18n.java"
+	case "javascript":
+		return `import en from './en.json' assert { type: 'json' };
+import es from './es.json' assert { type: 'json' };
+
+const messages = { en, es };
+let currentLocale = 'en';
+
+export function setLocale(locale) {
+  currentLocale = locale;
+}
+
+export function t(key) {
+  return messages[currentLocale]?.[key] ?? key;
+}
+`, "src/i18n/index.js"
+	case "shell":
+		return `#!/usr/bin/env bash
+LOCALE="${LOCALE:-en}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+t() {
+  local key="$1"
+  local file="$SCRIPT_DIR/${LOCALE}.json"
+  if command -v jq &>/dev/null && [ -f "$file" ]; then
+    jq -r --arg k "$key" '.[$k] // $k' "$file"
+  else
+    echo "$key"
+  fi
+}
+`, "src/i18n/i18n.sh"
 	default:
 		return `import en from './en.json';
 import es from './es.json';

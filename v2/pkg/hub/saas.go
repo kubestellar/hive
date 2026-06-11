@@ -2459,13 +2459,14 @@ const dashboardHTML = `<!DOCTYPE html>
         banner.id = 'user-access-banner';
         banner.style.cssText = 'margin-bottom:16px';
         var html = '';
+        var dismissBtn = '<button onclick="this.parentNode.remove()" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 4px" title="Dismiss">&times;</button>';
         if (pendingIds.length) {
           html += '<div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">' +
-            '<span style="font-size:1.1rem">&#x1F514;</span><span style="font-size:0.85rem;color:var(--text)">Access pending: <strong>' + pendingIds.map(esc).join(', ') + '</strong></span></div>';
+            '<span style="font-size:1.1rem">&#x1F514;</span><span style="flex:1;font-size:0.85rem;color:var(--text)">Access pending: <strong>' + pendingIds.map(esc).join(', ') + '</strong></span>' + dismissBtn + '</div>';
         }
         if (acceptedIds.length) {
           html += '<div style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px">' +
-            '<span style="font-size:1.1rem">&#x2705;</span><span style="font-size:0.85rem;color:var(--text)">Access granted: <strong>' + acceptedIds.map(esc).join(', ') + '</strong> — Start contributing!</span></div>';
+            '<span style="font-size:1.1rem">&#x2705;</span><span style="flex:1;font-size:0.85rem;color:var(--text)">Access granted: <strong>' + acceptedIds.map(esc).join(', ') + '</strong> — Start contributing!</span>' + dismissBtn + '</div>';
         }
         banner.innerHTML = html;
         container.parentNode.insertBefore(banner, container);

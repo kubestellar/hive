@@ -577,8 +577,9 @@ func (w *InceptionWatcher) handlePlukEvent(event plukEvent) {
 		}
 		lower := strings.ToLower(line)
 
-		// Buffer all bd create lines for parsing
-		if strings.Contains(lower, "bd create") && strings.Contains(lower, "--title") {
+		// Buffer all bd create lines for parsing (capped to prevent unbounded growth)
+		const maxBdCreateLines = 200
+		if strings.Contains(lower, "bd create") && strings.Contains(lower, "--title") && len(w.plukBdCreateLines) < maxBdCreateLines {
 			w.plukBdCreateLines = append(w.plukBdCreateLines, line)
 		}
 

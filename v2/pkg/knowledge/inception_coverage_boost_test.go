@@ -20,19 +20,18 @@ func TestBuildTestStubsAllLanguages(t *testing.T) {
 		{"Shell scripts", "shell"},
 	}
 	for _, tt := range langs {
-		constitution := &Fact{Body: tt.body}
-		got := buildTestStubs(acceptance, constitution)
+		got := buildTestStubs(acceptance, tt.lang)
 		if got == "" {
-			t.Errorf("buildTestStubs(%q) should produce output", tt.body)
+			t.Errorf("buildTestStubs(%q) should produce output", tt.lang)
 		}
 	}
 }
 
-func TestBuildTestStubsNilConstitution(t *testing.T) {
+func TestBuildTestStubsDefaultLang(t *testing.T) {
 	acceptance := []Fact{{Title: "Test", Body: "Works"}}
-	got := buildTestStubs(acceptance, nil)
+	got := buildTestStubs(acceptance, "")
 	if got == "" {
-		t.Error("nil constitution should default to Go test stubs")
+		t.Error("empty lang should default to Go test stubs")
 	}
 }
 
@@ -101,25 +100,25 @@ func TestBuildReadmeWithAllFacts(t *testing.T) {
 		{Title: "Team B", Body: "Frontend"},
 	}
 
-	got := buildReadme("build a tool", "build a tool", vision, constitution, reqs, constraints, stakeholders)
+	got := buildReadme("build a tool", "go", "build a tool", vision, constitution, reqs, constraints, stakeholders)
 	if got == "" {
 		t.Error("should produce README")
 	}
 }
 
 func TestBuildReadmeNoVision(t *testing.T) {
-	got := buildReadme("idea text", "idea text", nil, nil, nil, nil, nil)
+	got := buildReadme("idea text", "go", "idea text", nil, nil, nil, nil, nil)
 	if got == "" {
 		t.Error("should produce README with defaults")
 	}
 }
 
 func TestBuildContributingAllLanguages(t *testing.T) {
-	langs := []string{"Go project", "TypeScript app", "Python service", "Rust crate", "Java app", "Shell scripts"}
-	for _, body := range langs {
-		got := buildContributing("myproject", &Fact{Body: body})
+	langs := []string{"go", "typescript", "python", "rust", "java", "shell"}
+	for _, lang := range langs {
+		got := buildContributing("myproject", lang, &Fact{Body: lang + " project"})
 		if got == "" {
-			t.Errorf("buildContributing(%q) should produce output", body)
+			t.Errorf("buildContributing(%q) should produce output", lang)
 		}
 	}
 }

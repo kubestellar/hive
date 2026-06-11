@@ -12,7 +12,7 @@ func TestBuildReadme(t *testing.T) {
 	constraints := []Fact{{Title: "Constraint 1", Body: "No external deps"}}
 	stakeholders := []Fact{{Title: "Team A", Body: "Backend devs"}}
 
-	got := buildReadme("build a tool", "build a tool", vision, constitution, reqs, constraints, stakeholders)
+	got := buildReadme("build a tool", "go", "build a tool", vision, constitution, reqs, constraints, stakeholders)
 	if !strings.Contains(got, "MyProject") {
 		t.Error("should contain project name")
 	}
@@ -25,7 +25,7 @@ func TestBuildReadme(t *testing.T) {
 }
 
 func TestBuildReadmeMinimal(t *testing.T) {
-	got := buildReadme("simple idea", "simple idea", nil, nil, nil, nil, nil)
+	got := buildReadme("simple idea", "go", "simple idea", nil, nil, nil, nil, nil)
 	if got == "" {
 		t.Error("should produce output even with nil facts")
 	}
@@ -38,7 +38,7 @@ func TestBuildClaudeMD(t *testing.T) {
 	constitution := &Fact{Body: "Go microservice with REST API"}
 	constraints := []Fact{{Body: "Must use stdlib only"}}
 
-	got := buildClaudeMD(constitution, constraints)
+	got := buildClaudeMD("go", constitution, constraints)
 	if !strings.Contains(got, "Guidelines") {
 		t.Error("should contain Guidelines header")
 	}
@@ -48,7 +48,7 @@ func TestBuildClaudeMD(t *testing.T) {
 }
 
 func TestBuildClaudeMDNil(t *testing.T) {
-	got := buildClaudeMD(nil, nil)
+	got := buildClaudeMD("go", nil, nil)
 	if got == "" {
 		t.Error("should produce output with nil inputs")
 	}
@@ -56,14 +56,14 @@ func TestBuildClaudeMDNil(t *testing.T) {
 
 func TestBuildContributing(t *testing.T) {
 	constitution := &Fact{Body: "TypeScript React application"}
-	got := buildContributing("myproject", constitution)
+	got := buildContributing("myproject", "typescript", constitution)
 	if !strings.Contains(got, "Contributing") {
 		t.Error("should contain Contributing header")
 	}
 }
 
 func TestBuildContributingNil(t *testing.T) {
-	got := buildContributing("myproject", nil)
+	got := buildContributing("myproject", "go", nil)
 	if got == "" {
 		t.Error("should produce output with nil constitution")
 	}
@@ -71,8 +71,7 @@ func TestBuildContributingNil(t *testing.T) {
 
 func TestBuildTestStubsGo(t *testing.T) {
 	acceptance := []Fact{{Title: "Test 1", Body: "It works"}}
-	constitution := &Fact{Body: "Go project"}
-	got := buildTestStubs(acceptance, constitution)
+	got := buildTestStubs(acceptance, "go")
 	if !strings.Contains(got, "Test") {
 		t.Error("should contain test content")
 	}
@@ -141,48 +140,42 @@ func TestBuildShellMain(t *testing.T) {
 }
 
 func TestBuildCIConfigGo(t *testing.T) {
-	constitution := &Fact{Body: "Go project"}
-	got := buildCIConfig(constitution)
+	got := buildCIConfig("go")
 	if !strings.Contains(got, "go") {
 		t.Error("Go CI should reference go")
 	}
 }
 
 func TestBuildCIConfigTS(t *testing.T) {
-	constitution := &Fact{Body: "TypeScript project"}
-	got := buildCIConfig(constitution)
+	got := buildCIConfig("typescript")
 	if !strings.Contains(got, "npm") || !strings.Contains(got, "node") {
 		t.Error("TS CI should reference npm/node")
 	}
 }
 
 func TestBuildCIConfigPython(t *testing.T) {
-	constitution := &Fact{Body: "Python project"}
-	got := buildCIConfig(constitution)
+	got := buildCIConfig("python")
 	if !strings.Contains(got, "pip") || !strings.Contains(got, "python") {
 		t.Error("Python CI should reference pip/python")
 	}
 }
 
 func TestBuildCIConfigRust(t *testing.T) {
-	constitution := &Fact{Body: "Rust project"}
-	got := buildCIConfig(constitution)
+	got := buildCIConfig("rust")
 	if !strings.Contains(got, "cargo") {
 		t.Error("Rust CI should reference cargo")
 	}
 }
 
 func TestBuildCIConfigJava(t *testing.T) {
-	constitution := &Fact{Body: "Java project with Maven"}
-	got := buildCIConfig(constitution)
+	got := buildCIConfig("java")
 	if !strings.Contains(got, "mvn") || !strings.Contains(got, "java") {
 		t.Error("Java CI should reference mvn/java")
 	}
 }
 
 func TestBuildCIConfigShell(t *testing.T) {
-	constitution := &Fact{Body: "Shell scripts with Makefile"}
-	got := buildCIConfig(constitution)
+	got := buildCIConfig("shell")
 	if !strings.Contains(got, "shellcheck") || !strings.Contains(got, "bash") {
 		t.Error("Shell CI should reference shellcheck/bash")
 	}

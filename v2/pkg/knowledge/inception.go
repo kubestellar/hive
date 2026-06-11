@@ -507,7 +507,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	// Core documentation
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "README.md",
-		Content: buildReadme(projectName, e.state.IdeaText, vision, constitution, requirements, constraints, stakeholders),
+		Content: buildReadme(projectName, lang, e.state.IdeaText, vision, constitution, requirements, constraints, stakeholders),
 		Purpose: "readme",
 		IsNew:   true,
 	})
@@ -521,14 +521,14 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "CONTRIBUTING.md",
-		Content: buildContributing(projectName, constitution),
+		Content: buildContributing(projectName, lang, constitution),
 		Purpose: "contributing",
 		IsNew:   true,
 	})
 
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    "CLAUDE.md",
-		Content: buildClaudeMD(constitution, constraints),
+		Content: buildClaudeMD(lang, constitution, constraints),
 		Purpose: "claude_md",
 		IsNew:   true,
 	})
@@ -536,7 +536,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	// CI/CD — multi-tiered: PR checks, nightly full suite
 	result.Files = append(result.Files, ScaffoldFile{
 		Path:    ".github/workflows/ci.yml",
-		Content: buildCIConfig(constitution),
+		Content: buildCIConfig(lang),
 		Purpose: "ci",
 		IsNew:   true,
 	})
@@ -565,7 +565,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
-				Path: "main_test.go", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+				Path: "main_test.go", Content: buildTestStubs(acceptance, lang), Purpose: "test_stub", IsNew: true,
 			})
 		}
 	case "python":
@@ -576,7 +576,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
-				Path: "tests/test_acceptance.py", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+				Path: "tests/test_acceptance.py", Content: buildTestStubs(acceptance, lang), Purpose: "test_stub", IsNew: true,
 			})
 		}
 	case "typescript":
@@ -587,7 +587,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
-				Path: "src/__tests__/acceptance.test.ts", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+				Path: "src/__tests__/acceptance.test.ts", Content: buildTestStubs(acceptance, lang), Purpose: "test_stub", IsNew: true,
 			})
 		}
 	case "javascript":
@@ -597,7 +597,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
-				Path: "src/__tests__/acceptance.test.js", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+				Path: "src/__tests__/acceptance.test.js", Content: buildTestStubs(acceptance, lang), Purpose: "test_stub", IsNew: true,
 			})
 		}
 	case "rust":
@@ -607,7 +607,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
-				Path: "tests/acceptance.rs", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+				Path: "tests/acceptance.rs", Content: buildTestStubs(acceptance, lang), Purpose: "test_stub", IsNew: true,
 			})
 		}
 	case "java":
@@ -617,7 +617,7 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		)
 		if len(acceptance) > 0 {
 			result.Files = append(result.Files, ScaffoldFile{
-				Path: "src/test/java/AppTest.java", Content: buildTestStubs(acceptance, constitution), Purpose: "test_stub", IsNew: true,
+				Path: "src/test/java/AppTest.java", Content: buildTestStubs(acceptance, lang), Purpose: "test_stub", IsNew: true,
 			})
 		}
 	case "shell":
@@ -986,7 +986,7 @@ func defaultConfidence(ft FactType) float64 {
 
 // --- scaffold builders ---
 
-func buildReadme(projectName, ideaText string, vision, constitution *Fact, reqs, constraints, stakeholders []Fact) string {
+func buildReadme(projectName, lang, ideaText string, vision, constitution *Fact, reqs, constraints, stakeholders []Fact) string {
 	var b strings.Builder
 
 	title := "Project"
@@ -1047,7 +1047,6 @@ func buildReadme(projectName, ideaText string, vision, constitution *Fact, reqs,
 
 	b.WriteString("## Getting Started\n\n")
 	if constitution != nil {
-		lang := inferLanguage(constitution)
 		switch lang {
 		case "go":
 			fmt.Fprintf(&b, "```bash\ngo build -o bin/ .\n./bin/%s\n```\n\n", projectName)
@@ -1076,12 +1075,10 @@ func buildReadme(projectName, ideaText string, vision, constitution *Fact, reqs,
 	return b.String()
 }
 
-func buildClaudeMD(constitution *Fact, constraints []Fact) string {
+func buildClaudeMD(lang string, constitution *Fact, constraints []Fact) string {
 	var b strings.Builder
 
 	b.WriteString("# Project Guidelines\n\n")
-
-	lang := inferLanguage(constitution)
 	b.WriteString("## Build & Test\n\n")
 	switch lang {
 	case "go":
@@ -1122,8 +1119,7 @@ func buildClaudeMD(constitution *Fact, constraints []Fact) string {
 	return b.String()
 }
 
-func buildTestStubs(acceptance []Fact, constitution *Fact) string {
-	lang := inferLanguage(constitution)
+func buildTestStubs(acceptance []Fact, lang string) string {
 	acceptance = deduplicateFactTitles(acceptance)
 
 	switch lang {
@@ -1258,13 +1254,12 @@ func buildShellTestStubs(acceptance []Fact) string {
 	return b.String()
 }
 
-func buildContributing(projectName string, constitution *Fact) string {
+func buildContributing(projectName, lang string, constitution *Fact) string {
 	var b strings.Builder
 	b.WriteString("# Contributing\n\n")
 	b.WriteString("Thank you for your interest in contributing!\n\n")
 	b.WriteString("## Development Setup\n\n")
 	if constitution != nil {
-		lang := inferLanguage(constitution)
 		switch lang {
 		case "go":
 			fmt.Fprintf(&b, "```bash\ngit clone <repo-url>\ncd %s\ngo mod download\ngo build ./...\ngo test ./...\n```\n\n", projectName)
@@ -1299,9 +1294,7 @@ func buildContributing(projectName string, constitution *Fact) string {
 	return b.String()
 }
 
-func buildCIConfig(constitution *Fact) string {
-	lang := inferLanguage(constitution)
-
+func buildCIConfig(lang string) string {
 	switch lang {
 	case "go":
 		return goCI()

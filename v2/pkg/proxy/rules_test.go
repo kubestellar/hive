@@ -101,6 +101,77 @@ func TestGraphQLAllowed(t *testing.T) {
 	}
 }
 
+func TestExtractRepo(t *testing.T) {
+	tests := []struct {
+		path string
+		want string
+	}{
+		{"/repos/org/repo/issues", "org/repo"},
+		{"/repos/org/repo/pulls/42/merge", "org/repo"},
+		{"/repos/org/repo/git/refs", "org/repo"},
+		{"/repos/org/repo/contents/README.md", "org/repo"},
+		{"/org/repo.git/git-receive-pack", "org/repo"},
+		{"/org/repo.git/git-upload-pack", "org/repo"},
+		{"/user", ""},
+		{"/rate_limit", ""},
+		{"/search/issues", ""},
+		{"/orgs/myorg/repos", ""},
+		{"/graphql", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got := ExtractRepo(tt.path)
+			if got != tt.want {
+				t.Errorf("ExtractRepo(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRepoFilterAllowed(t *testing.T) {
+	allowed := map[string]bool{
+		"myorg/console": true,
+		"myorg/docs":    true,
+	}
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		want   bool
+	}{
+		{"GET any repo passes", "GET", "/repos/myorg/other/issues", true},
+		{"HEAD any repo passes", "HEAD", "/repos/myorg/other/pulls", true},
+		{"POST allowed repo passes", "POST", "/repos/myorg/console/issues", true},
+		{"POST disallowed repo blocked", "POST", "/repos/projectbluefin/documentation/issues", false},
+		{"PATCH allowed repo passes", "PATCH", "/repos/myorg/docs/issues/42", true},
+		{"PATCH disallowed repo blocked", "PATCH", "/repos/myorg/other/issues/42", false},
+		{"PUT disallowed repo blocked", "PUT", "/repos/myorg/other/pulls/1/merge", false},
+		{"DELETE disallowed repo blocked", "DELETE", "/repos/myorg/other/git/refs/heads/branch", false},
+		{"POST non-repo path passes", "POST", "/graphql", true},
+		{"POST user endpoint passes", "POST", "/user", true},
+		{"git push allowed repo passes", "POST", "/myorg/console.git/git-receive-pack", true},
+		{"git push disallowed repo blocked", "POST", "/myorg/other.git/git-receive-pack", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RepoFilterAllowed(allowed, tt.method, tt.path)
+			if got != tt.want {
+				t.Errorf("RepoFilterAllowed(%q, %q) = %v, want %v",
+					tt.method, tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRepoFilterEmptyAllowedPassesAll(t *testing.T) {
+	empty := map[string]bool{}
+	if !RepoFilterAllowed(empty, "POST", "/repos/any/repo/issues") {
+		t.Error("empty allowedRepos should allow all requests")
+	}
+}
+
 func TestIsGitHubHost(t *testing.T) {
 	tests := []struct {
 		host string

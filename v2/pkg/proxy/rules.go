@@ -79,6 +79,41 @@ func AllowedByMode(mode agent.AgentMode, method, path string) bool {
 	return false
 }
 
+var repoPathPrefix = regexp.MustCompile(`^/repos/([^/]+/[^/]+)`)
+
+var gitPathPrefix = regexp.MustCompile(`^/([^/]+/[^/]+)\.git/`)
+
+var writeMethods = map[string]bool{
+	"POST":   true,
+	"PUT":    true,
+	"PATCH":  true,
+	"DELETE": true,
+}
+
+func ExtractRepo(path string) string {
+	if m := repoPathPrefix.FindStringSubmatch(path); len(m) > 1 {
+		return m[1]
+	}
+	if m := gitPathPrefix.FindStringSubmatch(path); len(m) > 1 {
+		return m[1]
+	}
+	return ""
+}
+
+func RepoFilterAllowed(allowedRepos map[string]bool, method, path string) bool {
+	if !writeMethods[method] {
+		return true
+	}
+	if len(allowedRepos) == 0 {
+		return true
+	}
+	repo := ExtractRepo(path)
+	if repo == "" {
+		return true
+	}
+	return allowedRepos[repo]
+}
+
 // IsGraphQLPath returns true if the path is the GitHub GraphQL endpoint.
 func IsGraphQLPath(path string) bool {
 	return path == "/graphql"

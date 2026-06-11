@@ -660,3 +660,123 @@ func TestTestStubsBackslashEscaping(t *testing.T) {
 		t.Error("Java stubs: backslash not escaped")
 	}
 }
+
+func TestScaffoldInvariants(t *testing.T) {
+	// Every scaffold output must satisfy these properties regardless of language
+	ideas := []string{
+		"A Go CLI tool",
+		"A Python microservice",
+		"A Rust API",
+		"A TypeScript dashboard",
+		"A Java enterprise app",
+		"A JavaScript utility",
+		"A Shell automation script",
+	}
+
+	for _, idea := range ideas {
+		t.Run(idea, func(t *testing.T) {
+			dir := t.TempDir()
+			e := NewInceptionEngine(dir, nil, nil)
+			e.Start(idea)
+			e.mu.Lock()
+			e.state.Phase = PhaseScaffold
+			e.mu.Unlock()
+
+			result, err := e.ProduceScaffold(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// INVARIANT 1: Always has README.md
+			hasReadme := false
+			for _, f := range result.Files {
+				if f.Path == "README.md" {
+					hasReadme = true
+					if f.Content == "" {
+						t.Error("README.md should not be empty")
+					}
+				}
+			}
+			if !hasReadme {
+				t.Error("every scaffold must have README.md")
+			}
+
+			// INVARIANT 2: Always has .gitignore
+			hasGitignore := false
+			for _, f := range result.Files {
+				if f.Path == ".gitignore" {
+					hasGitignore = true
+				}
+			}
+			if !hasGitignore {
+				t.Error("every scaffold must have .gitignore")
+			}
+
+			// INVARIANT 3: Always has Makefile
+			hasMakefile := false
+			for _, f := range result.Files {
+				if f.Path == "Makefile" {
+					hasMakefile = true
+				}
+			}
+			if !hasMakefile {
+				t.Error("every scaffold must have Makefile")
+			}
+
+			// INVARIANT 4: Always has CI config
+			hasCI := false
+			for _, f := range result.Files {
+				if f.Path == ".github/workflows/ci.yml" {
+					hasCI = true
+				}
+			}
+			if !hasCI {
+				t.Error("every scaffold must have ci.yml")
+			}
+
+			// INVARIANT 5: No duplicate paths
+			seen := make(map[string]bool)
+			for _, f := range result.Files {
+				if seen[f.Path] {
+					t.Errorf("duplicate file path: %s", f.Path)
+				}
+				seen[f.Path] = true
+			}
+
+			// INVARIANT 6: No empty paths
+			for _, f := range result.Files {
+				if f.Path == "" {
+					t.Error("file path must not be empty")
+				}
+			}
+
+			// INVARIANT 7: No empty content
+			for _, f := range result.Files {
+				if f.Content == "" {
+					t.Errorf("file %s has empty content", f.Path)
+				}
+			}
+
+			// INVARIANT 8: All files have a purpose
+			for _, f := range result.Files {
+				if f.Purpose == "" {
+					t.Errorf("file %s has no purpose", f.Path)
+				}
+			}
+
+			// INVARIANT 9: All paths are relative (no leading /)
+			for _, f := range result.Files {
+				if strings.HasPrefix(f.Path, "/") {
+					t.Errorf("file path is absolute: %s", f.Path)
+				}
+			}
+
+			// INVARIANT 10: No path traversal
+			for _, f := range result.Files {
+				if strings.Contains(f.Path, "..") {
+					t.Errorf("file path contains ..: %s", f.Path)
+				}
+			}
+		})
+	}
+}

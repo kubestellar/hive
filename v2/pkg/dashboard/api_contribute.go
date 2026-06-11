@@ -1235,7 +1235,7 @@ border-radius:12px;border:1px solid rgba(255,255,255,0.1);overflow:visible}
 /* ── Table header ── */
 .table-header{display:none;padding:12px 24px;border-bottom:1px solid rgba(255,255,255,0.05);
 font-size:.75rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
-@media(min-width:640px){.table-header{display:grid;grid-template-columns:60px 1fr 100px 80px 120px 80px}}
+@media(min-width:640px){.table-header{display:grid;grid-template-columns:60px 1fr 120px 120px 100px}}
 .table-header .sortable{cursor:pointer;transition:color .2s;user-select:none}
 .table-header .sortable:hover{color:#fff}
 .table-header .sortable.active{color:#facc15}
@@ -1243,7 +1243,7 @@ font-size:.75rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
 /* ── Row ── */
 .row{display:grid;grid-template-columns:1fr;gap:8px;padding:16px;
 border-bottom:1px solid rgba(255,255,255,0.05);transition:background .15s;align-items:center}
-@media(min-width:640px){.row{grid-template-columns:60px 1fr 100px 80px 120px 80px;gap:16px;padding:16px 24px}}
+@media(min-width:640px){.row{grid-template-columns:60px 1fr 120px 120px 100px;gap:16px;padding:16px 24px}}
 .row:last-child{border-bottom:none}
 .row:hover{background:rgba(255,255,255,0.02)}
 
@@ -1383,10 +1383,9 @@ font-size:.875rem;font-weight:500;text-decoration:none;transition:opacity .2s}
       <div class="table-header">
         <div style="text-align:center">Rank</div>
         <div>Participant</div>
-        <div class="sortable active" style="text-align:right" id="sort-completed" onclick="toggleSort('completed')">Completed &#x25BC;</div>
-        <div class="sortable" style="text-align:center" id="sort-findings" onclick="toggleSort('findings')">Findings</div>
+        <div class="sortable" style="text-align:center" id="sort-findings" onclick="toggleSort('findings')">Findings (issues)</div>
+        <div class="sortable active" style="text-align:center" id="sort-completed" onclick="toggleSort('completed')">Completed (PRs) &#x25BC;</div>
         <div style="text-align:center">Role</div>
-        <div style="text-align:right" class="sortable" id="sort-failed" onclick="toggleSort('failed')">Restarts</div>
       </div>
       <div id="agent-rows"></div>
 
@@ -1509,10 +1508,9 @@ function buildRow(e, isAgent) {
     +     hoverCard
     +   '</div>'
     + '</div>'
-    + '<div class="stats-cell"><div class="completed">' + e.completed.toLocaleString() + '</div></div>'
-    + '<div class="stats-cell" style="text-align:center"><span style="color:#60a5fa;font-size:.875rem">' + (isAgent && e.findings > 0 ? e.findings.toLocaleString() : '') + '</span></div>'
+    + '<div class="stats-cell" style="text-align:center"><span style="color:#60a5fa;font-size:.875rem">' + (e.findings > 0 ? e.findings.toLocaleString() : '0') + '</span></div>'
+    + '<div class="stats-cell" style="text-align:center"><div class="completed">' + e.completed.toLocaleString() + '</div></div>'
     + '<div style="display:flex;justify-content:center"><span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + tierLabel + '</span></div>'
-    + '<div class="stats-cell" style="text-align:right"><span style="color:#f87171;font-size:.875rem">' + (e.failed > 0 ? e.failed : '') + '</span></div>'
     + '</div>';
 }
 
@@ -1577,13 +1575,10 @@ function renderRows() {
 
   var sc = document.getElementById('sort-completed');
   var sfi = document.getElementById('sort-findings');
-  var sf = document.getElementById('sort-failed');
   sc.classList.toggle('active', sortField === 'completed');
   if (sfi) sfi.classList.toggle('active', sortField === 'findings');
-  sf.classList.toggle('active', sortField === 'failed');
-  sc.innerHTML = 'Completed ' + (sortField === 'completed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
-  if (sfi) sfi.innerHTML = 'Findings ' + (sortField === 'findings' ? (sortDir === 'desc' ? '▼' : '▲') : '');
-  sf.innerHTML = 'Restarts ' + (sortField === 'failed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
+  sc.innerHTML = 'Completed (PRs) ' + (sortField === 'completed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
+  if (sfi) sfi.innerHTML = 'Findings (issues) ' + (sortField === 'findings' ? (sortDir === 'desc' ? '▼' : '▲') : '');
 }
 
 function toggleSort(field) {

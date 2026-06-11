@@ -1428,11 +1428,21 @@ func (s *HubServer) handleUserToken(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"token": token})
 }
 
+var publicPaths = []string{"/snapshot", "/leaderboard", "/contribute", "/api/leaderboard", "/api/contribute"}
+
 func (s *HubServer) handleSaaSAuthCheck(w http.ResponseWriter, r *http.Request) {
 	hiveID := r.URL.Query().Get("hive")
 	if hiveID == "" {
 		http.Error(w, "missing hive param", http.StatusBadRequest)
 		return
+	}
+
+	originalURI := r.Header.Get("X-Original-URI")
+	for _, p := range publicPaths {
+		if strings.HasPrefix(originalURI, p) {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 	}
 
 	if isUnfurlBot(r.Header.Get("User-Agent")) {

@@ -328,6 +328,7 @@ var cliPaneMarkers = []string{
 	"Claude",
 	"Copilot",
 	"Gemini",
+	"goose",
 }
 
 // tmuxPaneHasCLI reports whether a CLI is running in the pane by inspecting
@@ -430,8 +431,9 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 	case "gemini":
 		launchCmd = fmt.Sprintf("%s --model %s", binary, model)
 	case "goose":
+		launchCmd = fmt.Sprintf("%s run -s", binary)
 		if model != "" {
-			launchCmd = fmt.Sprintf("%s --model %s", binary, model)
+			launchCmd = fmt.Sprintf("%s --model %s", launchCmd, model)
 		}
 	case "bob":
 		launchCmd = binary
@@ -475,7 +477,7 @@ func (m *Manager) launchInTmux(ctx context.Context, agent *AgentProcess) error {
 			case "gemini":
 				launchCmd += fmt.Sprintf(" -i \"$(cat %s)\"", promptFile)
 			case "goose":
-				launchCmd += fmt.Sprintf(" --prompt \"$(cat %s)\"", promptFile)
+				launchCmd += fmt.Sprintf(" --text \"$(cat %s)\"", promptFile)
 			}
 		}
 	}
@@ -1087,7 +1089,7 @@ func (m *Manager) waitForInputPromptForAgent(agent *AgentProcess) bool {
 			return false
 		case <-ticker.C:
 			output := m.captureTmuxPaneForAgent(agent)
-			if strings.Contains(output, "❯") {
+			if strings.Contains(output, "❯") || strings.Contains(output, "goose is ready") || strings.Contains(output, "> Enter to send") {
 				return true
 			}
 		}
@@ -1108,7 +1110,7 @@ func (m *Manager) waitForInputPrompt(session string) bool {
 			return false
 		case <-ticker.C:
 			output := m.captureTmuxPane(session)
-			if strings.Contains(output, "❯") {
+			if strings.Contains(output, "❯") || strings.Contains(output, "goose is ready") || strings.Contains(output, "> Enter to send") {
 				return true
 			}
 		}
@@ -1358,11 +1360,14 @@ func (m *Manager) SendKick(name string, message string) error {
 		return fmt.Errorf("agent %s disappeared while waiting for input prompt", name)
 	}
 
-	// Clear stale input before kick (Ctrl+C then Ctrl+U)
-	m.tmuxSendKeysForAgent(agent, "C-c")
-	time.Sleep(staleCheckDelay)
-	m.tmuxSendKeysForAgent(agent, "C-u")
-	time.Sleep(staleCheckDelay)
+	// Clear stale input before kick (Ctrl+C then Ctrl+U).
+	// Goose 1.37 exits on ^C — skip clear for goose backend.
+	if agent.Config.Backend != "goose" && agent.BackendOverride != "goose" {
+		m.tmuxSendKeysForAgent(agent, "C-c")
+		time.Sleep(staleCheckDelay)
+		m.tmuxSendKeysForAgent(agent, "C-u")
+		time.Sleep(staleCheckDelay)
+	}
 
 	if agent.Config.ClearOnKick {
 		m.tmuxSendLiteralForAgent(agent, "/clear")
@@ -1451,7 +1456,7 @@ const (
 	cliReadyPollInterval  = 2 * time.Second
 	cliReadyTimeout       = 60 * time.Second
 	inputPromptPollInterval = 2 * time.Second
-	inputPromptTimeout      = 30 * time.Second
+	inputPromptTimeout      = 120 * time.Second
 )
 
 func (m *Manager) SeedLastKick(name string, t time.Time) {

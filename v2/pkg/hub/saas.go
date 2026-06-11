@@ -123,6 +123,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("GET /api/saas/hives/{id}/requests", s.requireAuth(s.handleGetRequests))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/requests/{username}/approve", s.requireAuth(s.handleApproveRequest))
 	s.mux.HandleFunc("POST /api/saas/hives/{id}/requests/{username}/deny", s.requireAuth(s.handleDenyRequest))
+	s.mux.HandleFunc("GET /api/saas/access-status", s.handleAccessStatus)
 	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
 
@@ -524,15 +525,93 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	showMyHives := isAdmin || len(result) > 0
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"hives":          result,
-		"saas_quota":     user.SaaSQuota,
-		"saas_used":      saasCount,
-		"is_admin":       user.GitHubUsername == hubAdminUsername,
-		"latest_sha":     getLatestSHA(),
-		"hub_git_hash":   s.hubGitHash,
+		"hives":            result,
+		"saas_quota":       user.SaaSQuota,
+		"saas_used":        saasCount,
+		"is_admin":         user.GitHubUsername == hubAdminUsername,
+		"latest_sha":       getLatestSHA(),
+		"hub_git_hash":     s.hubGitHash,
 		"hub_auto_upgrade": isHubAutoUpgrade(),
+		"show_my_hives":    showMyHives,
+	})
+}
+
+func (s *HubServer) handleAccessStatus(w http.ResponseWriter, r *http.Request) {
+	username := s.getAuthUser(r)
+	if username == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"authenticated": false,
+			"show_my_hives": false,
+		})
+		return
+	}
+
+	user := loadSaaSUser(username)
+	if user == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"authenticated": true,
+			"show_my_hives": username == hubAdminUsername,
+			"hives":         map[string]string{},
+		})
+		return
+	}
+
+	s.mu.Lock()
+	s.markStaleHives()
+	allHives := make([]RegistryEntry, len(s.registry.Hives))
+	copy(allHives, s.registry.Hives)
+	s.mu.Unlock()
+
+	type hiveAccessInfo struct {
+		Role   string `json:"role"`
+		Status string `json:"status"`
+	}
+	hiveAccess := make(map[string]hiveAccessInfo)
+
+	isAdmin := username == hubAdminUsername
+	for _, h := range allHives {
+		if role, ok := user.Hives[h.ID]; ok {
+			hiveAccess[h.ID] = hiveAccessInfo{Role: role, Status: "accepted"}
+			continue
+		}
+		if strings.EqualFold(h.Owner, username) {
+			hiveAccess[h.ID] = hiveAccessInfo{Role: "owner", Status: "accepted"}
+			continue
+		}
+		if isAdmin {
+			hiveAccess[h.ID] = hiveAccessInfo{Role: "owner", Status: "accepted"}
+			continue
+		}
+		reqs := loadAccessRequests(h.ID)
+		for _, req := range reqs {
+			if req.Username == username && req.Status == "pending" {
+				hiveAccess[h.ID] = hiveAccessInfo{Status: "pending"}
+				break
+			}
+		}
+	}
+
+	showMyHives := isAdmin || len(user.Hives) > 0
+	if !showMyHives {
+		for _, h := range allHives {
+			if strings.EqualFold(h.Owner, username) {
+				showMyHives = true
+				break
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"authenticated": true,
+		"show_my_hives": showMyHives,
+		"hives":         hiveAccess,
 	})
 }
 
@@ -1720,6 +1799,11 @@ const dashboardHTML = `<!DOCTYPE html>
 
     <div id="hives-container"><div class="loading">Loading your hives...</div></div>
 
+    <div id="public-hives-section" style="display:none;margin-top:48px">
+      <h2 style="font-size:1.3rem;color:var(--accent);margin-bottom:16px">Public Hives</h2>
+      <div id="public-hives-container"></div>
+    </div>
+
     <div id="admin-section" style="display:none;margin-top:48px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <h2 style="font-size:1.3rem;color:var(--accent)">Hub Admin — Users</h2>
@@ -1934,6 +2018,7 @@ const dashboardHTML = `<!DOCTYPE html>
         }
         renderHives(data.hives || []);
         renderPendingBanner(data.hives || []);
+        loadPublicHives(data.hives || []);
       } catch(e) {
         if (!_allDashHives.length) {
           document.getElementById('hives-container').innerHTML = '<div class="loading">Failed to load hives</div>';
@@ -1941,6 +2026,57 @@ const dashboardHTML = `<!DOCTYPE html>
       } finally {
         _hivesLoading = false;
       }
+    }
+
+    async function loadPublicHives(myHives) {
+      try {
+        var resp = await fetch('/api/registry');
+        var data = await resp.json();
+        var allPublic = (data.hives || []).filter(function(h) { return h.isPublic !== false && h.hiveType === 'hosted'; });
+        var myIds = {};
+        (myHives || []).forEach(function(h) { myIds[h.id] = true; });
+        var otherHives = allPublic.filter(function(h) { return !myIds[h.id]; });
+        var section = document.getElementById('public-hives-section');
+        if (!otherHives.length) { section.style.display = 'none'; return; }
+        section.style.display = '';
+        var statusResp = await fetch('/api/saas/access-status');
+        var statusData = await statusResp.json();
+        var accessMap = statusData.hives || {};
+        var rows = otherHives.map(function(h) {
+          var repoPath = h.org && h.primaryRepo ? h.org + '/' + h.primaryRepo : h.primaryRepo || '';
+          var repoLink = repoPath ? '<a href="https://github.com/' + esc(repoPath) + '" target="_blank" class="repo-link">' + esc(h.primaryRepo) + '</a>' : '';
+          var actionCell = '';
+          var access = accessMap[h.id];
+          if (access && access.status === 'accepted') {
+            var cUrl = 'https://' + esc(h.id) + '.hive.kubestellar.io/contribute';
+            actionCell = '<a href="' + cUrl + '" target="_blank" style="padding:3px 10px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:4px;font-size:0.7rem;text-decoration:none">Contribute</a>';
+          } else if (access && access.status === 'pending') {
+            actionCell = '<span style="padding:3px 10px;background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);border-radius:4px;font-size:0.7rem">Pending</span>';
+          } else {
+            actionCell = '<button onclick="dashRequestAccess(\'' + esc(h.id) + '\',this)" style="padding:3px 10px;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:4px;font-size:0.7rem;cursor:pointer;border:1px solid rgba(59,130,246,0.3)">Request Access</button>';
+          }
+          return '<tr>' +
+            '<td style="text-align:left">' + esc(h.name || h.id) + '</td>' +
+            '<td>' + repoLink + '</td>' +
+            '<td>' + acmmBadge(h.acmmLevel) + '</td>' +
+            '<td>' + actionCell + '</td>' +
+            '</tr>';
+        }).join('');
+        document.getElementById('public-hives-container').innerHTML =
+          '<table class="hive-table"><thead><tr><th style="text-align:left">Hive</th><th>Repo</th><th>ACMM</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+      } catch(e) {}
+    }
+
+    async function dashRequestAccess(hiveId, btn) {
+      btn.disabled = true;
+      btn.textContent = 'Requesting...';
+      try {
+        var resp = await fetch('/api/saas/hives/' + encodeURIComponent(hiveId) + '/request-access', {method: 'POST'});
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Request failed', 'error'); btn.textContent = 'Request Access'; btn.disabled = false; return; }
+        btn.outerHTML = '<span style="padding:3px 10px;background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);border-radius:4px;font-size:0.7rem">Pending</span>';
+        hiveToast('Access request sent!', 'success');
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); btn.textContent = 'Request Access'; btn.disabled = false; }
     }
 
     function renderHives(hives, force) {

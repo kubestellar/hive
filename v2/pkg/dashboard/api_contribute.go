@@ -1058,7 +1058,7 @@ func (s *Server) buildAgentLeaderboardEntries() []LeaderboardEntry {
 		}
 
 		entries = append(entries, LeaderboardEntry{
-			GitHubUsername: displayName,
+			GitHubUsername: name,
 			AvatarURL:     fmt.Sprintf(agentAvatarURLTemplate, name),
 			TrustTier:     agentTierLabel,
 			TasksCompleted: tasksCompleted,

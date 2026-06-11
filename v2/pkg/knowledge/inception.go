@@ -68,6 +68,9 @@ func (e *InceptionEngine) Start(rawIdea string) (*InceptionState, error) {
 	}
 
 	slug := slugify("idea-" + truncateSlug(rawIdea))
+	if len(slug) < 8 {
+		slug = slug + "-" + fmt.Sprintf("%d", time.Now().UnixMilli()%100000)
+	}
 
 	if e.api != nil {
 		ctx := context.Background()
@@ -2475,7 +2478,7 @@ func slugify(s string) string {
 		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
 			return r
 		}
-		if r == ' ' || r == '_' {
+		if r == ' ' || r == '_' || r == '\n' || r == '\r' || r == '\t' {
 			return '-'
 		}
 		return -1

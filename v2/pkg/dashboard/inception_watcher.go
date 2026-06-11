@@ -53,6 +53,7 @@ type InceptionWatcher struct {
 	captureSeenAt     time.Time // when watcher first saw this inception in capture phase
 	structureSeenAt   time.Time // when watcher first saw this inception in structure phase
 
+	pollMu              sync.Mutex
 	plukMu              sync.Mutex
 	plukFactLines       []string
 	plukIdleInStructure bool
@@ -119,6 +120,9 @@ func (w *InceptionWatcher) Run(ctx context.Context) {
 }
 
 func (w *InceptionWatcher) poll(ctx context.Context) {
+	w.pollMu.Lock()
+	defer w.pollMu.Unlock()
+
 	if w.inception == nil || w.beadStore == nil {
 		return
 	}

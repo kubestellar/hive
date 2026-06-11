@@ -605,3 +605,29 @@ func TestProduceScaffoldWithFacts(t *testing.T) {
 		}
 	}
 }
+
+func TestInferProjectTypeFalsePositives(t *testing.T) {
+	tests := []struct {
+		body    string
+		notWant string
+		desc    string
+	}{
+		{"Send an invite to users", "ui", "invite contains vite"},
+		{"My favorite deployment tool", "ui", "favorite contains vite"},
+		// But actual vite should match
+		{"Build with Vite and React", "cli", "actual Vite framework should be ui"},
+	}
+	for _, tt := range tests {
+		fact := &Fact{Body: tt.body}
+		got := inferProjectType(fact, nil, nil)
+		if got == tt.notWant {
+			t.Errorf("inferProjectType(%q) = %q — false positive: %s", tt.body, got, tt.desc)
+		}
+	}
+
+	// Positive test: actual Vite should match ui
+	viteFact := &Fact{Body: "Build with Vite and React"}
+	if got := inferProjectType(viteFact, nil, nil); got != "ui" {
+		t.Errorf("Vite project should be ui, got %q", got)
+	}
+}

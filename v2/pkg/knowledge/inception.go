@@ -2538,12 +2538,34 @@ func inferLanguageFromText(text string) string {
 		return "rust"
 	case strings.Contains(lower, "java") && !strings.Contains(lower, "javascript"):
 		return "java"
-	case strings.Contains(lower, "go ") || strings.Contains(lower, "go cli") || strings.Contains(lower, "golang"):
+	case containsWord(lower, "go") || strings.Contains(lower, "golang"):
 		return "go"
 	case strings.Contains(lower, "shell") || strings.Contains(lower, "bash"):
 		return "shell"
 	}
 	return ""
+}
+
+func containsWord(text, word string) bool {
+	idx := 0
+	for {
+		pos := strings.Index(text[idx:], word)
+		if pos < 0 {
+			return false
+		}
+		absPos := idx + pos
+		endPos := absPos + len(word)
+		atStart := absPos == 0 || !isAlpha(text[absPos-1])
+		atEnd := endPos >= len(text) || !isAlpha(text[endPos])
+		if atStart && atEnd {
+			return true
+		}
+		idx = absPos + 1
+	}
+}
+
+func isAlpha(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
 
 func repoBaseName(url string) string {

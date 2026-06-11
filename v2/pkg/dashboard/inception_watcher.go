@@ -149,6 +149,7 @@ func (w *InceptionWatcher) poll(ctx context.Context) {
 		w.plukQuestions = nil
 		w.plukBdCreateLines = nil
 		w.plukIdleInStructure = false
+		w.plukLastActivity = time.Time{}
 		w.plukMu.Unlock()
 		if w.lastSlug != "" {
 			w.reapOldInceptionBeads(state.StartedAt)

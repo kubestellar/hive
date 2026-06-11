@@ -229,3 +229,176 @@ func TestMakefileAllLanguages(t *testing.T) {
 		}
 	}
 }
+
+func TestDockerfileAllLanguages(t *testing.T) {
+	langs := []string{"go", "python", "typescript", "javascript", "rust", "java", "shell"}
+	for _, lang := range langs {
+		t.Run(lang, func(t *testing.T) {
+			df := buildDockerfile(lang, "testproject")
+			if df == "" {
+				t.Error("Dockerfile should not be empty")
+			}
+			if !strings.Contains(df, "FROM") {
+				t.Error("Dockerfile missing FROM")
+			}
+			// Check no tabs (Dockerfiles use spaces)
+			lines := strings.Split(df, "\n")
+			for i, line := range lines {
+				if strings.HasPrefix(line, "\t") {
+					t.Errorf("line %d starts with tab: %q", i+1, line)
+				}
+			}
+		})
+	}
+}
+
+func TestK8sManifests(t *testing.T) {
+	name := "test-app"
+	
+	deployment := buildK8sDeployment(name)
+	if !strings.Contains(deployment, "kind: Deployment") {
+		t.Error("missing Deployment kind")
+	}
+	if !strings.Contains(deployment, name) {
+		t.Error("deployment missing project name")
+	}
+
+	service := buildK8sService(name)
+	if !strings.Contains(service, "kind: Service") {
+		t.Error("missing Service kind")
+	}
+
+	configmap := buildK8sConfigMap(name)
+	if !strings.Contains(configmap, "kind: ConfigMap") {
+		t.Error("missing ConfigMap kind")
+	}
+
+	secret := buildK8sSecret(name)
+	if !strings.Contains(secret, "kind: Secret") {
+		t.Error("missing Secret kind")
+	}
+
+	kustomize := buildKustomization()
+	if !strings.Contains(kustomize, "apiVersion") {
+		t.Error("missing kustomization apiVersion")
+	}
+
+	for _, env := range []string{"dev", "prod"} {
+		overlay := buildK8sOverlayKustomization(name, env)
+		if !strings.Contains(overlay, "resources") {
+			t.Errorf("%s overlay missing resources", env)
+		}
+	}
+}
+
+func TestPomXmlSpecialChars(t *testing.T) {
+	// XML special chars in vision should be escaped
+	vision := &Fact{Title: `Project with <tags> & "quotes"`}
+	pom := buildPomXml("test-project", vision)
+	
+	if strings.Contains(pom, "&\"") {
+		t.Error("pom.xml has unescaped ampersand before quote")
+	}
+	if !strings.Contains(pom, "<project") {
+		t.Error("pom.xml missing <project tag")
+	}
+	// Should be well-formed enough to not have bare < or & in text content
+	// (xmlEscape handles this)
+}
+
+func TestCargoTomlSpecialChars(t *testing.T) {
+	vision := &Fact{Title: "Project with \"quotes\" and\nnewlines"}
+	cargo := buildCargoToml("test-project", vision)
+	
+	if !strings.Contains(cargo, "[package]") {
+		t.Error("Cargo.toml missing [package]")
+	}
+	// Check no raw newlines in the description value
+	lines := strings.Split(cargo, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "description") {
+			if strings.Count(line, `"`) < 2 {
+				t.Errorf("description line has unclosed quotes: %s", line)
+			}
+		}
+	}
+}
+
+func TestScaffoldLanguageCrossCheck(t *testing.T) {
+	// Constitution says "React" (→ TypeScript) but idea says "Python"
+	// Cross-check should override to Python
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("A Python dashboard for monitoring")
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	e.RecordFacts(context.Background(), []IdeationFact{
+		{Title: "Dashboard", Body: "A monitoring dashboard", Type: FactVision},
+		{Title: "React frontend", Body: "Use React with TypeScript", Type: FactConstitution},
+		{Title: "Real-time data", Body: "Show live metrics", Type: FactRequirement},
+	})
+
+	result, err := e.ProduceScaffold(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Cross-check should detect Python in idea and override React/TypeScript
+	hasPy := false
+	hasTS := false
+	for _, f := range result.Files {
+		if strings.HasSuffix(f.Path, ".py") || f.Path == "pyproject.toml" {
+			hasPy = true
+		}
+		if f.Path == "tsconfig.json" {
+			hasTS = true
+		}
+	}
+	if !hasPy {
+		t.Error("cross-check should override to Python (from idea text)")
+	}
+	if hasTS {
+		t.Error("should not have TypeScript files when idea says Python")
+	}
+}
+
+func TestScaffoldNoConstitution(t *testing.T) {
+	// No constitution fact → should default to Go (or cross-check from idea)
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("A Rust CLI tool")
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	e.RecordFacts(context.Background(), []IdeationFact{
+		{Title: "Rust CLI", Body: "A fast CLI tool", Type: FactVision},
+		{Title: "Speed", Body: "Must be fast", Type: FactRequirement},
+		// No constitution!
+	})
+
+	result, err := e.ProduceScaffold(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// inferLanguage(nil) returns "go", but cross-check should find "rust" in idea
+	hasRust := false
+	hasGo := false
+	for _, f := range result.Files {
+		if f.Path == "Cargo.toml" || strings.HasSuffix(f.Path, ".rs") {
+			hasRust = true
+		}
+		if f.Path == "go.mod" {
+			hasGo = true
+		}
+	}
+	if !hasRust {
+		t.Error("cross-check should detect Rust from idea text even without constitution")
+	}
+	if hasGo {
+		t.Error("should not have Go files when idea says Rust")
+	}
+}

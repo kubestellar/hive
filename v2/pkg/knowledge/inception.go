@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -39,6 +40,9 @@ type InceptionEngine struct {
 
 // NewInceptionEngine creates an engine that persists state under dataDir.
 func NewInceptionEngine(dataDir string, api *KnowledgeAPI, logger *slog.Logger) *InceptionEngine {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
 	e := &InceptionEngine{
 		dataDir: dataDir,
 		api:     api,
@@ -728,8 +732,14 @@ func (e *InceptionEngine) GetState() *InceptionState {
 		return nil
 	}
 	cp := *e.state
-	cp.Questions = append([]Question(nil), e.state.Questions...)
-	cp.FactSlugs = append([]string(nil), e.state.FactSlugs...)
+	if e.state.Questions != nil {
+		cp.Questions = append([]Question{}, e.state.Questions...)
+	}
+	if e.state.FactSlugs != nil {
+		cp.FactSlugs = append([]string{}, e.state.FactSlugs...)
+	} else {
+		cp.FactSlugs = []string{}
+	}
 	cp.Answers = make(map[string]string, len(e.state.Answers))
 	for k, v := range e.state.Answers {
 		cp.Answers[k] = v

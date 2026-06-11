@@ -1937,7 +1937,7 @@ func inferProjectType(constitution *Fact, requirements []Fact, vision *Fact) str
 	case strings.Contains(all, "dashboard") || strings.Contains(all, "frontend") ||
 		strings.Contains(all, "react") || strings.Contains(all, "vue") ||
 		strings.Contains(all, "web app") || strings.Contains(all, "ui component") ||
-		strings.Contains(all, "next.js") || strings.Contains(all, "vite"):
+		strings.Contains(all, "next.js") || containsWord(all, "vite"):
 		return "ui"
 	case strings.Contains(all, "docker") || strings.Contains(all, "container") ||
 		strings.Contains(all, "deploy") || strings.Contains(all, "service"):

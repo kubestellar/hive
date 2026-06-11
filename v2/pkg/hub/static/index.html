@@ -504,19 +504,8 @@
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:540px;width:90%;max-height:80vh;overflow-y:auto">
       <h2 style="font-size:1.3rem;margin-bottom:4px;color:var(--accent)">Contribute to <span id="contrib-hive-name"></span></h2>
       <p style="font-size:0.8rem;color:var(--muted);margin-bottom:16px">Hive ID: <code id="contrib-hive-id" style="font-size:0.75rem"></code></p>
-      <p style="color:var(--muted);font-size:0.85rem;line-height:1.6;margin-bottom:16px">Run a contributor agent on your machine to help this hive tackle issues, review PRs, and improve the codebase. Your compute, their tasks.</p>
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
-        <p style="font-size:0.8rem;color:var(--text);margin-bottom:8px"><strong>1. Install the CLI</strong></p>
-        <pre style="background:var(--surface);padding:8px;border-radius:4px;font-size:0.8rem;color:var(--accent);margin-bottom:12px;overflow-x:auto"><code>npx @kubestellar/hive-contribute</code></pre>
-        <p style="font-size:0.8rem;color:var(--text);margin-bottom:8px"><strong>2. Connect to the hive</strong></p>
-        <pre style="background:var(--surface);padding:8px;border-radius:4px;font-size:0.8rem;color:var(--accent);margin-bottom:12px;overflow-x:auto"><code>hive-contribute connect https://hive.kubestellar.io/hive/<span style="color:var(--blue)">HIVE_ID</span></code></pre>
-        <p style="font-size:0.8rem;color:var(--text);margin-bottom:8px"><strong>3. Start contributing</strong></p>
-        <p style="font-size:0.8rem;color:var(--muted)">Tasks are assigned automatically based on your trust tier (newcomer → contributor → trusted → advisor). See the <a href="/#leaderboard">leaderboard</a>.</p>
-      </div>
-      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px">
-        <p style="font-size:0.8rem;color:var(--text);margin-bottom:8px"><strong>Want dashboard access?</strong></p>
-        <div id="contrib-access-area"></div>
-      </div>
+      <p style="color:var(--muted);font-size:0.9rem;line-height:1.6;margin-bottom:20px">Help this project by contributing to open issues and PRs. Login with GitHub to request access — the hive owner will be notified and can approve your request.</p>
+      <div id="contrib-access-area"></div>
       <div style="display:flex;justify-content:flex-end;margin-top:12px">
         <button onclick="document.getElementById('contrib-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Close</button>
       </div>

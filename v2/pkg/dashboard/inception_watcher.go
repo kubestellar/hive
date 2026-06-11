@@ -283,11 +283,11 @@ func inferFactType(title string) string {
 	case strings.Contains(lower, "constraint") || strings.Contains(lower, "boundary") || strings.Contains(lower, "limitation") ||
 		strings.Contains(lower, "must not") || strings.Contains(lower, "should not") || strings.Contains(lower, "do not"):
 		return "constraint"
-	case strings.Contains(lower, "requirement") || strings.Contains(lower, "must") || strings.Contains(lower, "feature"):
+	case strings.Contains(lower, "requirement") || containsWord(lower, "must") || strings.Contains(lower, "feature"):
 		return "requirement"
-	case strings.Contains(lower, "stakeholder") || strings.Contains(lower, "user") || strings.Contains(lower, "audience"):
+	case strings.Contains(lower, "stakeholder") || containsWord(lower, "user") || strings.Contains(lower, "audience"):
 		return "stakeholder"
-	case strings.Contains(lower, "acceptance") || strings.Contains(lower, "success") || strings.Contains(lower, "criteria") || strings.Contains(lower, "test"):
+	case strings.Contains(lower, "acceptance") || strings.Contains(lower, "success") || strings.Contains(lower, "criteria") || containsWord(lower, "test"):
 		return "acceptance"
 	}
 	return ""
@@ -1507,4 +1507,26 @@ func (w *InceptionWatcher) applyPlukQuestions(state *knowledge.InceptionState) {
 		"source", "pluk-bd-create-intercept",
 	)
 	w.plukQuestions = nil
+}
+
+func containsWord(text, word string) bool {
+	idx := 0
+	for {
+		pos := strings.Index(text[idx:], word)
+		if pos < 0 {
+			return false
+		}
+		absPos := idx + pos
+		endPos := absPos + len(word)
+		atStart := absPos == 0 || !isAlpha(text[absPos-1])
+		atEnd := endPos >= len(text) || !isAlpha(text[endPos])
+		if atStart && atEnd {
+			return true
+		}
+		idx = absPos + 1
+	}
+}
+
+func isAlpha(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }

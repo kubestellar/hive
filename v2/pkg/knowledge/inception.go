@@ -482,6 +482,13 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 
 	facts := e.gatherFacts(ctx)
 
+	e.logger.Info("ProduceScaffold called",
+		"phase", e.state.Phase,
+		"facts_gathered", len(facts),
+		"fact_slugs", len(e.state.FactSlugs),
+		"idea", e.state.IdeaText[:min(40, len(e.state.IdeaText))],
+	)
+
 	result := &ScaffoldResult{}
 
 	vision := findFactByType(facts, FactVision)

@@ -790,6 +790,8 @@ func (e *InceptionEngine) WikiDir() string {
 }
 
 func (e *InceptionEngine) HasWikiFiles() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	wikiDir := filepath.Join(e.dataDir, inceptionWikiDir)
 	entries, err := os.ReadDir(wikiDir)
 	if err != nil {

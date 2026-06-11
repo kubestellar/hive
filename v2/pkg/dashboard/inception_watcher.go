@@ -628,7 +628,7 @@ func (w *InceptionWatcher) handlePlukEvent(event plukEvent) {
 					strings.Contains(lower, "constraint") || strings.Contains(lower, "constitution") ||
 					strings.Contains(lower, "stakeholder") || strings.Contains(lower, "acceptance") ||
 					strings.Contains(lower, "architecture") || strings.Contains(lower, "testing") ||
-					strings.Contains(lower, "deployment") || strings.Contains(lower, "must") {
+					strings.Contains(lower, "deployment") || containsWord(lower, "must") {
 					w.plukFactLines = append(w.plukFactLines, line)
 				}
 			}
@@ -1180,11 +1180,11 @@ func (w *InceptionWatcher) autoGenerateQuestions(state *knowledge.InceptionState
 	langDefault := "Go"
 	ideaLower := strings.ToLower(state.IdeaText)
 	switch {
-	case strings.Contains(ideaLower, "java") && !strings.Contains(ideaLower, "javascript"):
+	case containsWord(ideaLower, "java") && !strings.Contains(ideaLower, "javascript"):
 		langDefault = "Java"
 	case strings.Contains(ideaLower, "python"):
 		langDefault = "Python"
-	case strings.Contains(ideaLower, "rust"):
+	case containsWord(ideaLower, "rust"):
 		langDefault = "Rust"
 	case strings.Contains(ideaLower, "typescript"):
 		langDefault = "TypeScript"
@@ -1192,7 +1192,7 @@ func (w *InceptionWatcher) autoGenerateQuestions(state *knowledge.InceptionState
 		langDefault = "JavaScript"
 	case strings.Contains(ideaLower, "ruby"):
 		langDefault = "Ruby"
-	case strings.Contains(ideaLower, "shell") || strings.Contains(ideaLower, "bash"):
+	case containsWord(ideaLower, "shell") || containsWord(ideaLower, "bash"):
 		langDefault = "Shell/Bash"
 	}
 

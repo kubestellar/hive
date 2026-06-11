@@ -1809,7 +1809,7 @@
       <span class="oc-tb-link" onclick="openConfigDialog('governor')">⚙️ Config</span>
       <span class="oc-tb-link" onclick="ocNavigate('debug-section')">🔍 Debug</span>
       <!-- Agent Logs hidden (redundant with per-agent output) -->
-      <button class="layout-toggle" onclick="toggleLayout()" title="Switch to Classic layout — dark theme with compact agent cards in a grid. Best for quick overview of all agents at once.">☰ Classic View</button>
+      <button class="layout-toggle" onclick="toggleLayout()" title="Switch to Dark mode — dark theme with compact agent cards in a grid. Best for quick overview of all agents at once.">☰ Dark Mode</button>
     </div>
     <div class="oc-topbar-right">
       <span class="oc-health-badge" id="oc-health">● Health OK</span>
@@ -1839,7 +1839,7 @@
     <span class="git-version" id="git-version"></span>
     <span class="git-version" id="hive-id-badge" title="Hive Instance ID" style="cursor:pointer;border:1px solid var(--border);padding:2px 8px;border-radius:4px" onclick="openConfigDialog('governor')"></span>
     <span class="git-version" id="acmm-badge" title="ACMM Maturity Level — click to change" style="cursor:pointer;border:1px solid var(--border);padding:2px 8px;border-radius:4px;background:linear-gradient(135deg,#3498db,#2ecc71);color:#fff;font-weight:600" onclick="openACMMDialog()"></span>
-    <button class="layout-toggle" id="layout-toggle" onclick="toggleLayout()" title="Switch between Light layout (sidebar + detail panel) and Classic layout (dark theme grid). Your preference is saved in the browser.">☰ Classic</button>
+    <button class="layout-toggle" id="layout-toggle" onclick="toggleLayout()" title="Switch between Light mode (sidebar + detail panel) and Dark mode (dark theme grid). Your preference is saved in the browser.">☰ Dark Mode</button>
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
 
@@ -2004,13 +2004,14 @@
       if (typeof str !== 'string') return '';
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
-    // ── Layout mode (Classic / Light) ──
+    // ── Layout mode (Dark / Light) ──
     const LAYOUT_KEY = 'hive-layout-mode';
-    const LAYOUT_MODES = ['classic', 'light'];
-    const LAYOUT_LABELS = { classic: '☰ Light View', light: '☰ Classic View' };
+    const LAYOUT_MODES = ['dark', 'light'];
+    const LAYOUT_LABELS = { dark: '☰ Light Mode', light: '☰ Dark Mode' };
     function getLayout() {
       let stored = localStorage.getItem(LAYOUT_KEY) || 'light';
       if (stored === 'openclaw') { stored = 'light'; setLayout(stored); }
+      if (stored === 'classic') { stored = 'dark'; setLayout(stored); }
       return LAYOUT_MODES.includes(stored) ? stored : 'light';
     }
     function setLayout(mode) { localStorage.setItem(LAYOUT_KEY, mode); }
@@ -2019,13 +2020,13 @@
       document.body.classList.add('has-info-sidebar');
       const btn = document.getElementById('layout-toggle');
       if (btn) {
-        btn.textContent = LAYOUT_LABELS[mode] || LAYOUT_LABELS.classic;
-        btn.classList.toggle('active', mode !== 'classic');
+        btn.textContent = LAYOUT_LABELS[mode] || LAYOUT_LABELS.dark;
+        btn.classList.toggle('active', mode !== 'dark');
       }
       // Show/hide Light sidebar
       const sidebar = document.getElementById('oc-sidebar');
       if (sidebar) sidebar.style.display = mode === 'light' ? 'flex' : 'none';
-      // Show/hide classic header
+      // Show/hide dark mode header
       const h1 = document.querySelector('body > h1');
       if (h1) h1.style.display = mode === 'light' ? 'none' : 'flex';
       // Show/hide Light top bar

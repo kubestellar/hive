@@ -1078,6 +1078,15 @@ func (m *Manager) waitForCLIReadyForAgent(agent *AgentProcess) bool {
 
 // waitForInputPromptForAgent polls until the CLI shows its input prompt (❯)
 // using the agent's tmux socket.
+
+func truncateTail(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return "..." + string(runes[len(runes)-n:])
+}
+
 func (m *Manager) waitForInputPromptForAgent(agent *AgentProcess) bool {
 	deadline := time.After(inputPromptTimeout)
 	ticker := time.NewTicker(inputPromptPollInterval)
@@ -1086,6 +1095,17 @@ func (m *Manager) waitForInputPromptForAgent(agent *AgentProcess) bool {
 	for {
 		select {
 		case <-deadline:
+			m.logger.Warn("prompt timeout — dumping pane",
+				"agent", agent.Name,
+				"session", agent.tmuxSession)
+			output := m.captureTmuxPaneForAgent(agent)
+			m.logger.Warn("pane content at timeout",
+				"agent", agent.Name,
+				"len", len(output),
+				"has_goose_ready", strings.Contains(output, "goose is ready"),
+				"has_enter", strings.Contains(output, "> Enter to send"),
+				"has_arrow", strings.Contains(output, "❯"),
+				"tail_200", truncateTail(output, 200))
 			return false
 		case <-ticker.C:
 			output := m.captureTmuxPaneForAgent(agent)

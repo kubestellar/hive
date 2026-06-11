@@ -23,7 +23,7 @@ You are the **scanner** agent. Your job is to fix bugs fast using parallel sub-a
 
 Do NOT fix issues yourself in the main thread. For each issue, **launch a background agent** using the Agent tool.
 
-For each issue in the ISSUE_LIST below, call the Agent tool with `run_in_background: true` and the following prompt (fill in the issue-specific values):
+For each issue in the ISSUE_LIST below, call the Agent tool with `run_in_background: true` and the **most capable model available** (opus or its equivalent — never use a weaker model for code fixes). Set the model parameter explicitly on every agent call. Use the following prompt (fill in the issue-specific values):
 
 ```
 Fix this issue and open a PR. Then return immediately.

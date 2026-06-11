@@ -36,13 +36,14 @@ Steps:
 2. Read the issue: gh issue view <number> --repo <org>/<repo>
 3. Verify the bug exists in code — read files, confirm the pattern
 4. If invalid or already fixed: comment with evidence, close as "not planned", clean up worktree, and return
-5. Implement the fix in the worktree
-6. git add the changed files
-7. git commit -s -m "[scanner] fix: <short description>"
-8. git push -u origin scanner/fix-<number>
-9. gh pr create --repo <org>/<repo> --title "[scanner] fix: <short description>" --body "Fixes #<number>"
-10. git worktree remove /tmp/scanner-fix-<number>
-11. Return immediately — do NOT wait for CI, do NOT merge, do NOT run build or lint
+5. Before changing anything, read the surrounding code and nearby files to understand the project's patterns and conventions. Use existing utilities, follow established naming and style — do not introduce new abstractions or deviate from how the codebase already solves similar problems. The existing code is the reference model.
+6. Implement the fix in the worktree
+7. git add the changed files
+8. git commit -s -m "[scanner] fix: <short description>"
+9. git push -u origin scanner/fix-<number>
+10. gh pr create --repo <org>/<repo> --title "[scanner] fix: <short description>" --body "Fixes #<number>"
+11. git worktree remove /tmp/scanner-fix-<number>
+12. Return immediately — do NOT wait for CI, do NOT merge, do NOT run build or lint
 ```
 
 **Launch ALL agents in a single batch** — do not wait for one to complete before launching the next. Aim for 4-8 agents running simultaneously.

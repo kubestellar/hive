@@ -197,6 +197,8 @@ const leaderboardProxy = createProxyMiddleware({
 app.get('/leaderboard', leaderboardProxy);
 app.get('/leaderboard/', leaderboardProxy);
 
+app.get('/snapshot/leaderboard', (_req, res) => res.redirect('/leaderboard'));
+
 const snapshotProxy = createProxyMiddleware({
   target: GO_API_URL,
   changeOrigin: true,

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kubestellar/hive/v2/pkg/beads"
 )
 
 const (
@@ -883,6 +885,8 @@ type LeaderboardEntry struct {
 	RegisteredAt   string `json:"registered_at"`
 	Active         bool   `json:"active,omitempty"`
 	CurrentTask    string `json:"current_task,omitempty"`
+	IsAgent        bool   `json:"is_agent,omitempty"`
+	Emoji          string `json:"emoji,omitempty"`
 }
 
 // buildLeaderboard loads all contributor profiles, sorts by tasks completed
@@ -915,7 +919,12 @@ func buildLeaderboard() []LeaderboardEntry {
 }
 
 func (s *Server) handleLeaderboardAPI(w http.ResponseWriter, _ *http.Request) {
-	jsonResponse(w, map[string]any{"leaderboard": buildLeaderboard()})
+	contributors := buildLeaderboard()
+	agents := s.buildAgentLeaderboardEntries()
+	jsonResponse(w, map[string]any{
+		"leaderboard":  contributors,
+		"agents":       agents,
+	})
 }
 
 func (s *Server) ContributorSummary() (registered, active int) {
@@ -951,6 +960,11 @@ func (s *Server) LeaderboardForHub() []LeaderboardEntry {
 			}
 		}
 	}
+	agentEntries := s.buildAgentLeaderboardEntries()
+	entries = append(agentEntries, entries...)
+	for i := range entries {
+		entries[i].Rank = i + 1
+	}
 	return entries
 }
 
@@ -983,6 +997,8 @@ func trustTierBadgeCSS(tier string) (bg, text, border string) {
 		return "rgba(34,197,94,0.2)", "#4ade80", "rgba(34,197,94,0.3)"
 	case "advisor":
 		return "rgba(168,85,247,0.2)", "#c084fc", "rgba(168,85,247,0.3)"
+	case agentTierLabel:
+		return "rgba(147,51,234,0.2)", "#a78bfa", "rgba(147,51,234,0.3)"
 	case "revoked":
 		return "rgba(239,68,68,0.2)", "#f87171", "rgba(239,68,68,0.3)"
 	default:
@@ -1007,8 +1023,85 @@ func rankDisplay(rank int) string {
 	}
 }
 
+const (
+	ghPRExternalRefPrefix    = "gh-"
+	agentTierLabel           = "agent"
+	agentAvatarURLTemplate   = "https://github.com/identicons/%s.png"
+	leaderboardURLPathPrefix = "/leaderboard"
+)
+
+func (s *Server) buildAgentLeaderboardEntries() []LeaderboardEntry {
+	if s.deps == nil || s.deps.AgentMgr == nil {
+		return nil
+	}
+
+	agents := s.deps.AgentMgr.AllStatuses()
+	entries := make([]LeaderboardEntry, 0, len(agents))
+
+	for name, proc := range agents {
+		if !proc.Config.Enabled {
+			continue
+		}
+
+		prsOpened, issuesFixed := s.countAgentActivity(name)
+		tasksCompleted := prsOpened + issuesFixed
+
+		displayName := proc.Config.DisplayName
+		if displayName == "" {
+			displayName = name
+		}
+
+		emoji := proc.Config.Emoji
+		if emoji == "" {
+			emoji = "\U0001F916"
+		}
+
+		entries = append(entries, LeaderboardEntry{
+			GitHubUsername: displayName,
+			AvatarURL:     fmt.Sprintf(agentAvatarURLTemplate, name),
+			TrustTier:     agentTierLabel,
+			TasksCompleted: tasksCompleted,
+			TasksFailed:    proc.RestartCount,
+			RegisteredAt:   "",
+			IsAgent:        true,
+			Emoji:          emoji,
+		})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].TasksCompleted > entries[j].TasksCompleted
+	})
+
+	return entries
+}
+
+func (s *Server) countAgentActivity(agentName string) (prs, issues int) {
+	if s.deps == nil || s.deps.BeadStores == nil {
+		return
+	}
+
+	store, ok := s.deps.BeadStores[agentName]
+	if !ok {
+		return
+	}
+
+	actor := agentName
+	allBeads := store.List(beads.ListFilter{Actor: &actor})
+	for _, b := range allBeads {
+		if strings.HasPrefix(b.ExternalRef, ghPRExternalRefPrefix) {
+			prs++
+		}
+		if b.Status == beads.StatusDone {
+			issues++
+		}
+	}
+	return
+}
+
 func (s *Server) handleLeaderboardPage(w http.ResponseWriter, _ *http.Request) {
-	entries := buildLeaderboard()
+	contributorEntries := buildLeaderboard()
+	agentEntries := s.buildAgentLeaderboardEntries()
+
 	projectName := ""
 	if s.deps != nil && s.deps.Config != nil {
 		projectName = s.deps.Config.Project.Name
@@ -1018,32 +1111,60 @@ func (s *Server) handleLeaderboardPage(w http.ResponseWriter, _ *http.Request) {
 		projectName = "Hive"
 	}
 
-	// Build contributor rows as JSON for client-side search/sort
-	var entriesJSON strings.Builder
-	entriesJSON.WriteString("[")
-	for i, e := range entries {
-		if i > 0 {
-			entriesJSON.WriteString(",")
-		}
-		bg, text, border := trustTierBadgeCSS(e.TrustTier)
-		entriesJSON.WriteString(fmt.Sprintf(
-			`{"rank":%d,"login":"%s","avatar":"%s","tier":"%s","completed":%d,"failed":%d,"registered":"%s","tierBg":"%s","tierText":"%s","tierBorder":"%s"}`,
-			e.Rank, e.GitHubUsername, e.AvatarURL, e.TrustTier,
-			e.TasksCompleted, e.TasksFailed, e.RegisteredAt,
-			bg, text, border,
-		))
+	hiveURL := ""
+	if s.deps != nil && s.deps.Config != nil {
+		hiveURL = html.EscapeString(s.deps.Config.HiveID)
 	}
-	entriesJSON.WriteString("]")
+
+	rank := 0
+	for i := range agentEntries {
+		rank++
+		agentEntries[i].Rank = rank
+	}
+	for i := range contributorEntries {
+		rank++
+		contributorEntries[i].Rank = rank
+	}
+
+	totalParticipants := len(agentEntries) + len(contributorEntries)
+
+	agentJSON := leaderboardEntriesToJSON(agentEntries)
+	contributorJSON := leaderboardEntriesToJSON(contributorEntries)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, leaderboardHTML, projectName, projectName, projectName, len(entries), entriesJSON.String())
+	fmt.Fprintf(w, leaderboardHTML,
+		projectName, projectName, totalParticipants,
+		projectName,
+		projectName, hiveURL, hiveURL, projectName, hiveURL,
+		agentJSON, contributorJSON,
+	)
+}
+
+func leaderboardEntriesToJSON(entries []LeaderboardEntry) string {
+	var buf strings.Builder
+	buf.WriteString("[")
+	for i, e := range entries {
+		if i > 0 {
+			buf.WriteString(",")
+		}
+		bg, text, border := trustTierBadgeCSS(e.TrustTier)
+		emoji := strings.ReplaceAll(e.Emoji, `"`, `\"`)
+		buf.WriteString(fmt.Sprintf(
+			`{"rank":%d,"login":"%s","avatar":"%s","tier":"%s","completed":%d,"failed":%d,"registered":"%s","tierBg":"%s","tierText":"%s","tierBorder":"%s","isAgent":%t,"emoji":"%s"}`,
+			e.Rank, e.GitHubUsername, e.AvatarURL, e.TrustTier,
+			e.TasksCompleted, e.TasksFailed, e.RegisteredAt,
+			bg, text, border, e.IsAgent, emoji,
+		))
+	}
+	buf.WriteString("]")
+	return buf.String()
 }
 
 // leaderboardHTML is the full HTML template for the leaderboard page,
 // styled to match the kubestellar.io/leaderboard design.
 const leaderboardHTML = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>%s Contributor Leaderboard</title>
+<title>%s Leaderboard</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#fff;min-height:100vh;overflow-x:hidden}
@@ -1208,16 +1329,39 @@ overflow:hidden;pointer-events:none}
 
 /* ── No-results ── */
 .no-results{text-align:center;padding:40px 16px;color:#6b7280;font-size:.875rem;display:none}
+/* ── Agent row styling ── */
+.row.agent-row{background:rgba(147,51,234,0.04);border-left:3px solid rgba(147,51,234,0.3)}
+.row.agent-row:hover{background:rgba(147,51,234,0.08)}
+.agent-emoji{font-size:1.25rem;margin-right:4px}
+
+/* ── Section header ── */
+.section-header{padding:16px 24px 8px;font-size:.75rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,0.05)}
+
+/* ── Invite section ── */
+.invite-section{max-width:960px;margin:0 auto;padding:0 16px 32px}
+.invite-card{background:rgba(31,41,55,0.4);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+border-radius:12px;border:1px solid rgba(245,158,11,0.2);padding:32px;text-align:center}
+.invite-card h3{font-size:1.125rem;font-weight:600;color:#fcd34d;margin-bottom:8px}
+.invite-card p{color:#9ca3af;font-size:.875rem;line-height:1.6;margin-bottom:16px}
+.invite-card code{background:rgba(255,255,255,0.08);padding:4px 12px;border-radius:6px;font-size:.875rem;color:#e5e7eb}
+
+/* ── Social share ── */
+.share-section{max-width:960px;margin:0 auto;padding:0 16px 48px}
+.share-buttons{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.share-btn{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;border-radius:8px;
+font-size:.875rem;font-weight:500;text-decoration:none;transition:opacity .2s}
+.share-btn:hover{opacity:.85}
+.share-btn-linkedin{background:#0077b5;color:#fff}
+.share-btn-x{background:#1d9bf0;color:#fff}
 </style></head>
 <body>
 <div class="bg-stars"></div>
 <div class="bg-grid"></div>
 <div class="content">
-  <!-- Header -->
   <section class="header">
-    <h1>%s Hive Contributor <span class="gradient-text">Leaderboard</span></h1>
-    <p class="subtitle">Top contributors ranked by completed tasks across %s repositories</p>
-    <p class="meta">Tracking contributions from <strong style="color:#e5e7eb">%d</strong> registered contributors</p>
+    <h1>%s Hive <span class="gradient-text">Leaderboard</span></h1>
+    <p class="subtitle">AI agents and contributors ranked by completed tasks</p>
+    <p class="meta">Tracking <strong style="color:#e5e7eb">%d</strong> participants</p>
     <div style="margin-top:24px;display:flex;justify-content:center">
       <a href="/contribute" class="contribute-link">
         <span>&#x1F41D;</span>
@@ -1226,27 +1370,28 @@ overflow:hidden;pointer-events:none}
     </div>
   </section>
 
-  <!-- Search -->
   <div class="search-wrap">
-    <input type="text" id="search" placeholder="Search by GitHub username..." autocomplete="off">
+    <input type="text" id="search" placeholder="Search agents and contributors..." autocomplete="off">
   </div>
 
-  <!-- Leaderboard table -->
   <section class="table-section">
     <div class="table-wrap">
+      <div class="section-header">%s AI Agents</div>
       <div class="table-header">
         <div style="text-align:center">Rank</div>
-        <div>Contributor</div>
+        <div>Participant</div>
         <div class="sortable active" style="text-align:right" id="sort-completed" onclick="toggleSort('completed')">Completed &#x25BC;</div>
-        <div style="text-align:center">Trust Tier</div>
-        <div style="text-align:right" class="sortable" id="sort-failed" onclick="toggleSort('failed')">Failed</div>
+        <div style="text-align:center">Role</div>
+        <div style="text-align:right" class="sortable" id="sort-failed" onclick="toggleSort('failed')">Restarts</div>
       </div>
-      <div id="rows"></div>
+      <div id="agent-rows"></div>
+
+      <div class="section-header">Contributors</div>
+      <div id="contributor-rows"></div>
     </div>
-    <div class="no-results" id="no-results">No contributors match your search.</div>
+    <div class="no-results" id="no-results">No participants match your search.</div>
   </section>
 
-  <!-- Trust tiers reference -->
   <section class="tiers-ref" id="tiers-ref">
     <div class="card">
       <h3>Trust Tiers</h3>
@@ -1260,10 +1405,32 @@ overflow:hidden;pointer-events:none}
       <p class="note">Trust tiers determine what actions a contributor's agent can perform. Tier promotions happen automatically at task milestones or via maintainer voucher.</p>
     </div>
   </section>
+
+  <section class="invite-section">
+    <div class="invite-card">
+      <h3>Want to contribute?</h3>
+      <p>Connect to the %s hive and let your CLI agent help maintain open-source repos.</p>
+      <code>%s</code>
+    </div>
+  </section>
+
+  <section class="share-section">
+    <div class="share-buttons">
+      <a class="share-btn share-btn-linkedin" href="https://www.linkedin.com/sharing/share-offsite/?url=%s" target="_blank" rel="noopener">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        Share on LinkedIn
+      </a>
+      <a class="share-btn share-btn-x" href="https://twitter.com/intent/tweet?text=Check+out+the+leaderboard+for+%s+on+Hive!&url=%s" target="_blank" rel="noopener">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        Share on X
+      </a>
+    </div>
+  </section>
 </div>
 
 <script>
-var ENTRIES = %s;
+var AGENTS = %s;
+var CONTRIBUTORS = %s;
 var sortField = 'completed';
 var sortDir = 'desc';
 var searchQuery = '';
@@ -1271,6 +1438,9 @@ var searchQuery = '';
 var GOLD = '\u{1F947}';
 var SILVER = '\u{1F948}';
 var BRONZE = '\u{1F949}';
+
+var SUCCESS_THRESHOLD_HIGH = 80;
+var SUCCESS_THRESHOLD_MID = 50;
 
 function rankHTML(rank) {
   if (rank === 1) return '<span class="medal" title="1st place">' + GOLD + '</span>';
@@ -1290,99 +1460,119 @@ function ghIcon() {
   return '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>';
 }
 
-function renderRows() {
-  var filtered = ENTRIES.slice();
-  if (searchQuery) {
-    var q = searchQuery.toLowerCase();
-    filtered = filtered.filter(function(e) { return e.login.toLowerCase().indexOf(q) >= 0; });
-  }
-  var dir = sortDir === 'desc' ? 1 : -1;
-  if (sortField === 'failed') {
-    filtered.sort(function(a, b) { return dir * (b.failed - a.failed); });
-  } else {
-    filtered.sort(function(a, b) { return dir * (b.completed - a.completed); });
-  }
-  // Re-rank after sort
-  for (var i = 0; i < filtered.length; i++) filtered[i]._rank = i + 1;
+function buildRow(e, isAgent) {
+  var total = e.completed + e.failed;
+  var successPct = total > 0 ? Math.round((e.completed / total) * 100) : 0;
+  var barColor = successPct >= SUCCESS_THRESHOLD_HIGH ? '#4ade80' : successPct >= SUCCESS_THRESHOLD_MID ? '#facc15' : '#f87171';
 
-  var container = document.getElementById('rows');
+  var namePrefix = isAgent && e.emoji ? '<span class="agent-emoji">' + e.emoji + '</span>' : '';
+  var rowClass = isAgent ? 'row agent-row' : 'row';
+  var tierLabel = isAgent ? 'agent' : e.tier;
+
+  var hoverCard = '<div class="hover-card">'
+    + '<div class="hc-header">'
+    +   '<img src="' + e.avatar + '" alt="' + e.login + '" width="40" height="40">'
+    +   '<div><div class="hc-name">' + namePrefix + e.login + '</div>'
+    +   '<div class="hc-meta">Rank #' + e._rank + ' &middot; <span class="hc-pts">' + e.completed.toLocaleString() + ' tasks</span></div></div>'
+    + '</div>'
+    + '<div class="hc-section">'
+    +   '<div class="hc-label">Performance</div>'
+    +   '<div class="hc-stats">'
+    +     '<div class="hc-stat"><div class="hc-stat-num" style="color:#4ade80">' + e.completed + '</div><div class="hc-stat-label">Completed</div></div>'
+    +     '<div class="hc-stat"><div class="hc-stat-num" style="color:#f87171">' + e.failed + '</div><div class="hc-stat-label">' + (isAgent ? 'Restarts' : 'Failed') + '</div></div>'
+    +     '<div class="hc-stat"><div class="hc-stat-num" style="color:' + barColor + '">' + successPct + '%%</div><div class="hc-stat-label">Success</div></div>'
+    +   '</div>'
+    +   '<div class="hc-bar-wrap"><div class="hc-bar" style="width:' + successPct + '%%;background:' + barColor + '"></div></div>'
+    + '</div>'
+    + '<div class="hc-section">'
+    +   '<div class="hc-label">Details</div>'
+    +   '<div style="display:flex;justify-content:space-between;align-items:center">'
+    +     '<span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + tierLabel + '</span>'
+    +     (e.registered ? '<span style="font-size:.75rem;color:#6b7280">Joined ' + formatDate(e.registered) + '</span>' : '')
+    +   '</div>'
+    + '</div>'
+    + '</div>';
+
+  return '<div class="' + rowClass + '">'
+    + '<div class="rank-cell">' + rankHTML(e._rank) + '</div>'
+    + '<div class="contributor">'
+    +   '<img src="' + e.avatar + '" alt="' + e.login + '" width="32" height="32" loading="lazy">'
+    +   '<div class="hover-card-anchor">'
+    +     namePrefix
+    +     '<a class="name" href="https://github.com/' + e.login + '" target="_blank" rel="noopener">' + e.login + '</a>'
+    +     (isAgent ? '' : '<a class="gh-icon" href="https://github.com/' + e.login + '" target="_blank" rel="noopener" title="View on GitHub">' + ghIcon() + '</a>')
+    +     hoverCard
+    +   '</div>'
+    + '</div>'
+    + '<div class="stats-cell"><div class="completed">' + e.completed.toLocaleString() + '</div></div>'
+    + '<div style="display:flex;justify-content:center"><span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + tierLabel + '</span></div>'
+    + '<div class="stats-cell" style="text-align:right"><span style="color:#f87171;font-size:.875rem">' + (e.failed > 0 ? e.failed : '') + '</span></div>'
+    + '</div>';
+}
+
+function renderRows() {
+  var q = searchQuery.toLowerCase();
+  var dir = sortDir === 'desc' ? 1 : -1;
+  var sortFn = sortField === 'failed'
+    ? function(a, b) { return dir * (b.failed - a.failed); }
+    : function(a, b) { return dir * (b.completed - a.completed); };
+
+  var filteredAgents = AGENTS.slice();
+  var filteredContributors = CONTRIBUTORS.slice();
+
+  if (q) {
+    filteredAgents = filteredAgents.filter(function(e) { return e.login.toLowerCase().indexOf(q) >= 0; });
+    filteredContributors = filteredContributors.filter(function(e) { return e.login.toLowerCase().indexOf(q) >= 0; });
+  }
+
+  filteredAgents.sort(sortFn);
+  filteredContributors.sort(sortFn);
+
+  var rank = 0;
+  var i;
+  for (i = 0; i < filteredAgents.length; i++) { rank++; filteredAgents[i]._rank = rank; }
+  for (i = 0; i < filteredContributors.length; i++) { rank++; filteredContributors[i]._rank = rank; }
+
+  var agentContainer = document.getElementById('agent-rows');
+  var contributorContainer = document.getElementById('contributor-rows');
   var noResults = document.getElementById('no-results');
   var tiersRef = document.getElementById('tiers-ref');
+  var totalCount = filteredAgents.length + filteredContributors.length;
 
-  if (filtered.length === 0 && ENTRIES.length > 0) {
-    container.innerHTML = '';
+  if (totalCount === 0 && (AGENTS.length + CONTRIBUTORS.length) > 0) {
+    agentContainer.innerHTML = '';
+    contributorContainer.innerHTML = '';
     noResults.style.display = 'block';
     tiersRef.style.display = 'none';
     return;
   }
   noResults.style.display = 'none';
-  tiersRef.style.display = filtered.length > 0 ? 'block' : 'none';
+  tiersRef.style.display = totalCount > 0 ? 'block' : 'none';
 
-  if (filtered.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">\u{1F3C6}</div><p>No contributors yet. <a href="/contribute">Be the first!</a></p></div>';
+  if (totalCount === 0) {
+    agentContainer.innerHTML = '<div class="empty-state"><div class="icon">\u{1F3C6}</div><p>No participants yet. <a href="/contribute">Be the first!</a></p></div>';
+    contributorContainer.innerHTML = '';
     return;
   }
 
-  var html = '';
-  for (var i = 0; i < filtered.length; i++) {
-    var e = filtered[i];
-    var pills = '';
-    if (e.completed > 0) pills += '<span class="pill pill-completed">' + e.completed + (e.completed === 1 ? ' Task' : ' Tasks') + '</span>';
-    if (e.failed > 0) pills += '<span class="pill pill-failed">' + e.failed + ' Failed</span>';
-
-    var total = e.completed + e.failed;
-    var successPct = total > 0 ? Math.round((e.completed / total) * 100) : 0;
-    var barColor = successPct >= 80 ? '#4ade80' : successPct >= 50 ? '#facc15' : '#f87171';
-
-    var hoverCard = '<div class="hover-card">'
-      + '<div class="hc-header">'
-      +   '<img src="' + e.avatar + '" alt="' + e.login + '" width="40" height="40">'
-      +   '<div><div class="hc-name">' + e.login + '</div>'
-      +   '<div class="hc-meta">Rank #' + e._rank + ' &middot; <span class="hc-pts">' + e.completed.toLocaleString() + ' tasks</span></div></div>'
-      + '</div>'
-      + '<div class="hc-section">'
-      +   '<div class="hc-label">Performance</div>'
-      +   '<div class="hc-stats">'
-      +     '<div class="hc-stat"><div class="hc-stat-num" style="color:#4ade80">' + e.completed + '</div><div class="hc-stat-label">Completed</div></div>'
-      +     '<div class="hc-stat"><div class="hc-stat-num" style="color:#f87171">' + e.failed + '</div><div class="hc-stat-label">Failed</div></div>'
-      +     '<div class="hc-stat"><div class="hc-stat-num" style="color:' + barColor + '">' + successPct + '%%</div><div class="hc-stat-label">Success</div></div>'
-      +   '</div>'
-      +   '<div class="hc-bar-wrap"><div class="hc-bar" style="width:' + successPct + '%%;background:' + barColor + '"></div></div>'
-      + '</div>'
-      + '<div class="hc-section">'
-      +   '<div class="hc-label">Details</div>'
-      +   '<div style="display:flex;justify-content:space-between;align-items:center">'
-      +     '<span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + e.tier + '</span>'
-      +     '<span style="font-size:.75rem;color:#6b7280">Joined ' + formatDate(e.registered) + '</span>'
-      +   '</div>'
-      + '</div>'
-      + '<div class="hc-footer">View on GitHub &rarr;</div>'
-      + '</div>';
-
-    html += '<div class="row">'
-      + '<div class="rank-cell">' + rankHTML(e._rank) + '</div>'
-      + '<div class="contributor">'
-      +   '<img src="' + e.avatar + '" alt="' + e.login + '" width="32" height="32" loading="lazy">'
-      +   '<div class="hover-card-anchor">'
-      +     '<a class="name" href="https://github.com/' + e.login + '" target="_blank" rel="noopener">' + e.login + '</a>'
-      +     '<a class="gh-icon" href="https://github.com/' + e.login + '" target="_blank" rel="noopener" title="View on GitHub">' + ghIcon() + '</a>'
-      +     hoverCard
-      +   '</div>'
-      + '</div>'
-      + '<div class="stats-cell"><div class="completed">' + e.completed.toLocaleString() + '</div></div>'
-      + '<div style="display:flex;justify-content:center"><span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + e.tier + '</span></div>'
-      + '<div class="stats-cell" style="text-align:right"><span style="color:#f87171;font-size:.875rem">' + (e.failed > 0 ? e.failed : '') + '</span></div>'
-      + '</div>';
+  var agentHTML = '';
+  for (i = 0; i < filteredAgents.length; i++) {
+    agentHTML += buildRow(filteredAgents[i], true);
   }
-  container.innerHTML = html;
+  agentContainer.innerHTML = agentHTML;
 
-  // Update sort header indicators
+  var contribHTML = '';
+  for (i = 0; i < filteredContributors.length; i++) {
+    contribHTML += buildRow(filteredContributors[i], false);
+  }
+  contributorContainer.innerHTML = contribHTML;
+
   var sc = document.getElementById('sort-completed');
   var sf = document.getElementById('sort-failed');
   sc.classList.toggle('active', sortField === 'completed');
   sf.classList.toggle('active', sortField === 'failed');
   sc.innerHTML = 'Completed ' + (sortField === 'completed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
-  sf.innerHTML = 'Failed ' + (sortField === 'failed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
+  sf.innerHTML = 'Restarts ' + (sortField === 'failed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
 }
 
 function toggleSort(field) {

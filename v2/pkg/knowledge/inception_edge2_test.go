@@ -745,3 +745,19 @@ func TestGatherFactsWithFiles(t *testing.T) {
 		t.Error("should have a requirement fact")
 	}
 }
+
+func TestContainsWordPerformance(t *testing.T) {
+	// Pathological input — long string with many near-matches
+	long := strings.Repeat("goo ", 10000)
+	result := containsWord(long, "go")
+	if result {
+		t.Error("should not find 'go' in 'goo goo goo...'")
+	}
+
+	// Another pathological case — word at very end
+	long2 := strings.Repeat("x ", 10000) + "go"
+	result2 := containsWord(long2, "go")
+	if !result2 {
+		t.Error("should find 'go' at end of long string")
+	}
+}

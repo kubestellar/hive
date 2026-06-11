@@ -357,6 +357,17 @@ func (w *InceptionWatcher) checkForQuestions(inceptionBeads []*beads.Bead) {
 		})
 	}
 
+	// Deduplicate by ID — the agent output parser can produce duplicate IDs
+	seen := make(map[string]bool, len(questions))
+	unique := make([]knowledge.Question, 0, len(questions))
+	for _, q := range questions {
+		if !seen[q.ID] {
+			seen[q.ID] = true
+			unique = append(unique, q)
+		}
+	}
+	questions = unique
+
 	if len(questions) < minQuestionsForAdvance {
 		return
 	}
@@ -735,6 +746,18 @@ func (w *InceptionWatcher) checkForQuestionsInOutput() {
 	questions := parseQuestionTable(lines)
 	if len(questions) < minQuestionsForAdvance {
 		questions = parseNumberedQuestions(lines)
+	}
+	// Deduplicate by ID
+	{
+		seen := make(map[string]bool, len(questions))
+		deduped := make([]knowledge.Question, 0, len(questions))
+		for _, q := range questions {
+			if !seen[q.ID] {
+				seen[q.ID] = true
+				deduped = append(deduped, q)
+			}
+		}
+		questions = deduped
 	}
 	if len(questions) < minQuestionsForAdvance {
 		return

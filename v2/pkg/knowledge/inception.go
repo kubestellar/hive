@@ -2534,13 +2534,13 @@ func inferLanguageFromText(text string) string {
 		return "typescript"
 	case strings.Contains(lower, "javascript") && !strings.Contains(lower, "typescript"):
 		return "javascript"
-	case strings.Contains(lower, "rust"):
+	case containsWord(lower, "rust"):
 		return "rust"
-	case strings.Contains(lower, "java") && !strings.Contains(lower, "javascript"):
+	case containsWord(lower, "java") && !strings.Contains(lower, "javascript"):
 		return "java"
 	case containsWord(lower, "go") || strings.Contains(lower, "golang"):
 		return "go"
-	case strings.Contains(lower, "shell") || strings.Contains(lower, "bash"):
+	case containsWord(lower, "shell") || containsWord(lower, "bash"):
 		return "shell"
 	}
 	return ""
@@ -2596,13 +2596,13 @@ func inferLanguage(constitution *Fact) string {
 	case strings.Contains(body, "javascript") || strings.Contains(body, "vitest") ||
 		strings.Contains(body, "express") || strings.Contains(body, "webpack") || strings.Contains(body, "vite"):
 		return "javascript"
-	case strings.Contains(body, "rust") || strings.Contains(body, "cargo") || strings.Contains(body, "tokio") ||
+	case containsWord(body, "rust") || strings.Contains(body, "cargo") || strings.Contains(body, "tokio") ||
 		strings.Contains(body, "actix") || strings.Contains(body, "warp") || strings.Contains(body, "axum"):
 		return "rust"
-	case strings.Contains(body, "java") || strings.Contains(body, "maven") || strings.Contains(body, "gradle") ||
+	case containsWord(body, "java") || strings.Contains(body, "maven") || strings.Contains(body, "gradle") ||
 		strings.Contains(body, "spring") || strings.Contains(body, "kotlin") || strings.Contains(body, "quarkus"):
 		return "java"
-	case strings.Contains(body, "bash") || strings.Contains(body, "shell") || strings.Contains(body, "posix") ||
+	case containsWord(body, "bash") || containsWord(body, "shell") || strings.Contains(body, "posix") ||
 		strings.Contains(body, "zsh") || strings.Contains(body, "makefile") || strings.Contains(body, "shellcheck"):
 		return "shell"
 	default:

@@ -882,6 +882,7 @@ type LeaderboardEntry struct {
 	TrustTier      string `json:"trust_tier"`
 	TasksCompleted int    `json:"tasks_completed"`
 	TasksFailed    int    `json:"tasks_failed"`
+	Findings       int    `json:"findings,omitempty"`
 	RegisteredAt   string `json:"registered_at"`
 	Active         bool   `json:"active,omitempty"`
 	CurrentTask    string `json:"current_task,omitempty"`
@@ -1043,7 +1044,7 @@ func (s *Server) buildAgentLeaderboardEntries() []LeaderboardEntry {
 			continue
 		}
 
-		prsOpened, issuesFixed := s.countAgentActivity(name)
+		prsOpened, issuesFixed, totalFindings := s.countAgentActivity(name)
 		tasksCompleted := prsOpened + issuesFixed
 
 		displayName := proc.Config.DisplayName
@@ -1062,6 +1063,7 @@ func (s *Server) buildAgentLeaderboardEntries() []LeaderboardEntry {
 			TrustTier:     agentTierLabel,
 			TasksCompleted: tasksCompleted,
 			TasksFailed:    proc.RestartCount,
+			Findings:       totalFindings,
 			RegisteredAt:   "",
 			IsAgent:        true,
 			Emoji:          emoji,
@@ -1075,7 +1077,7 @@ func (s *Server) buildAgentLeaderboardEntries() []LeaderboardEntry {
 	return entries
 }
 
-func (s *Server) countAgentActivity(agentName string) (prs, issues int) {
+func (s *Server) countAgentActivity(agentName string) (prs, issues, findings int) {
 	if s.deps == nil || s.deps.BeadStores == nil {
 		return
 	}
@@ -1087,6 +1089,7 @@ func (s *Server) countAgentActivity(agentName string) (prs, issues int) {
 
 	actor := agentName
 	allBeads := store.List(beads.ListFilter{Actor: &actor})
+	findings = len(allBeads)
 	for _, b := range allBeads {
 		if strings.HasPrefix(b.ExternalRef, ghPRExternalRefPrefix) {
 			prs++
@@ -1150,9 +1153,9 @@ func leaderboardEntriesToJSON(entries []LeaderboardEntry) string {
 		bg, text, border := trustTierBadgeCSS(e.TrustTier)
 		emoji := strings.ReplaceAll(e.Emoji, `"`, `\"`)
 		buf.WriteString(fmt.Sprintf(
-			`{"rank":%d,"login":"%s","avatar":"%s","tier":"%s","completed":%d,"failed":%d,"registered":"%s","tierBg":"%s","tierText":"%s","tierBorder":"%s","isAgent":%t,"emoji":"%s"}`,
+			`{"rank":%d,"login":"%s","avatar":"%s","tier":"%s","completed":%d,"failed":%d,"findings":%d,"registered":"%s","tierBg":"%s","tierText":"%s","tierBorder":"%s","isAgent":%t,"emoji":"%s"}`,
 			e.Rank, e.GitHubUsername, e.AvatarURL, e.TrustTier,
-			e.TasksCompleted, e.TasksFailed, e.RegisteredAt,
+			e.TasksCompleted, e.TasksFailed, e.Findings, e.RegisteredAt,
 			bg, text, border, e.IsAgent, emoji,
 		))
 	}
@@ -1232,7 +1235,7 @@ border-radius:12px;border:1px solid rgba(255,255,255,0.1);overflow:visible}
 /* ── Table header ── */
 .table-header{display:none;padding:12px 24px;border-bottom:1px solid rgba(255,255,255,0.05);
 font-size:.75rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
-@media(min-width:640px){.table-header{display:grid;grid-template-columns:60px 1fr 100px 120px 80px}}
+@media(min-width:640px){.table-header{display:grid;grid-template-columns:60px 1fr 100px 80px 120px 80px}}
 .table-header .sortable{cursor:pointer;transition:color .2s;user-select:none}
 .table-header .sortable:hover{color:#fff}
 .table-header .sortable.active{color:#facc15}
@@ -1240,7 +1243,7 @@ font-size:.75rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
 /* ── Row ── */
 .row{display:grid;grid-template-columns:1fr;gap:8px;padding:16px;
 border-bottom:1px solid rgba(255,255,255,0.05);transition:background .15s;align-items:center}
-@media(min-width:640px){.row{grid-template-columns:60px 1fr 100px 120px 80px;gap:16px;padding:16px 24px}}
+@media(min-width:640px){.row{grid-template-columns:60px 1fr 100px 80px 120px 80px;gap:16px;padding:16px 24px}}
 .row:last-child{border-bottom:none}
 .row:hover{background:rgba(255,255,255,0.02)}
 
@@ -1381,6 +1384,7 @@ font-size:.875rem;font-weight:500;text-decoration:none;transition:opacity .2s}
         <div style="text-align:center">Rank</div>
         <div>Participant</div>
         <div class="sortable active" style="text-align:right" id="sort-completed" onclick="toggleSort('completed')">Completed &#x25BC;</div>
+        <div class="sortable" style="text-align:center" id="sort-findings" onclick="toggleSort('findings')">Findings</div>
         <div style="text-align:center">Role</div>
         <div style="text-align:right" class="sortable" id="sort-failed" onclick="toggleSort('failed')">Restarts</div>
       </div>
@@ -1479,6 +1483,7 @@ function buildRow(e, isAgent) {
     +   '<div class="hc-label">Performance</div>'
     +   '<div class="hc-stats">'
     +     '<div class="hc-stat"><div class="hc-stat-num" style="color:#4ade80">' + e.completed + '</div><div class="hc-stat-label">Completed</div></div>'
+    +     (isAgent && e.findings ? '<div class="hc-stat"><div class="hc-stat-num" style="color:#60a5fa">' + e.findings + '</div><div class="hc-stat-label">Findings</div></div>' : '')
     +     '<div class="hc-stat"><div class="hc-stat-num" style="color:#f87171">' + e.failed + '</div><div class="hc-stat-label">' + (isAgent ? 'Restarts' : 'Failed') + '</div></div>'
     +     '<div class="hc-stat"><div class="hc-stat-num" style="color:' + barColor + '">' + successPct + '%%</div><div class="hc-stat-label">Success</div></div>'
     +   '</div>'
@@ -1505,6 +1510,7 @@ function buildRow(e, isAgent) {
     +   '</div>'
     + '</div>'
     + '<div class="stats-cell"><div class="completed">' + e.completed.toLocaleString() + '</div></div>'
+    + '<div class="stats-cell" style="text-align:center"><span style="color:#60a5fa;font-size:.875rem">' + (isAgent && e.findings > 0 ? e.findings.toLocaleString() : '') + '</span></div>'
     + '<div style="display:flex;justify-content:center"><span class="tier-badge" style="background:' + e.tierBg + ';color:' + e.tierText + ';border-color:' + e.tierBorder + '">' + tierLabel + '</span></div>'
     + '<div class="stats-cell" style="text-align:right"><span style="color:#f87171;font-size:.875rem">' + (e.failed > 0 ? e.failed : '') + '</span></div>'
     + '</div>';
@@ -1515,6 +1521,8 @@ function renderRows() {
   var dir = sortDir === 'desc' ? 1 : -1;
   var sortFn = sortField === 'failed'
     ? function(a, b) { return dir * (b.failed - a.failed); }
+    : sortField === 'findings'
+    ? function(a, b) { return dir * ((b.findings || 0) - (a.findings || 0)); }
     : function(a, b) { return dir * (b.completed - a.completed); };
 
   var filteredAgents = AGENTS.slice();
@@ -1568,10 +1576,13 @@ function renderRows() {
   contributorContainer.innerHTML = contribHTML;
 
   var sc = document.getElementById('sort-completed');
+  var sfi = document.getElementById('sort-findings');
   var sf = document.getElementById('sort-failed');
   sc.classList.toggle('active', sortField === 'completed');
+  if (sfi) sfi.classList.toggle('active', sortField === 'findings');
   sf.classList.toggle('active', sortField === 'failed');
   sc.innerHTML = 'Completed ' + (sortField === 'completed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
+  if (sfi) sfi.innerHTML = 'Findings ' + (sortField === 'findings' ? (sortDir === 'desc' ? '▼' : '▲') : '');
   sf.innerHTML = 'Restarts ' + (sortField === 'failed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
 }
 

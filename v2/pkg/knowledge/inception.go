@@ -482,10 +482,15 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 
 	facts := e.gatherFacts(ctx)
 
+	factTypes := make(map[string]int)
+	for _, f := range facts {
+		factTypes[string(f.Type)]++
+	}
 	e.logger.Info("ProduceScaffold called",
 		"phase", e.state.Phase,
 		"facts_gathered", len(facts),
 		"fact_slugs", len(e.state.FactSlugs),
+		"fact_types", factTypes,
 		"idea", e.state.IdeaText[:min(40, len(e.state.IdeaText))],
 	)
 
@@ -677,6 +682,11 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 		)
 	}
 
+	e.logger.Info("ProduceScaffold complete",
+		"files", len(result.Files),
+		"lang", lang,
+		"project_type", inferProjectType(constitution, requirements, vision),
+	)
 	return result, nil
 }
 

@@ -68,6 +68,7 @@ type RegistryEntry struct {
 	UpgradeTarget      string         `json:"upgradeTarget,omitempty"`
 	IssueHistory       []SparkPoint   `json:"issueHistory,omitempty"`
 	PRHistory          []SparkPoint   `json:"prHistory,omitempty"`
+	GitHubAppRequired  bool           `json:"githubAppRequired,omitempty"`
 }
 
 type SparkPoint struct {
@@ -321,7 +322,8 @@ func (s *HubServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 			}
 			return payload.Leaderboard
 		}(),
-		Online: true,
+		Online:            true,
+		GitHubAppRequired: payload.GitHubAppRequired,
 	}
 
 	s.mu.Lock()

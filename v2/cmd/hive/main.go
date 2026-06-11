@@ -225,6 +225,7 @@ func main() {
 	notifier := notify.New(cfg.Notifications, logger)
 	notifier.SetHiveID(cfg.HiveID)
 	acmmLevel := inferACMMLevel(cfg)
+	githubAppRequired := false
 
 	// Find or create the pinned advisory issue. Any level can have advisory
 	// agents whose findings should be posted to this issue.
@@ -238,6 +239,10 @@ func main() {
 			num, err := ghClient.EnsureAdvisoryIssue(ctx, primaryRepo)
 			if err != nil {
 				logger.Error("failed to ensure advisory issue", "repo", primaryRepo, "error", err)
+				if strings.Contains(err.Error(), "403") {
+					githubAppRequired = true
+					logger.Warn("GitHub App not installed — issue creation returned 403, setting githubAppRequired flag")
+				}
 			} else {
 				advisoryIssues[primaryRepo] = num
 				os.Setenv("HIVE_ADVISORY_ISSUE", fmt.Sprintf("%d", num))
@@ -722,14 +727,20 @@ func main() {
 				num, err := ghClient.EnsureAdvisoryIssue(ctx, newPrimaryRepo)
 				if err != nil {
 					logger.Error("failed to create advisory issue on new primary repo", "repo", newPrimaryRepo, "error", err)
+					if strings.Contains(err.Error(), "403") {
+						dashSrv.SetGitHubAppRequired(true)
+					}
 				} else {
 					advisoryIssues[newPrimaryRepo] = num
 					os.Setenv("HIVE_ADVISORY_ISSUE", fmt.Sprintf("%d", num))
+					dashSrv.SetGitHubAppRequired(false)
 					logger.Info("advisory issue ready on new primary repo", "repo", newPrimaryRepo, "number", num)
 				}
 			}
 		},
 	})
+
+	dashSrv.SetGitHubAppRequired(githubAppRequired)
 
 	if brainstormBeads, ok := beadStores["brainstorm"]; ok {
 		inceptionWatcher := dashboard.NewInceptionWatcher(brainstormBeads, inceptionEngine, sched, agentMgr, gov, logger)
@@ -975,8 +986,9 @@ func main() {
 				SnapshotURL:  cfg.Hub.SnapshotURL,
 				IsPublic:     cfg.Hub.IsPublic,
 				Version:      "2.0.0",
-				GitHash:      gitShort,
-				GitBranch:    gitBranch,
+				GitHash:           gitShort,
+				GitBranch:         gitBranch,
+				GitHubAppRequired: dashSrv.IsGitHubAppRequired(),
 			}
 		}, time.Duration(cfg.Governor.EvalIntervalS)*time.Second, logger)
 
@@ -1100,6 +1112,22 @@ func runEvalCycle(
 	restartedAgents []string,
 	logger *slog.Logger,
 ) {
+	if dashSrv.IsGitHubAppRequired() {
+		primaryRepo := cfg.Project.PrimaryRepo
+		if primaryRepo == "" && len(cfg.Project.Repos) > 0 {
+			primaryRepo = cfg.Project.Repos[0]
+		}
+		if primaryRepo != "" && ghClient != nil {
+			num, retryErr := ghClient.EnsureAdvisoryIssue(ctx, primaryRepo)
+			if retryErr == nil {
+				advisoryIssues[primaryRepo] = num
+				os.Setenv("HIVE_ADVISORY_ISSUE", fmt.Sprintf("%d", num))
+				dashSrv.SetGitHubAppRequired(false)
+				logger.Info("GitHub App permissions restored — advisory issue created", "repo", primaryRepo, "number", num)
+			}
+		}
+	}
+
 	actionable, err := ghClient.EnumerateActionable(ctx)
 	if err != nil {
 		logger.Error("failed to enumerate actionable items", "error", err)

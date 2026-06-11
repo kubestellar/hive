@@ -472,9 +472,15 @@ func (w *InceptionWatcher) runPlukSubscriber(ctx context.Context) {
 		} else {
 			// No new data — wait briefly then retry (tail -f behavior)
 			time.Sleep(pollInterval)
-			// Check if file was rotated
-			if _, err := f.Stat(); err != nil {
+			// Check if file was rotated by comparing inodes
+			openStat, err1 := f.Stat()
+			diskStat, err2 := os.Stat(logFile)
+			if err1 != nil || err2 != nil {
 				w.logger.Warn("pluk log disappeared, stopping subscriber")
+				return
+			}
+			if !os.SameFile(openStat, diskStat) {
+				w.logger.Info("pluk log rotated, restarting subscriber")
 				return
 			}
 		}

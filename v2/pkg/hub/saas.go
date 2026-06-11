@@ -420,14 +420,22 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		autoUpgradeMap[sh.ID] = sh.AutoUpgrade
 	}
 
+	isAdmin := username == hubAdminUsername
 	for _, h := range allHives {
 		if role, ok := user.Hives[h.ID]; ok {
+			if isAdmin && role != "owner" {
+				role = "owner"
+			}
 			result = append(result, MyHiveEntry{RegistryEntry: h, Role: role, AutoUpgrade: autoUpgradeMap[h.ID]})
 			continue
 		}
 		if strings.EqualFold(h.Owner, username) {
 			result = append(result, MyHiveEntry{RegistryEntry: h, Role: "owner", AutoUpgrade: autoUpgradeMap[h.ID]})
 			user.Hives[h.ID] = "owner"
+			continue
+		}
+		if isAdmin {
+			result = append(result, MyHiveEntry{RegistryEntry: h, Role: "owner", AutoUpgrade: autoUpgradeMap[h.ID]})
 		}
 	}
 
@@ -468,7 +476,7 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, sh := range listSaaSHives() {
-		if sh.Owner == username && !seen[sh.ID] {
+		if (sh.Owner == username || isAdmin) && !seen[sh.ID] {
 			user.Hives[sh.ID] = "owner"
 			entry := MyHiveEntry{
 				RegistryEntry: RegistryEntry{

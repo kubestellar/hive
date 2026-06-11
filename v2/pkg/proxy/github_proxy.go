@@ -34,11 +34,12 @@ const (
 // GitHubProxy is an HTTP CONNECT proxy that performs MITM TLS
 // inspection on GitHub API traffic and enforces ACMM mode rules.
 type GitHubProxy struct {
-	listenAddr string
-	caCert     tls.Certificate
-	caX509     *x509.Certificate
-	logger     *slog.Logger
-	uidMap     *agent.UIDMap
+	listenAddr   string
+	caCert       tls.Certificate
+	caX509       *x509.Certificate
+	logger       *slog.Logger
+	uidMap       *agent.UIDMap
+	allowedRepos map[string]bool
 
 	mu         sync.RWMutex
 	violations map[string]int // agent name -> blocked request count
@@ -53,7 +54,10 @@ type cachedCert struct {
 }
 
 // NewGitHubProxy creates a proxy with a self-signed CA for MITM.
-func NewGitHubProxy(logger *slog.Logger) (*GitHubProxy, error) {
+// The org and repos parameters define which repositories are allowed for
+// write operations. Repos should be bare names (e.g. "console"); the org
+// is prepended to form "org/repo" keys.
+func NewGitHubProxy(logger *slog.Logger, org string, repos []string) (*GitHubProxy, error) {
 	caCert, caX509, err := generateCA()
 	if err != nil {
 		return nil, fmt.Errorf("generate CA: %w", err)
@@ -70,14 +74,21 @@ func NewGitHubProxy(logger *slog.Logger) (*GitHubProxy, error) {
 		logger.Info("proxy loaded UID map", "agents", len(uidMap.Agents), "iptables", uidMap.IptablesActive)
 	}
 
+	allowed := make(map[string]bool, len(repos))
+	for _, repo := range repos {
+		key := org + "/" + repo
+		allowed[key] = true
+	}
+
 	p := &GitHubProxy{
-		listenAddr: fmt.Sprintf("127.0.0.1:%d", proxyListenPort),
-		caCert:     caCert,
-		caX509:     caX509,
-		logger:     logger,
-		uidMap:     uidMap,
-		violations: make(map[string]int),
-		certCache:  make(map[string]cachedCert),
+		listenAddr:   fmt.Sprintf("127.0.0.1:%d", proxyListenPort),
+		caCert:       caCert,
+		caX509:       caX509,
+		logger:       logger,
+		uidMap:       uidMap,
+		allowedRepos: allowed,
+		violations:   make(map[string]int),
+		certCache:    make(map[string]cachedCert),
 	}
 
 	// Pre-warm cert cache for known GitHub hosts to avoid startup burst
@@ -499,6 +510,9 @@ func (p *GitHubProxy) proxyHTTP(client net.Conn, upstream net.Conn, agentName st
 			req.ContentLength = int64(len(body))
 		} else if !AllowedByMode(mode, req.Method, req.URL.Path) {
 			blocked = true
+		} else if len(p.allowedRepos) > 0 && !RepoFilterAllowed(p.allowedRepos, req.Method, req.URL.Path) {
+			blocked = true
+			blockReason = "repo not in hive config"
 		}
 
 		if blocked {

@@ -854,7 +854,7 @@ func main() {
 	dashSrv.SetSkipReloadFunc(configWatcher.SkipNext)
 	go configWatcher.Start(ctx)
 
-	githubProxy, err := proxy.NewGitHubProxy(logger)
+	githubProxy, err := proxy.NewGitHubProxy(logger, cfg.Project.Org, cfg.Project.Repos)
 	if err != nil {
 		logger.Error("failed to create github proxy", "error", err)
 	} else {

@@ -25,9 +25,11 @@ Do NOT fix issues yourself in the main thread. For each issue, **launch a backgr
 
 For each issue in the ISSUE_LIST below, call the Agent tool with `run_in_background: true`. **Choose the model based on issue complexity:**
 
-- **Light model** (sonnet, haiku, or equivalent) — typo fixes, config tweaks, single-file changes, label/metadata updates
-- **Mid-tier model** (sonnet or equivalent) — straightforward bugs, adding tests, 2-3 file changes with clear patterns
-- **Heavy model** (opus or equivalent) — multi-file refactors, architecture changes, complex logic bugs, anything requiring cross-file reasoning
+- **Light model** (haiku, gemini-flash, codex-mini, or equivalent) — typo fixes, config tweaks, single-file changes, label/metadata updates
+- **Mid-tier model** (sonnet, gemini-pro, codex, or equivalent) — straightforward bugs, adding tests, 2-3 file changes with clear patterns
+- **Heavy model** (opus, gemini-ultra, or equivalent) — multi-file refactors, architecture changes, complex logic bugs, anything requiring cross-file reasoning
+
+Available model families: Claude (haiku/sonnet/opus), Gemini, Codex. Pick whichever is available and fits the tier.
 
 Set the model parameter explicitly on every agent call. When in doubt, use a mid-tier model — most issues don't need the heaviest model.
 

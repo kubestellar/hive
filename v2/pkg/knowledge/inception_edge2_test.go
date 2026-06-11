@@ -255,3 +255,211 @@ func TestInferLanguageFalsePositives(t *testing.T) {
 		}
 	}
 }
+
+func TestContainsWord(t *testing.T) {
+	tests := []struct {
+		text string
+		word string
+		want bool
+	}{
+		{"hello go world", "go", true},
+		{"go build", "go", true},
+		{"use go", "go", true},
+		{"logo design", "go", false},
+		{"cargo build", "go", false},
+		{"ergo sum", "go", false},
+		{"golang tools", "go", false},  // "go" in "golang" is not word-bounded
+		{"let's go!", "go", true},       // punctuation after
+		{"a go-tool", "go", true},       // hyphen after (not alpha)
+		{"", "go", false},
+		{"go", "go", true},             // exact match
+		{"GO", "go", false},            // case sensitive
+		{"trust me", "rust", false},
+		{"rust lang", "rust", true},
+		{"in rust we trust", "rust", true},
+	}
+	for _, tt := range tests {
+		got := containsWord(tt.text, tt.word)
+		if got != tt.want {
+			t.Errorf("containsWord(%q, %q) = %v, want %v", tt.text, tt.word, got, tt.want)
+		}
+	}
+}
+
+func TestInferProjectTypeEdgeCases(t *testing.T) {
+	tests := []struct {
+		body string
+		want string
+	}{
+		{"Build a REST API backend", "api"},
+		{"Create a CLI tool", "cli"},
+		{"Build a web frontend with React", "ui"},
+		{"Create a reusable library", "library"},
+		{"Kubernetes operator for deployments", "kubernetes"},
+		{"A simple script", "cli"},                     // default
+		{"Deploy a containerized service", "container"}, // "container" keyword
+		{"Manage Docker containers", "container"},       // "docker" keyword
+	}
+	for _, tt := range tests {
+		constitution := &Fact{Body: tt.body}
+		got := inferProjectType(constitution, nil, nil)
+		if got != tt.want {
+			t.Errorf("inferProjectType(%q) = %q, want %q", tt.body, got, tt.want)
+		}
+	}
+}
+
+func TestRecordFactsPhaseGuard(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("Test")
+
+	facts := []IdeationFact{
+		{Title: "Vision", Body: "A tool", Type: FactVision},
+	}
+
+	// capture phase — should fail
+	err := e.RecordFacts(context.Background(), facts)
+	if err == nil {
+		t.Error("should reject facts in capture phase")
+	}
+
+	// structure phase — should work
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	err = e.RecordFacts(context.Background(), facts)
+	if err != nil {
+		t.Errorf("should accept facts in structure phase: %v", err)
+	}
+
+	// scaffold phase — should fail (already recorded)
+	err = e.RecordFacts(context.Background(), facts)
+	if err == nil {
+		t.Error("should reject facts in scaffold phase")
+	}
+}
+
+func TestRecordFactsValidation(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("Test")
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	// Empty facts
+	err := e.RecordFacts(context.Background(), nil)
+	if err == nil {
+		t.Error("should reject nil facts")
+	}
+
+	// Empty title
+	err = e.RecordFacts(context.Background(), []IdeationFact{
+		{Title: "", Body: "content", Type: FactVision},
+	})
+	if err == nil {
+		t.Error("should reject empty title")
+	}
+
+	// Empty body
+	err = e.RecordFacts(context.Background(), []IdeationFact{
+		{Title: "Vision", Body: "", Type: FactVision},
+	})
+	if err == nil {
+		t.Error("should reject empty body")
+	}
+}
+
+func TestGetStateDeepCopy(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("Test idea")
+
+	state1 := e.GetState()
+	state2 := e.GetState()
+
+	// Mutating state1 should not affect state2
+	state1.IdeaText = "MUTATED"
+	if state2.IdeaText == "MUTATED" {
+		t.Error("GetState should return deep copies — mutation propagated")
+	}
+
+	// Mutating answers map
+	state1.Answers["new_key"] = "new_value"
+	if _, exists := state2.Answers["new_key"]; exists {
+		t.Error("GetState should return deep copies — map mutation propagated")
+	}
+}
+
+func TestStartBrownfieldValidation(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+
+	// Empty URL
+	_, err := e.StartBrownfield("")
+	if err == nil {
+		t.Error("should reject empty URL")
+	}
+
+	// No https prefix
+	_, err = e.StartBrownfield("github.com/org/repo")
+	if err == nil {
+		t.Error("should reject non-https URL")
+	}
+
+	// Valid URL
+	state, err := e.StartBrownfield("https://github.com/org/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Mode != InceptionBrownfield {
+		t.Errorf("mode = %q, want brownfield", state.Mode)
+	}
+	if state.RepoURL != "https://github.com/org/repo" {
+		t.Errorf("repo URL not preserved: %q", state.RepoURL)
+	}
+
+	// Second start without reset should fail
+	_, err = e.StartBrownfield("https://github.com/org/repo2")
+	if err == nil {
+		t.Error("should reject second start without reset")
+	}
+}
+
+func TestStartBrownfieldURLMaxLength(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+
+	// Very long URL (>2000 chars)
+	longURL := "https://github.com/org/"
+	for len(longURL) < 2001 {
+		longURL += "x"
+	}
+	_, err := e.StartBrownfield(longURL)
+	if err == nil {
+		t.Error("should reject URL over 2000 chars")
+	}
+}
+
+func TestConcurrentGetState(t *testing.T) {
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("Test")
+
+	// Concurrent reads should not race
+	done := make(chan bool, 10)
+	for i := 0; i < 10; i++ {
+		go func() {
+			state := e.GetState()
+			if state == nil {
+				t.Error("state should not be nil during concurrent read")
+			}
+			done <- true
+		}()
+	}
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}

@@ -1716,6 +1716,7 @@ func backendBinary(backend string) (string, error) {
 		"copilot": "copilot",
 		"gemini":  "gemini",
 		"goose":   "goose",
+		"pi":      "goose",
 		"bob":     "bob",
 	}
 

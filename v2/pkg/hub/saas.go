@@ -1438,6 +1438,16 @@ func (s *HubServer) handleSaaSAuthCheck(w http.ResponseWriter, r *http.Request) 
 	}
 
 	originalURI := r.Header.Get("X-Original-URI")
+	if originalURI == "" {
+		if origURL := r.Header.Get("X-Original-URL"); origURL != "" {
+			if u, err := url.Parse(origURL); err == nil {
+				originalURI = u.Path
+			}
+		}
+	}
+	if originalURI == "" {
+		originalURI = r.URL.Query().Get("uri")
+	}
 	for _, p := range publicPaths {
 		if strings.HasPrefix(originalURI, p) {
 			w.WriteHeader(http.StatusOK)

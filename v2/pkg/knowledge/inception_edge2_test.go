@@ -2,6 +2,7 @@ package knowledge
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -481,6 +482,126 @@ func TestInferLanguageSubstringFalsePositives(t *testing.T) {
 		got := inferLanguage(fact)
 		if got == tt.notWant {
 			t.Errorf("inferLanguage(%q) = %q — false positive: %s", tt.body, got, tt.desc)
+		}
+	}
+}
+
+func TestInferLanguagePriority(t *testing.T) {
+	// When constitution mentions multiple languages, the first match wins
+	tests := []struct {
+		body string
+		want string
+	}{
+		// TypeScript keywords checked first
+		{"Use React with Python backend", "typescript"},
+		{"Angular frontend, Java backend", "typescript"},
+		// Python keywords checked second
+		{"Django app with some JavaScript", "python"},
+		{"FastAPI service", "python"},
+		// Explicit language names with word boundaries
+		{"Build in Rust, deploy to Kubernetes", "rust"},
+		{"Java microservice with Docker", "java"},
+	}
+	for _, tt := range tests {
+		fact := &Fact{Body: tt.body}
+		got := inferLanguage(fact)
+		if got != tt.want {
+			t.Errorf("inferLanguage(%q) = %q, want %q", tt.body, got, tt.want)
+		}
+	}
+}
+
+func TestContainsWordBoundaries(t *testing.T) {
+	// Exhaustive boundary tests
+	tests := []struct {
+		text string
+		word string
+		want bool
+	}{
+		// Start of string
+		{"go is great", "go", true},
+		{"gopher", "go", false},
+		// End of string
+		{"I love go", "go", true},
+		{"cargo", "go", false},
+		// Surrounded by punctuation
+		{"(go)", "go", true},
+		{"[go]", "go", true},
+		{`"go"`, "go", true},
+		{"go.", "go", true},
+		{"go,", "go", true},
+		{"go;", "go", true},
+		{"go!", "go", true},
+		{"go?", "go", true},
+		// Numbers adjacent
+		{"go2", "go", true},        // digit after = word boundary (digits aren't alpha)
+		{"2go", "go", true},        // digit before = word boundary
+	}
+	for _, tt := range tests {
+		got := containsWord(tt.text, tt.word)
+		if got != tt.want {
+			t.Errorf("containsWord(%q, %q) = %v, want %v", tt.text, tt.word, got, tt.want)
+		}
+	}
+}
+
+func TestProduceScaffoldWithFacts(t *testing.T) {
+	// Test with actual facts to verify scaffold quality
+	dir := t.TempDir()
+	e := NewInceptionEngine(dir, nil, nil)
+	e.Start("A Python REST API for managing tasks")
+
+	// Simulate structure phase with facts
+	e.mu.Lock()
+	e.state.Phase = PhaseStructure
+	e.mu.Unlock()
+
+	facts := []IdeationFact{
+		{Title: "Task Management API", Body: "A RESTful API for CRUD operations on tasks", Type: FactVision},
+		{Title: "Python 3.12, FastAPI, SQLAlchemy", Body: "Use Python 3.12 with FastAPI framework and SQLAlchemy ORM", Type: FactConstitution},
+		{Title: "CRUD endpoints", Body: "Create, read, update, delete tasks via REST", Type: FactRequirement},
+		{Title: "Authentication", Body: "JWT-based auth for all endpoints", Type: FactRequirement},
+		{Title: "PostgreSQL only", Body: "Must use PostgreSQL as the database", Type: FactConstraint},
+	}
+	err := e.RecordFacts(context.Background(), facts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := e.ProduceScaffold(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should have Python files
+	hasPy := false
+	hasPyproject := false
+	for _, f := range result.Files {
+		if endsWith(f.Path, ".py") {
+			hasPy = true
+		}
+		if f.Path == "pyproject.toml" {
+			hasPyproject = true
+		}
+		// Should NOT have Go files
+		if f.Path == "go.mod" || f.Path == "main.go" {
+			t.Errorf("Python API should not have Go file: %s", f.Path)
+		}
+	}
+	if !hasPy {
+		t.Error("should have .py files")
+	}
+	if !hasPyproject {
+		t.Error("should have pyproject.toml")
+	}
+
+	// README should mention the project
+	for _, f := range result.Files {
+		if f.Path == "README.md" {
+			if !strings.Contains(f.Content, "Task Management") {
+				t.Error("README should mention the vision title")
+			}
+			break
 		}
 	}
 }

@@ -2482,10 +2482,15 @@ func slugify(s string) string {
 
 func truncateSlug(s string) string {
 	const maxSlugInputLen = 60
-	if len(s) > maxSlugInputLen {
-		s = s[:maxSlugInputLen]
+	if len(s) <= maxSlugInputLen {
+		return s
 	}
-	return s
+	// Truncate at rune boundary to avoid splitting multi-byte UTF-8
+	runes := []rune(s)
+	if len(runes) > maxSlugInputLen {
+		runes = runes[:maxSlugInputLen]
+	}
+	return string(runes)
 }
 
 func inferLanguageFromText(text string) string {

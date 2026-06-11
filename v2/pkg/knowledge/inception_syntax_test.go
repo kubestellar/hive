@@ -536,3 +536,89 @@ func TestScaffoldShellKubernetes(t *testing.T) {
 		t.Error("K8s project should have deploy/ manifests")
 	}
 }
+
+func TestScaffoldCIMatchesLanguage(t *testing.T) {
+	langs := []struct {
+		idea      string
+		ciMustHave string
+		ciMustNot  string
+	}{
+		{"A Go CLI", "go build", "npm"},
+		{"A Python tool", "pip", "go build"},
+		{"A Rust service", "cargo", "npm"},
+		{"A TypeScript app", "npm", "go build"},
+		{"A Java service", "mvn", "cargo"},
+		{"A JavaScript tool", "npm", "go build"},
+		{"A Shell script", "shellcheck", "npm"},
+	}
+
+	for _, tt := range langs {
+		t.Run(tt.idea, func(t *testing.T) {
+			dir := t.TempDir()
+			e := NewInceptionEngine(dir, nil, nil)
+			e.Start(tt.idea)
+			e.mu.Lock()
+			e.state.Phase = PhaseScaffold
+			e.mu.Unlock()
+
+			result, err := e.ProduceScaffold(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, f := range result.Files {
+				if f.Path == ".github/workflows/ci.yml" {
+					lower := strings.ToLower(f.Content)
+					if !strings.Contains(lower, tt.ciMustHave) {
+						t.Errorf("CI for %s should contain %q", tt.idea, tt.ciMustHave)
+					}
+					if strings.Contains(lower, tt.ciMustNot) {
+						t.Errorf("CI for %s should NOT contain %q", tt.idea, tt.ciMustNot)
+					}
+					return
+				}
+			}
+			t.Error("no ci.yml found")
+		})
+	}
+}
+
+func TestScaffoldMakefileMatchesLanguage(t *testing.T) {
+	langs := []struct {
+		idea      string
+		mustHave  string
+	}{
+		{"A Go CLI", "go build"},
+		{"A Python tool", "pytest"},
+		{"A Rust service", "cargo"},
+		{"A TypeScript app", "npm run build"},
+		{"A Java service", "mvn"},
+		{"A Shell script", "shellcheck"},
+	}
+
+	for _, tt := range langs {
+		t.Run(tt.idea, func(t *testing.T) {
+			dir := t.TempDir()
+			e := NewInceptionEngine(dir, nil, nil)
+			e.Start(tt.idea)
+			e.mu.Lock()
+			e.state.Phase = PhaseScaffold
+			e.mu.Unlock()
+
+			result, err := e.ProduceScaffold(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, f := range result.Files {
+				if f.Path == "Makefile" {
+					if !strings.Contains(f.Content, tt.mustHave) {
+						t.Errorf("Makefile for %s should contain %q\ncontent: %s", tt.idea, tt.mustHave, f.Content[:min(200, len(f.Content))])
+					}
+					return
+				}
+			}
+			t.Error("no Makefile found")
+		})
+	}
+}

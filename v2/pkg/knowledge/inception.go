@@ -379,8 +379,13 @@ func (e *InceptionEngine) writeFactsToVault(facts []IdeationFact) {
 		}
 	}
 
+	usedSlugs := make(map[string]int)
 	for _, f := range facts {
 		slug := slugify(string(f.Type) + "-" + truncateSlug(f.Title))
+		usedSlugs[slug]++
+		if usedSlugs[slug] > 1 {
+			slug = fmt.Sprintf("%s-%d", slug, usedSlugs[slug])
+		}
 		filename := slug + ".md"
 
 		conf := defaultConfidence(f.Type)

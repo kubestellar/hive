@@ -649,10 +649,11 @@ func (e *InceptionEngine) ProduceScaffold(ctx context.Context) (*ScaffoldResult,
 	}
 
 	if projectType == "ui" {
+		i18nIdx, i18nPath := buildI18nIndexForLang(lang)
 		result.Files = append(result.Files,
 			ScaffoldFile{Path: "src/i18n/en.json", Content: buildI18nFile("en", projectName), Purpose: "i18n", IsNew: true},
 			ScaffoldFile{Path: "src/i18n/es.json", Content: buildI18nFile("es", projectName), Purpose: "i18n", IsNew: true},
-			ScaffoldFile{Path: "src/i18n/index.ts", Content: buildI18nIndex(), Purpose: "i18n", IsNew: true},
+			ScaffoldFile{Path: i18nPath, Content: i18nIdx, Purpose: "i18n", IsNew: true},
 		)
 	}
 
@@ -2208,7 +2209,107 @@ func buildI18nFile(locale, name string) string {
 }
 
 func buildI18nIndex() string {
-	return `import en from './en.json';
+	content, _ := buildI18nIndexForLang("typescript")
+	return content
+}
+
+func buildI18nIndexForLang(lang string) (content string, path string) {
+	switch lang {
+	case "python":
+		return `import json
+from pathlib import Path
+
+_dir = Path(__file__).parent
+_messages = {
+    "en": json.loads((_dir / "en.json").read_text()),
+    "es": json.loads((_dir / "es.json").read_text()),
+}
+_locale = "en"
+
+
+def set_locale(locale: str) -> None:
+    global _locale
+    _locale = locale
+
+
+def t(key: str) -> str:
+    return _messages.get(_locale, {}).get(key, key)
+`, "src/i18n/__init__.py"
+	case "go":
+		return `package i18n
+
+import (
+	"embed"
+	"encoding/json"
+)
+
+//go:embed en.json es.json
+var localeFS embed.FS
+
+var messages = map[string]map[string]string{}
+var currentLocale = "en"
+
+func init() {
+	for _, loc := range []string{"en", "es"} {
+		data, _ := localeFS.ReadFile(loc + ".json")
+		m := map[string]string{}
+		_ = json.Unmarshal(data, &m)
+		messages[loc] = m
+	}
+}
+
+func SetLocale(locale string) { currentLocale = locale }
+
+func T(key string) string {
+	if m, ok := messages[currentLocale]; ok {
+		if v, ok := m[key]; ok {
+			return v
+		}
+	}
+	return key
+}
+`, "src/i18n/i18n.go"
+	case "rust":
+		return `use std::collections::HashMap;
+use std::sync::Mutex;
+
+static LOCALE: Mutex<String> = Mutex::new(String::new());
+
+pub fn set_locale(locale: &str) {
+    *LOCALE.lock().unwrap() = locale.to_string();
+}
+
+pub fn t(key: &str) -> String {
+    let locale = LOCALE.lock().unwrap();
+    let loc = if locale.is_empty() { "en" } else { &locale };
+    let messages: HashMap<&str, &str> = match loc {
+        "es" => include!("es_messages.rs"),
+        _ => include!("en_messages.rs"),
+    };
+    messages.get(key).map(|s| s.to_string()).unwrap_or_else(|| key.to_string())
+}
+`, "src/i18n/mod.rs"
+	case "java":
+		return `package i18n;
+
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
+
+public class I18n {
+    private static String locale = "en";
+    private static final Map<String, Map<String, String>> messages = new HashMap<>();
+
+    public static void setLocale(String loc) { locale = loc; }
+
+    public static String t(String key) {
+        Map<String, String> m = messages.getOrDefault(locale, Map.of());
+        return m.getOrDefault(key, key);
+    }
+}
+`, "src/i18n/I18n.java"
+	default:
+		return `import en from './en.json';
 import es from './es.json';
 
 export type Locale = 'en' | 'es';
@@ -2224,7 +2325,8 @@ export function setLocale(locale: Locale): void {
 export function t(key: string): string {
   return messages[currentLocale]?.[key] ?? key;
 }
-`
+`, "src/i18n/index.ts"
+	}
 }
 
 func buildMakefile(lang, name, projectType string) string {

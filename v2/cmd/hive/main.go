@@ -1005,7 +1005,7 @@ func main() {
 				}(),
 				SnapshotURL:  cfg.Hub.SnapshotURL,
 				IsPublic:     cfg.Hub.IsPublic,
-				Version:      "2.0.0",
+				Version:           "3.0.0",
 				GitHash:           gitShort,
 				GitBranch:         gitBranch,
 				GitHubAppRequired: dashSrv.IsGitHubAppRequired(),

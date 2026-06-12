@@ -1161,7 +1161,8 @@ func fetchAllBranchSHAs(logger *slog.Logger) {
 }
 
 func fetchBranchSHA(logger *slog.Logger, branch string) {
-	actionsURL := "https://api.github.com/repos/kubestellar/hive/actions/runs?branch=" + branch + "&status=success&per_page=1"
+	const shaFetchPerPage = 20
+	actionsURL := fmt.Sprintf("https://api.github.com/repos/kubestellar/hive/actions/runs?branch=%s&status=success&per_page=%d", branch, shaFetchPerPage)
 	const shaFetchTimeout = 10 * time.Second
 	client := &http.Client{Timeout: shaFetchTimeout}
 	req, _ := http.NewRequest("GET", actionsURL, nil)

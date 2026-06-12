@@ -60,7 +60,7 @@ spec:
             - "--port"
             - "8000"
             - "--ctx-size"
-            - "1024"
+            - "8192"
             - "--threads"
             - "2"
             - "--chat-template"
@@ -76,10 +76,10 @@ spec:
           resources:
             requests:
               cpu: "2"
-              memory: 2Gi
+              memory: 4Gi
             limits:
               cpu: "3"
-              memory: 4Gi
+              memory: 6Gi
           startupProbe:
             httpGet:
               path: /health

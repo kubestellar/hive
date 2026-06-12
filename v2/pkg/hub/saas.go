@@ -2800,9 +2800,6 @@ const dashboardHTML = `<!DOCTYPE html>
     function renderRequestHiveButton(data) {
       var btn = document.getElementById('btn-request-hive');
       if (!btn) return;
-      var canCreate = data.saas_quota < 0 || data.saas_quota > (data.saas_used || 0);
-      var hasPending = !!(data.my_provision_request);
-      if (canCreate || hasPending) { btn.style.display = 'none'; return; }
       btn.style.display = '';
     }
 

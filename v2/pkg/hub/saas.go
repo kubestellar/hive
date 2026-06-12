@@ -131,6 +131,7 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("DELETE /api/saas/deny-provision/{username}", s.requireAdmin(s.handleDenyProvision))
 	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
+	s.mux.HandleFunc("GET /api/saas/cluster-health", s.requireAdmin(s.handleClusterHealth))
 
 	go StartProvisionWatcher(s.logger, &s.mu)
 	go s.StartLatestSHAPoller()
@@ -394,6 +395,350 @@ func (s *HubServer) handleAdminUpdateUser(w http.ResponseWriter, r *http.Request
 	s.logger.Info("audit: admin updated user", "target", username, "quota", u.SaaSQuota, "blocked", u.Blocked)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
+}
+
+// --- Cluster Health ---
+
+const clusterHealthCacheTTL = 30 * time.Second
+
+// clusterHealthCPUWarnPct is the CPU usage percentage threshold for warning state.
+const clusterHealthCPUWarnPct = 60
+
+// clusterHealthCPUDangerPct is the CPU usage percentage threshold for danger state.
+const clusterHealthCPUDangerPct = 80
+
+// clusterHealthMemWarnPct is the memory usage percentage threshold for warning state.
+const clusterHealthMemWarnPct = 60
+
+// clusterHealthMemDangerPct is the memory usage percentage threshold for danger state.
+const clusterHealthMemDangerPct = 80
+
+// kubectlTopTimeoutSec is the timeout for kubectl top nodes commands.
+const kubectlTopTimeoutSec = 10
+
+// kubectlGetTimeoutSec is the timeout for kubectl get nodes commands.
+const kubectlGetTimeoutSec = 10
+
+// millicoresPerCore converts cores to millicores.
+const millicoresPerCore = 1000
+
+// mbPerGB converts megabytes to gigabytes.
+const mbPerGB = 1024
+
+// kiToBytes converts Ki units to bytes.
+const kiToBytes = 1024
+
+// miToBytes converts Mi units to bytes.
+const miToBytes = 1024 * 1024
+
+// giToBytes converts Gi units to bytes.
+const giToBytes = 1024 * 1024 * 1024
+
+// bytesPerMB converts bytes to megabytes.
+const bytesPerMB = 1024 * 1024
+
+// percentMultiplier converts a ratio to a percentage.
+const percentMultiplier = 100
+
+type ClusterHealthNode struct {
+	Name            string   `json:"name"`
+	CPUCores        int      `json:"cpu_cores"`
+	CPUUsedMillis   int64    `json:"cpu_used_millicores"`
+	CPUPercent      int      `json:"cpu_percent"`
+	MemTotalMB      int64    `json:"mem_total_mb"`
+	MemUsedMB       int64    `json:"mem_used_mb"`
+	MemPercent      int      `json:"mem_percent"`
+	DiskPressure    bool     `json:"disk_pressure"`
+	Pods            int      `json:"pods"`
+	PodCapacity     int      `json:"pod_capacity"`
+	Conditions      []string `json:"conditions"`
+}
+
+type ClusterHealthSummary struct {
+	TotalNodes    int `json:"total_nodes"`
+	TotalCPUCores int `json:"total_cpu_cores"`
+	TotalCPUPct   int `json:"total_cpu_percent"`
+	TotalMemGB    int `json:"total_mem_gb"`
+	TotalMemPct   int `json:"total_mem_percent"`
+	HiveCount     int `json:"hive_count"`
+}
+
+type ClusterHealthResponse struct {
+	Nodes   []ClusterHealthNode  `json:"nodes"`
+	Summary ClusterHealthSummary `json:"summary"`
+}
+
+var (
+	clusterHealthCache     *ClusterHealthResponse
+	clusterHealthCacheTime time.Time
+	clusterHealthCacheMu   sync.Mutex
+)
+
+func (s *HubServer) handleClusterHealth(w http.ResponseWriter, r *http.Request) {
+	clusterHealthCacheMu.Lock()
+	if clusterHealthCache != nil && time.Since(clusterHealthCacheTime) < clusterHealthCacheTTL {
+		cached := clusterHealthCache
+		clusterHealthCacheMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(cached)
+		return
+	}
+	clusterHealthCacheMu.Unlock()
+
+	resp, err := buildClusterHealth(s)
+	if err != nil {
+		s.logger.Error("cluster health failed", "error", err)
+		http.Error(w, `{"error":"failed to gather cluster health"}`, http.StatusInternalServerError)
+		return
+	}
+
+	clusterHealthCacheMu.Lock()
+	clusterHealthCache = resp
+	clusterHealthCacheTime = time.Now()
+	clusterHealthCacheMu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func buildClusterHealth(s *HubServer) (*ClusterHealthResponse, error) {
+	// Run kubectl top nodes
+	topOut, err := exec.Command("kubectl", "top", "nodes", "--no-headers").Output()
+	if err != nil {
+		return nil, fmt.Errorf("kubectl top nodes: %w", err)
+	}
+
+	// Run kubectl get nodes -o json
+	getOut, err := exec.Command("kubectl", "get", "nodes", "-o", "json").Output()
+	if err != nil {
+		return nil, fmt.Errorf("kubectl get nodes: %w", err)
+	}
+
+	// Parse kubectl get nodes output
+	var nodesJSON struct {
+		Items []struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+			Status struct {
+				Allocatable map[string]string `json:"allocatable"`
+				Capacity    map[string]string `json:"capacity"`
+				Conditions  []struct {
+					Type   string `json:"type"`
+					Status string `json:"status"`
+				} `json:"conditions"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(getOut, &nodesJSON); err != nil {
+		return nil, fmt.Errorf("parse nodes JSON: %w", err)
+	}
+
+	// Build a map of node info from kubectl get
+	type nodeInfo struct {
+		cpuAllocatable  int64 // millicores
+		memAllocatable  int64 // bytes
+		podCapacity     int
+		diskPressure    bool
+		conditions      []string
+	}
+	nodeMap := make(map[string]*nodeInfo)
+	for _, item := range nodesJSON.Items {
+		ni := &nodeInfo{}
+		ni.cpuAllocatable = parseK8sCPU(item.Status.Allocatable["cpu"])
+		ni.memAllocatable = parseK8sMemory(item.Status.Allocatable["memory"])
+		ni.podCapacity = parseInt(item.Status.Capacity["pods"])
+		for _, cond := range item.Status.Conditions {
+			if cond.Type == "DiskPressure" && cond.Status == "True" {
+				ni.diskPressure = true
+			}
+			if cond.Type == "Ready" && cond.Status == "True" {
+				ni.conditions = append(ni.conditions, "Ready")
+			} else if cond.Type == "Ready" && cond.Status != "True" {
+				ni.conditions = append(ni.conditions, "NotReady")
+			}
+		}
+		if len(ni.conditions) == 0 {
+			ni.conditions = []string{"Unknown"}
+		}
+		nodeMap[item.Metadata.Name] = ni
+	}
+
+	// Parse kubectl top nodes output
+	// Format: NAME  CPU(cores)  CPU%  MEMORY(bytes)  MEMORY%
+	var nodes []ClusterHealthNode
+	lines := strings.Split(strings.TrimSpace(string(topOut)), "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		const topFieldCount = 5
+		if len(fields) < topFieldCount {
+			continue
+		}
+		name := fields[0]
+		cpuUsed := parseTopCPU(fields[1])     // e.g. "1200m" or "2"
+		memUsed := parseTopMemory(fields[3])   // e.g. "4096Mi"
+
+		ni, ok := nodeMap[name]
+		if !ok {
+			continue
+		}
+
+		cpuCores := int(ni.cpuAllocatable / millicoresPerCore)
+		cpuPct := 0
+		if ni.cpuAllocatable > 0 {
+			cpuPct = int(cpuUsed * percentMultiplier / ni.cpuAllocatable)
+		}
+
+		memTotalMB := ni.memAllocatable / bytesPerMB
+		memUsedMB := memUsed / bytesPerMB
+		memPct := 0
+		if ni.memAllocatable > 0 {
+			memPct = int(memUsed * percentMultiplier / ni.memAllocatable)
+		}
+
+		nodes = append(nodes, ClusterHealthNode{
+			Name:          name,
+			CPUCores:      cpuCores,
+			CPUUsedMillis: cpuUsed,
+			CPUPercent:    cpuPct,
+			MemTotalMB:    memTotalMB,
+			MemUsedMB:     memUsedMB,
+			MemPercent:    memPct,
+			DiskPressure:  ni.diskPressure,
+			Pods:          0, // populated below
+			PodCapacity:   ni.podCapacity,
+			Conditions:    ni.conditions,
+		})
+	}
+
+	// Count running pods per node
+	podOut, _ := exec.Command("kubectl", "get", "pods", "--all-namespaces", "--field-selector=status.phase=Running", "-o", "json").Output()
+	if len(podOut) > 0 {
+		var podsJSON struct {
+			Items []struct {
+				Spec struct {
+					NodeName string `json:"nodeName"`
+				} `json:"spec"`
+			} `json:"items"`
+		}
+		if json.Unmarshal(podOut, &podsJSON) == nil {
+			podCounts := make(map[string]int)
+			for _, p := range podsJSON.Items {
+				podCounts[p.Spec.NodeName]++
+			}
+			for i := range nodes {
+				nodes[i].Pods = podCounts[nodes[i].Name]
+			}
+		}
+	}
+
+	// Count hives from registry
+	s.mu.RLock()
+	hiveCount := len(s.registry.Hives)
+	s.mu.RUnlock()
+
+	// Build summary
+	var totalCPUCores int
+	var totalCPUUsed int64
+	var totalCPUAlloc int64
+	var totalMemAlloc int64
+	var totalMemUsed int64
+	for _, n := range nodes {
+		totalCPUCores += n.CPUCores
+		totalCPUUsed += n.CPUUsedMillis
+		if ni, ok := nodeMap[n.Name]; ok {
+			totalCPUAlloc += ni.cpuAllocatable
+			totalMemAlloc += ni.memAllocatable
+		}
+		totalMemUsed += n.MemUsedMB * bytesPerMB
+	}
+
+	totalCPUPct := 0
+	if totalCPUAlloc > 0 {
+		totalCPUPct = int(totalCPUUsed * percentMultiplier / totalCPUAlloc)
+	}
+	totalMemPct := 0
+	if totalMemAlloc > 0 {
+		totalMemPct = int(totalMemUsed * percentMultiplier / totalMemAlloc)
+	}
+	totalMemGB := int(totalMemAlloc / giToBytes)
+
+	return &ClusterHealthResponse{
+		Nodes: nodes,
+		Summary: ClusterHealthSummary{
+			TotalNodes:    len(nodes),
+			TotalCPUCores: totalCPUCores,
+			TotalCPUPct:   totalCPUPct,
+			TotalMemGB:    totalMemGB,
+			TotalMemPct:   totalMemPct,
+			HiveCount:     hiveCount,
+		},
+	}, nil
+}
+
+// parseK8sCPU parses Kubernetes CPU resource strings (e.g. "4", "4000m").
+func parseK8sCPU(s string) int64 {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "m") {
+		v := parseInt(strings.TrimSuffix(s, "m"))
+		return int64(v)
+	}
+	v := parseInt(s)
+	return int64(v) * millicoresPerCore
+}
+
+// parseK8sMemory parses Kubernetes memory resource strings (e.g. "16384Ki", "8Gi").
+func parseK8sMemory(s string) int64 {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "Ki") {
+		v := parseInt(strings.TrimSuffix(s, "Ki"))
+		return int64(v) * kiToBytes
+	}
+	if strings.HasSuffix(s, "Mi") {
+		v := parseInt(strings.TrimSuffix(s, "Mi"))
+		return int64(v) * miToBytes
+	}
+	if strings.HasSuffix(s, "Gi") {
+		v := parseInt(strings.TrimSuffix(s, "Gi"))
+		return int64(v) * giToBytes
+	}
+	return int64(parseInt(s))
+}
+
+// parseTopCPU parses kubectl top CPU values (e.g. "1200m", "2").
+func parseTopCPU(s string) int64 {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "m") {
+		v := parseInt(strings.TrimSuffix(s, "m"))
+		return int64(v)
+	}
+	v := parseInt(s)
+	return int64(v) * millicoresPerCore
+}
+
+// parseTopMemory parses kubectl top memory values (e.g. "4096Mi", "8Gi").
+func parseTopMemory(s string) int64 {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "Ki") {
+		v := parseInt(strings.TrimSuffix(s, "Ki"))
+		return int64(v) * kiToBytes
+	}
+	if strings.HasSuffix(s, "Mi") {
+		v := parseInt(strings.TrimSuffix(s, "Mi"))
+		return int64(v) * miToBytes
+	}
+	if strings.HasSuffix(s, "Gi") {
+		v := parseInt(strings.TrimSuffix(s, "Gi"))
+		return int64(v) * giToBytes
+	}
+	return int64(parseInt(s))
+}
+
+// parseInt parses an integer from a string, returning 0 on failure.
+func parseInt(s string) int {
+	var v int
+	fmt.Sscanf(s, "%d", &v)
+	return v
 }
 
 type MyHiveEntry struct {
@@ -2186,6 +2531,17 @@ const dashboardHTML = `<!DOCTYPE html>
       </div>
       <div id="users-container"><div class="loading">Loading users...</div></div>
     </div>
+
+    <div id="cluster-health-section" style="display:none;margin-top:48px">
+      <div onclick="toggleClusterHealth()" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;margin-bottom:16px">
+        <span id="cluster-health-toggle" style="font-size:0.7rem;color:var(--muted);transition:transform 0.2s">&#9654;</span>
+        <h2 style="font-size:1.3rem;color:var(--accent);margin:0">Cluster Health</h2>
+        <span id="cluster-health-summary-bar" style="font-size:0.8rem;color:var(--muted);margin-left:8px"></span>
+      </div>
+      <div id="cluster-health-body" style="display:none">
+        <div id="cluster-health-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px"></div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -2913,17 +3269,112 @@ const dashboardHTML = `<!DOCTYPE html>
       finally { _requestInProgress = false; btn.disabled = false; btn.textContent = 'Submit Request'; }
     }
 
+    // --- Cluster Health Panel ---
+    var CLUSTER_HEALTH_POLL_MS = 30000;
+    var CLUSTER_CPU_WARN_PCT = 60;
+    var CLUSTER_CPU_DANGER_PCT = 80;
+    var CLUSTER_MEM_WARN_PCT = 60;
+    var CLUSTER_MEM_DANGER_PCT = 80;
+    var _clusterHealthCollapsed = localStorage.getItem('hive-cluster-health-collapsed') !== 'false';
+
+    function toggleClusterHealth() {
+      _clusterHealthCollapsed = !_clusterHealthCollapsed;
+      localStorage.setItem('hive-cluster-health-collapsed', _clusterHealthCollapsed ? 'true' : 'false');
+      var body = document.getElementById('cluster-health-body');
+      var toggle = document.getElementById('cluster-health-toggle');
+      if (body) body.style.display = _clusterHealthCollapsed ? 'none' : '';
+      if (toggle) toggle.style.transform = _clusterHealthCollapsed ? '' : 'rotate(90deg)';
+    }
+
+    function healthBarColor(pct, warnThreshold, dangerThreshold) {
+      if (pct >= dangerThreshold) return 'var(--red)';
+      if (pct >= warnThreshold) return 'var(--accent)';
+      return 'var(--green)';
+    }
+
+    function renderHealthBar(pct, warnThreshold, dangerThreshold) {
+      var color = healthBarColor(pct, warnThreshold, dangerThreshold);
+      var MAX_BAR_WIDTH_PCT = 100;
+      var clampedPct = Math.min(pct, MAX_BAR_WIDTH_PCT);
+      return '<div style="display:flex;align-items:center;gap:8px">' +
+        '<div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">' +
+        '<div style="width:' + clampedPct + '%;height:100%;background:' + color + ';border-radius:3px;transition:width 0.3s"></div>' +
+        '</div>' +
+        '<span style="font-size:0.75rem;min-width:32px;text-align:right;color:' + color + '">' + pct + '%</span>' +
+        '</div>';
+    }
+
+    async function loadClusterHealth() {
+      if (!_isAdmin) return;
+      try {
+        var resp = await fetch('/api/saas/cluster-health');
+        if (resp.status === 403) {
+          document.getElementById('cluster-health-section').style.display = 'none';
+          return;
+        }
+        if (!resp.ok) return;
+        var data = await resp.json();
+        document.getElementById('cluster-health-section').style.display = '';
+
+        var s = data.summary || {};
+        var summaryBar = document.getElementById('cluster-health-summary-bar');
+        if (summaryBar) {
+          summaryBar.textContent = (s.total_nodes || 0) + ' nodes · ' + (s.total_cpu_cores || 0) + ' vCPU · ' + (s.total_mem_percent || 0) + '% mem · ' + (s.hive_count || 0) + ' hives';
+        }
+
+        var body = document.getElementById('cluster-health-body');
+        var toggle = document.getElementById('cluster-health-toggle');
+        if (!_clusterHealthCollapsed) {
+          if (body) body.style.display = '';
+          if (toggle) toggle.style.transform = 'rotate(90deg)';
+        }
+
+        var grid = document.getElementById('cluster-health-grid');
+        if (!grid) return;
+        var nodes = data.nodes || [];
+        if (!nodes.length) {
+          grid.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;grid-column:span 2">No node data available</div>';
+          return;
+        }
+
+        grid.innerHTML = nodes.map(function(n) {
+          var readyBadge = (n.conditions || []).indexOf('Ready') >= 0
+            ? '<span style="color:var(--green);font-size:0.7rem;font-weight:600">Ready</span>'
+            : '<span style="color:var(--red);font-size:0.7rem;font-weight:600">NotReady</span>';
+          var diskWarn = n.disk_pressure
+            ? '<div style="margin-top:6px;padding:4px 8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:4px;font-size:0.7rem;color:var(--red)">Disk Pressure</div>'
+            : '';
+          return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
+            '<span style="font-family:monospace;font-size:0.8rem;color:var(--text)">' + esc(n.name) + '</span>' +
+            readyBadge +
+            '</div>' +
+            '<div style="margin-bottom:6px"><span style="font-size:0.7rem;color:var(--muted)">CPU (' + n.cpu_cores + ' cores)</span>' + renderHealthBar(n.cpu_percent, CLUSTER_CPU_WARN_PCT, CLUSTER_CPU_DANGER_PCT) + '</div>' +
+            '<div style="margin-bottom:6px"><span style="font-size:0.7rem;color:var(--muted)">Memory (' + Math.round(n.mem_total_mb / 1024) + ' GB)</span>' + renderHealthBar(n.mem_percent, CLUSTER_MEM_WARN_PCT, CLUSTER_MEM_DANGER_PCT) + '</div>' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-top:8px">' +
+            '<span style="padding:2px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:0.7rem;color:var(--muted)">' + (n.pods || 0) + '/' + (n.pod_capacity || 0) + ' pods</span>' +
+            '</div>' +
+            diskWarn +
+            '</div>';
+        }).join('');
+      } catch(e) {
+        console.error('cluster health error:', e);
+      }
+    }
+
     async function init() {
       await loadUser();
       await autoRequestAccessFromUrl();
       await loadHives();
       await loadAdminUsers();
       if (!_adminLoaded) setTimeout(loadAdminUsers, 2000);
+      loadClusterHealth();
     }
     init();
     var POLL_INTERVAL_MS = 30000;
     setInterval(loadHives, POLL_INTERVAL_MS);
     setInterval(loadAdminUsers, POLL_INTERVAL_MS);
+    setInterval(loadClusterHealth, CLUSTER_HEALTH_POLL_MS);
     var _refreshTimer = null;
     var REFRESH_DEBOUNCE_MS = 500;
     function debouncedRefresh() {

@@ -1122,8 +1122,7 @@ func runEvalCycle(
 			if retryErr == nil {
 				advisoryIssues[primaryRepo] = num
 				os.Setenv("HIVE_ADVISORY_ISSUE", fmt.Sprintf("%d", num))
-				dashSrv.SetGitHubAppRequired(false)
-				logger.Info("GitHub App permissions restored — advisory issue created", "repo", primaryRepo, "number", num)
+				logger.Info("advisory issue created on retry", "repo", primaryRepo, "number", num)
 			}
 		}
 	}

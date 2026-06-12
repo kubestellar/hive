@@ -548,7 +548,7 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 	}
 
 	myReq := loadProvisionRequest(username)
-	if myReq != nil && myReq.Status == provisionStatusPending {
+	if myReq != nil {
 		resp["my_provision_request"] = myReq
 	}
 
@@ -1808,6 +1808,7 @@ func (s *HubServer) handleApproveProvision(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Increment user quota so they can have a hive provisioned
 	user := loadSaaSUser(targetUsername)
 	if user == nil {
 		user = ensureSaaSUser(targetUsername)
@@ -1818,68 +1819,16 @@ func (s *HubServer) handleApproveProvision(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	repos := strings.Split(pr.Repos, ",")
-	for i := range repos {
-		repos[i] = strings.TrimSpace(repos[i])
-	}
-	primaryRepo := pr.PrimaryRepo
-	if primaryRepo == "" && len(repos) > 0 {
-		primaryRepo = repos[0]
-	}
-
-	const minACMMLevel = 1
-	const maxACMMLevel = 6
-	acmm := pr.ACMMLevel
-	if acmm < minACMMLevel || acmm > maxACMMLevel {
-		acmm = minACMMLevel
-	}
-
-	hiveID := generateHiveID(pr.Org, primaryRepo)
-	h := &SaaSHive{
-		ID:          hiveID,
-		Owner:       targetUsername,
-		Org:         pr.Org,
-		Repos:       repos,
-		PrimaryRepo: primaryRepo,
-		ACMMLevel:   acmm,
-		Status:      "provisioning",
-		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
-		Subdomain:   hiveID + ".hive.kubestellar.io",
-	}
-
-	if err := saveSaaSHive(h); err != nil {
-		http.Error(w, `{"error":"failed to save hive metadata"}`, http.StatusInternalServerError)
+	// Mark the request as approved — admin provisions separately via "+ Add Hosted Hive"
+	pr.Status = provisionStatusApproved
+	if err := saveProvisionRequest(pr); err != nil {
+		http.Error(w, `{"error":"failed to update provision request"}`, http.StatusInternalServerError)
 		return
 	}
 
-	user.Hives[hiveID] = "owner"
-	saveSaaSUser(user)
-
-	createReq := &CreateHiveRequest{
-		Org:         pr.Org,
-		Repos:       pr.Repos,
-		PrimaryRepo: primaryRepo,
-		ACMMLevel:   acmm,
-		AuthMethod:  pr.AuthMethod,
-	}
-
-	go func() {
-		if err := provisionHive(h, createReq, s.logger); err != nil {
-			h.Status = "error"
-			h.Error = err.Error()
-			saveSaaSHive(h)
-			s.logger.Warn("provision from request failed", "hive_id", hiveID, "error", err)
-			return
-		}
-		h.Status = "provisioning"
-		saveSaaSHive(h)
-	}()
-
-	deleteProvisionRequest(targetUsername)
-
-	s.logger.Info("audit: provision request approved", "target", targetUsername, "hive_id", hiveID, "by", approver)
+	s.logger.Info("audit: provision request approved", "target", targetUsername, "by", approver, "org", pr.Org, "repos", pr.Repos)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "status": provisionStatusApproved})
 }
 
 func (s *HubServer) handleDenyProvision(w http.ResponseWriter, r *http.Request) {
@@ -2862,9 +2811,26 @@ const dashboardHTML = `<!DOCTYPE html>
       if (!el) return;
       if (!req) { el.style.display = 'none'; return; }
       el.style.display = '';
-      el.innerHTML = '<div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">' +
-        '<span style="font-size:1.1rem">&#x1F3D7;&#xFE0F;</span>' +
-        '<span style="flex:1;font-size:0.85rem;color:var(--text)">Your hive request for <strong>' + esc(req.org) + '/' + esc(req.primary_repo || req.repos) + '</strong> is pending admin approval.</span>' +
+      var project = esc(req.org) + '/' + esc(req.primary_repo || req.repos);
+      var status = req.status || 'pending';
+      var icon, bg, border, msg;
+      if (status === 'approved') {
+        icon = '&#x2705;';
+        bg = 'rgba(34,197,94,0.12)'; border = 'rgba(34,197,94,0.3)';
+        msg = 'Your hive request for <strong>' + project + '</strong> has been approved! Click <strong>Provision</strong> to set up your hive.' +
+          ' <button onclick="openProvisionDialog(\'' + esc(req.org) + '\',\'' + esc(req.repos) + '\',\'' + esc(req.primary_repo || '') + '\',' + (req.acmm_level || 1) + ')" style="margin-left:8px;padding:4px 12px;background:#238636;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.8rem;font-weight:600">Provision</button>';
+      } else if (status === 'denied') {
+        icon = '&#x274C;';
+        bg = 'rgba(239,68,68,0.12)'; border = 'rgba(239,68,68,0.3)';
+        msg = 'Your hive request for <strong>' + project + '</strong> was denied by an admin.';
+      } else {
+        icon = '&#x1F3D7;&#xFE0F;';
+        bg = 'rgba(245,158,11,0.12)'; border = 'rgba(245,158,11,0.3)';
+        msg = 'Your hive request for <strong>' + project + '</strong> is pending admin approval.';
+      }
+      el.innerHTML = '<div style="background:' + bg + ';border:1px solid ' + border + ';border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">' +
+        '<span style="font-size:1.1rem">' + icon + '</span>' +
+        '<span style="flex:1;font-size:0.85rem;color:var(--text)">' + msg + '</span>' +
         '</div>';
     }
 
@@ -3120,6 +3086,15 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     var _createInProgress = false;
+    function openProvisionDialog(org, repos, primaryRepo, acmmLevel) {
+      document.getElementById('f-org').value = org || '';
+      document.getElementById('f-repos').value = repos || '';
+      document.getElementById('f-primary').value = primaryRepo || '';
+      var levelSelect = document.getElementById('f-level');
+      if (levelSelect && acmmLevel) levelSelect.value = String(acmmLevel);
+      document.getElementById('create-modal').style.display = 'flex';
+    }
+
     async function createHive() {
       if (_createInProgress) return;
       _createInProgress = true;

@@ -222,6 +222,18 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 		}(),
 	}
 
+	// Auto-create OCI File System + NFS export for this hive.
+	// Failures are non-fatal — the admin can create them manually.
+	exportPath := nfsExportPathPrefix + h.ID
+	fsID, err := createOCIFileSystem("hive-"+h.ID, logger)
+	if err != nil {
+		logger.Warn("OCI FSS creation failed — admin must create manually", "hive", h.ID, "error", err)
+	} else {
+		if exportErr := createOCIExport(fsID, exportPath, logger); exportErr != nil {
+			logger.Warn("OCI export creation failed — admin must create manually", "hive", h.ID, "error", exportErr)
+		}
+	}
+
 	tmpl, err := template.New("manifests").Parse(k8sManifestTemplate)
 	if err != nil {
 		return fmt.Errorf("template parse: %w", err)

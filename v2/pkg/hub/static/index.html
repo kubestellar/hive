@@ -407,7 +407,7 @@
         u.innerHTML='<img src="'+esc(d.avatar_url)+'" style="width:24px;height:24px;border-radius:50%;vertical-align:middle">'+' <span style="font-size:0.85rem">'+esc(d.login)+'</span>';
         return fetch('/api/saas/access-status').then(function(r2){return r2.json()}).then(function(as){
           _userAccessStatus = as.hives || {};
-          if(as.show_my_hives) document.getElementById('nav-dashboard').style.display='';
+          if(d.authenticated) document.getElementById('nav-dashboard').style.display='';
           renderHives(_allMainHives);
           handleAutoRequestFromUrl();
         });

@@ -126,6 +126,9 @@ func (s *HubServer) registerSaaSRoutes() {
 	s.mux.HandleFunc("PUT /api/saas/hives/{id}/approve-access/{username}", s.requireAuth(s.handleApproveAccess))
 	s.mux.HandleFunc("DELETE /api/saas/hives/{id}/deny-access/{username}", s.requireAuth(s.handleDenyAccess))
 	s.mux.HandleFunc("GET /api/saas/access-status", s.handleAccessStatus)
+	s.mux.HandleFunc("POST /api/saas/request-provision", s.requireAuth(s.handleRequestProvision))
+	s.mux.HandleFunc("PUT /api/saas/approve-provision/{username}", s.requireAdmin(s.handleApproveProvision))
+	s.mux.HandleFunc("DELETE /api/saas/deny-provision/{username}", s.requireAdmin(s.handleDenyProvision))
 	s.mux.HandleFunc("GET /api/saas/admin/users", s.requireAdmin(s.handleAdminUsers))
 	s.mux.HandleFunc("PUT /api/saas/admin/users/{username}", s.requireAdmin(s.handleAdminUpdateUser))
 
@@ -532,20 +535,29 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	showMyHives := isAdmin || len(result) > 0
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	resp := map[string]any{
 		"hives":            result,
 		"saas_quota":       user.SaaSQuota,
 		"saas_used":        saasCount,
-		"is_admin":         user.GitHubUsername == hubAdminUsername,
+		"is_admin":         isAdmin,
 		"latest_sha":       getLatestSHA(),
 		"latest_shas":      getLatestSHAs(),
 		"hub_git_hash":     s.hubGitHash,
 		"hub_auto_upgrade": isHubAutoUpgrade(),
-		"show_my_hives":    showMyHives,
-	})
+		"show_my_hives":    true,
+	}
+
+	myReq := loadProvisionRequest(username)
+	if myReq != nil && myReq.Status == provisionStatusPending {
+		resp["my_provision_request"] = myReq
+	}
+
+	if isAdmin {
+		resp["provision_requests"] = listProvisionRequests()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (s *HubServer) handleAccessStatus(w http.ResponseWriter, r *http.Request) {
@@ -564,7 +576,7 @@ func (s *HubServer) handleAccessStatus(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"authenticated": true,
-			"show_my_hives": username == hubAdminUsername,
+			"show_my_hives": true,
 			"hives":         map[string]string{},
 		})
 		return
@@ -605,20 +617,10 @@ func (s *HubServer) handleAccessStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	showMyHives := isAdmin || len(user.Hives) > 0
-	if !showMyHives {
-		for _, h := range allHives {
-			if strings.EqualFold(h.Owner, username) {
-				showMyHives = true
-				break
-			}
-		}
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"authenticated": true,
-		"show_my_hives": showMyHives,
+		"show_my_hives": true,
 		"hives":         hiveAccess,
 		"latest_sha":    getLatestSHA(),
 		"latest_shas":   getLatestSHAs(),
@@ -1611,6 +1613,260 @@ func (s *HubServer) handleDenyAccess(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
+const provisionRequestsDir = "/data/saas/provision-requests"
+
+const (
+	provisionStatusPending  = "pending"
+	provisionStatusApproved = "approved"
+	provisionStatusDenied   = "denied"
+)
+
+const maxProvisionRequestBodyBytes = 4 * 1024
+
+type ProvisionRequest struct {
+	Username    string `json:"username"`
+	Org         string `json:"org"`
+	Repos       string `json:"repos"`
+	PrimaryRepo string `json:"primary_repo"`
+	ACMMLevel   int    `json:"acmm_level"`
+	AuthMethod  string `json:"auth_method"`
+	RequestedAt string `json:"requested_at"`
+	Status      string `json:"status"`
+}
+
+func loadProvisionRequest(username string) *ProvisionRequest {
+	if strings.Contains(username, "..") || strings.Contains(username, "/") || strings.Contains(username, "\\") {
+		return nil
+	}
+	path := filepath.Join(provisionRequestsDir, username+".json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var pr ProvisionRequest
+	if json.Unmarshal(data, &pr) != nil {
+		return nil
+	}
+	return &pr
+}
+
+func saveProvisionRequest(pr *ProvisionRequest) error {
+	os.MkdirAll(provisionRequestsDir, 0o755)
+	data, err := json.MarshalIndent(pr, "", "  ")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(provisionRequestsDir, pr.Username+".json")
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
+}
+
+func deleteProvisionRequest(username string) {
+	if strings.Contains(username, "..") || strings.Contains(username, "/") || strings.Contains(username, "\\") {
+		return
+	}
+	os.Remove(filepath.Join(provisionRequestsDir, username+".json"))
+}
+
+func listProvisionRequests() []ProvisionRequest {
+	os.MkdirAll(provisionRequestsDir, 0o755)
+	entries, err := os.ReadDir(provisionRequestsDir)
+	if err != nil {
+		return nil
+	}
+	var result []ProvisionRequest
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		uname := strings.TrimSuffix(e.Name(), ".json")
+		pr := loadProvisionRequest(uname)
+		if pr != nil && pr.Status == provisionStatusPending {
+			result = append(result, *pr)
+		}
+	}
+	return result
+}
+
+func (s *HubServer) handleRequestProvision(w http.ResponseWriter, r *http.Request) {
+	username := s.getAuthUser(r)
+	if username == "" {
+		http.Error(w, `{"error":"not authenticated"}`, http.StatusUnauthorized)
+		return
+	}
+
+	existing := loadProvisionRequest(username)
+	if existing != nil && existing.Status == provisionStatusPending {
+		http.Error(w, `{"error":"you already have a pending provision request"}`, http.StatusBadRequest)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxProvisionRequestBodyBytes)
+	var body struct {
+		Org         string `json:"org"`
+		Repos       string `json:"repos"`
+		PrimaryRepo string `json:"primary_repo"`
+		ACMMLevel   int    `json:"acmm_level"`
+		AuthMethod  string `json:"auth_method"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+	if body.Org == "" || body.Repos == "" {
+		http.Error(w, `{"error":"org and repos are required"}`, http.StatusBadRequest)
+		return
+	}
+	if !isValidName(body.Org) {
+		http.Error(w, `{"error":"invalid org name"}`, http.StatusBadRequest)
+		return
+	}
+	for _, repo := range strings.Split(body.Repos, ",") {
+		if !isValidName(strings.TrimSpace(repo)) {
+			http.Error(w, `{"error":"invalid repo name"}`, http.StatusBadRequest)
+			return
+		}
+	}
+
+	const minACMMLevel = 1
+	const maxACMMLevel = 6
+	acmm := body.ACMMLevel
+	if acmm < minACMMLevel || acmm > maxACMMLevel {
+		acmm = minACMMLevel
+	}
+
+	primaryRepo := body.PrimaryRepo
+	if primaryRepo == "" {
+		repos := strings.Split(body.Repos, ",")
+		if len(repos) > 0 {
+			primaryRepo = strings.TrimSpace(repos[0])
+		}
+	}
+
+	pr := &ProvisionRequest{
+		Username:    username,
+		Org:         body.Org,
+		Repos:       body.Repos,
+		PrimaryRepo: primaryRepo,
+		ACMMLevel:   acmm,
+		AuthMethod:  body.AuthMethod,
+		RequestedAt: time.Now().UTC().Format(time.RFC3339),
+		Status:      provisionStatusPending,
+	}
+	if err := saveProvisionRequest(pr); err != nil {
+		http.Error(w, `{"error":"failed to save provision request"}`, http.StatusInternalServerError)
+		return
+	}
+
+	s.logger.Info("audit: provision request created", "user", username, "org", body.Org, "repos", body.Repos)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "status": provisionStatusPending})
+}
+
+func (s *HubServer) handleApproveProvision(w http.ResponseWriter, r *http.Request) {
+	targetUsername := r.PathValue("username")
+	approver := s.getAuthUser(r)
+
+	pr := loadProvisionRequest(targetUsername)
+	if pr == nil || pr.Status != provisionStatusPending {
+		http.Error(w, `{"error":"no pending provision request for this user"}`, http.StatusNotFound)
+		return
+	}
+
+	user := loadSaaSUser(targetUsername)
+	if user == nil {
+		user = ensureSaaSUser(targetUsername)
+	}
+	user.SaaSQuota++
+	if err := saveSaaSUser(user); err != nil {
+		http.Error(w, `{"error":"failed to update user quota"}`, http.StatusInternalServerError)
+		return
+	}
+
+	repos := strings.Split(pr.Repos, ",")
+	for i := range repos {
+		repos[i] = strings.TrimSpace(repos[i])
+	}
+	primaryRepo := pr.PrimaryRepo
+	if primaryRepo == "" && len(repos) > 0 {
+		primaryRepo = repos[0]
+	}
+
+	const minACMMLevel = 1
+	const maxACMMLevel = 6
+	acmm := pr.ACMMLevel
+	if acmm < minACMMLevel || acmm > maxACMMLevel {
+		acmm = minACMMLevel
+	}
+
+	hiveID := generateHiveID(pr.Org, primaryRepo)
+	h := &SaaSHive{
+		ID:          hiveID,
+		Owner:       targetUsername,
+		Org:         pr.Org,
+		Repos:       repos,
+		PrimaryRepo: primaryRepo,
+		ACMMLevel:   acmm,
+		Status:      "provisioning",
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		Subdomain:   hiveID + ".hive.kubestellar.io",
+	}
+
+	if err := saveSaaSHive(h); err != nil {
+		http.Error(w, `{"error":"failed to save hive metadata"}`, http.StatusInternalServerError)
+		return
+	}
+
+	user.Hives[hiveID] = "owner"
+	saveSaaSUser(user)
+
+	createReq := &CreateHiveRequest{
+		Org:         pr.Org,
+		Repos:       pr.Repos,
+		PrimaryRepo: primaryRepo,
+		ACMMLevel:   acmm,
+		AuthMethod:  pr.AuthMethod,
+	}
+
+	go func() {
+		if err := provisionHive(h, createReq, s.logger); err != nil {
+			h.Status = "error"
+			h.Error = err.Error()
+			saveSaaSHive(h)
+			s.logger.Warn("provision from request failed", "hive_id", hiveID, "error", err)
+			return
+		}
+		h.Status = "provisioning"
+		saveSaaSHive(h)
+	}()
+
+	deleteProvisionRequest(targetUsername)
+
+	s.logger.Info("audit: provision request approved", "target", targetUsername, "hive_id", hiveID, "by", approver)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
+func (s *HubServer) handleDenyProvision(w http.ResponseWriter, r *http.Request) {
+	targetUsername := r.PathValue("username")
+	denier := s.getAuthUser(r)
+
+	pr := loadProvisionRequest(targetUsername)
+	if pr == nil || pr.Status != provisionStatusPending {
+		http.Error(w, `{"error":"no pending provision request for this user"}`, http.StatusNotFound)
+		return
+	}
+
+	deleteProvisionRequest(targetUsername)
+
+	s.logger.Info("audit: provision request denied", "target", targetUsername, "by", denier)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
 func (s *HubServer) handleUserToken(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		HiveID   string `json:"hive_id"`
@@ -1923,7 +2179,16 @@ const dashboardHTML = `<!DOCTYPE html>
         <p class="subtitle">Hive instances you own or have access to</p>
         <p id="latest-image-sha" style="font-size:0.7rem;color:var(--muted);margin-top:4px"></p>
       </div>
-      <button class="btn-primary" id="btn-add-hive" disabled onclick="document.getElementById('create-modal').style.display='flex'">+ Add Hosted Hive</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-primary" id="btn-add-hive" disabled onclick="document.getElementById('create-modal').style.display='flex'">+ Add Hosted Hive</button>
+        <button class="btn-primary" id="btn-request-hive" style="display:none;background:var(--blue)" onclick="document.getElementById('request-modal').style.display='flex'">Request a Hive</button>
+      </div>
+    </div>
+
+    <div id="provision-request-banner" style="display:none"></div>
+    <div id="admin-provision-requests" style="display:none;margin-bottom:24px">
+      <h3 style="font-size:1rem;color:var(--accent);margin-bottom:12px">Pending Provision Requests</h3>
+      <div id="admin-provision-list"></div>
     </div>
 
     <div id="hives-container"><div class="loading">Loading your hives...</div></div>
@@ -1982,6 +2247,8 @@ const dashboardHTML = `<!DOCTYPE html>
       if (e.key !== 'Escape') return;
       var createModal = document.getElementById('create-modal');
       if (createModal && createModal.style.display === 'flex') { createModal.style.display = 'none'; return; }
+      var requestModal = document.getElementById('request-modal');
+      if (requestModal && requestModal.style.display === 'flex') { requestModal.style.display = 'none'; return; }
       var accessOverlay = document.querySelector('.hive-confirm-overlay');
       if (accessOverlay) { accessOverlay.remove(); return; }
       var accessModal = document.getElementById('access-modal');
@@ -2158,6 +2425,9 @@ const dashboardHTML = `<!DOCTYPE html>
         renderHives(data.hives || []);
         renderPendingBanner(data.hives || []);
         renderUserAccessBanner();
+        renderProvisionRequestBanner(data.my_provision_request || null);
+        renderAdminProvisionRequests(data.provision_requests || []);
+        renderRequestHiveButton(data);
         loadPublicHives(data.hives || []);
       } catch(e) {
         if (!_allDashHives.length) {
@@ -2532,6 +2802,105 @@ const dashboardHTML = `<!DOCTYPE html>
         banner.innerHTML = html;
         container.parentNode.insertBefore(banner, container);
       } catch(e) {}
+    }
+
+    function renderRequestHiveButton(data) {
+      var btn = document.getElementById('btn-request-hive');
+      if (!btn) return;
+      var canCreate = data.saas_quota < 0 || data.saas_quota > (data.saas_used || 0);
+      var hasPending = !!(data.my_provision_request);
+      if (canCreate || hasPending) { btn.style.display = 'none'; return; }
+      btn.style.display = '';
+    }
+
+    function renderProvisionRequestBanner(req) {
+      var el = document.getElementById('provision-request-banner');
+      if (!el) return;
+      if (!req) { el.style.display = 'none'; return; }
+      el.style.display = '';
+      el.innerHTML = '<div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">' +
+        '<span style="font-size:1.1rem">&#x1F3D7;&#xFE0F;</span>' +
+        '<span style="flex:1;font-size:0.85rem;color:var(--text)">Your hive request for <strong>' + esc(req.org) + '/' + esc(req.primary_repo || req.repos) + '</strong> is pending admin approval.</span>' +
+        '</div>';
+    }
+
+    function renderAdminProvisionRequests(requests) {
+      var section = document.getElementById('admin-provision-requests');
+      var list = document.getElementById('admin-provision-list');
+      if (!section || !list) return;
+      if (!requests || !requests.length) { section.style.display = 'none'; return; }
+      section.style.display = '';
+      var rows = requests.map(function(pr) {
+        var avatar = '<img src="https://github.com/' + esc(pr.username) + '.png" style="width:24px;height:24px;border-radius:50%;vertical-align:middle;margin-right:8px">';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+          avatar +
+          '<div>' +
+          '<span style="font-size:0.85rem;font-weight:600">' + esc(pr.username) + '</span>' +
+          '<span style="font-size:0.75rem;color:var(--muted);margin-left:8px">' + esc(pr.org) + '/' + esc(pr.primary_repo || pr.repos) + '</span>' +
+          ' ' + acmmBadge(pr.acmm_level) +
+          '<div style="font-size:0.7rem;color:var(--muted)">' + esc((pr.requested_at || '').substring(0, 10)) + '</div>' +
+          '</div></div>' +
+          '<div style="display:flex;gap:6px">' +
+          '<button onclick="approveProvision(\'' + esc(pr.username) + '\',this)" style="padding:5px 14px;background:var(--green);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600">Approve</button>' +
+          '<button onclick="denyProvision(\'' + esc(pr.username) + '\',this)" style="padding:5px 14px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600">Deny</button>' +
+          '</div></div>';
+      }).join('');
+      list.innerHTML = rows;
+    }
+
+    async function approveProvision(username, btn) {
+      btn.disabled = true;
+      btn.textContent = 'Approving...';
+      try {
+        var resp = await fetch('/api/saas/approve-provision/' + encodeURIComponent(username), {method: 'PUT'});
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Approve failed', 'error'); btn.disabled = false; btn.textContent = 'Approve'; return; }
+        hiveToast('Provision approved for ' + username, 'success');
+        loadHives();
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); btn.disabled = false; btn.textContent = 'Approve'; }
+    }
+
+    async function denyProvision(username, btn) {
+      if (!await hiveConfirm('Deny provision request from ' + username + '?')) return;
+      btn.disabled = true;
+      btn.textContent = 'Denying...';
+      try {
+        var resp = await fetch('/api/saas/deny-provision/' + encodeURIComponent(username), {method: 'DELETE'});
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Deny failed', 'error'); btn.disabled = false; btn.textContent = 'Deny'; return; }
+        hiveToast('Provision request denied for ' + username, 'success');
+        loadHives();
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); btn.disabled = false; btn.textContent = 'Deny'; }
+    }
+
+    var _requestInProgress = false;
+    async function submitProvisionRequest() {
+      if (_requestInProgress) return;
+      _requestInProgress = true;
+      var btn = document.getElementById('btn-request-go');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+      var org = document.getElementById('rq-org').value.trim();
+      var repos = document.getElementById('rq-repos').value.trim();
+      var primary = document.getElementById('rq-primary').value.trim();
+      var level = parseInt(document.getElementById('rq-level').value) || 1;
+
+      if (!org || !repos) { hiveToast('Org and repos are required', 'error'); _requestInProgress = false; btn.disabled = false; btn.textContent = 'Submit Request'; return; }
+
+      try {
+        var resp = await fetch('/api/saas/request-provision', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({org: org, repos: repos, primary_repo: primary || repos.split(',')[0].trim(), acmm_level: level})
+        });
+        var data = await resp.json();
+        if (!resp.ok) { hiveToast(data.error || 'Request failed', 'error'); return; }
+        document.getElementById('request-modal').style.display = 'none';
+        hiveToast('Provision request submitted — awaiting admin approval', 'success');
+        loadHives();
+      } catch(e) { hiveToast('Error: ' + e.message, 'error'); }
+      finally { _requestInProgress = false; btn.disabled = false; btn.textContent = 'Submit Request'; }
     }
 
     async function init() {
@@ -2927,6 +3296,42 @@ const dashboardHTML = `<!DOCTYPE html>
       </div>
       <div style="display:flex;justify-content:flex-end;padding:16px 32px;border-top:1px solid var(--border);flex-shrink:0">
         <button onclick="document.getElementById('access-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="request-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:540px;width:90%;max-height:90vh;display:flex;flex-direction:column">
+      <h2 style="font-size:1.3rem;padding:32px 32px 16px;margin:0;color:var(--accent);flex-shrink:0">Request a Hive</h2>
+      <div style="flex:1;overflow-y:auto;padding:0 32px">
+        <p style="font-size:0.8rem;color:var(--muted);margin-bottom:16px">Submit a request for a hosted hive. An admin will review and approve it.</p>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">GitHub Organization *</label>
+          <input id="rq-org" type="text" placeholder="my-org" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">Repositories * <span style="font-size:0.7rem">(comma-separated)</span></label>
+          <input id="rq-repos" type="text" placeholder="repo1, repo2" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">Primary Repository</label>
+          <input id="rq-primary" type="text" placeholder="defaults to first repo" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:4px">ACMM Level</label>
+          <select id="rq-level" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem">
+            <option value="1">L1 &#x2014; Idea</option>
+            <option value="2">L2 &#x2014; Measured</option>
+            <option value="3" selected>L3 &#x2014; CI/CD</option>
+            <option value="4">L4 &#x2014; Auto PR</option>
+            <option value="5">L5 &#x2014; Self-Governing</option>
+            <option value="6">L6 &#x2014; Fully Autonomous</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;padding:16px 32px;border-top:1px solid var(--border);flex-shrink:0">
+        <button onclick="document.getElementById('request-modal').style.display='none'" style="padding:8px 20px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">Cancel</button>
+        <button id="btn-request-go" onclick="submitProvisionRequest()" class="btn-primary" style="background:var(--blue)">Submit Request</button>
       </div>
     </div>
   </div>

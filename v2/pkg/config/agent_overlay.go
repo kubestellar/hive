@@ -114,7 +114,8 @@ func (c *Config) ApplyAgentDefaults(name string) {
 	if agent.BeadsDir == "" {
 		agent.BeadsDir = fmt.Sprintf("/data/beads/%s", name)
 	}
-	if !agent.Enabled {
+	// Default to enabled unless the user explicitly set enabled: false.
+	if !agent.Enabled && !agent.enabledSet {
 		agent.Enabled = true
 	}
 	if !agent.clearOnKickSet {

@@ -1339,6 +1339,9 @@ func runEvalCycle(
 					}
 					if err := postClient.PostAdvisoryDigest(ctx, primaryRepo, issueNum, md); err != nil {
 						logger.Warn("failed to post advisory digest", "repo", primaryRepo, "issue", issueNum, "error", err)
+						if strings.Contains(err.Error(), "403") {
+							dashSrv.SetGitHubAppRequired(true)
+						}
 					} else {
 						logger.Info("posted advisory digest", "repo", primaryRepo, "issue", issueNum, "findings", digest.TotalCount)
 					}

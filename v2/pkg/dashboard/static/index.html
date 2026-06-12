@@ -8428,7 +8428,7 @@ function burnAreaChart() {
         '</div>' +
         '<div class="config-field" style="margin-bottom:12px">' +
           '<label>Or paste agent definition</label>' +
-          '<textarea id="import-paste-input" rows="8" style="width:100%;font-family:monospace;font-size:0.75rem;resize:vertical" placeholder="apiVersion: hive.kubestellar.io/v1\nkind: AgentDefinition\n..."></textarea>' +
+          '<textarea id="import-paste-input" rows="20" style="width:100%;font-family:monospace;font-size:0.75rem;resize:vertical;min-height:300px" placeholder="apiVersion: hive.kubestellar.io/v1\nkind: AgentDefinition\n..."></textarea>' +
           '<div style="text-align:right;margin-top:6px"><button onclick="previewImportFromPaste()" style="padding:6px 16px;border-radius:6px;cursor:pointer;font-weight:600;border:none;background:var(--cyan);color:#fff">Preview</button></div>' +
         '</div>' +
         '<div id="import-preview" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:16px">' +
@@ -8447,6 +8447,7 @@ function burnAreaChart() {
     async function previewImportFromURL() {
       var url = (document.getElementById('import-url-input') || {}).value;
       if (!url) { showToast('Enter a URL', 'error'); return; }
+      url = url.replace('github.com/kubestellar/hive/blob/', 'raw.githubusercontent.com/kubestellar/hive/');
       try {
         var resp = await fetch('/api/agents/import', {method:'POST', headers:_inceptionAuthHeaders(), body:JSON.stringify({source:'url',url:url,preview:true})});
         var d = await resp.json();
@@ -9110,8 +9111,8 @@ function burnAreaChart() {
           <div style="flex:1"></div>
           <button onclick="savePromptTemplate()" style="font-size:0.72rem;padding:4px 14px;border-radius:4px;cursor:pointer;font-weight:600;border:none;background:var(--green);color:#fff">Save Template</button>
         </div>
-        <textarea id="${editorId}" style="flex:1;min-height:300px;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.75rem;padding:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;resize:vertical;white-space:pre;tab-size:2" placeholder="Loading template...">${esc('Loading...')}</textarea>
-        <div id="${previewId}" class="config-pre config-pre-fill" style="display:none;flex:1;min-height:300px;overflow-y:auto">${esc('Loading preview...')}</div>
+        <textarea id="${editorId}" style="flex:1;min-height:300px;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.75rem;padding:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;resize:vertical;white-space:pre;tab-size:2" placeholder="Enter your agent's kick template here. Use \${VARIABLE} placeholders from the picker below.">${agentName ? '' : ''}</textarea>
+        <div id="${previewId}" class="config-pre config-pre-fill" style="display:none;flex:1;min-height:300px;overflow-y:auto"></div>
         <div style="margin-top:8px;flex-shrink:0">
           <div style="font-size:0.7rem;font-weight:600;color:var(--text);margin-bottom:6px">Variable Picker <span style="font-weight:400;color:var(--muted)">(click to insert at cursor)</span></div>
           <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:120px;overflow-y:auto;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px">${varPickerItems}</div>

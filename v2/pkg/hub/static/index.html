@@ -253,11 +253,12 @@
     }
 
     function renderStats(hives) {
-      var agents = 0, contributors = 0, online = 0;
-      hives.forEach(function(h) { agents += h.agentCount || 0; contributors += h.activeContributors || 0; if (h.online) online++; });
+      var agents = 0, contributors = 0, online = 0, repos = 0;
+      hives.forEach(function(h) { agents += h.agentCount || 0; contributors += h.activeContributors || 0; repos += (h.repos || []).length; if (h.online) online++; });
       document.getElementById('hero-stats').innerHTML =
         '<span>' + online + '/' + hives.length + ' hives online</span>' +
         '<span class="dot"></span><span>' + agents + ' agents running</span>' +
+        '<span class="dot"></span><span>' + repos + ' managed repos</span>' +
         '<span class="dot"></span><span>' + contributors + ' contributors</span>';
     }
 

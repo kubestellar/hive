@@ -86,6 +86,17 @@ RUN npm install -g @github/copilot@${COPILOT_VERSION} && npm cache clean --force
 ARG CLAUDE_CODE_VERSION=latest
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && npm cache clean --force
 
+# --- Layer 8: Goose CLI (aaif-goose/goose — supports custom providers via env vars) ---
+ARG GOOSE_VERSION=1.37.0
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then GOOSE_ARCH=x86_64; \
+    elif [ "$ARCH" = "aarch64" ]; then GOOSE_ARCH=aarch64; \
+    else GOOSE_ARCH=x86_64; fi && \
+    curl -fsSL "https://github.com/aaif-goose/goose/releases/download/v${GOOSE_VERSION}/goose-${GOOSE_ARCH}-unknown-linux-gnu.tar.gz" | \
+    tar xz -C /usr/local/bin goose && \
+    chmod +x /usr/local/bin/goose || \
+    echo "WARN: Goose CLI install failed — skipping"
+
 # --- Application layers ---
 ENV HOME=/home/dev
 

@@ -1161,46 +1161,77 @@ func fetchAllBranchSHAs(logger *slog.Logger) {
 }
 
 func fetchBranchSHA(logger *slog.Logger, branch string) {
-	const shaFetchPerPage = 20
-	actionsURL := fmt.Sprintf("https://api.github.com/repos/kubestellar/hive/actions/runs?branch=%s&status=success&per_page=%d", branch, shaFetchPerPage)
+	// Step 1: get the latest commit SHA on the branch from the GitHub API
 	const shaFetchTimeout = 10 * time.Second
 	client := &http.Client{Timeout: shaFetchTimeout}
-	req, _ := http.NewRequest("GET", actionsURL, nil)
+	branchURL := fmt.Sprintf("https://api.github.com/repos/kubestellar/hive/branches/%s", branch)
+	req, _ := http.NewRequest("GET", branchURL, nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := client.Do(req)
 	if err != nil {
-		logger.Warn("SHA poll: GitHub Actions API request failed", "branch", branch, "error", err)
+		logger.Warn("SHA poll: branch API request failed", "branch", branch, "error", err)
 		return
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		logger.Warn("SHA poll: GitHub Actions API non-200", "branch", branch, "status", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		logger.Warn("SHA poll: branch API non-200", "branch", branch, "status", resp.StatusCode)
 		return
 	}
-	var result struct {
-		Runs []struct {
-			Name    string `json:"name"`
-			HeadSHA string `json:"head_sha"`
-		} `json:"workflow_runs"`
+	var branchResult struct {
+		Commit struct {
+			SHA string `json:"sha"`
+		} `json:"commit"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		logger.Warn("SHA poll: failed to decode response", "branch", branch, "error", err)
+	if err := json.NewDecoder(resp.Body).Decode(&branchResult); err != nil {
+		logger.Warn("SHA poll: branch decode failed", "branch", branch, "error", err)
 		return
 	}
-	const minSHALen = 7
-	for _, run := range result.Runs {
-		if strings.Contains(run.Name, "Docker") || strings.Contains(run.Name, "Build") {
-			if len(run.HeadSHA) >= minSHALen {
-				sha := run.HeadSHA[:minSHALen]
-				latestSHAMu.Lock()
-				latestSHAByBranch[branch] = sha
-				latestSHAMu.Unlock()
-				logger.Info("SHA poll: latest image", "branch", branch, "sha", sha)
-				return
-			}
-		}
+	const shortSHALen = 7
+	if len(branchResult.Commit.SHA) < shortSHALen {
+		logger.Warn("SHA poll: branch SHA too short", "branch", branch, "sha", branchResult.Commit.SHA)
+		return
 	}
-	logger.Warn("SHA poll: no matching Docker/Build workflow run found", "branch", branch)
+	candidateSHA := branchResult.Commit.SHA[:shortSHALen]
+
+	// Step 2: verify that a container image with this SHA tag exists on GHCR
+	if !ghcrTagExists(client, candidateSHA, logger) {
+		logger.Info("SHA poll: container image not yet on GHCR", "branch", branch, "sha", candidateSHA)
+		return
+	}
+
+	latestSHAMu.Lock()
+	latestSHAByBranch[branch] = candidateSHA
+	latestSHAMu.Unlock()
+	logger.Info("SHA poll: latest image verified on GHCR", "branch", branch, "sha", candidateSHA)
+}
+
+// ghcrTagExists checks whether a container tag exists on ghcr.io/kubestellar/hive.
+// Uses an anonymous token (public package) and a HEAD on the manifest endpoint.
+func ghcrTagExists(client *http.Client, tag string, logger *slog.Logger) bool {
+	// Get anonymous pull token
+	tokenResp, err := client.Get("https://ghcr.io/token?scope=repository:kubestellar/hive:pull")
+	if err != nil {
+		logger.Warn("SHA poll: GHCR token request failed", "error", err)
+		return false
+	}
+	defer tokenResp.Body.Close()
+	var tok struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(tokenResp.Body).Decode(&tok); err != nil {
+		return false
+	}
+
+	manifestURL := fmt.Sprintf("https://ghcr.io/v2/kubestellar/hive/manifests/%s", tag)
+	req, _ := http.NewRequest("HEAD", manifestURL, nil)
+	req.Header.Set("Authorization", "Bearer "+tok.Token)
+	req.Header.Set("Accept", "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 func (s *HubServer) handleProxyHiveConfig(w http.ResponseWriter, r *http.Request) {

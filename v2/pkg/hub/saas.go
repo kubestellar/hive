@@ -2395,7 +2395,19 @@ const dashboardHTML = `<!DOCTYPE html>
         if (data.latest_shas) _latestSHAs = data.latest_shas;
         if (data.hub_auto_upgrade !== undefined) _hubAutoUpgrade = data.hub_auto_upgrade;
         var shaEl = document.getElementById('latest-image-sha');
-        if (shaEl && _latestSHA) shaEl.textContent = 'Latest image: ' + _latestSHA;
+        if (shaEl) {
+          var lines = '';
+          var branches = Object.keys(_latestSHAs).sort();
+          if (branches.length) {
+            for (var bi = 0; bi < branches.length; bi++) {
+              var br = branches[bi];
+              lines += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)">' + esc(br) + '</span><span style="font-family:monospace;color:var(--muted)">' + esc(_latestSHAs[br]) + '</span></div>';
+            }
+          } else if (_latestSHA) {
+            lines = '<span style="font-family:monospace;color:var(--muted)">' + esc(_latestSHA) + '</span>';
+          }
+          shaEl.innerHTML = lines ? '<div style="font-size:0.7rem;color:var(--muted);margin-bottom:2px">Latest images:</div>' + lines : '';
+        }
         var hubHash = data.hub_git_hash || '';
         if (hubHash) {
           var el = document.getElementById('hub-version');
@@ -2568,7 +2580,7 @@ const dashboardHTML = `<!DOCTYPE html>
           if (isUpgrading) {
             upgradeIcon = ' <span style="display:inline-block;padding:3px 10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:0.7rem;margin-left:6px;white-space:nowrap;opacity:0.8"><span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading</span>';
           } else if (!isCurrent && isHosted && h.role === 'owner') {
-            upgradeIcon = ' <button id="upgrade-' + esc(h.id) + '" onclick="upgradeHive(\'' + esc(h.id) + '\',\'' + esc(sha) + '\',\'' + esc(branchName) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>';
+            upgradeIcon = ' <button id="upgrade-' + esc(h.id) + '" onclick="upgradeHive(\'' + esc(h.id) + '\',\'' + esc(sha) + '\',\'' + esc(branchName) + '\')" title="Current: ' + esc(sha) + ' → Latest: ' + esc(branchLatest) + '" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>';
           }
           var autoUpgradeCheck = '';
           if (isHosted && h.role === 'owner') {

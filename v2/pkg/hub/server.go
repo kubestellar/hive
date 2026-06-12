@@ -560,8 +560,9 @@ func (s *HubServer) handleRegistryDelete(w http.ResponseWriter, r *http.Request)
 
 func (s *HubServer) handleHubVersion(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
-		"git_hash":   s.hubGitHash,
-		"latest_sha": getLatestSHA(),
+		"git_hash":    s.hubGitHash,
+		"latest_sha":  getLatestSHA(),
+		"latest_shas": getLatestSHAs(),
 	}
 	cookie, _ := r.Cookie("hive_hub_user")
 	if cookie != nil && cookie.Value == hubAdminUsername {

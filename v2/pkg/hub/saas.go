@@ -541,6 +541,7 @@ func (s *HubServer) handleMyHives(w http.ResponseWriter, r *http.Request) {
 		"saas_used":        saasCount,
 		"is_admin":         user.GitHubUsername == hubAdminUsername,
 		"latest_sha":       getLatestSHA(),
+		"latest_shas":      getLatestSHAs(),
 		"hub_git_hash":     s.hubGitHash,
 		"hub_auto_upgrade": isHubAutoUpgrade(),
 		"show_my_hives":    showMyHives,
@@ -619,6 +620,8 @@ func (s *HubServer) handleAccessStatus(w http.ResponseWriter, r *http.Request) {
 		"authenticated": true,
 		"show_my_hives": showMyHives,
 		"hives":         hiveAccess,
+		"latest_sha":    getLatestSHA(),
+		"latest_shas":   getLatestSHAs(),
 	})
 }
 
@@ -891,10 +894,14 @@ func (s *HubServer) handleUpgradeHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.logger.Info("audit: hosted hive upgraded", "hive_id", id, "by", username)
-	latestSHA := getLatestSHA()
 	s.mu.Lock()
 	for i := range s.registry.Hives {
 		if s.registry.Hives[i].ID == id {
+			branch := s.registry.Hives[i].GitBranch
+			if branch == "" {
+				branch = "v2"
+			}
+			latestSHA := getLatestSHAForBranch(branch)
 			s.registry.Hives[i].Upgrading = true
 			s.registry.Hives[i].UpgradeTarget = latestSHA
 			break
@@ -1035,34 +1042,57 @@ func (s *HubServer) handleToggleAutoUpgrade(w http.ResponseWriter, r *http.Reque
 
 var (
 	latestSHAMu    sync.RWMutex
-	latestSHACache string
+	latestSHAByBranch = map[string]string{}
 )
+
+// trackedBranches lists branches that produce Docker images via CI.
+var trackedBranches = []string{"v2", "v3"}
 
 const latestSHAPollInterval = 2 * time.Minute
 
 func getLatestSHA() string {
+	return getLatestSHAForBranch("v2")
+}
+
+func getLatestSHAForBranch(branch string) string {
 	latestSHAMu.RLock()
 	defer latestSHAMu.RUnlock()
-	return latestSHACache
+	return latestSHAByBranch[branch]
+}
+
+func getLatestSHAs() map[string]string {
+	latestSHAMu.RLock()
+	defer latestSHAMu.RUnlock()
+	cp := make(map[string]string, len(latestSHAByBranch))
+	for k, v := range latestSHAByBranch {
+		cp[k] = v
+	}
+	return cp
 }
 
 func (s *HubServer) StartLatestSHAPoller() {
-	fetchSHA(s.logger)
+	fetchAllBranchSHAs(s.logger)
 	// On first poll, check if any auto-upgrade hives are behind
-	if sha := getLatestSHA(); sha != "" {
-		s.triggerAutoUpgrades(sha)
-	}
+	s.triggerAutoUpgrades()
 	ticker := time.NewTicker(latestSHAPollInterval)
 	defer ticker.Stop()
 	for range ticker.C {
-		oldSHA := getLatestSHA()
-		fetchSHA(s.logger)
-		newSHA := getLatestSHA()
-		if newSHA != "" && (oldSHA != newSHA || oldSHA == "") {
-			s.triggerAutoUpgrades(newSHA)
-			// Hub auto-upgrade
-			if isHubAutoUpgrade() && newSHA != s.hubGitHash {
-				s.logger.Info("audit: hub auto-upgrade triggered", "from", s.hubGitHash, "to", newSHA)
+		oldSHAs := getLatestSHAs()
+		fetchAllBranchSHAs(s.logger)
+		newSHAs := getLatestSHAs()
+		changed := false
+		for branch, sha := range newSHAs {
+			if sha != "" && sha != oldSHAs[branch] {
+				changed = true
+				break
+			}
+		}
+		if changed {
+			s.triggerAutoUpgrades()
+			// Hub auto-upgrade (hub runs on v2)
+			hubBranchSHA := getLatestSHAForBranch("v2")
+			if isHubAutoUpgrade() && hubBranchSHA != "" && hubBranchSHA != s.hubGitHash {
+				s.logger.Info("audit: hub auto-upgrade triggered", "from", s.hubGitHash, "to", hubBranchSHA)
 				cmd := exec.Command("kubectl", "rollout", "restart", "deployment/hive-hub", "-n", "hive-hub")
 				if out, err := cmd.CombinedOutput(); err != nil {
 					s.logger.Warn("hub auto-upgrade failed", "output", string(out))
@@ -1072,25 +1102,30 @@ func (s *HubServer) StartLatestSHAPoller() {
 	}
 }
 
-func (s *HubServer) triggerAutoUpgrades(latestSHA string) {
+func (s *HubServer) triggerAutoUpgrades() {
 	hives := listSaaSHives()
 	for _, h := range hives {
 		if !h.AutoUpgrade || h.Status != "running" {
 			continue
 		}
 		s.mu.RLock()
-		var currentSHA string
+		var currentSHA, branch string
 		for _, reg := range s.registry.Hives {
 			if reg.ID == h.ID {
 				currentSHA = reg.GitHash
+				branch = reg.GitBranch
 				break
 			}
 		}
 		s.mu.RUnlock()
-		if currentSHA == latestSHA {
+		if branch == "" {
+			branch = "v2"
+		}
+		latestSHA := getLatestSHAForBranch(branch)
+		if latestSHA == "" || currentSHA == latestSHA {
 			continue
 		}
-		s.logger.Info("audit: auto-upgrade triggered", "hive_id", h.ID, "from", currentSHA, "to", latestSHA)
+		s.logger.Info("audit: auto-upgrade triggered", "hive_id", h.ID, "branch", branch, "from", currentSHA, "to", latestSHA)
 		s.mu.Lock()
 		for i := range s.registry.Hives {
 			if s.registry.Hives[i].ID == h.ID {
@@ -1117,21 +1152,26 @@ func (s *HubServer) triggerAutoUpgrades(latestSHA string) {
 	}
 }
 
-func fetchSHA(logger *slog.Logger) {
-	// Get the SHA from the latest SUCCESSFUL Docker image build on the v2 branch.
-	// This ensures we only offer upgrades when a new image actually exists.
-	const actionsURL = "https://api.github.com/repos/kubestellar/hive/actions/runs?branch=v2&status=success&per_page=1"
-	client := &http.Client{Timeout: 10 * time.Second}
+func fetchAllBranchSHAs(logger *slog.Logger) {
+	for _, branch := range trackedBranches {
+		fetchBranchSHA(logger, branch)
+	}
+}
+
+func fetchBranchSHA(logger *slog.Logger, branch string) {
+	actionsURL := "https://api.github.com/repos/kubestellar/hive/actions/runs?branch=" + branch + "&status=success&per_page=1"
+	const shaFetchTimeout = 10 * time.Second
+	client := &http.Client{Timeout: shaFetchTimeout}
 	req, _ := http.NewRequest("GET", actionsURL, nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := client.Do(req)
 	if err != nil {
-		logger.Warn("SHA poll: GitHub Actions API request failed", "error", err)
+		logger.Warn("SHA poll: GitHub Actions API request failed", "branch", branch, "error", err)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		logger.Warn("SHA poll: GitHub Actions API non-200", "status", resp.StatusCode)
+		logger.Warn("SHA poll: GitHub Actions API non-200", "branch", branch, "status", resp.StatusCode)
 		return
 	}
 	var result struct {
@@ -1141,22 +1181,23 @@ func fetchSHA(logger *slog.Logger) {
 		} `json:"workflow_runs"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		logger.Warn("SHA poll: failed to decode response", "error", err)
+		logger.Warn("SHA poll: failed to decode response", "branch", branch, "error", err)
 		return
 	}
+	const minSHALen = 7
 	for _, run := range result.Runs {
 		if strings.Contains(run.Name, "Docker") || strings.Contains(run.Name, "Build") {
-			if len(run.HeadSHA) >= 7 {
-				sha := run.HeadSHA[:7]
+			if len(run.HeadSHA) >= minSHALen {
+				sha := run.HeadSHA[:minSHALen]
 				latestSHAMu.Lock()
-				latestSHACache = sha
+				latestSHAByBranch[branch] = sha
 				latestSHAMu.Unlock()
-				logger.Info("SHA poll: latest image", "sha", sha)
+				logger.Info("SHA poll: latest image", "branch", branch, "sha", sha)
 				return
 			}
 		}
 	}
-	logger.Warn("SHA poll: no matching Docker/Build workflow run found")
+	logger.Warn("SHA poll: no matching Docker/Build workflow run found", "branch", branch)
 }
 
 func (s *HubServer) handleProxyHiveConfig(w http.ResponseWriter, r *http.Request) {
@@ -2052,6 +2093,7 @@ const dashboardHTML = `<!DOCTYPE html>
 
     var _userQuota = 0, _userUsed = 0, _isAdmin = false;
     var _latestSHA = '';
+    var _latestSHAs = {};
     var _allDashHives = [];
     var _dashSortKey = '', _dashSortAsc = true;
     var _hivesLoading = false;
@@ -2083,6 +2125,7 @@ const dashboardHTML = `<!DOCTYPE html>
         _allDashHives = data.hives || [];
         _hiveRegistry = data.hives || [];
         _latestSHA = data.latest_sha || _latestSHA;
+        if (data.latest_shas) _latestSHAs = data.latest_shas;
         if (data.hub_auto_upgrade !== undefined) _hubAutoUpgrade = data.hub_auto_upgrade;
         var shaEl = document.getElementById('latest-image-sha');
         if (shaEl && _latestSHA) shaEl.textContent = 'Latest image: ' + _latestSHA;
@@ -2244,17 +2287,18 @@ const dashboardHTML = `<!DOCTYPE html>
         var versionCell = '';
         if (sha) {
           var branchName = h.gitBranch || 'v2';
+          var branchLatest = _latestSHAs[branchName] || _latestSHA;
           var branch = '<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:0.6rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);margin-right:4px">' + esc(branchName) + '</span>';
-          var isCurrent = _latestSHA && sha === _latestSHA;
+          var isCurrent = branchLatest && sha === branchLatest;
           var isUpgrading = (_upgradingHives[h.id] && sha === _upgradingHives[h.id]) || (h.upgrading && !isCurrent);
           if (_upgradingHives[h.id] && sha !== _upgradingHives[h.id]) delete _upgradingHives[h.id];
           if (isCurrent && h.upgrading) { h.upgrading = false; }
-          var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(_latestSHA) + '">↑</span>';
+          var status = isCurrent ? '<span style="color:var(--green);margin-left:3px" title="latest">✓</span>' : '<span style="color:var(--red);margin-left:3px" title="behind latest ' + esc(branchLatest) + '">↑</span>';
           var upgradeIcon = '';
           if (isUpgrading) {
             upgradeIcon = ' <span style="display:inline-block;padding:3px 10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:0.7rem;margin-left:6px;white-space:nowrap;opacity:0.8"><span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading</span>';
           } else if (!isCurrent && isHosted && h.role === 'owner') {
-            upgradeIcon = ' <button id="upgrade-' + esc(h.id) + '" onclick="upgradeHive(\'' + esc(h.id) + '\',\'' + esc(sha) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>';
+            upgradeIcon = ' <button id="upgrade-' + esc(h.id) + '" onclick="upgradeHive(\'' + esc(h.id) + '\',\'' + esc(sha) + '\',\'' + esc(branchName) + '\')" title="Upgrade to latest" style="padding:3px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:6px;white-space:nowrap">Upgrade</button>';
           }
           var autoUpgradeCheck = '';
           if (isHosted && h.role === 'owner') {
@@ -2367,9 +2411,10 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     var _upgradingHives = {};
-    async function upgradeHive(id, currentSHA) {
+    async function upgradeHive(id, currentSHA, branch) {
       var fromSHA = currentSHA ? currentSHA.substring(0, 7) : '?';
-      var toSHA = _latestSHA ? _latestSHA.substring(0, 7) : 'latest';
+      var branchLatest = (branch && _latestSHAs[branch]) || _latestSHA;
+      var toSHA = branchLatest ? branchLatest.substring(0, 7) : 'latest';
       if (!await hiveConfirm('Upgrade ' + id + '?<br><br><span style="font-family:monospace;font-size:0.85rem;color:var(--muted)">' + fromSHA + '</span> → <span style="font-family:monospace;font-size:0.85rem;color:var(--green)">' + toSHA + '</span>', true)) return;
       var btn = document.getElementById('upgrade-' + id);
       if (btn) { btn.disabled = true; btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px"></span>Upgrading'; btn.style.opacity = '0.6'; }

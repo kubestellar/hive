@@ -460,6 +460,68 @@ func registerTestUser(t *testing.T, s *Server, username string) (contributorID, 
 	return resp["contributor_id"], resp["registration_token"]
 }
 
+func TestRegisterForceReissue(t *testing.T) {
+	setupContributeEnv(t)
+	s := NewServer(0, slog.Default())
+	s.registerContributeRoutes()
+
+	// First registration — should succeed with a token
+	cid, token1 := registerTestUser(t, s, "force-user")
+	if token1 == "" {
+		t.Fatal("expected token on first register")
+	}
+
+	// Second registration without force — should say already registered, no token
+	body := `{"github_username":"force-user"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/contribute/register", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["registration_token"] != "" {
+		t.Error("should not return token without force")
+	}
+
+	// Third registration with force — should reissue a new token
+	body = `{"github_username":"force-user","force":true}`
+	req = httptest.NewRequest(http.MethodPost, "/api/contribute/register", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	token2 := resp["registration_token"]
+	if token2 == "" {
+		t.Fatal("expected new token with force:true")
+	}
+	if token2 == token1 {
+		t.Error("reissued token should differ from original")
+	}
+	if resp["contributor_id"] != cid {
+		t.Error("contributor_id should be preserved on reissue")
+	}
+
+	// Verify old token no longer works by checking the stored hash
+	profile, _ := loadContributorProfile("force-user")
+	if profile == nil {
+		t.Fatal("profile should exist")
+	}
+	oldHash := sha256Hex(token1)
+	if profile.RegistrationToken == oldHash {
+		t.Error("old token hash should have been replaced")
+	}
+	newHash := sha256Hex(token2)
+	if profile.RegistrationToken != newHash {
+		t.Error("stored hash should match the new token")
+	}
+}
+
 func TestContributorsList(t *testing.T) {
 	setupContributeEnv(t)
 	s := NewServer(0, slog.Default())

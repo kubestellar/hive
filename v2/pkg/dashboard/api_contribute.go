@@ -101,6 +101,7 @@ func (s *Server) registerContributeRoutes() {
 	s.mux.HandleFunc("GET /contribute", s.handleContributeLanding)
 	s.mux.HandleFunc("GET /api/contribute/ws", s.contributeHub.HandleWS)
 	s.mux.HandleFunc("POST /api/contribute/register", s.handleContributeRegister)
+	s.mux.HandleFunc("POST /api/contribute/reissue-token", s.handleContributeReissueToken)
 	s.mux.HandleFunc("GET /api/contribute/status", s.handleContributeStatus)
 	s.mux.HandleFunc("GET /api/contribute/activity", s.handleContributeActivity)
 	s.mux.HandleFunc("GET /api/contributors", s.handleContributorsList)
@@ -512,6 +513,7 @@ const maxRequestBodyBytes = 4096
 func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		GitHubUsername string `json:"github_username"`
+		Force          bool   `json:"force"`
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -536,9 +538,20 @@ func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request
 			jsonError(w, "Account revoked — contact the hive administrator to reinstate", http.StatusForbidden)
 			return
 		}
+		if req.Force {
+			// Reissue token: generate a new one and invalidate the old
+			newToken := reissueContributorToken(existing)
+			s.logger.Info("contributor token reissued via force register", "username", username, "id", existing.ContributorID)
+			jsonResponse(w, map[string]string{
+				"contributor_id":     existing.ContributorID,
+				"registration_token": newToken,
+				"message":            "Token reissued — save this new token, it replaces the previous one",
+			})
+			return
+		}
 		jsonResponse(w, map[string]string{
 			"contributor_id": existing.ContributorID,
-			"message":        "Already registered — use your existing token to connect",
+			"message":        "Already registered — use force:true to reissue token, or POST /api/contribute/reissue-token with GitHub auth",
 		})
 		return
 	}
@@ -554,6 +567,60 @@ func (s *Server) handleContributeRegister(w http.ResponseWriter, r *http.Request
 		"contributor_id":     profile.ContributorID,
 		"registration_token": token,
 		"message":            "Registered successfully — save this token, it cannot be recovered",
+	})
+}
+
+// reissueContributorToken generates a new registration token for an existing
+// contributor, invalidating the previous one. Returns the new plaintext token.
+func reissueContributorToken(p *ContributorProfile) string {
+	const tokenBytes = 32 // 256-bit token
+	newToken := randomHex(tokenBytes)
+	p.RegistrationToken = sha256Hex(newToken)
+	p.TokenPlain = ""
+	_ = saveContributorProfile(p)
+	return newToken
+}
+
+// handleContributeReissueToken lets a contributor recover access by proving
+// ownership of their GitHub identity. Requires Authorization: Bearer <gh-token>.
+func (s *Server) handleContributeReissueToken(w http.ResponseWriter, r *http.Request) {
+	// Authenticate via GitHub personal access token
+	token := r.Header.Get("Authorization")
+	if strings.HasPrefix(token, "Bearer ") {
+		const bearerPrefixLen = 7 // len("Bearer ")
+		token = token[bearerPrefixLen:]
+	} else if strings.HasPrefix(token, "token ") {
+		const tokenPrefixLen = 6 // len("token ")
+		token = token[tokenPrefixLen:]
+	} else {
+		token = ""
+	}
+
+	username := validateGitHubToken(token)
+	if username == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":"Invalid or missing GitHub token. Use: Authorization: Bearer <gh-personal-access-token>"}`))
+		return
+	}
+
+	profile, _ := loadContributorProfile(username)
+	if profile == nil {
+		jsonError(w, "Not registered as a contributor — register first via POST /api/contribute/register", http.StatusNotFound)
+		return
+	}
+	if profile.TrustTier == "revoked" {
+		jsonError(w, "Account revoked — contact the hive administrator to reinstate", http.StatusForbidden)
+		return
+	}
+
+	newToken := reissueContributorToken(profile)
+	s.logger.Info("contributor token reissued via GitHub auth", "username", username, "id", profile.ContributorID)
+
+	jsonResponse(w, map[string]string{
+		"contributor_id":     profile.ContributorID,
+		"registration_token": newToken,
+		"message":            "Token reissued — save this new token, it replaces the previous one",
 	})
 }
 
@@ -1833,6 +1900,20 @@ a{color:#58a6ff}
 <pre>curl -H "Authorization: Bearer $TOKEN" %s/api/v1/knowledge</pre>
 </div>
 
-</body></html>`, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL)
+<h2>Token Management</h2>
+
+<div class="endpoint">
+<span class="method">POST</span><span class="path">/api/contribute/reissue-token</span>
+<div class="desc">Reissue your registration token using GitHub auth — invalidates the old token</div>
+<pre>curl -X POST -H "Authorization: Bearer $(gh auth token)" %s/api/contribute/reissue-token</pre>
+</div>
+
+<div class="endpoint">
+<span class="method">POST</span><span class="path">/api/contribute/register</span>
+<div class="desc">Register (or re-register with <code>force:true</code> to reissue token)</div>
+<pre>curl -X POST -d '{"github_username":"you","force":true}' %s/api/contribute/register</pre>
+</div>
+
+</body></html>`, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL)
 }
 

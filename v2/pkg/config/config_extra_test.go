@@ -181,6 +181,127 @@ func TestMergeAgentOverridesNilMap(t *testing.T) {
 	}
 }
 
+func TestWildcardMatch_Regex(t *testing.T) {
+	if !WildcardMatch("bug: fix issue #123", "/bug.*#\\d+/") {
+		t.Error("regex pattern should match")
+	}
+	if WildcardMatch("feature: add X", "/bug.*#\\d+/") {
+		t.Error("regex pattern should not match non-bug")
+	}
+}
+
+func TestWildcardMatch_InvalidRegex(t *testing.T) {
+	if WildcardMatch("test", "/[invalid/") {
+		t.Error("invalid regex should not match")
+	}
+}
+
+func TestWildcardMatch_WildcardPrefix(t *testing.T) {
+	if !WildcardMatch("hello-world", "*world") {
+		t.Error("*world should match hello-world")
+	}
+	// plain pattern is a substring match
+	if !WildcardMatch("hello-world", "hello") {
+		t.Error("plain 'hello' should substring-match hello-world")
+	}
+	if WildcardMatch("hello-world", "goodbye") {
+		t.Error("plain 'goodbye' should not match hello-world")
+	}
+}
+
+func TestWildcardMatch_WildcardNoPrefix(t *testing.T) {
+	// Pattern "fix*issue" — text must start with "fix"
+	if !WildcardMatch("fix-the-issue", "fix*issue") {
+		t.Error("fix*issue should match fix-the-issue")
+	}
+	if WildcardMatch("my-fix-the-issue", "fix*issue") {
+		t.Error("fix*issue should not match text not starting with fix")
+	}
+}
+
+func TestWildcardMatch_WildcardNoSuffix(t *testing.T) {
+	// Pattern "hello*world" — text must end with "world"
+	if !WildcardMatch("hello-cruel-world", "hello*world") {
+		t.Error("hello*world should match hello-cruel-world")
+	}
+	if WildcardMatch("hello-cruel-world-now", "hello*world") {
+		t.Error("hello*world should not match text not ending with world")
+	}
+}
+
+func TestWildcardMatch_SubstringMatch(t *testing.T) {
+	if !WildcardMatch("this is a test string", "test") {
+		t.Error("plain text should substring match")
+	}
+	if WildcardMatch("hello world", "goodbye") {
+		t.Error("should not match absent substring")
+	}
+}
+
+func TestWildcardMatch_WildcardNotFound(t *testing.T) {
+	if WildcardMatch("abc", "x*y") {
+		t.Error("x*y should not match abc")
+	}
+}
+
+func TestSave_SuccessRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hive.yaml")
+
+	cfg := &Config{
+		SourcePath: path,
+		Project:    ProjectConfig{Org: "testorg", Repos: []string{"repo1"}},
+		Agents: map[string]AgentConfig{
+			"scanner": {Backend: "claude"},
+		},
+	}
+
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save() error: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading saved config: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("saved config is empty")
+	}
+}
+
+func TestSave_NoSourcePath(t *testing.T) {
+	cfg := &Config{
+		SourcePath: "",
+		Project:    ProjectConfig{Org: "org"},
+		Agents:     map[string]AgentConfig{"x": {}},
+	}
+	if err := cfg.Save(); err == nil {
+		t.Error("expected error with no source path")
+	}
+}
+
+func TestSave_EmptyOrg(t *testing.T) {
+	cfg := &Config{
+		SourcePath: "/tmp/test.yaml",
+		Project:    ProjectConfig{Org: ""},
+		Agents:     map[string]AgentConfig{"x": {}},
+	}
+	if err := cfg.Save(); err == nil {
+		t.Error("expected error with empty org (save guard)")
+	}
+}
+
+func TestSave_NoAgents(t *testing.T) {
+	cfg := &Config{
+		SourcePath: "/tmp/test.yaml",
+		Project:    ProjectConfig{Org: "org"},
+		Agents:     map[string]AgentConfig{},
+	}
+	if err := cfg.Save(); err == nil {
+		t.Error("expected error with no agents (save guard)")
+	}
+}
+
 func TestMatchesAny(t *testing.T) {
 	if !MatchesAny("hello world", []string{"hello*"}) {
 		t.Error("should match wildcard")
@@ -404,6 +525,85 @@ func TestSaveAgentFileRoundTrip(t *testing.T) {
 	if !loaded.Managed {
 		t.Error("loaded agent should be Managed")
 	}
+}
+
+func TestResolveAgent_ByName(t *testing.T) {
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"scanner": {Backend: "claude", ID: "scan-001"},
+			"fixer":   {Backend: "copilot", ID: "fix-001"},
+		},
+	}
+
+	name, ok := cfg.ResolveAgent("scanner")
+	if !ok || name != "scanner" {
+		t.Errorf("ResolveAgent(scanner) = (%q, %v), want (scanner, true)", name, ok)
+	}
+}
+
+func TestResolveAgent_ByID(t *testing.T) {
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"scanner": {Backend: "claude", ID: "scan-001"},
+		},
+	}
+
+	name, ok := cfg.ResolveAgent("scan-001")
+	if !ok || name != "scanner" {
+		t.Errorf("ResolveAgent(scan-001) = (%q, %v), want (scanner, true)", name, ok)
+	}
+}
+
+func TestResolveAgent_NotFound(t *testing.T) {
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"scanner": {Backend: "claude", ID: "scan-001"},
+		},
+	}
+
+	name, ok := cfg.ResolveAgent("nonexistent")
+	if ok {
+		t.Errorf("ResolveAgent(nonexistent) = (%q, %v), expected not found", name, ok)
+	}
+}
+
+func TestAgentByID_Found(t *testing.T) {
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"scanner": {Backend: "claude", ID: "scan-001", Model: "sonnet"},
+		},
+	}
+
+	agent, ok := cfg.AgentByID("scan-001")
+	if !ok {
+		t.Fatal("expected to find agent by ID")
+	}
+	if agent.Model != "sonnet" {
+		t.Errorf("agent.Model = %q, want sonnet", agent.Model)
+	}
+}
+
+func TestAgentByID_NotFound(t *testing.T) {
+	cfg := &Config{
+		Agents: map[string]AgentConfig{
+			"scanner": {Backend: "claude", ID: "scan-001"},
+		},
+	}
+
+	_, ok := cfg.AgentByID("nonexistent")
+	if ok {
+		t.Error("expected not to find agent with nonexistent ID")
+	}
+}
+
+func TestWatcherSkipNext(t *testing.T) {
+	w := NewWatcher("/tmp/test.yaml", func(c *Config) {}, nil)
+	w.SkipNext()
+	w.mu.Lock()
+	if !w.skipNext {
+		t.Error("skipNext should be true after SkipNext()")
+	}
+	w.mu.Unlock()
 }
 
 func TestLoadWithOverridesFromFile(t *testing.T) {

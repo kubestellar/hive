@@ -1597,6 +1597,28 @@
       body.has-info-sidebar #oc-topbar { right: 0; }
     }
 
+    /* Collapsible advisory sections */
+    .collapse-chevron {
+      display: inline-block;
+      transition: transform 0.15s ease;
+      font-size: 0.7em;
+      vertical-align: middle;
+    }
+    .collapse-chevron.collapsed {
+      transform: rotate(-90deg);
+    }
+    .advisory-collapse-header:hover {
+      opacity: 0.8;
+    }
+    .advisory-agent-body {
+      overflow: hidden;
+      transition: max-height 0.2s ease;
+    }
+    .advisory-agent-body.collapsed {
+      max-height: 0 !important;
+      padding: 0;
+    }
+
   </style>
 </head>
 <body>
@@ -1859,7 +1881,9 @@
   <div class="governor" id="governor"></div>
 
   <div id="advisory-section" style="margin-top: 16px; margin-bottom: 24px; display: none;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">📋 Advisory Digest</h2>
+    <h2 class="advisory-collapse-header" style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px; cursor: pointer; user-select: none;" onclick="toggleAdvisorySection('advisory-digest-main')">
+      <span id="advisory-digest-main-chevron" class="collapse-chevron">▼</span> 📋 Advisory Digest
+    </h2>
     <div id="advisory-digest" style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;"></div>
   </div>
 
@@ -3467,23 +3491,75 @@
       </table>`;
     }
 
+    /* --- Collapsible advisory sections (persisted in localStorage) --- */
+    const ADVISORY_COLLAPSE_PREFIX = 'hive-collapse-'; /* localStorage key prefix */
+    const ADVISORY_COLLAPSE_MAIN_KEY = ADVISORY_COLLAPSE_PREFIX + 'advisory-digest-main';
+    const ADVISORY_AGENT_KEY_PREFIX = ADVISORY_COLLAPSE_PREFIX + 'advisory-agent-';
+    const COLLAPSE_TRANSITION_MS = 200; /* match CSS transition duration */
+
+    function isAdvisoryCollapsed(key) {
+      return localStorage.getItem(ADVISORY_COLLAPSE_PREFIX + key) === 'true';
+    }
+
+    function setAdvisoryCollapsed(key, collapsed) {
+      localStorage.setItem(ADVISORY_COLLAPSE_PREFIX + key, collapsed ? 'true' : 'false');
+    }
+
+    function toggleAdvisorySection(sectionId) {
+      const body = document.getElementById(sectionId + '-body');
+      const chevron = document.getElementById(sectionId + '-chevron');
+      if (!body || !chevron) return;
+      const isCollapsed = body.classList.contains('collapsed');
+      if (isCollapsed) {
+        body.classList.remove('collapsed');
+        body.style.maxHeight = body.scrollHeight + 'px';
+        chevron.classList.remove('collapsed');
+        /* After transition, remove max-height so content can resize naturally */
+        setTimeout(() => { if (!body.classList.contains('collapsed')) body.style.maxHeight = 'none'; }, COLLAPSE_TRANSITION_MS);
+      } else {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        /* Force reflow before adding collapsed class so transition triggers */
+        void body.offsetHeight;
+        body.classList.add('collapsed');
+        chevron.classList.add('collapsed');
+      }
+      setAdvisoryCollapsed(sectionId, !isCollapsed);
+    }
+
+    function applyAdvisoryCollapseState() {
+      /* Restore main digest collapse state */
+      if (isAdvisoryCollapsed('advisory-digest-main')) {
+        const body = document.getElementById('advisory-digest-main-body');
+        const chevron = document.getElementById('advisory-digest-main-chevron');
+        if (body) body.classList.add('collapsed');
+        if (chevron) chevron.classList.add('collapsed');
+      }
+    }
+
     function renderAdvisoryDigest(digest) {
       const el = document.getElementById('advisory-digest');
       if (!el) return;
       if (!digest || !digest.total_count) {
-        setIfChanged(el, '<div style="color:var(--muted);font-size:0.82rem;text-align:center;padding:20px">No advisory findings yet. Agents will post findings here as they analyze the codebase.</div>');
+        setIfChanged(el, '<div id="advisory-digest-main-body" style="color:var(--muted);font-size:0.82rem;text-align:center;padding:20px">No advisory findings yet. Agents will post findings here as they analyze the codebase.</div>');
         return;
       }
       const sevIcon = s => ({ critical: '🔴', high: '🟠', medium: '🟡', low: '🔵' }[s] || '⚪');
       const agents = Object.keys(digest.by_agent || {}).sort();
-      let html = `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px">
+      const mainCollapsed = isAdvisoryCollapsed('advisory-digest-main');
+      let html = `<div id="advisory-digest-main-body" class="advisory-agent-body${mainCollapsed ? ' collapsed' : ''}" style="${mainCollapsed ? 'max-height:0' : 'max-height:none'}">`;
+      html += `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px">
         <strong>Mode:</strong> ${escapeHtml(digest.mode)} | <strong>Findings:</strong> ${digest.total_count} | <strong>Updated:</strong> ${new Date(digest.generated_at).toLocaleString()}
       </div>`;
       for (const agent of agents) {
         const findings = digest.by_agent[agent] || [];
+        const agentKey = 'advisory-agent-' + agent;
+        const agentCollapsed = isAdvisoryCollapsed(agentKey);
         html += `<div style="margin-bottom:12px">
-          <div style="font-weight:600;font-size:0.85rem;margin-bottom:6px;color:var(--text)">${escapeHtml(agent)} <span style="color:var(--muted);font-weight:400">(${findings.length})</span></div>
-          <div style="display:flex;flex-direction:column;gap:4px">`;
+          <div style="font-weight:600;font-size:0.85rem;margin-bottom:6px;color:var(--text);cursor:pointer;user-select:none" onclick="toggleAdvisorySection('${agentKey}')">
+            <span id="${agentKey}-chevron" class="collapse-chevron${agentCollapsed ? ' collapsed' : ''}">▼</span>
+            ${escapeHtml(agent)} <span style="color:var(--muted);font-weight:400">(${findings.length})</span>
+          </div>
+          <div id="${agentKey}-body" class="advisory-agent-body${agentCollapsed ? ' collapsed' : ''}" style="display:flex;flex-direction:column;gap:4px;${agentCollapsed ? 'max-height:0' : 'max-height:none'}">`;
         for (const f of findings) {
           const loc = f.file ? ` <code style="font-size:0.72rem;color:var(--muted)">${escapeHtml(f.file)}${f.line ? ':' + f.line : ''}</code>` : '';
           html += `<div style="font-size:0.8rem;padding:6px 10px;background:var(--bg);border-radius:4px;border-left:3px solid ${f.severity === 'critical' ? '#dc2626' : f.severity === 'high' ? '#ea580c' : f.severity === 'medium' ? '#ca8a04' : '#6b7280'}">
@@ -3493,6 +3569,7 @@
         }
         html += '</div></div>';
       }
+      html += '</div>';
       setIfChanged(el, html);
     }
 
@@ -7340,6 +7417,11 @@ function burnAreaChart() {
     const _origOcNavigate = typeof ocNavigate === 'function' ? ocNavigate : null;
     document.addEventListener('DOMContentLoaded', () => {
       loadInceptionState();
+      /* Restore main advisory digest collapse state on page load */
+      if (isAdvisoryCollapsed('advisory-digest-main')) {
+        const chevron = document.getElementById('advisory-digest-main-chevron');
+        if (chevron) chevron.classList.add('collapsed');
+      }
     });
 
     // ── Debug section ──

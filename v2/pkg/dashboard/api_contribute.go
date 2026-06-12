@@ -1239,7 +1239,7 @@ border-radius:12px;border:1px solid rgba(255,255,255,0.1);overflow:visible}
 /* ── Table header ── */
 .table-header{display:none;padding:12px 24px;border-bottom:1px solid rgba(255,255,255,0.05);
 font-size:.75rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
-@media(min-width:640px){.table-header{display:grid;grid-template-columns:1fr 100px 140px 80px}}
+@media(min-width:640px){.table-header{display:grid;grid-template-columns:1fr 100px 140px 80px;gap:16px}}
 .table-header .sortable{cursor:pointer;transition:color .2s;user-select:none}
 .table-header .sortable:hover{color:#fff}
 .table-header .sortable.active{color:#facc15}

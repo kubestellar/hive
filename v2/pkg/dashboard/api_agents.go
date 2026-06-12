@@ -130,36 +130,36 @@ func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {
 
 // agentDefinition is the portable YAML format for importing/exporting agents.
 type agentDefinition struct {
-	APIVersion string                 `yaml:"apiVersion"`
-	Kind       string                 `yaml:"kind"`
-	Metadata   agentDefinitionMeta    `yaml:"metadata"`
-	Spec       agentDefinitionSpec    `yaml:"spec"`
+	APIVersion string                 `yaml:"apiVersion" json:"apiVersion"`
+	Kind       string                 `yaml:"kind" json:"kind"`
+	Metadata   agentDefinitionMeta    `yaml:"metadata" json:"metadata"`
+	Spec       agentDefinitionSpec    `yaml:"spec" json:"spec"`
 }
 
 type agentDefinitionMeta struct {
-	Name        string `yaml:"name"`
-	DisplayName string `yaml:"displayName,omitempty"`
-	Description string `yaml:"description,omitempty"`
-	Emoji       string `yaml:"emoji,omitempty"`
-	Color       string `yaml:"color,omitempty"`
+	Name        string `yaml:"name" json:"name"`
+	DisplayName string `yaml:"displayName,omitempty" json:"displayName,omitempty"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	Emoji       string `yaml:"emoji,omitempty" json:"emoji,omitempty"`
+	Color       string `yaml:"color,omitempty" json:"color,omitempty"`
 }
 
 type agentDefinitionSpec struct {
-	Backend         string            `yaml:"backend,omitempty"`
-	Model           string            `yaml:"model,omitempty"`
-	Role            string            `yaml:"role,omitempty"`
-	Mode            string            `yaml:"mode,omitempty"`
-	SortOrder       int               `yaml:"sortOrder,omitempty"`
-	BeadRole        string            `yaml:"beadRole,omitempty"`
-	StaleTimeout    int               `yaml:"staleTimeout,omitempty"`
-	RestartStrategy string            `yaml:"restartStrategy,omitempty"`
-	ClearOnKick     bool              `yaml:"clearOnKick,omitempty"`
-	IncludeRepos    bool              `yaml:"includeRepos,omitempty"`
-	LaneKeywords    []string          `yaml:"laneKeywords,omitempty"`
-	DetectKeywords  []string          `yaml:"detectKeywords,omitempty"`
-	Aliases         []string          `yaml:"aliases,omitempty"`
-	Cadences        map[string]string `yaml:"cadences,omitempty"`
-	PromptTemplate  string            `yaml:"promptTemplate,omitempty"`
+	Backend         string            `yaml:"backend,omitempty" json:"backend,omitempty"`
+	Model           string            `yaml:"model,omitempty" json:"model,omitempty"`
+	Role            string            `yaml:"role,omitempty" json:"role,omitempty"`
+	Mode            string            `yaml:"mode,omitempty" json:"mode,omitempty"`
+	SortOrder       int               `yaml:"sortOrder,omitempty" json:"sortOrder,omitempty"`
+	BeadRole        string            `yaml:"beadRole,omitempty" json:"beadRole,omitempty"`
+	StaleTimeout    int               `yaml:"staleTimeout,omitempty" json:"staleTimeout,omitempty"`
+	RestartStrategy string            `yaml:"restartStrategy,omitempty" json:"restartStrategy,omitempty"`
+	ClearOnKick     bool              `yaml:"clearOnKick,omitempty" json:"clearOnKick,omitempty"`
+	IncludeRepos    bool              `yaml:"includeRepos,omitempty" json:"includeRepos,omitempty"`
+	LaneKeywords    []string          `yaml:"laneKeywords,omitempty" json:"laneKeywords,omitempty"`
+	DetectKeywords  []string          `yaml:"detectKeywords,omitempty" json:"detectKeywords,omitempty"`
+	Aliases         []string          `yaml:"aliases,omitempty" json:"aliases,omitempty"`
+	Cadences        map[string]string `yaml:"cadences,omitempty" json:"cadences,omitempty"`
+	PromptTemplate  string            `yaml:"promptTemplate,omitempty" json:"promptTemplate,omitempty"`
 }
 
 const (

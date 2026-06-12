@@ -487,3 +487,95 @@ hive-api-docs:
 contribute-stop:
     #!/usr/bin/env bash
     docker ps --filter "name=hive-contributor-" --format '{{ "{{" }}.Names{{ "}}" }}' | xargs -r docker stop 2>/dev/null && echo "Stopped." || echo "Not running."
+
+# Generate K8s ConfigMap + Secret YAML from contributor.env
+# Usage: just contribute-k8s                          (default namespace: hive-contributor)
+#        just contribute-k8s my-namespace              (custom namespace)
+#        just contribute-k8s my-namespace output.yaml  (write to file instead of stdout)
+contribute-k8s namespace="hive-contributor" outfile="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # ── Constants ──
+    readonly CONFIGMAP_NAME="hive-contributor-config"
+    readonly SECRET_NAME="hive-contributor-secrets"
+    readonly ENV_FILE="{{config_dir}}/contributor.env"
+    readonly GH_AUTH_FILE="{{config_dir}}/gh-auth.env"
+
+    # ── Validate setup exists ──
+    if [[ ! -f "$ENV_FILE" ]]; then
+      echo "ERROR: $ENV_FILE not found. Run 'just contribute-setup <cli>' first." >&2
+      exit 1
+    fi
+
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+
+    # Load GH_TOKEN if available
+    GH_TOKEN=""
+    if [[ -f "$GH_AUTH_FILE" ]]; then
+      # shellcheck disable=SC1090
+      source "$GH_AUTH_FILE"
+    fi
+
+    NS="{{namespace}}"
+
+    # ── Helper: base64-encode a value (portable across macOS and Linux) ──
+    b64() {
+      printf '%s' "$1" | base64 | tr -d '\n'
+    }
+
+    # ── Build the YAML ──
+    REG_TOKEN_B64=$(b64 "${HIVE_REGISTRATION_TOKEN:-}")
+    GH_TOKEN_B64=$(b64 "${GH_TOKEN:-}")
+
+    YAML=""
+    YAML+="---"$'\n'
+    YAML+="apiVersion: v1"$'\n'
+    YAML+="kind: Namespace"$'\n'
+    YAML+="metadata:"$'\n'
+    YAML+="  name: ${NS}"$'\n'
+    YAML+="---"$'\n'
+    YAML+="# Non-sensitive contributor configuration"$'\n'
+    YAML+="apiVersion: v1"$'\n'
+    YAML+="kind: ConfigMap"$'\n'
+    YAML+="metadata:"$'\n'
+    YAML+="  name: ${CONFIGMAP_NAME}"$'\n'
+    YAML+="  namespace: ${NS}"$'\n'
+    YAML+="  labels:"$'\n'
+    YAML+="    app.kubernetes.io/name: hive-contributor"$'\n'
+    YAML+="    app.kubernetes.io/component: config"$'\n'
+    YAML+="data:"$'\n'
+    YAML+="  HIVE_HUB: \"${HIVE_HUB:-}\""$'\n'
+    YAML+="  CONTRIBUTOR_ID: \"${CONTRIBUTOR_ID:-}\""$'\n'
+    YAML+="  CONTRIBUTOR_USERNAME: \"${CONTRIBUTOR_USERNAME:-}\""$'\n'
+    YAML+="  AGENT_BACKEND: \"${AGENT_BACKEND:-claude}\""$'\n'
+    YAML+="---"$'\n'
+    YAML+="# Sensitive credentials — treat as secret"$'\n'
+    YAML+="apiVersion: v1"$'\n'
+    YAML+="kind: Secret"$'\n'
+    YAML+="metadata:"$'\n'
+    YAML+="  name: ${SECRET_NAME}"$'\n'
+    YAML+="  namespace: ${NS}"$'\n'
+    YAML+="  labels:"$'\n'
+    YAML+="    app.kubernetes.io/name: hive-contributor"$'\n'
+    YAML+="    app.kubernetes.io/component: secrets"$'\n'
+    YAML+="type: Opaque"$'\n'
+    YAML+="data:"$'\n'
+    YAML+="  HIVE_REGISTRATION_TOKEN: ${REG_TOKEN_B64}"$'\n'
+    YAML+="  GH_TOKEN: ${GH_TOKEN_B64}"
+
+    # ── Output ──
+    OUTFILE="{{outfile}}"
+    if [[ -n "$OUTFILE" ]]; then
+      echo "$YAML" > "$OUTFILE"
+      echo "✓ K8s manifests written to ${OUTFILE}"
+      echo ""
+      echo "Apply with:"
+      echo "  kubectl apply -f ${OUTFILE}"
+    else
+      echo "$YAML"
+      echo ""
+      echo "# Apply with: just contribute-k8s {{namespace}} | kubectl apply -f -"
+      echo "# Or save:    just contribute-k8s {{namespace}} manifests.yaml"
+    fi

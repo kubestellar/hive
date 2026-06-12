@@ -268,10 +268,11 @@ func createOCIFileSystem(displayName string, logger *slog.Logger) (string, error
 
 // createOCIExport creates an NFS export for the given file system on the
 // configured export set, making it accessible via NFS at the specified path.
-func createOCIExport(fileSystemID, exportPath string, logger *slog.Logger) error {
+// It returns the OCID of the newly created export.
+func createOCIExport(fileSystemID, exportPath string, logger *slog.Logger) (string, error) {
 	cfg, err := loadOCIConfig()
 	if err != nil {
-		return fmt.Errorf("load OCI config: %w", err)
+		return "", fmt.Errorf("load OCI config: %w", err)
 	}
 
 	endpoint := fmt.Sprintf(ociFSSEndpointFmt, cfg.region)
@@ -283,33 +284,119 @@ func createOCIExport(fileSystemID, exportPath string, logger *slog.Logger) error
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("marshal export request: %w", err)
+		return "", fmt.Errorf("marshal export request: %w", err)
 	}
 
 	reqURL := endpoint + ociExportsPath
 	req, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("build request: %w", err)
+		return "", fmt.Errorf("build request: %w", err)
 	}
 	req.Host = req.URL.Host
 
 	if err := ociSignRequest(req, body, cfg); err != nil {
-		return fmt.Errorf("sign request: %w", err)
+		return "", fmt.Errorf("sign request: %w", err)
 	}
 
 	client := &http.Client{Timeout: ociHTTPTimeoutSec * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("OCI export API call failed: %w", err)
+		return "", fmt.Errorf("OCI export API call failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("OCI export API returned %d: %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("OCI export API returned %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	logger.Info("OCI NFS export created", "fileSystemID", fileSystemID, "exportPath", exportPath)
+	var result struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("parse OCI export response: %w", err)
+	}
+	if result.ID == "" {
+		return "", fmt.Errorf("OCI export response missing export ID")
+	}
+
+	logger.Info("OCI NFS export created", "fileSystemID", fileSystemID, "exportPath", exportPath, "exportID", result.ID)
+	return result.ID, nil
+}
+
+// deleteOCIExport deletes an OCI NFS export by its OCID.
+// DELETE requests use the same signing headers as GET (date, request-target, host).
+func deleteOCIExport(exportID string, logger *slog.Logger) error {
+	cfg, err := loadOCIConfig()
+	if err != nil {
+		return fmt.Errorf("load OCI config: %w", err)
+	}
+
+	endpoint := fmt.Sprintf(ociFSSEndpointFmt, cfg.region)
+	reqURL := endpoint + ociExportsPath + "/" + exportID
+
+	req, err := http.NewRequest(http.MethodDelete, reqURL, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Host = req.URL.Host
+
+	if err := ociSignRequest(req, nil, cfg); err != nil {
+		return fmt.Errorf("sign request: %w", err)
+	}
+
+	client := &http.Client{Timeout: ociHTTPTimeoutSec * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("OCI export delete API call failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 204 No Content is the expected success response for DELETE.
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("OCI export delete API returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	logger.Info("OCI NFS export deleted", "exportID", exportID)
+	return nil
+}
+
+// deleteOCIFileSystem deletes an OCI File System by its OCID.
+// The file system must have no remaining exports before deletion.
+func deleteOCIFileSystem(fileSystemID string, logger *slog.Logger) error {
+	cfg, err := loadOCIConfig()
+	if err != nil {
+		return fmt.Errorf("load OCI config: %w", err)
+	}
+
+	endpoint := fmt.Sprintf(ociFSSEndpointFmt, cfg.region)
+	reqURL := endpoint + ociFileSystemsPath + "/" + fileSystemID
+
+	req, err := http.NewRequest(http.MethodDelete, reqURL, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Host = req.URL.Host
+
+	if err := ociSignRequest(req, nil, cfg); err != nil {
+		return fmt.Errorf("sign request: %w", err)
+	}
+
+	client := &http.Client{Timeout: ociHTTPTimeoutSec * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("OCI file system delete API call failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 204 No Content is the expected success response for DELETE.
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("OCI file system delete API returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	logger.Info("OCI file system deleted", "fileSystemID", fileSystemID)
 	return nil
 }

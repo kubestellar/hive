@@ -1133,21 +1133,8 @@ func (s *HubServer) handleDeleteHive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ns := "hive-hosted-" + id
-	cmd := exec.Command("kubectl", "delete", "namespace", ns, "--ignore-not-found")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		s.logger.Warn("kubectl delete ns failed", "hive", id, "output", string(out))
-	}
-
-	os.RemoveAll(filepath.Join(saasHivesDir, id))
-
-	for _, u := range listAllSaaSUsers() {
-		if _, ok := u.Hives[id]; ok {
-			delete(u.Hives, id)
-			saveSaaSUser(&u)
-		}
-	}
+	// Full de-provisioning: namespace, PV, OCI export, OCI file system, disk record, user cleanup.
+	deprovisionHive(h, s.logger)
 
 	s.logger.Info("audit: hosted hive deleted", "hive_id", id, "by", username)
 	w.Header().Set("Content-Type", "application/json")
@@ -3514,7 +3501,7 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     async function deleteHive(id) {
-      if (!await hiveConfirm('Delete ' + id + '? This removes all data.')) return;
+      if (!await hiveConfirm('Delete ' + id + '? This removes the namespace, PV, OCI storage, and all data.')) return;
       var btns = document.querySelectorAll('button[onclick*="deleteHive"]');
       btns.forEach(function(b) { b.disabled = true; b.textContent = 'Deleting...'; b.style.opacity = '0.6'; });
       try {

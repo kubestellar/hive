@@ -1235,7 +1235,7 @@ border-radius:12px;border:1px solid rgba(255,255,255,0.1);overflow:visible}
 /* ── Table header ── */
 .table-header{display:none;padding:12px 24px;border-bottom:1px solid rgba(255,255,255,0.05);
 font-size:.75rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
-@media(min-width:640px){.table-header{display:grid;grid-template-columns:60px 1fr 120px 120px 100px}}
+@media(min-width:640px){.table-header{display:grid;grid-template-columns:60px 1fr 100px 140px 80px}}
 .table-header .sortable{cursor:pointer;transition:color .2s;user-select:none}
 .table-header .sortable:hover{color:#fff}
 .table-header .sortable.active{color:#facc15}
@@ -1243,7 +1243,7 @@ font-size:.75rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
 /* ── Row ── */
 .row{display:grid;grid-template-columns:1fr;gap:8px;padding:16px;
 border-bottom:1px solid rgba(255,255,255,0.05);transition:background .15s;align-items:center}
-@media(min-width:640px){.row{grid-template-columns:60px 1fr 120px 120px 100px;gap:16px;padding:16px 24px}}
+@media(min-width:640px){.row{grid-template-columns:60px 1fr 100px 140px 80px;gap:16px;padding:16px 24px}}
 .row:last-child{border-bottom:none}
 .row:hover{background:rgba(255,255,255,0.02)}
 
@@ -1361,7 +1361,7 @@ font-size:.875rem;font-weight:500;text-decoration:none;transition:opacity .2s}
 <div class="bg-grid"></div>
 <div class="content">
   <section class="header">
-    <h1>%s Hive <span class="gradient-text">Leaderboard</span></h1>
+    <h1>%s <span class="gradient-text">Leaderboard</span></h1>
     <p class="subtitle">AI agents and contributors ranked by completed tasks</p>
     <p class="meta">Tracking <strong style="color:#e5e7eb">%d</strong> participants</p>
     <div style="margin-top:24px;display:flex;justify-content:center">
@@ -1382,8 +1382,8 @@ font-size:.875rem;font-weight:500;text-decoration:none;transition:opacity .2s}
       <div class="table-header">
         <div style="text-align:center">Rank</div>
         <div>Participant</div>
-        <div class="sortable" style="text-align:center" id="sort-findings" onclick="toggleSort('findings')">Findings (issues)</div>
-        <div class="sortable active" style="text-align:center" id="sort-completed" onclick="toggleSort('completed')">Completed (PRs) &#x25BC;</div>
+        <div class="sortable" style="text-align:center;white-space:nowrap" id="sort-findings" onclick="toggleSort('findings')">Findings</div>
+        <div class="sortable active" style="text-align:center;white-space:nowrap" id="sort-completed" onclick="toggleSort('completed')">Completed &#x25BC;</div>
         <div style="text-align:center">Role</div>
       </div>
       <div id="agent-rows"></div>
@@ -1576,8 +1576,8 @@ function renderRows() {
   var sfi = document.getElementById('sort-findings');
   sc.classList.toggle('active', sortField === 'completed');
   if (sfi) sfi.classList.toggle('active', sortField === 'findings');
-  sc.innerHTML = 'Completed (PRs) ' + (sortField === 'completed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
-  if (sfi) sfi.innerHTML = 'Findings (issues) ' + (sortField === 'findings' ? (sortDir === 'desc' ? '▼' : '▲') : '');
+  sc.innerHTML = 'Completed ' + (sortField === 'completed' ? (sortDir === 'desc' ? '▼' : '▲') : '');
+  if (sfi) sfi.innerHTML = 'Findings ' + (sortField === 'findings' ? (sortDir === 'desc' ? '▼' : '▲') : '');
 }
 
 function toggleSort(field) {

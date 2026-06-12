@@ -1848,7 +1848,7 @@
     <a href="/api/widget" class="widget-dl" title="Download Übersicht widget">⬇ Widget</a>
   </h1>
 
-  <div id="gh-app-install-banner" class="gh-app-install-banner" style="display:none">
+  <div id="gh-app-install-banner" class="gh-app-install-banner" hidden
     <span style="font-size:1.5rem">&#9888;&#65039;</span>
     <div style="flex:1">
       <div class="gh-app-title">GitHub App Not Installed</div>
@@ -3289,9 +3289,11 @@
       if (data.githubAppRequired && data.githubAppInstallURL) {
         var link = document.getElementById('gh-app-install-link');
         if (link) link.href = data.githubAppInstallURL;
-        banner.style.display = 'flex';
+        banner.removeAttribute('hidden');
+        banner.style.cssText = 'display:flex !important';
       } else {
-        banner.style.display = 'none';
+        banner.setAttribute('hidden', '');
+        banner.style.cssText = 'display:none';
       }
     }
 

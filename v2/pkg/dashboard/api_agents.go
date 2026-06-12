@@ -173,6 +173,7 @@ func (s *Server) handleAgentImport(w http.ResponseWriter, r *http.Request) {
 		Source  string `json:"source"`
 		URL     string `json:"url"`
 		Content string `json:"content"`
+		Preview bool   `json:"preview"`
 	}
 	if err := decodeBody(r, &body); err != nil {
 		jsonError(w, "invalid body: "+err.Error(), http.StatusBadRequest)
@@ -232,6 +233,19 @@ func (s *Server) handleAgentImport(w http.ResponseWriter, r *http.Request) {
 	}
 	if def.Metadata.Name == "" {
 		jsonError(w, "metadata.name is required", http.StatusBadRequest)
+		return
+	}
+
+	if body.Preview {
+		jsonResponse(w, map[string]any{
+			"ok":     true,
+			"parsed": def,
+			"_importBody": map[string]any{
+				"source":  body.Source,
+				"url":     body.URL,
+				"content": body.Content,
+			},
+		})
 		return
 	}
 

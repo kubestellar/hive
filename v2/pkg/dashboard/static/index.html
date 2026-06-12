@@ -8030,7 +8030,7 @@ function burnAreaChart() {
     const _configTabMemory = {};
 
     const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Pipeline', 'Hooks', 'Restrictions', 'Stats', 'Prompt Template', 'Last Prompt', 'Export'];
-    const AGENT_CREATE_TABS = ['General', 'Cadences'];
+    const AGENT_CREATE_TABS = ['Import', 'General', 'Cadences', 'Prompt Template'];
     const GOVERNOR_CONFIG_TABS = ['General', 'Agents', 'Thresholds', 'Labels', 'Repos', 'Budget', 'Notifications', 'Health', 'Sensing', 'Logging', 'Hub'];
     const PIPELINE_STAGES = ['resolve-beads', 'track-prs', 'stale-check', 'repo-scan', 'coverage-gate', 'prompt-compose', 'budget-check', 'api-collect', 'final-compose'];
     const PIPELINE_STAGE_TIPS = {
@@ -8417,9 +8417,90 @@ function burnAreaChart() {
       }
     }
 
+    function renderAgentImport() {
+      var exampleURL = 'https://github.com/kubestellar/hive/blob/v2/v2/examples/agents/customized-agent.yaml';
+      var rawURL = 'https://raw.githubusercontent.com/kubestellar/hive/v2/v2/examples/agents/customized-agent.yaml';
+      return '<div style="max-width:600px;margin:0 auto">' +
+        '<p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px">Import an agent from a YAML definition file. <a href="' + exampleURL + '" target="_blank" rel="noopener" style="color:var(--accent)">See example agent definition ↗</a></p>' +
+        '<div class="config-field" style="margin-bottom:12px">' +
+          '<label>Import from URL</label>' +
+          '<div style="display:flex;gap:8px"><input type="text" id="import-url-input" placeholder="' + rawURL + '" style="flex:1"><button onclick="previewImportFromURL()" style="padding:6px 16px;border-radius:6px;cursor:pointer;font-weight:600;border:none;background:var(--cyan);color:#fff;white-space:nowrap">Preview</button></div>' +
+        '</div>' +
+        '<div class="config-field" style="margin-bottom:12px">' +
+          '<label>Or paste agent definition</label>' +
+          '<textarea id="import-paste-input" rows="8" style="width:100%;font-family:monospace;font-size:0.75rem;resize:vertical" placeholder="apiVersion: hive.kubestellar.io/v1\nkind: AgentDefinition\n..."></textarea>' +
+          '<div style="text-align:right;margin-top:6px"><button onclick="previewImportFromPaste()" style="padding:6px 16px;border-radius:6px;cursor:pointer;font-weight:600;border:none;background:var(--cyan);color:#fff">Preview</button></div>' +
+        '</div>' +
+        '<div id="import-preview" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:16px">' +
+          '<div style="font-weight:600;margin-bottom:12px">Preview</div>' +
+          '<div id="import-preview-content"></div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">' +
+            '<button onclick="document.getElementById(\'import-preview\').style.display=\'none\'" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer">Cancel</button>' +
+            '<button onclick="confirmImport()" style="padding:8px 20px;border:none;border-radius:6px;background:var(--green);color:#fff;cursor:pointer;font-weight:600">Create Agent</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    var _pendingImportData = null;
+
+    async function previewImportFromURL() {
+      var url = (document.getElementById('import-url-input') || {}).value;
+      if (!url) { showToast('Enter a URL', 'error'); return; }
+      try {
+        var resp = await fetch('/api/agents/import', {method:'POST', headers:_inceptionAuthHeaders(), body:JSON.stringify({source:'url',url:url,preview:true})});
+        var d = await resp.json();
+        if (!resp.ok) { showToast(d.error || 'Import failed', 'error'); return; }
+        showImportPreview(d);
+      } catch(e) { showToast('Error: ' + e.message, 'error'); }
+    }
+
+    async function previewImportFromPaste() {
+      var content = (document.getElementById('import-paste-input') || {}).value;
+      if (!content) { showToast('Paste a definition', 'error'); return; }
+      try {
+        var resp = await fetch('/api/agents/import', {method:'POST', headers:_inceptionAuthHeaders(), body:JSON.stringify({source:'paste',content:content,preview:true})});
+        var d = await resp.json();
+        if (!resp.ok) { showToast(d.error || 'Import failed', 'error'); return; }
+        showImportPreview(d);
+      } catch(e) { showToast('Error: ' + e.message, 'error'); }
+    }
+
+    function showImportPreview(d) {
+      _pendingImportData = d;
+      var p = d.parsed || {};
+      var meta = p.metadata || {};
+      var spec = p.spec || {};
+      var html = '<table style="width:100%;font-size:0.8rem;border-collapse:collapse">';
+      html += '<tr><td style="padding:4px 8px;color:var(--muted)">Name</td><td style="padding:4px 8px;font-weight:600">' + (meta.emoji || '') + ' ' + (meta.name || '?') + '</td></tr>';
+      html += '<tr><td style="padding:4px 8px;color:var(--muted)">Display</td><td style="padding:4px 8px">' + (meta.displayName || '') + '</td></tr>';
+      html += '<tr><td style="padding:4px 8px;color:var(--muted)">Backend</td><td style="padding:4px 8px">' + (spec.backend || '?') + ' / ' + (spec.model || '?') + '</td></tr>';
+      html += '<tr><td style="padding:4px 8px;color:var(--muted)">Mode</td><td style="padding:4px 8px">' + (spec.mode || '?') + '</td></tr>';
+      html += '<tr><td style="padding:4px 8px;color:var(--muted)">Role</td><td style="padding:4px 8px">' + (spec.role || '') + '</td></tr>';
+      if (spec.promptTemplate) html += '<tr><td style="padding:4px 8px;color:var(--muted)">Template</td><td style="padding:4px 8px;font-size:0.7rem;color:var(--muted)">' + spec.promptTemplate.substring(0,120) + '...</td></tr>';
+      html += '</table>';
+      document.getElementById('import-preview-content').innerHTML = html;
+      document.getElementById('import-preview').style.display = 'block';
+    }
+
+    async function confirmImport() {
+      if (!_pendingImportData) return;
+      try {
+        var body = _pendingImportData._importBody || {};
+        body.preview = false;
+        var resp = await fetch('/api/agents/import', {method:'POST', headers:_inceptionAuthHeaders(), body:JSON.stringify(body)});
+        var d = await resp.json();
+        if (!resp.ok) { showToast(d.error || 'Import failed', 'error'); return; }
+        showToast('Agent "' + (d.name || '?') + '" created!', 'success');
+        closeConfigDialog();
+        fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
+      } catch(e) { showToast('Error: ' + e.message, 'error'); }
+    }
+
     function renderAgentTab(tab) {
       const d = _configState.data;
       switch (tab) {
+        case 'Import': return renderAgentImport();
         case 'General': return renderAgentGeneral(d.general || {});
         case 'Cadences': return renderAgentCadences(d.cadences || {});
         case 'Pipeline': return renderAgentPipeline(d.pipeline || {});
@@ -8701,27 +8782,7 @@ function burnAreaChart() {
       const isCreate = _configState.isCreate === true;
       let html = '';
       if (isCreate) {
-        html += `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">
-          <div style="font-size:0.78rem;font-weight:600;color:var(--text);margin-bottom:10px">Import Agent Definition</div>
-          <div class="config-field" style="margin-bottom:8px">
-            <label style="font-size:0.72rem">Import from URL</label>
-            <div style="display:flex;gap:6px">
-              <input type="text" id="import-url-input" placeholder="https://raw.githubusercontent.com/..." style="flex:1;font-size:0.72rem">
-              <button onclick="importAgentFromURL()" style="font-size:0.72rem;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:600;border:none;background:var(--cyan);color:#fff;white-space:nowrap">Import</button>
-            </div>
-          </div>
-          <div class="config-field" style="margin-bottom:4px">
-            <label style="font-size:0.72rem">Or paste agent definition</label>
-            <textarea id="import-paste-input" rows="4" style="width:100%;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.7rem;resize:vertical" placeholder="apiVersion: hive.kubestellar.io/v1\nkind: AgentDefinition\n..."></textarea>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-              <span style="font-size:0.65rem;color:var(--muted)">Supports YAML agent definitions</span>
-              <button onclick="importAgentFromPaste()" style="font-size:0.72rem;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:600;border:none;background:var(--cyan);color:#fff">Import</button>
-            </div>
-          </div>
-        </div>
-        <div style="border-bottom:1px solid var(--border);margin-bottom:14px;padding-bottom:4px;font-size:0.7rem;color:var(--muted);text-align:center">or create manually</div>
-        <div class="config-field">
+        html += `<div class="config-field">
           <label>Name <span style="color:#dc2626">*</span> <span class="config-info">i<span class="config-tooltip">The agent's internal name used as its ID, config file name, and tmux session. Lowercase, hyphens allowed.</span></span></label>
           <input type="text" id="cfg-create-name" value="" placeholder="e.g. docs-writer, sec-scanner" onchange="markDirty('_create','name',this.value)">
           <div style="font-size:0.65rem;color:var(--muted);margin-top:2px">Lowercase, hyphens allowed. Used as the agent ID.</div>

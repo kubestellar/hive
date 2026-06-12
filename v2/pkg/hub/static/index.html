@@ -331,7 +331,7 @@
           : '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.65rem;font-weight:600;background:rgba(107,114,128,0.15);color:#9ca3af;border:1px solid rgba(107,114,128,0.3)" title="Self-hosted by the owner">local</span>';
         return '<tr>' +
           '<td style="white-space:nowrap">' + contributeButton(h) + '</td>' +
-          '<td style="display:flex;align-items:center;gap:10px"><img src="https://github.com/' + esc(h.org) + '.png" style="width:36px;height:36px;border-radius:6px;flex-shrink:0" onerror="this.style.display=\'none\'">' + dot + '<div><span class="hive-name">' + esc(h.name || h.id) + '</span>' + (h.githubAppRequired ? ' <span title="GitHub App not installed — cannot create issues" style="color:#f59e0b;cursor:help">&#9888;&#65039;</span>' : '') + '</div></td>' +
+          '<td style="display:flex;align-items:center;gap:10px"><img src="https://github.com/' + esc(h.org) + '.png" style="width:36px;height:36px;border-radius:6px;flex-shrink:0" onerror="this.style.display=\'none\'">' + dot + '<div><span class="hive-name">' + esc(h.name || h.id) + '</span></div></td>' +
           '<td>' + htype + '</td>' +
           '<td>' + repoLink + '</td>' +
           '<td>' + repoCount + '</td>' +

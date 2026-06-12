@@ -1597,7 +1597,7 @@
       body.has-info-sidebar #oc-topbar { right: 0; }
     }
 
-    /* Collapsible advisory sections */
+    /* Collapsible advisory sections (#1546) */
     .collapse-chevron {
       display: inline-block;
       transition: transform 0.15s ease;
@@ -1619,6 +1619,33 @@
       padding: 0;
     }
 
+    /* ── Collapsible sections (#1533) ── */
+    .section-header-toggle {
+      display: inline-flex; align-items: center; cursor: pointer; user-select: none;
+      gap: 6px; width: 100%;
+    }
+    .section-header-toggle:hover { opacity: 0.85; }
+    .section-chevron {
+      display: inline-block; font-size: 0.7em; transition: transform 200ms ease;
+      color: var(--muted); flex-shrink: 0;
+    }
+    .section-chevron.collapsed { transform: rotate(-90deg); }
+    .section-body {
+      overflow: hidden; transition: max-height 200ms ease, opacity 200ms ease;
+      max-height: 5000px; opacity: 1;
+    }
+    .section-body.collapsed {
+      max-height: 0 !important; opacity: 0; pointer-events: none;
+    }
+
+    /* ── Compact agent cards (#1533) ── */
+    .agent-card .agent-card-details { transition: max-height 200ms ease, opacity 200ms ease; overflow: hidden; }
+    .agent-card.compact .agent-card-details { max-height: 0 !important; opacity: 0; pointer-events: none; }
+    .agent-card .compact-toggle {
+      background: none; border: none; cursor: pointer; font-size: 0.7rem;
+      color: var(--muted); padding: 2px 6px; margin-left: 6px; border-radius: 4px;
+    }
+    .agent-card .compact-toggle:hover { background: rgba(255,255,255,0.06); }
   </style>
 </head>
 <body>
@@ -1881,89 +1908,118 @@
   <div class="governor" id="governor"></div>
 
   <div id="advisory-section" style="margin-top: 16px; margin-bottom: 24px; display: none;">
-    <h2 class="advisory-collapse-header" style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px; cursor: pointer; user-select: none;" onclick="toggleAdvisorySection('advisory-digest-main')">
+    <h2 class="advisory-collapse-header section-header-toggle" style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px; cursor: pointer; user-select: none;" onclick="toggleAdvisorySection('advisory-digest-main')">
       <span id="advisory-digest-main-chevron" class="collapse-chevron">▼</span> 📋 Advisory Digest
     </h2>
-    <div id="advisory-digest" style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;"></div>
+    <div class="section-body">
+      <div id="advisory-digest" style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;"></div>
+    </div>
   </div>
 
   <div class="token-usage" id="token-panel" style="margin-bottom: 24px;"></div>
 
   <div class="repos" id="repos-section">
-    <h2>Repositories <button class="config-gear" onclick="openConfigDialog('governor',null,'Repos')" title="Manage monitored repositories" style="font-size:0.7em;vertical-align:middle">⚙️</button></h2>
-    <div class="repo-grid" id="repos"></div>
+    <h2 class="section-header-toggle" onclick="toggleSection('repos-section')"><span class="section-chevron">▼</span> Repositories <button class="config-gear" onclick="event.stopPropagation();openConfigDialog('governor',null,'Repos')" title="Manage monitored repositories" style="font-size:0.7em;vertical-align:middle">⚙️</button></h2>
+    <div class="section-body">
+      <div class="repo-grid" id="repos"></div>
+    </div>
   </div>
 
   <div id="beads-section" style="margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">Beads</h2>
-    <div class="beads" id="beads"></div>
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;" class="section-header-toggle" onclick="toggleSection('beads-section')"><span class="section-chevron">▼</span> Beads</h2>
+    <div class="section-body">
+      <div class="beads" id="beads"></div>
+    </div>
   </div>
 
   <div id="audit-section" style="margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">📋 Audit Log</h2>
-    <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
-      <div style="flex:1;position:relative">
-        <input id="audit-search" list="audit-saved-searches" type="text" placeholder="Search audit log... (supports /regex/)" oninput="filterAuditLog()" onkeydown="if(event.key==='Enter')saveAuditSearch()" style="width:100%;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.82rem">
-        <datalist id="audit-saved-searches"></datalist>
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;" class="section-header-toggle" onclick="toggleSection('audit-section')"><span class="section-chevron">▼</span> 📋 Audit Log</h2>
+    <div class="section-body">
+      <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <div style="flex:1;position:relative">
+          <input id="audit-search" list="audit-saved-searches" type="text" placeholder="Search audit log... (supports /regex/)" oninput="filterAuditLog()" onkeydown="if(event.key==='Enter')saveAuditSearch()" style="width:100%;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.82rem">
+          <datalist id="audit-saved-searches"></datalist>
+        </div>
+        <button onclick="saveAuditSearch()" title="Save this search" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:0.75rem;white-space:nowrap">💾 Save</button>
+        <button onclick="clearAuditSearches()" title="Clear saved searches" style="padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:0.75rem">✕</button>
+        <span id="audit-match-count" style="font-size:0.7rem;color:var(--muted);white-space:nowrap"></span>
       </div>
-      <button onclick="saveAuditSearch()" title="Save this search" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:0.75rem;white-space:nowrap">💾 Save</button>
-      <button onclick="clearAuditSearches()" title="Clear saved searches" style="padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:0.75rem">✕</button>
-      <span id="audit-match-count" style="font-size:0.7rem;color:var(--muted);white-space:nowrap"></span>
-    </div>
-    <div id="audit-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:320px;overflow-y:auto">
-      <div class="loading">Loading audit log...</div>
+      <div id="audit-panel" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:320px;overflow-y:auto">
+        <div class="loading">Loading audit log...</div>
+      </div>
     </div>
   </div>
 
   <div id="nous-section" style="display:none; margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">🧪 Strategy Lab <span id="nous-mode-badge" style="font-size:0.75rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span> <button onclick="openNousConfig()" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);margin-left:6px;padding:2px" title="Strategy Lab Configuration">⚙️</button></h2>
-    <div id="nous-panel"></div>
-    <div id="nous-config-overlay" class="nous-config-overlay" style="display:none"></div>
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;" class="section-header-toggle" onclick="toggleSection('nous-section')"><span class="section-chevron">▼</span> 🧪 Strategy Lab <span id="nous-mode-badge" style="font-size:0.75rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span> <button onclick="event.stopPropagation();openNousConfig()" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);margin-left:6px;padding:2px" title="Strategy Lab Configuration">⚙️</button></h2>
+    <div class="section-body">
+      <div id="nous-panel"></div>
+      <div id="nous-config-overlay" class="nous-config-overlay" style="display:none"></div>
+    </div>
   </div>
 
   <div id="inception-section" style="margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">💡 Project Inception</h2>
-    <div id="inception-panel" style="height:800px;overflow-y:auto;overflow-x:hidden;"></div>
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;" class="section-header-toggle" onclick="toggleSection('inception-section')"><span class="section-chevron">▼</span> 💡 Project Inception</h2>
+    <div class="section-body">
+      <div id="inception-panel" style="height:800px;overflow-y:auto;overflow-x:hidden;"></div>
+    </div>
   </div>
 
   <div id="knowledge-section" style="margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;">📚 Knowledge Base <span id="kb-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span></h2>
-    <div id="knowledge-panel"></div>
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 8px;" class="section-header-toggle" onclick="toggleSection('knowledge-section')"><span class="section-chevron">▼</span> 📚 Knowledge Base <span id="kb-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span></h2>
+    <div class="section-body">
+      <div id="knowledge-panel"></div>
+    </div>
   </div>
 
   <div id="contributors-section" style="margin-top: 16px; margin-bottom: 24px;">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap" class="section-header-toggle" onclick="toggleSection('contributors-section')">
+      <span class="section-chevron">▼</span>
       <h2 style="font-size: 0.95rem; color: var(--muted); margin:0;">👥 Contributors <span id="contributors-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:9999px;margin-left:8px"></span></h2>
-      <a href="/contribute" target="_blank" style="font-size:0.75rem;padding:4px 12px;background:#238636;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Share /contribute link →</a>
-      <a href="/leaderboard" target="_blank" style="font-size:0.75rem;padding:4px 12px;background:transparent;color:#58a6ff;border:1px solid #58a6ff;border-radius:6px;text-decoration:none">🏆 Leaderboard</a>
+      <a href="/contribute" target="_blank" onclick="event.stopPropagation()" style="font-size:0.75rem;padding:4px 12px;background:#238636;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Share /contribute link &rarr;</a>
+      <a href="/leaderboard" target="_blank" onclick="event.stopPropagation()" style="font-size:0.75rem;padding:4px 12px;background:transparent;color:#58a6ff;border:1px solid #58a6ff;border-radius:6px;text-decoration:none">🏆 Leaderboard</a>
     </div>
-    <div id="contributors-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
-    <div id="contributors-panel"></div>
+    <div class="section-body">
+      <div id="contributors-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+      <div id="contributors-panel"></div>
+    </div>
   </div>
 
   </div>
 
   <div id="debug-section" style="margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 12px;">🔍 System Diagnostics</h2>
-    <div id="debug-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;"></div>
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 12px;" class="section-header-toggle" onclick="toggleSection('debug-section')"><span class="section-chevron">▼</span> 🔍 System Diagnostics</h2>
+    <div class="section-body">
+      <div id="debug-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;"></div>
+    </div>
   </div>
 
   <div id="logs-section" style="display: none; margin-top: 16px; margin-bottom: 24px;">
-    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 12px;">📋 Agent Logs</h2>
-    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-      <select id="logs-agent-select" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; background: var(--surface); color: var(--text); cursor: pointer;" title="Filter logs to a specific agent or view all agents combined">
-        <option value="all">All Agents</option>
-      </select>
-      <label style="display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--muted); cursor: pointer;" title="When enabled, the log output auto-scrolls to show the most recent entries as they arrive">
-        <input type="checkbox" id="logs-follow" checked> Follow
-      </label>
+    <h2 style="font-size: 0.95rem; color: var(--muted); margin-bottom: 12px;" class="section-header-toggle" onclick="toggleSection('logs-section')"><span class="section-chevron">▼</span> 📋 Agent Logs</h2>
+    <div class="section-body">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+        <select id="logs-agent-select" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; background: var(--surface); color: var(--text); cursor: pointer;" title="Filter logs to a specific agent or view all agents combined">
+          <option value="all">All Agents</option>
+        </select>
+        <label style="display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--muted); cursor: pointer;" title="When enabled, the log output auto-scrolls to show the most recent entries as they arrive">
+          <input type="checkbox" id="logs-follow" checked> Follow
+        </label>
+      </div>
+      <div id="logs-output" style="background: #1a1a2e; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; line-height: 1.5; padding: 14px; border-radius: 8px; max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"></div>
     </div>
-    <div id="logs-output" style="background: #1a1a2e; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; line-height: 1.5; padding: 14px; border-radius: 8px; max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"></div>
   </div>
 
   <div id="oc-gov-strip-outer" class="oc-gov-strip"></div>
   <div id="oc-agent-detail" class="oc-agent-detail"></div>
-  <div class="agents" id="agents"></div>
+  <div id="agents-section">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <h2 style="font-size: 0.95rem; color: var(--muted); margin:0; cursor:pointer" class="section-header-toggle" onclick="toggleSection('agents-section')"><span class="section-chevron">▼</span> Agents</h2>
+      <button id="agents-compact-all-btn" onclick="event.stopPropagation();toggleAllAgentsCompact()" style="font-size:0.7rem;padding:2px 10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer" title="Toggle all agent cards between compact and expanded view"></button>
+    </div>
+    <div class="section-body">
+      <div class="agents" id="agents"></div>
+    </div>
+  </div>
 
   <aside id="hive-info-sidebar">
     <h3>What is Hive?</h3>
@@ -2041,6 +2097,82 @@
       if (typeof str !== 'string') return '';
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
+    // ── Collapsible sections (issue #1533) ──
+    const SECTION_LS_PREFIX = 'hive-section-collapsed-';
+    const AGENT_COMPACT_LS_PREFIX = 'hive-agent-compact-';
+    const SECTION_TRANSITION_MS = 200;
+    const ALL_AGENTS_COMPACT_KEY = 'hive-all-agents-compact';
+
+    /** Check whether a dashboard section is collapsed in localStorage */
+    function isSectionCollapsed(sectionId) {
+      return localStorage.getItem(SECTION_LS_PREFIX + sectionId) === '1';
+    }
+    /** Persist section collapsed state */
+    function setSectionCollapsed(sectionId, collapsed) {
+      if (collapsed) {
+        localStorage.setItem(SECTION_LS_PREFIX + sectionId, '1');
+      } else {
+        localStorage.removeItem(SECTION_LS_PREFIX + sectionId);
+      }
+    }
+    /** Toggle a section's collapsed state and animate */
+    function toggleSection(sectionId) {
+      const collapsed = !isSectionCollapsed(sectionId);
+      setSectionCollapsed(sectionId, collapsed);
+      const body = document.querySelector(`#${sectionId} .section-body`);
+      const chevron = document.querySelector(`#${sectionId} .section-chevron`);
+      if (body) body.classList.toggle('collapsed', collapsed);
+      if (chevron) chevron.classList.toggle('collapsed', collapsed);
+    }
+    /** Apply persisted collapsed state to a section after render */
+    function applySectionCollapse(sectionId) {
+      const collapsed = isSectionCollapsed(sectionId);
+      const body = document.querySelector(`#${sectionId} .section-body`);
+      const chevron = document.querySelector(`#${sectionId} .section-chevron`);
+      if (body) body.classList.toggle('collapsed', collapsed);
+      if (chevron) chevron.classList.toggle('collapsed', collapsed);
+    }
+    /** Check whether an agent card should be compact */
+    function isAgentCompact(agentName) {
+      if (localStorage.getItem(ALL_AGENTS_COMPACT_KEY) === '1') return true;
+      return localStorage.getItem(AGENT_COMPACT_LS_PREFIX + agentName) === '1';
+    }
+    /** Persist agent compact state */
+    function setAgentCompact(agentName, compact) {
+      if (compact) {
+        localStorage.setItem(AGENT_COMPACT_LS_PREFIX + agentName, '1');
+      } else {
+        localStorage.removeItem(AGENT_COMPACT_LS_PREFIX + agentName);
+      }
+    }
+    /** Toggle compact mode for one agent card */
+    function toggleAgentCompact(agentName) {
+      const compact = !isAgentCompact(agentName);
+      setAgentCompact(agentName, compact);
+      // Clear all-agents-compact if user is expanding a single card
+      if (!compact) localStorage.removeItem(ALL_AGENTS_COMPACT_KEY);
+      const card = document.querySelector(`.agent-card[data-agent="${agentName}"]`);
+      if (card) card.classList.toggle('compact', compact);
+    }
+    /** Toggle all agent cards compact/expanded */
+    function toggleAllAgentsCompact() {
+      const allCompact = localStorage.getItem(ALL_AGENTS_COMPACT_KEY) === '1';
+      if (allCompact) {
+        localStorage.removeItem(ALL_AGENTS_COMPACT_KEY);
+        document.querySelectorAll('.agent-card').forEach(c => c.classList.remove('compact'));
+        // Clear all individual compact states too
+        Object.keys(localStorage).forEach(k => {
+          if (k.startsWith(AGENT_COMPACT_LS_PREFIX)) localStorage.removeItem(k);
+        });
+      } else {
+        localStorage.setItem(ALL_AGENTS_COMPACT_KEY, '1');
+        document.querySelectorAll('.agent-card').forEach(c => c.classList.add('compact'));
+      }
+      // Update button text
+      const btn = document.getElementById('agents-compact-all-btn');
+      if (btn) btn.textContent = localStorage.getItem(ALL_AGENTS_COMPACT_KEY) === '1' ? '⊞ Expand All' : '⊟ Compact All';
+    }
+
     // ── Layout mode (Dark / Light) ──
     const LAYOUT_KEY = 'hive-layout-mode';
     const LAYOUT_MODES = ['dark', 'light'];
@@ -3255,9 +3387,19 @@
           summaryEl = `<div class="doing">${ageBadge}${escPreserveNewlines(a.liveSummary)}</div>`;
         }
         const indEl = agentIndicators(a.name);
-        return `<div class="agent-card ${cls}" data-agent="${esc(a.name)}">
+        const compactCls = isAgentCompact(a.name) ? ' compact' : '';
+        return `<div class="agent-card ${cls}${compactCls}" data-agent="${esc(a.name)}">
           <span class="working-indicator"></span>
-          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.emoji ? a.emoji + ' ' : ''}${esc(a.displayName || a.name)} ${toggleBtn} <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a> <button class="restart-btn" data-action="restartAgent" data-agent="${esc(a.name)}" title="Kill tmux session — supervisor will respawn with fresh context">↻ restart</button> <button class="config-gear" data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure ${esc(a.displayName || a.name)}">⚙️</button></div>
+          <div class="agent-name"><span class="dot ${dotCls}"></span>${a.emoji ? a.emoji + ' ' : ''}${esc(a.displayName || a.name)} ${toggleBtn} <button class="compact-toggle" onclick="event.stopPropagation();toggleAgentCompact('${esc(a.name)}')" title="Toggle compact/expanded view for this agent card">${isAgentCompact(a.name) ? '&#9655; expand' : '&#9661; compact'}</button> <a href="${terminalUrl(a.name)}" target="_blank" class="terminal-link" title="Open tmux session">▶ terminal</a> <button class="restart-btn" data-action="restartAgent" data-agent="${esc(a.name)}" title="Kill tmux session — supervisor will respawn with fresh context">↻ restart</button> <button class="config-gear" data-action="openConfigDialog" data-config-type="agent" data-agent="${esc(a.name)}" title="Configure ${esc(a.displayName || a.name)}">⚙️</button></div>
+          <div class="agent-state ${isOnDemand ? 'on-demand' : isPaused ? 'paused' : isOff ? 'off' : a.busy}">${isOnDemand ? 'on demand' : isPaused ? 'paused' : isOff ? 'off' : a.busy}${pauseInfoIcon(a)}${(() => {
+            if (a.structuredStatus === 'BLOCKED') return '<span class="status-badge blocked" title="' + esc(a.statusEvidence) + '">blocked</span>';
+            if (a.structuredStatus === 'NEEDS_CONTEXT') return '<span class="status-badge needs-context" title="' + esc(a.statusEvidence) + '">needs context</span>';
+            if (a.structuredStatus === 'DONE_WITH_CONCERNS') return '<span class="status-badge done-concerns" title="' + esc(a.statusEvidence) + '">concerns</span>';
+            if (a.structuredStatus === 'DONE') return '<span class="status-badge done">done</span>';
+            if (isStale) return '<span class="status-badge needs-context">stale</span>';
+            return '';
+          })()}</div>
+          <div class="agent-card-details">
           <div class="agent-field"><span class="label" title="The CLI backend running this agent (e.g. claude, copilot). Pin to prevent governor from switching it.">cli</span><span class="value">${cliChip(a.cli, a.pinnedBoth || a.pinnedCli, a.name)}${(a.pinnedBoth || a.pinnedCli) ? '' : ` <button class="pin-toggle" data-action="togglePin" data-agent="${esc(a.name)}" data-pin-type="cli" data-unpin="false" title="Pin CLI — lock current backend" style="opacity:0.4;cursor:pointer;border:none;background:none">📌</button>`}</span></div>
           <div class="agent-field"><span class="label" title="The LLM model powering this agent. Governor may change it based on budget or mode. Pin to lock.">model</span><span class="value">${modelChip(a.model, a.govReason, a.pinnedBoth || a.pinnedModel, a.name)}${(a.pinnedBoth || a.pinnedModel) ? '' : ` <button class="pin-toggle" data-action="togglePin" data-agent="${esc(a.name)}" data-pin-type="model" data-unpin="false" title="Pin model — lock current model" style="opacity:0.4;cursor:pointer;border:none;background:none">📌</button>`}</span></div>
           <div class="agent-field"><span class="label" title="Agent operating mode — controls what GitHub actions this agent can take (advisory, issues, PRs, merge).">mode</span><span class="value">${modeLabel(a)}${a.needsRestart ? ' <span class="status-badge needs-context" title="CLI flags are stale — restart agent to apply new mode">⚠ restart needed</span>' : ''}</span></div>
@@ -3267,14 +3409,6 @@
           <div class="agent-field"><span class="label" title="When the governor will next kick this agent based on its cadence interval.">next run</span><span class="value">${isOnDemand ? 'on demand' : isPaused ? 'paused' : isOff ? 'off' : (a.nextKick || '—')}</span></div>
           ${agentTokenRow(a.name, a.cadence)}
           <div class="agent-field"><span class="label" title="Number of times this agent has been restarted in the last 24 hours. High counts may indicate instability or rate limiting.">restarts</span><span class="value${(a.restarts || 0) > 5 ? ' restart-high' : (a.restarts || 0) > 0 ? ' restart-warn' : ''}">${a.restarts || 0}<span class="restart-label">24h</span>${(a.restarts || 0) > 0 ? `<button class="restart-reset" data-action="resetRestarts" data-agent="${esc(a.name)}" title="Reset the restart counter to zero — does not affect the agent">✕</button>` : ''}<span class="restart-spark">${restartSparkSvg(a.name)}</span></span></div>
-          <div class="agent-state ${isOnDemand ? 'on-demand' : isPaused ? 'paused' : isOff ? 'off' : a.busy}">${isOnDemand ? 'on demand' : isPaused ? 'paused' : isOff ? 'off' : a.busy}${pauseInfoIcon(a)}${(() => {
-            if (a.structuredStatus === 'BLOCKED') return '<span class="status-badge blocked" title="' + esc(a.statusEvidence) + '">blocked</span>';
-            if (a.structuredStatus === 'NEEDS_CONTEXT') return '<span class="status-badge needs-context" title="' + esc(a.statusEvidence) + '">needs context</span>';
-            if (a.structuredStatus === 'DONE_WITH_CONCERNS') return '<span class="status-badge done-concerns" title="' + esc(a.statusEvidence) + '">concerns</span>';
-            if (a.structuredStatus === 'DONE') return '<span class="status-badge done">done</span>';
-            if (isStale) return '<span class="status-badge needs-context">stale</span>';
-            return '';
-          })()}</div>
           ${needsLogin ? '<div class="login-warning">⚠ NOT LOGGED IN — run /login</div>' : ''}
           ${summaryEl}${indEl}
           <div class="agent-actions">
@@ -3289,6 +3423,7 @@
               <option value="" disabled selected>model ▾</option>
               ${KNOWN_MODELS.map(m => `<option value="${m.value}">${m.label}</option>`).join('')}
             </select>
+          </div>
           </div>
         </div>`;
       });
@@ -6692,6 +6827,16 @@ function burnAreaChart() {
       renderSystemGauges(data.systemResources || null);
       ocUpdateSidebarAgents();
       renderDebugSection();
+      // Restore persisted collapsed state for all collapsible sections
+      const COLLAPSIBLE_SECTION_IDS = [
+        'advisory-section', 'repos-section', 'beads-section', 'audit-section',
+        'nous-section', 'inception-section', 'knowledge-section',
+        'contributors-section', 'debug-section', 'logs-section', 'agents-section'
+      ];
+      COLLAPSIBLE_SECTION_IDS.forEach(applySectionCollapse);
+      // Update compact-all button text
+      const compactBtn = document.getElementById('agents-compact-all-btn');
+      if (compactBtn) compactBtn.textContent = localStorage.getItem(ALL_AGENTS_COMPACT_KEY) === '1' ? '⊞ Expand All' : '⊟ Compact All';
       updateACMMBadge(data.acmmLevel || 0, data.acmmPackAgents || null);
       if (!_ocViewRestored) {
         _ocViewRestored = true;

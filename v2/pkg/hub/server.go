@@ -10,6 +10,7 @@ import (
 	"html"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -690,7 +691,7 @@ func (s *HubServer) findContributeHive() *RegistryEntry {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, h := range s.registry.Hives {
-		if h.Online && h.IsPublic && h.DashboardURL != "" && !isPrivateURL(h.DashboardURL) && h.Owner != "" {
+		if h.Online && h.IsPublic && h.DashboardURL != "" && !isPrivateURL(context.Background(), h.DashboardURL) && h.Owner != "" {
 			cp := h
 			return &cp
 		}
@@ -754,7 +755,11 @@ func (s *HubServer) handleContributeWSProxy(w http.ResponseWriter, r *http.Reque
 	proxy.ServeHTTP(w, r)
 }
 
-func isPrivateURL(rawURL string) bool {
+// privateURLDNSTimeout bounds DNS resolution inside the SSRF guard so a
+// slow or malicious DNS server cannot block the caller indefinitely.
+const privateURLDNSTimeout = 5 * time.Second
+
+func isPrivateURL(ctx context.Context, rawURL string) bool {
 	for _, scheme := range []string{"https://", "http://", "wss://", "ws://"} {
 		if strings.HasPrefix(rawURL, scheme) {
 			rawURL = strings.TrimPrefix(rawURL, scheme)
@@ -774,6 +779,24 @@ func isPrivateURL(rawURL string) bool {
 			return true
 		}
 	}
+
+	// Resolve hostname to catch DNS names that map to private IPs (DNS rebinding).
+	resolveCtx, cancel := context.WithTimeout(ctx, privateURLDNSTimeout)
+	defer cancel()
+	resolver := &net.Resolver{}
+	addrs, err := resolver.LookupHost(resolveCtx, host)
+	if err != nil {
+		// If DNS fails, treat as private (fail-closed) to prevent bypass.
+		return true
+	}
+	for _, addr := range addrs {
+		for _, p := range blocked {
+			if strings.HasPrefix(addr, p) {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 

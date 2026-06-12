@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -108,15 +109,15 @@ func TestIsPrivateURL(t *testing.T) {
 		{"http://192.168.1.1", true},
 		{"http://172.16.0.1", true},
 		{"http://169.254.1.1", true},
-		{"http://[::1]:8080", false},
-		{"http://[::ffff:127.0.0.1]", false},
+		{"http://[::1]:8080", true},         // IPv6 loopback — private
+		{"http://[::ffff:127.0.0.1]", true}, // IPv4-mapped loopback — private
 		{"http://0.0.0.0", true},
 		{"https://github.com", false},
 		{"https://api.github.com/repos", false},
 		{"https://hive.kubestellar.io", false},
 	}
 	for _, tt := range tests {
-		got := isPrivateURL(tt.url)
+		got := isPrivateURL(context.Background(), tt.url)
 		if got != tt.want {
 			t.Errorf("isPrivateURL(%q) = %v, want %v", tt.url, got, tt.want)
 		}

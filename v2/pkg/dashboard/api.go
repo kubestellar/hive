@@ -3324,7 +3324,7 @@ func (s *Server) handleKnowledgeSubsAdd(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "url must use http or https scheme", http.StatusBadRequest)
 		return
 	}
-	if isPrivateURL(sub.URL) {
+	if isPrivateURL(r.Context(), sub.URL) {
 		jsonError(w, "subscription url must not point to private/internal addresses", http.StatusBadRequest)
 		return
 	}

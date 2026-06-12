@@ -1,12 +1,14 @@
 package dashboard
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -824,11 +826,11 @@ func (s *Server) handleHivesRegister(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "dashboard_url must start with http://, https://, ws://, or wss://", http.StatusBadRequest)
 		return
 	}
-	if isPrivateURL(req.HubURL) {
+	if isPrivateURL(r.Context(), req.HubURL) {
 		jsonError(w, "hub_url must not target private/internal addresses", http.StatusBadRequest)
 		return
 	}
-	if req.DashboardURL != "" && isPrivateURL(req.DashboardURL) {
+	if req.DashboardURL != "" && isPrivateURL(r.Context(), req.DashboardURL) {
 		jsonError(w, "dashboard_url must not target private/internal addresses", http.StatusBadRequest)
 		return
 	}
@@ -1692,7 +1694,11 @@ func isValidUsername(s string) bool {
 	return true
 }
 
-func isPrivateURL(rawURL string) bool {
+// privateURLDNSTimeout bounds DNS resolution inside the SSRF guard so a
+// slow or malicious DNS server cannot block the handler indefinitely.
+const privateURLDNSTimeout = 5 * time.Second
+
+func isPrivateURL(ctx context.Context, rawURL string) bool {
 	for _, scheme := range []string{"https://", "http://", "wss://", "ws://"} {
 		if strings.HasPrefix(rawURL, scheme) {
 			rawURL = strings.TrimPrefix(rawURL, scheme)
@@ -1712,6 +1718,24 @@ func isPrivateURL(rawURL string) bool {
 			return true
 		}
 	}
+
+	// Resolve hostname to catch DNS names that map to private IPs (DNS rebinding).
+	resolveCtx, cancel := context.WithTimeout(ctx, privateURLDNSTimeout)
+	defer cancel()
+	resolver := &net.Resolver{}
+	addrs, err := resolver.LookupHost(resolveCtx, host)
+	if err != nil {
+		// If DNS fails, treat as private (fail-closed) to prevent bypass.
+		return true
+	}
+	for _, addr := range addrs {
+		for _, p := range blocked {
+			if strings.HasPrefix(addr, p) {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 

@@ -3289,16 +3289,42 @@ const dashboardHTML = `<!DOCTYPE html>
       return 'var(--green)';
     }
 
-    function renderHealthBar(pct, warnThreshold, dangerThreshold) {
+    var SPARKLINE_BLOCKS = '▁▂▃▄▅▆▇█';
+    var SPARKLINE_HISTORY_LEN = 10;
+    var _clusterSparkHistory = {};
+
+    function pushSparkPoint(nodeKey, metric, value) {
+      var key = nodeKey + ':' + metric;
+      if (!_clusterSparkHistory[key]) _clusterSparkHistory[key] = [];
+      _clusterSparkHistory[key].push(value);
+      if (_clusterSparkHistory[key].length > SPARKLINE_HISTORY_LEN) _clusterSparkHistory[key].shift();
+    }
+
+    function renderUnicodeSparkline(nodeKey, metric, color) {
+      var key = nodeKey + ':' + metric;
+      var pts = _clusterSparkHistory[key] || [];
+      if (pts.length < 2) return '';
+      var max = Math.max.apply(null, pts);
+      if (max === 0) max = 1;
+      var blocks = SPARKLINE_BLOCKS;
+      var spark = pts.map(function(v) {
+        var idx = Math.round((v / max) * (blocks.length - 1));
+        return blocks[Math.min(idx, blocks.length - 1)];
+      }).join('');
+      return '<span style="font-family:monospace;font-size:0.7rem;color:' + color + ';letter-spacing:-1px">' + spark + '</span>';
+    }
+
+    function renderHealthMetric(label, used, total, unit, pct, warnThreshold, dangerThreshold, nodeKey, metric) {
       var color = healthBarColor(pct, warnThreshold, dangerThreshold);
-      var MAX_BAR_WIDTH_PCT = 100;
-      var clampedPct = Math.min(pct, MAX_BAR_WIDTH_PCT);
-      return '<div style="display:flex;align-items:center;gap:8px">' +
-        '<div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">' +
-        '<div style="width:' + clampedPct + '%;height:100%;background:' + color + ';border-radius:3px;transition:width 0.3s"></div>' +
-        '</div>' +
-        '<span style="font-size:0.75rem;min-width:32px;text-align:right;color:' + color + '">' + pct + '%</span>' +
-        '</div>';
+      pushSparkPoint(nodeKey, metric, pct);
+      var spark = renderUnicodeSparkline(nodeKey, metric, color);
+      return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+        '<span style="font-size:0.7rem;color:var(--muted)">' + label + '</span>' +
+        '<span style="display:flex;align-items:center;gap:6px">' +
+        spark +
+        '<span style="font-family:monospace;font-size:0.75rem;color:' + color + '">' + used + ' / ' + total + ' ' + unit + '</span>' +
+        '<span style="font-size:0.7rem;min-width:28px;text-align:right;color:' + color + '">' + pct + '%</span>' +
+        '</span></div>';
     }
 
     async function loadClusterHealth() {
@@ -3316,7 +3342,14 @@ const dashboardHTML = `<!DOCTYPE html>
         var s = data.summary || {};
         var summaryBar = document.getElementById('cluster-health-summary-bar');
         if (summaryBar) {
-          summaryBar.textContent = (s.total_nodes || 0) + ' nodes · ' + (s.total_cpu_cores || 0) + ' vCPU · ' + (s.total_mem_percent || 0) + '% mem · ' + (s.hive_count || 0) + ' hives';
+          pushSparkPoint('_cluster', 'cpu', s.total_cpu_percent || 0);
+          pushSparkPoint('_cluster', 'mem', s.total_mem_percent || 0);
+          var cpuColor = healthBarColor(s.total_cpu_percent || 0, CLUSTER_CPU_WARN_PCT, CLUSTER_CPU_DANGER_PCT);
+          var memColor = healthBarColor(s.total_mem_percent || 0, CLUSTER_MEM_WARN_PCT, CLUSTER_MEM_DANGER_PCT);
+          summaryBar.innerHTML = (s.total_nodes || 0) + ' nodes · ' + (s.total_cpu_cores || 0) + ' vCPU · ' +
+            renderUnicodeSparkline('_cluster', 'cpu', cpuColor) + ' <span style="color:' + cpuColor + '">' + (s.total_cpu_percent || 0) + '% cpu</span> · ' +
+            renderUnicodeSparkline('_cluster', 'mem', memColor) + ' <span style="color:' + memColor + '">' + (s.total_mem_percent || 0) + '% mem</span> · ' +
+            (s.hive_count || 0) + ' hives';
         }
 
         var body = document.getElementById('cluster-health-body');
@@ -3335,22 +3368,24 @@ const dashboardHTML = `<!DOCTYPE html>
         }
 
         grid.innerHTML = nodes.map(function(n) {
+          var nk = n.name;
           var readyBadge = (n.conditions || []).indexOf('Ready') >= 0
             ? '<span style="color:var(--green);font-size:0.7rem;font-weight:600">Ready</span>'
             : '<span style="color:var(--red);font-size:0.7rem;font-weight:600">NotReady</span>';
           var diskWarn = n.disk_pressure
-            ? '<div style="margin-top:6px;padding:4px 8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:4px;font-size:0.7rem;color:var(--red)">Disk Pressure</div>'
+            ? '<div style="margin-top:6px;padding:4px 8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:4px;font-size:0.7rem;color:var(--red)">⚠ Disk Pressure</div>'
             : '';
+          var cpuUsed = (n.cpu_used_millicores / 1000).toFixed(1);
+          var memUsedGB = (n.mem_used_mb / 1024).toFixed(1);
+          var memTotalGB = Math.round(n.mem_total_mb / 1024);
           return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
-            '<span style="font-family:monospace;font-size:0.8rem;color:var(--text)">' + esc(n.name) + '</span>' +
-            readyBadge +
-            '</div>' +
-            '<div style="margin-bottom:6px"><span style="font-size:0.7rem;color:var(--muted)">CPU (' + n.cpu_cores + ' cores)</span>' + renderHealthBar(n.cpu_percent, CLUSTER_CPU_WARN_PCT, CLUSTER_CPU_DANGER_PCT) + '</div>' +
-            '<div style="margin-bottom:6px"><span style="font-size:0.7rem;color:var(--muted)">Memory (' + Math.round(n.mem_total_mb / 1024) + ' GB)</span>' + renderHealthBar(n.mem_percent, CLUSTER_MEM_WARN_PCT, CLUSTER_MEM_DANGER_PCT) + '</div>' +
-            '<div style="display:flex;align-items:center;gap:8px;margin-top:8px">' +
-            '<span style="padding:2px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:0.7rem;color:var(--muted)">' + (n.pods || 0) + '/' + (n.pod_capacity || 0) + ' pods</span>' +
-            '</div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+            '<span style="font-family:monospace;font-size:0.8rem;color:var(--text)">' + esc(nk) + '</span>' +
+            '<span style="display:flex;align-items:center;gap:6px">' + readyBadge +
+            '<span style="padding:2px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:0.65rem;color:var(--muted)">' + (n.pods || 0) + '/' + (n.pod_capacity || 0) + ' pods</span>' +
+            '</span></div>' +
+            renderHealthMetric('CPU', cpuUsed, n.cpu_cores, 'cores', n.cpu_percent, CLUSTER_CPU_WARN_PCT, CLUSTER_CPU_DANGER_PCT, nk, 'cpu') +
+            renderHealthMetric('MEM', memUsedGB, memTotalGB, 'GB', n.mem_percent, CLUSTER_MEM_WARN_PCT, CLUSTER_MEM_DANGER_PCT, nk, 'mem') +
             diskWarn +
             '</div>';
         }).join('');

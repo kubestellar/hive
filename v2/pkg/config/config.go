@@ -148,6 +148,9 @@ type AgentConfig struct {
 
 	// clearOnKickSet tracks whether YAML explicitly set clear_on_kick to false
 	clearOnKickSet bool
+	// enabledSet tracks whether YAML explicitly set enabled (distinguishes
+	// "not specified" from "enabled: false").
+	enabledSet bool
 	// name is the YAML map key, set during config load
 	name string
 }
@@ -190,14 +193,22 @@ func (a *AgentConfig) UnmarshalYAML(value *yaml.Node) error {
 	if err := value.Decode((*plain)(a)); err != nil {
 		return err
 	}
-	// Check if clear_on_kick was explicitly present in YAML
+	// Check if clear_on_kick / enabled were explicitly present in YAML
 	for i := 0; i < len(value.Content)-1; i += 2 {
-		if value.Content[i].Value == "clear_on_kick" {
+		switch value.Content[i].Value {
+		case "clear_on_kick":
 			a.clearOnKickSet = true
-			break
+		case "enabled":
+			a.enabledSet = true
 		}
 	}
 	return nil
+}
+
+// EnabledExplicitlySet returns true when the user's YAML explicitly set the
+// "enabled" field (allowing us to distinguish "not specified" from "enabled: false").
+func (a *AgentConfig) EnabledExplicitlySet() bool {
+	return a.enabledSet
 }
 
 type GovernorConfig struct {
@@ -610,7 +621,8 @@ func (c *Config) applyDefaults() {
 		if agent.BeadsDir == "" {
 			agent.BeadsDir = fmt.Sprintf("/data/beads/%s", name)
 		}
-		if !agent.Enabled {
+		// Default to enabled unless the user explicitly set enabled: false.
+		if !agent.Enabled && !agent.enabledSet {
 			agent.Enabled = true
 		}
 		if !agent.clearOnKickSet {

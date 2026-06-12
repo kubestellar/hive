@@ -532,6 +532,11 @@
     body.light-mode .model-chip.opus { background: #fef2f2; color: #dc2626; }
     body.light-mode .model-chip.sonnet { background: #fefce8; color: #ca8a04; }
     body.light-mode .model-chip.haiku { background: #eff6ff; color: #2563eb; }
+    /* Non-Claude model tiers (light mode) */
+    body.light-mode .model-chip.gpt { background: #ecfdf5; color: #047857; }
+    body.light-mode .model-chip.gemini { background: #eff6ff; color: #1d4ed8; }
+    body.light-mode .model-chip.deepseek { background: #f0fdf4; color: #16a34a; }
+    body.light-mode .model-chip.unknown { background: #f3f4f6; color: #6b7280; }
 
     /* Light kick prompt */
     body.light-mode .kick-prompt {
@@ -1033,6 +1038,11 @@
     .model-chip.haiku { background: rgba(88,166,255,0.12); color: var(--blue); }
     .model-chip.sonnet { background: rgba(210,153,34,0.12); color: var(--yellow); }
     .model-chip.opus { background: rgba(248,81,73,0.12); color: var(--red); }
+    /* Non-Claude model tiers */
+    .model-chip.gpt { background: rgba(16,163,127,0.12); color: #10a37f; }
+    .model-chip.gemini { background: rgba(66,133,244,0.12); color: #4285f4; }
+    .model-chip.deepseek { background: rgba(63,185,80,0.12); color: var(--green); }
+    .model-chip.unknown { background: rgba(139,148,158,0.12); color: var(--muted); }
 
     /* Health dots (reused inside ci-maintainer indicators) */
     .health-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
@@ -3630,11 +3640,15 @@
 
     function _modelTier(model) {
       const m = (model || '').toLowerCase();
+      // Claude model families
       if (m.includes('haiku')) return 'haiku';
       if (m.includes('opus')) return 'opus';
       if (m.includes('sonnet')) return 'sonnet';
+      // Non-Claude models
       if (m.startsWith('gpt-')) return 'gpt';
       if (m.startsWith('gemini-')) return 'gemini';
+      if (m.startsWith('deepseek-') || m.startsWith('deepseek/')) return 'deepseek';
+      // Neutral fallback for unrecognized models
       return 'unknown';
     }
 
@@ -3658,7 +3672,7 @@
       const normalized = model.toLowerCase().replace(/\s+/g, '-');
       const shortModel = normalized.replace(/^claude-/, '').replace(/-(\d[\d-]*\d)$/, (_, v) => '-' + v.replace(/-/g, '.'));
       const tier = _modelTier(normalized);
-      const chipCls = tier === 'unknown' ? 'sonnet' : tier;
+      const chipCls = tier;
       const isBudgetOverride = reason && (reason.includes('budget_downgrade') || reason.includes('budget_critical'));
       const overrideIcon = isBudgetOverride ? ' ⬇' : '';
       const overrideTitle = isBudgetOverride ? ` (${reason})` : '';

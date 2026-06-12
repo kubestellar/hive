@@ -71,6 +71,17 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 	for _, pa := range pack.Agents {
 		if existing, exists := s.deps.Config.Agents[pa.Name]; exists {
 			changed := false
+
+			// Merge pack fields as defaults — user overrides take precedence.
+			// Backend/Model: use pack value only if user left it empty.
+			if existing.Backend == "" && pa.Backend != "" {
+				existing.Backend = pa.Backend
+				changed = true
+			}
+			if existing.Model == "" && pa.Model != "" {
+				existing.Model = pa.Model
+				changed = true
+			}
 			if pa.KickTemplate != "" && existing.KickTemplate != pa.KickTemplate {
 				existing.KickTemplate = pa.KickTemplate
 				changed = true
@@ -79,6 +90,25 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 				existing.Mode = pa.Mode
 				changed = true
 			}
+			// Fill in descriptive fields from pack if user didn't set them.
+			if existing.DisplayName == "" && pa.DisplayName != "" {
+				existing.DisplayName = pa.DisplayName
+				changed = true
+			}
+			if existing.Description == "" && pa.Description != "" {
+				existing.Description = pa.Description
+				changed = true
+			}
+			if existing.Role == "" && pa.Role != "" {
+				existing.Role = pa.Role
+				changed = true
+			}
+			if existing.BeadRole == "" && pa.BeadRole != "" {
+				existing.BeadRole = pa.BeadRole
+				changed = true
+			}
+
+			// Respect user's enabled: false — don't override it.
 			if changed {
 				s.deps.Config.Agents[pa.Name] = existing
 				_ = s.deps.AgentMgr.UpdateConfig(pa.Name, existing)
@@ -120,7 +150,8 @@ func (s *Server) ApplyPack(level int) (*ApplyPackResult, error) {
 		finalCfg := s.deps.Config.Agents[pa.Name]
 		s.deps.AgentMgr.AddAgent(pa.Name, finalCfg)
 		// On-demand agents are only triggered explicitly (e.g. by inception).
-		if !pa.OnDemand {
+		// Also skip starting agents the user explicitly disabled.
+		if !pa.OnDemand && finalCfg.Enabled {
 			if err := s.deps.AgentMgr.Start(s.deps.Ctx, pa.Name); err != nil {
 				s.logger.Warn("failed to start agent after pack create", "agent", pa.Name, "error", err)
 			}

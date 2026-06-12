@@ -312,7 +312,8 @@ func TestLeaderboardPageHTML(t *testing.T) {
 		"sort-completed":      "sortable completed column",
 		"Trust Tiers":         "trust tiers reference section",
 		"bg-stars":            "starfield background",
-		"var ENTRIES":         "JavaScript entries data",
+		"var AGENTS":          "JavaScript agent entries data",
+		"var CONTRIBUTORS":    "JavaScript contributor entries data",
 		"toggleSort":          "sort toggle function",
 		"renderRows":          "row rendering function",
 		"hover-card":          "contributor hover card CSS",
@@ -340,9 +341,12 @@ func TestLeaderboardPageEmpty(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	// Empty entries array should be passed to JS
-	if !strings.Contains(body, "var ENTRIES = []") {
-		t.Error("empty page should pass empty ENTRIES array")
+	// Empty entries arrays should be passed to JS
+	if !strings.Contains(body, "var AGENTS = []") {
+		t.Error("empty page should pass empty AGENTS array")
+	}
+	if !strings.Contains(body, "var CONTRIBUTORS = []") {
+		t.Error("empty page should pass empty CONTRIBUTORS array")
 	}
 	if !strings.Contains(body, "/contribute") {
 		t.Error("empty page should link to /contribute")

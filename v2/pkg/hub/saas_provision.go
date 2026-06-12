@@ -52,6 +52,8 @@ type SaaSHive struct {
 	Error           string                 `json:"error,omitempty"`
 	AutoUpgrade     bool                   `json:"auto_upgrade"`
 	PendingRequests []PendingAccessRequest `json:"pending_requests,omitempty"`
+	OCIFileSystemID string                 `json:"oci_file_system_id,omitempty"`
+	OCIExportID     string                 `json:"oci_export_id,omitempty"`
 }
 
 type CreateHiveRequest struct {
@@ -229,8 +231,12 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 	if err != nil {
 		logger.Warn("OCI FSS creation failed — admin must create manually", "hive", h.ID, "error", err)
 	} else {
-		if exportErr := createOCIExport(fsID, exportPath, logger); exportErr != nil {
+		h.OCIFileSystemID = fsID
+		exportID, exportErr := createOCIExport(fsID, exportPath, logger)
+		if exportErr != nil {
 			logger.Warn("OCI export creation failed — admin must create manually", "hive", h.ID, "error", exportErr)
+		} else {
+			h.OCIExportID = exportID
 		}
 	}
 
@@ -265,6 +271,67 @@ func provisionHive(h *SaaSHive, req *CreateHiveRequest, logger *slog.Logger) err
 
 	logger.Info("audit: saas hive provisioned", "hive_id", h.ID, "owner", h.Owner, "org", h.Org)
 	return nil
+}
+
+// deprovisionHive performs best-effort cleanup of all resources associated
+// with a hosted hive: K8s namespace (cascading to deployment, service, ingress,
+// configmap, secret, PVC), cluster-scoped PV, OCI NFS export, OCI file system,
+// and the on-disk SaaS hive record. It also decrements the owner's quota.
+// Order matters: namespace before PV, export before file system.
+// Errors are logged but do not stop the remaining cleanup steps.
+func deprovisionHive(h *SaaSHive, logger *slog.Logger) {
+	hiveID := h.ID
+
+	// Step 1: Delete K8s namespace (cascading delete removes deployment, service,
+	// ingress, configmap, secret, and PVC).
+	ns := "hive-hosted-" + hiveID
+	logger.Info("deprovision: deleting namespace", "namespace", ns)
+	cmd := exec.Command("kubectl", "delete", "namespace", ns, "--ignore-not-found")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		logger.Warn("deprovision: namespace delete failed", "namespace", ns, "output", string(out), "error", err)
+	}
+
+	// Step 2: Delete cluster-scoped PV (not removed by namespace deletion).
+	pvName := "hive-" + hiveID + "-fss-pv"
+	logger.Info("deprovision: deleting PV", "pv", pvName)
+	cmd = exec.Command("kubectl", "delete", "pv", pvName, "--ignore-not-found")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		logger.Warn("deprovision: PV delete failed", "pv", pvName, "output", string(out), "error", err)
+	}
+
+	// Step 3: Delete OCI NFS export (must happen before file system deletion).
+	if h.OCIExportID != "" {
+		logger.Info("deprovision: deleting OCI export", "exportID", h.OCIExportID)
+		if err := deleteOCIExport(h.OCIExportID, logger); err != nil {
+			logger.Warn("deprovision: OCI export delete failed", "exportID", h.OCIExportID, "error", err)
+		}
+	}
+
+	// Step 4: Delete OCI file system (must be empty of exports first).
+	if h.OCIFileSystemID != "" {
+		logger.Info("deprovision: deleting OCI file system", "fileSystemID", h.OCIFileSystemID)
+		if err := deleteOCIFileSystem(h.OCIFileSystemID, logger); err != nil {
+			logger.Warn("deprovision: OCI file system delete failed", "fileSystemID", h.OCIFileSystemID, "error", err)
+		}
+	}
+
+	// Step 5: Remove the on-disk SaaS hive record.
+	hiveDir := filepath.Join(saasHivesDir, hiveID)
+	if err := os.RemoveAll(hiveDir); err != nil {
+		logger.Warn("deprovision: failed to remove hive directory", "path", hiveDir, "error", err)
+	}
+
+	// Step 6: Remove hive from all user records (decrement quota).
+	for _, u := range listAllSaaSUsers() {
+		if _, ok := u.Hives[hiveID]; ok {
+			delete(u.Hives, hiveID)
+			if err := saveSaaSUser(&u); err != nil {
+				logger.Warn("deprovision: failed to update user record", "user", u.GitHubUsername, "error", err)
+			}
+		}
+	}
+
+	logger.Info("audit: hive deprovisioned", "hive_id", hiveID, "owner", h.Owner)
 }
 
 func StartProvisionWatcher(logger *slog.Logger, mu *sync.RWMutex) {

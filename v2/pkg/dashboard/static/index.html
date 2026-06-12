@@ -8029,7 +8029,7 @@ function burnAreaChart() {
     let _configState = { type: null, agent: null, tab: null, data: {}, dirty: {} };
     const _configTabMemory = {};
 
-    const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Pipeline', 'Hooks', 'Restrictions', 'Stats', 'Prompt Template', 'Last Prompt'];
+    const AGENT_CONFIG_TABS = ['General', 'Cadences', 'Pipeline', 'Hooks', 'Restrictions', 'Stats', 'Prompt Template', 'Last Prompt', 'Export'];
     const AGENT_CREATE_TABS = ['General', 'Cadences'];
     const GOVERNOR_CONFIG_TABS = ['General', 'Agents', 'Thresholds', 'Labels', 'Repos', 'Budget', 'Notifications', 'Health', 'Sensing', 'Logging', 'Hub'];
     const PIPELINE_STAGES = ['resolve-beads', 'track-prs', 'stale-check', 'repo-scan', 'coverage-gate', 'prompt-compose', 'budget-check', 'api-collect', 'final-compose'];
@@ -8428,6 +8428,7 @@ function burnAreaChart() {
         case 'Stats': return renderAgentStatsTab(d.stats || []);
         case 'Prompt Template': return renderAgentPromptTemplate();
         case 'Last Prompt': return renderAgentLastPrompt(d.prompt || '');
+        case 'Export': return renderAgentExport();
         default: return '';
       }
     }
@@ -8701,6 +8702,25 @@ function burnAreaChart() {
       let html = '';
       if (isCreate) {
         html += `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px">
+          <div style="font-size:0.78rem;font-weight:600;color:var(--text);margin-bottom:10px">Import Agent Definition</div>
+          <div class="config-field" style="margin-bottom:8px">
+            <label style="font-size:0.72rem">Import from URL</label>
+            <div style="display:flex;gap:6px">
+              <input type="text" id="import-url-input" placeholder="https://raw.githubusercontent.com/..." style="flex:1;font-size:0.72rem">
+              <button onclick="importAgentFromURL()" style="font-size:0.72rem;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:600;border:none;background:var(--cyan);color:#fff;white-space:nowrap">Import</button>
+            </div>
+          </div>
+          <div class="config-field" style="margin-bottom:4px">
+            <label style="font-size:0.72rem">Or paste agent definition</label>
+            <textarea id="import-paste-input" rows="4" style="width:100%;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.7rem;resize:vertical" placeholder="apiVersion: hive.kubestellar.io/v1\nkind: AgentDefinition\n..."></textarea>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+              <span style="font-size:0.65rem;color:var(--muted)">Supports YAML agent definitions</span>
+              <button onclick="importAgentFromPaste()" style="font-size:0.72rem;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:600;border:none;background:var(--cyan);color:#fff">Import</button>
+            </div>
+          </div>
+        </div>
+        <div style="border-bottom:1px solid var(--border);margin-bottom:14px;padding-bottom:4px;font-size:0.7rem;color:var(--muted);text-align:center">or create manually</div>
         <div class="config-field">
           <label>Name <span style="color:#dc2626">*</span> <span class="config-info">i<span class="config-tooltip">The agent's internal name used as its ID, config file name, and tmux session. Lowercase, hyphens allowed.</span></span></label>
           <input type="text" id="cfg-create-name" value="" placeholder="e.g. docs-writer, sec-scanner" onchange="markDirty('_create','name',this.value)">
@@ -8949,24 +8969,41 @@ function burnAreaChart() {
       return html;
     }
 
+    var TEMPLATE_VARS = [
+      {name: '${AGENT_NAME}', desc: 'Agent internal name'},
+      {name: '${AGENT_DISPLAY_NAME}', desc: 'Friendly display name'},
+      {name: '${TIMESTAMP}', desc: 'Current date/time'},
+      {name: '${QUEUE_ISSUES}', desc: 'Actionable issues count'},
+      {name: '${QUEUE_PRS}', desc: 'Actionable PRs count'},
+      {name: '${ISSUE_LIST}', desc: 'Formatted issue list'},
+      {name: '${PR_LIST}', desc: 'Formatted PR list'},
+      {name: '${GH_AUTH}', desc: 'GitHub auth instructions'},
+      {name: '${PROJECT_ORG}', desc: 'Organization name'},
+      {name: '${PROJECT_PRIMARY_REPO}', desc: 'Primary repo path'},
+      {name: '${PROJECT_REPOS_LIST}', desc: 'Comma-separated repos'},
+      {name: '${HIVE_REPO}', desc: 'Hive repository path'},
+      {name: '${HIVE_ID}', desc: 'Hive instance ID'},
+      {name: '${KNOWLEDGE}', desc: 'Knowledge primer section'},
+      {name: '${MERGE_ELIGIBLE}', desc: 'Merge-eligible PR list'},
+      {name: '${AUTHORIZED_REPOS}', desc: 'Monitored repos section'},
+      {name: '${AGENT_LIST}', desc: 'List of enabled agents'},
+    ];
+
+    var _promptTemplateEditorMode = 'edit';
+
     function renderAgentPromptTemplate() {
       const agentName = _configState.agent;
-      const elId = 'prompt-template-content';
+      const editorId = 'prompt-template-editor';
+      const previewId = 'prompt-template-preview';
       const srcId = 'prompt-source-files';
       if (agentName) {
         fetch(`/api/config/agent/${agentName}/prompt`)
           .then(r => r.json())
           .then(data => {
-            const el = document.getElementById(elId);
-            if (el) {
-              const raw = data.prompt || '';
-              if (!raw) { el.textContent = '(no template found — check kick_template in agent config)'; }
-              else { el.innerHTML = formatMarkdownPrompt(raw); }
-            }
             const srcEl = document.getElementById(srcId);
-            if (srcEl && data.sourceFiles && data.sourceFiles.length > 0) {
+            if (srcEl && data.sourceFiles && (data.sourceFiles || []).length > 0) {
               let items = '';
-              for (const sf of data.sourceFiles) {
+              for (const sf of (data.sourceFiles || [])) {
                 const note = sf.note ? ' <span style="color:var(--muted)">(' + esc(sf.note) + ')</span>' : '';
                 items += '<li style="margin:3px 0"><strong style="color:var(--muted);min-width:80px;display:inline-block">' + esc(sf.label) + ':</strong> '
                   + '<a href="' + esc(sf.url) + '" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-family:\'SF Mono\',\'Cascadia Code\',monospace;font-size:0.75rem">' + esc(sf.path) + '</a>'
@@ -8975,17 +9012,197 @@ function burnAreaChart() {
               srcEl.innerHTML = '<ul style="list-style:none;padding:0;margin:0">' + items + '</ul>';
               srcEl.style.display = 'block';
             }
+            const previewEl = document.getElementById(previewId);
+            if (previewEl) {
+              const raw = data.prompt || '';
+              if (!raw) { previewEl.innerHTML = '<span style="color:var(--muted);font-style:italic">(no template found)</span>'; }
+              else { previewEl.innerHTML = formatMarkdownPrompt(raw); }
+            }
+          })
+          .catch(() => {});
+
+        fetch(`/api/config/agent/${agentName}/prompt?raw=1`)
+          .then(r => r.json())
+          .then(data => {
+            const el = document.getElementById(editorId);
+            if (el) { el.value = data.prompt || ''; }
           })
           .catch(() => {});
       }
+
+      const varPickerItems = TEMPLATE_VARS.map(v =>
+        '<button onclick="insertTemplateVar(\'' + v.name.replace(/'/g, "\\'") + '\')" style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:0.7rem;color:var(--text);white-space:nowrap" title="' + esc(v.desc) + '">'
+        + '<code style="color:var(--cyan);font-size:0.68rem">' + esc(v.name) + '</code>'
+        + '<span style="color:var(--muted)">' + esc(v.desc) + '</span>'
+        + '</button>'
+      ).join('');
+
       return `
         <div style="display:flex;flex-direction:column;height:100%">
         <div id="${srcId}" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:10px;flex-shrink:0">
           <div style="font-size:0.7rem;font-weight:600;color:var(--text);margin-bottom:6px">Source files <span style="font-weight:400;color:var(--muted)">(edit these on your fork)</span></div>
         </div>
-        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;flex-shrink:0">Kick template with <code>\${VAR}</code> placeholders resolved from config. This is the policy sent to the agent on each governor kick.</p>
-        <pre class="config-pre config-pre-fill" id="${elId}">${esc('Loading template…')}</pre>
+        <p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;flex-shrink:0">Kick template with <code>$​{VAR}</code> placeholders. Edit the raw template or preview with variables expanded.</p>
+        <div style="display:flex;gap:6px;margin-bottom:8px;flex-shrink:0">
+          <button id="prompt-btn-edit" onclick="switchPromptMode('edit')" style="font-size:0.72rem;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:600;border:1px solid var(--border);background:var(--green);color:#fff">Edit</button>
+          <button id="prompt-btn-preview" onclick="switchPromptMode('preview')" style="font-size:0.72rem;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text)">Preview</button>
+          <div style="flex:1"></div>
+          <button onclick="savePromptTemplate()" style="font-size:0.72rem;padding:4px 14px;border-radius:4px;cursor:pointer;font-weight:600;border:none;background:var(--green);color:#fff">Save Template</button>
+        </div>
+        <textarea id="${editorId}" style="flex:1;min-height:300px;font-family:'SF Mono','Cascadia Code',monospace;font-size:0.75rem;padding:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;resize:vertical;white-space:pre;tab-size:2" placeholder="Loading template...">${esc('Loading...')}</textarea>
+        <div id="${previewId}" class="config-pre config-pre-fill" style="display:none;flex:1;min-height:300px;overflow-y:auto">${esc('Loading preview...')}</div>
+        <div style="margin-top:8px;flex-shrink:0">
+          <div style="font-size:0.7rem;font-weight:600;color:var(--text);margin-bottom:6px">Variable Picker <span style="font-weight:400;color:var(--muted)">(click to insert at cursor)</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:120px;overflow-y:auto;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px">${varPickerItems}</div>
+        </div>
         </div>`;
+    }
+
+    function switchPromptMode(mode) {
+      _promptTemplateEditorMode = mode;
+      var editor = document.getElementById('prompt-template-editor');
+      var preview = document.getElementById('prompt-template-preview');
+      var btnEdit = document.getElementById('prompt-btn-edit');
+      var btnPreview = document.getElementById('prompt-btn-preview');
+      if (!editor || !preview) return;
+      if (mode === 'edit') {
+        editor.style.display = '';
+        preview.style.display = 'none';
+        btnEdit.style.background = 'var(--green)';
+        btnEdit.style.color = '#fff';
+        btnPreview.style.background = 'var(--surface)';
+        btnPreview.style.color = 'var(--text)';
+      } else {
+        editor.style.display = 'none';
+        preview.style.display = '';
+        btnEdit.style.background = 'var(--surface)';
+        btnEdit.style.color = 'var(--text)';
+        btnPreview.style.background = 'var(--green)';
+        btnPreview.style.color = '#fff';
+        fetch('/api/config/agent/' + _configState.agent + '/prompt')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var raw = data.prompt || '';
+            preview.innerHTML = raw ? formatMarkdownPrompt(raw) : '<span style="color:var(--muted)">(no template)</span>';
+          })
+          .catch(function() {});
+      }
+    }
+
+    function insertTemplateVar(varName) {
+      var editor = document.getElementById('prompt-template-editor');
+      if (!editor) return;
+      var start = editor.selectionStart;
+      var end = editor.selectionEnd;
+      var text = editor.value;
+      editor.value = text.substring(0, start) + varName + text.substring(end);
+      var cursorPos = start + varName.length;
+      editor.selectionStart = cursorPos;
+      editor.selectionEnd = cursorPos;
+      editor.focus();
+    }
+
+    function savePromptTemplate() {
+      var editor = document.getElementById('prompt-template-editor');
+      if (!editor) return;
+      var agentName = _configState.agent;
+      if (!agentName) return;
+      fetch('/api/config/agent/' + agentName + '/prompt', {
+        method: 'PUT',
+        headers: _inceptionAuthHeaders(),
+        body: JSON.stringify({ template: editor.value })
+      })
+        .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+        .then(function(result) {
+          if (result.ok) {
+            showToast('Template saved', 'success');
+          } else {
+            showToast(result.data.error || 'Failed to save', 'error');
+          }
+        })
+        .catch(function(err) { showToast('Network error: ' + err.message, 'error'); });
+    }
+
+    function renderAgentExport() {
+      var agentName = _configState.agent;
+      var yamlId = 'export-yaml-content';
+      if (agentName) {
+        fetch('/api/config/agent/' + agentName + '/export')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var el = document.getElementById(yamlId);
+            if (el) { el.value = data.yaml || ''; }
+          })
+          .catch(function() {});
+      }
+      return '<div style="display:flex;flex-direction:column;height:100%">'
+        + '<p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;flex-shrink:0">Portable agent definition in YAML format. Use this to share agents across hive instances.</p>'
+        + '<div style="display:flex;gap:6px;margin-bottom:8px;flex-shrink:0">'
+        + '<button onclick="copyExportYaml()" style="font-size:0.72rem;padding:4px 14px;border-radius:4px;cursor:pointer;font-weight:600;border:none;background:var(--cyan);color:#fff">Copy to Clipboard</button>'
+        + '<button onclick="downloadExportYaml()" style="font-size:0.72rem;padding:4px 14px;border-radius:4px;cursor:pointer;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text)">Download YAML</button>'
+        + '</div>'
+        + '<textarea id="' + yamlId + '" readonly style="flex:1;min-height:300px;font-family:\'SF Mono\',\'Cascadia Code\',monospace;font-size:0.75rem;padding:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;resize:vertical;white-space:pre;tab-size:2">Loading...</textarea>'
+        + '</div>';
+    }
+
+    function copyExportYaml() {
+      var el = document.getElementById('export-yaml-content');
+      if (!el) return;
+      navigator.clipboard.writeText(el.value)
+        .then(function() { showToast('Copied to clipboard', 'success'); })
+        .catch(function() { showToast('Copy failed', 'error'); });
+    }
+
+    function downloadExportYaml() {
+      var el = document.getElementById('export-yaml-content');
+      if (!el) return;
+      var agentName = _configState.agent || 'agent';
+      var blob = new Blob([el.value], {type: 'text/yaml'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = agentName + '.yaml';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function importAgentFromURL() {
+      var urlInput = document.getElementById('import-url-input');
+      if (!urlInput || !urlInput.value.trim()) {
+        showToast('Enter a URL to import from', 'error');
+        return;
+      }
+      _doAgentImport('url', urlInput.value.trim(), '');
+    }
+
+    function importAgentFromPaste() {
+      var pasteInput = document.getElementById('import-paste-input');
+      if (!pasteInput || !pasteInput.value.trim()) {
+        showToast('Paste an agent definition to import', 'error');
+        return;
+      }
+      _doAgentImport('paste', '', pasteInput.value.trim());
+    }
+
+    function _doAgentImport(source, url, content) {
+      fetch('/api/agents/import', {
+        method: 'POST',
+        headers: _inceptionAuthHeaders(),
+        body: JSON.stringify({ source: source, url: url, content: content })
+      })
+        .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+        .then(function(result) {
+          if (result.ok) {
+            showToast('Agent "' + (result.data.name || '') + '" imported', 'success');
+            closeConfigDialog();
+            fetch('/api/status').then(function(r) { return r.json(); }).then(render).catch(function() {});
+          } else {
+            showToast(result.data.error || 'Import failed', 'error');
+          }
+        })
+        .catch(function(err) { showToast('Network error: ' + err.message, 'error'); });
     }
 
     function formatMarkdownPrompt(text) {

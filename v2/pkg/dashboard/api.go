@@ -76,6 +76,8 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 	s.mux.HandleFunc("PUT /api/config/agent/{name}/restrictions", s.handleAgentConfigRestrictions)
 	s.mux.HandleFunc("PUT /api/config/agent/{name}/stats", s.handleAgentConfigStats)
 	s.mux.HandleFunc("GET /api/config/agent/{name}/prompt", s.handleAgentPrompt)
+	s.mux.HandleFunc("PUT /api/config/agent/{name}/prompt", s.handleAgentPromptSave)
+	s.mux.HandleFunc("GET /api/config/agent/{name}/export", s.handleAgentExport)
 	s.mux.HandleFunc("GET /api/config/stat-sources", s.handleStatSources)
 
 	s.mux.HandleFunc("GET /api/config/governor", s.handleGovernorConfigGet)
@@ -93,6 +95,7 @@ func (s *Server) RegisterAPI(deps *Dependencies) {
 
 	s.mux.HandleFunc("GET /api/agents", s.handleAgentsList)
 	s.mux.HandleFunc("POST /api/agents", s.handleAgentCreate)
+	s.mux.HandleFunc("POST /api/agents/import", s.handleAgentImport)
 	s.mux.HandleFunc("DELETE /api/agents/{name}", s.handleAgentDelete)
 
 	s.mux.HandleFunc("GET /api/packs", s.handlePacksList)
@@ -1903,7 +1906,13 @@ func (s *Server) handleAgentPrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template := s.loadPromptTemplate(name)
+	rawParam := r.URL.Query().Get("raw")
+	var template string
+	if rawParam == "1" {
+		template = s.loadPromptTemplateRaw(name)
+	} else {
+		template = s.loadPromptTemplate(name)
+	}
 
 	const repoBaseURL = "https://github.com/kubestellar/hive/blob/v2/"
 	sourceFiles := []map[string]string{}
@@ -1928,6 +1937,217 @@ func (s *Server) handleAgentPrompt(w http.ResponseWriter, r *http.Request) {
 		"prompt":      template,
 		"sourceFiles": sourceFiles,
 	})
+}
+
+// loadPromptTemplateRaw returns the raw template content without variable substitution.
+func (s *Server) loadPromptTemplateRaw(name string) string {
+	templateName := ""
+	if s.deps != nil && s.deps.Config != nil {
+		if ac, ok := s.deps.Config.Agents[name]; ok && ac.KickTemplate != "" {
+			templateName = ac.KickTemplate
+		}
+	}
+	if templateName == "" {
+		templateName = name + ".md"
+	}
+
+	paths := []string{
+		fmt.Sprintf("/data/policies/examples/kubestellar/agents/%s", templateName),
+	}
+	if s.deps != nil && s.deps.Config != nil {
+		policyDir := s.deps.Config.Policies.LocalDir
+		if policyDir != "" {
+			paths = append(paths,
+				fmt.Sprintf("%s/examples/kubestellar/agents/%s", policyDir, templateName),
+				fmt.Sprintf("%s/%s%s", policyDir, s.deps.Config.Policies.Path, templateName),
+			)
+		}
+	}
+	// Check /data/policies first (user-saved templates)
+	userPath := fmt.Sprintf("/data/policies/%s", templateName)
+	if data, err := os.ReadFile(userPath); err == nil {
+		return string(data)
+	}
+	for _, p := range paths {
+		if data, err := os.ReadFile(p); err == nil {
+			return string(data)
+		}
+	}
+	if data, err := policies.DefaultPolicies.ReadFile("defaults/" + templateName); err == nil {
+		return string(data)
+	}
+	return ""
+}
+
+const promptTemplateSaveDir = "/data/policies"
+
+func (s *Server) handleAgentPromptSave(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if _, ok := s.deps.Config.Agents[name]; !ok {
+		jsonError(w, "agent not found", http.StatusNotFound)
+		return
+	}
+
+	var body struct {
+		Template string `json:"template"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		jsonError(w, "invalid body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	templateFileName := name + ".md"
+	if ac, ok := s.deps.Config.Agents[name]; ok && ac.KickTemplate != "" {
+		templateFileName = ac.KickTemplate
+	}
+
+	if err := os.MkdirAll(promptTemplateSaveDir, 0o755); err != nil {
+		jsonError(w, "failed to create policies directory: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	savePath := filepath.Join(promptTemplateSaveDir, templateFileName)
+	if err := os.WriteFile(savePath, []byte(body.Template), 0o644); err != nil {
+		jsonError(w, "failed to save template: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Point the agent's KickTemplate to the saved file
+	agentCfg := s.deps.Config.Agents[name]
+	agentCfg.KickTemplate = templateFileName
+	s.deps.Config.Agents[name] = agentCfg
+
+	if err := s.saveConfig(); err != nil {
+		s.logger.Error("failed to persist config after template save", "agent", name, "error", err)
+	}
+	s.refreshAndPersist()
+
+	s.logger.Info("prompt template saved", "agent", name, "path", savePath)
+	okResponse(w, map[string]string{"status": "saved", "path": savePath})
+}
+
+const exportAPIVersion = "hive.kubestellar.io/v1"
+const exportKind = "AgentDefinition"
+
+func (s *Server) handleAgentExport(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	agentCfg, ok := s.deps.Config.Agents[name]
+	if !ok {
+		jsonError(w, "agent not found", http.StatusNotFound)
+		return
+	}
+
+	rawTemplate := s.loadPromptTemplateRaw(name)
+
+	includeRepos := true
+	if agentCfg.IncludeRepos != nil {
+		includeRepos = *agentCfg.IncludeRepos
+	}
+
+	// Collect cadences from governor modes
+	cadences := map[string]string{}
+	for modeName, modeCfg := range s.deps.Config.Governor.Modes {
+		if c, ok := modeCfg.Cadences[name]; ok {
+			cadences[modeName] = c
+		}
+	}
+
+	yamlContent := s.buildExportYAML(name, agentCfg, cadences, includeRepos, rawTemplate)
+
+	accept := r.Header.Get("Accept")
+	if strings.Contains(accept, "text/yaml") || strings.Contains(accept, "application/yaml") {
+		w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.yaml", name))
+		w.Write([]byte(yamlContent))
+		return
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"name": name,
+		"yaml": yamlContent,
+	})
+}
+
+func (s *Server) buildExportYAML(name string, cfg config.AgentConfig, cadences map[string]string, includeRepos bool, promptTemplate string) string {
+	var b strings.Builder
+
+	b.WriteString(fmt.Sprintf("apiVersion: %s\n", exportAPIVersion))
+	b.WriteString(fmt.Sprintf("kind: %s\n", exportKind))
+	b.WriteString("metadata:\n")
+	b.WriteString(fmt.Sprintf("  name: %s\n", name))
+	if cfg.DisplayName != "" {
+		b.WriteString(fmt.Sprintf("  displayName: %q\n", cfg.DisplayName))
+	}
+	if cfg.Description != "" {
+		b.WriteString(fmt.Sprintf("  description: %q\n", cfg.Description))
+	}
+	if cfg.Emoji != "" {
+		b.WriteString(fmt.Sprintf("  emoji: %q\n", cfg.Emoji))
+	}
+	if cfg.Color != "" {
+		b.WriteString(fmt.Sprintf("  color: %q\n", cfg.Color))
+	}
+	b.WriteString("spec:\n")
+	b.WriteString(fmt.Sprintf("  backend: %s\n", valueOrDefault(cfg.Backend, "copilot")))
+	if cfg.Model != "" {
+		b.WriteString(fmt.Sprintf("  model: %s\n", cfg.Model))
+	}
+	if cfg.Role != "" {
+		b.WriteString(fmt.Sprintf("  role: %s\n", cfg.Role))
+	}
+	if cfg.Mode != "" {
+		b.WriteString(fmt.Sprintf("  mode: %s\n", cfg.Mode))
+	}
+	b.WriteString(fmt.Sprintf("  sortOrder: %d\n", cfg.SortOrder))
+	b.WriteString(fmt.Sprintf("  beadRole: %s\n", cfg.GetBeadRole()))
+	b.WriteString(fmt.Sprintf("  staleTimeout: %d\n", cfg.StaleTimeout))
+	b.WriteString(fmt.Sprintf("  restartStrategy: %s\n", valueOrDefault(cfg.RestartStrategy, "immediate")))
+	b.WriteString(fmt.Sprintf("  clearOnKick: %t\n", cfg.ClearOnKick))
+	b.WriteString(fmt.Sprintf("  includeRepos: %t\n", includeRepos))
+
+	if len(cfg.LaneKeywords) > 0 {
+		b.WriteString("  laneKeywords:\n")
+		for _, kw := range cfg.LaneKeywords {
+			b.WriteString(fmt.Sprintf("    - %s\n", kw))
+		}
+	}
+	if len(cfg.DetectKeywords) > 0 {
+		b.WriteString("  detectKeywords:\n")
+		for _, kw := range cfg.DetectKeywords {
+			b.WriteString(fmt.Sprintf("    - %s\n", kw))
+		}
+	}
+	if len(cfg.Aliases) > 0 {
+		b.WriteString("  aliases:\n")
+		for _, a := range cfg.Aliases {
+			b.WriteString(fmt.Sprintf("    - %s\n", a))
+		}
+	}
+
+	if len(cadences) > 0 {
+		b.WriteString("  cadences:\n")
+		modeOrder := []string{"idle", "quiet", "busy", "surge"}
+		for _, mode := range modeOrder {
+			if c, ok := cadences[mode]; ok {
+				b.WriteString(fmt.Sprintf("    %s: %s\n", mode, c))
+			}
+		}
+	}
+
+	if promptTemplate != "" {
+		b.WriteString("  promptTemplate: |\n")
+		for _, line := range strings.Split(promptTemplate, "\n") {
+			b.WriteString("    " + line + "\n")
+		}
+	}
+
+	return b.String()
+}
+
+func valueOrDefault(v, dflt string) string {
+	if v != "" {
+		return v
+	}
+	return dflt
 }
 
 func (s *Server) handleStatSources(w http.ResponseWriter, r *http.Request) {

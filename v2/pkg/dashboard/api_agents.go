@@ -1,8 +1,14 @@
 package dashboard
 
 import (
+	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/kubestellar/hive/v2/pkg/config"
 )
@@ -120,6 +126,197 @@ func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("agent deleted via API", "name", name)
 	okResponse(w, map[string]string{"status": "deleted", "agent": name})
+}
+
+// agentDefinition is the portable YAML format for importing/exporting agents.
+type agentDefinition struct {
+	APIVersion string                 `yaml:"apiVersion"`
+	Kind       string                 `yaml:"kind"`
+	Metadata   agentDefinitionMeta    `yaml:"metadata"`
+	Spec       agentDefinitionSpec    `yaml:"spec"`
+}
+
+type agentDefinitionMeta struct {
+	Name        string `yaml:"name"`
+	DisplayName string `yaml:"displayName,omitempty"`
+	Description string `yaml:"description,omitempty"`
+	Emoji       string `yaml:"emoji,omitempty"`
+	Color       string `yaml:"color,omitempty"`
+}
+
+type agentDefinitionSpec struct {
+	Backend         string            `yaml:"backend,omitempty"`
+	Model           string            `yaml:"model,omitempty"`
+	Role            string            `yaml:"role,omitempty"`
+	Mode            string            `yaml:"mode,omitempty"`
+	SortOrder       int               `yaml:"sortOrder,omitempty"`
+	BeadRole        string            `yaml:"beadRole,omitempty"`
+	StaleTimeout    int               `yaml:"staleTimeout,omitempty"`
+	RestartStrategy string            `yaml:"restartStrategy,omitempty"`
+	ClearOnKick     bool              `yaml:"clearOnKick,omitempty"`
+	IncludeRepos    bool              `yaml:"includeRepos,omitempty"`
+	LaneKeywords    []string          `yaml:"laneKeywords,omitempty"`
+	DetectKeywords  []string          `yaml:"detectKeywords,omitempty"`
+	Aliases         []string          `yaml:"aliases,omitempty"`
+	Cadences        map[string]string `yaml:"cadences,omitempty"`
+	PromptTemplate  string            `yaml:"promptTemplate,omitempty"`
+}
+
+const (
+	importMaxURLLen     = 2048
+	importMaxContentLen = 512 * 1024 // 512 KiB
+	importHTTPTimeoutS  = 10
+)
+
+func (s *Server) handleAgentImport(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Source  string `json:"source"`
+		URL     string `json:"url"`
+		Content string `json:"content"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		jsonError(w, "invalid body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var yamlContent string
+	switch body.Source {
+	case "url":
+		if body.URL == "" {
+			jsonError(w, "url is required when source is url", http.StatusBadRequest)
+			return
+		}
+		if len(body.URL) > importMaxURLLen {
+			jsonError(w, fmt.Sprintf("url must be at most %d characters", importMaxURLLen), http.StatusBadRequest)
+			return
+		}
+		client := &http.Client{Timeout: importHTTPTimeoutS * 1e9} // nanoseconds
+		resp, err := client.Get(body.URL)
+		if err != nil {
+			jsonError(w, "failed to fetch URL: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			jsonError(w, fmt.Sprintf("URL returned HTTP %d", resp.StatusCode), http.StatusBadGateway)
+			return
+		}
+		data, err := io.ReadAll(io.LimitReader(resp.Body, importMaxContentLen))
+		if err != nil {
+			jsonError(w, "failed to read URL response: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		yamlContent = string(data)
+
+	case "paste":
+		if body.Content == "" {
+			jsonError(w, "content is required when source is paste", http.StatusBadRequest)
+			return
+		}
+		yamlContent = body.Content
+
+	default:
+		jsonError(w, "source must be 'url' or 'paste'", http.StatusBadRequest)
+		return
+	}
+
+	var def agentDefinition
+	if err := yaml.Unmarshal([]byte(yamlContent), &def); err != nil {
+		jsonError(w, "invalid YAML: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if def.Kind != exportKind {
+		jsonError(w, fmt.Sprintf("expected kind %q, got %q", exportKind, def.Kind), http.StatusBadRequest)
+		return
+	}
+	if def.Metadata.Name == "" {
+		jsonError(w, "metadata.name is required", http.StatusBadRequest)
+		return
+	}
+
+	name := strings.ToLower(strings.ReplaceAll(def.Metadata.Name, " ", "-"))
+	if strings.ContainsAny(name, " ./\\") || !kickTemplatePattern.MatchString(name+".md") {
+		jsonError(w, "agent name contains invalid characters", http.StatusBadRequest)
+		return
+	}
+	const maxAgentNameLen = 64
+	if len(name) > maxAgentNameLen {
+		jsonError(w, fmt.Sprintf("agent name must be at most %d characters", maxAgentNameLen), http.StatusBadRequest)
+		return
+	}
+
+	if _, exists := s.deps.Config.Agents[name]; exists {
+		jsonError(w, "agent already exists: "+name, http.StatusConflict)
+		return
+	}
+
+	agentsDir := s.deps.Config.Data.AgentsDir
+	if agentsDir == "" {
+		jsonError(w, "agents_dir not configured", http.StatusInternalServerError)
+		return
+	}
+
+	includeRepos := def.Spec.IncludeRepos
+	agentCfg := config.AgentConfig{
+		Backend:         valueOrDefault(def.Spec.Backend, "copilot"),
+		Model:           def.Spec.Model,
+		Enabled:         true,
+		ClearOnKick:     def.Spec.ClearOnKick,
+		StaleTimeout:    def.Spec.StaleTimeout,
+		RestartStrategy: valueOrDefault(def.Spec.RestartStrategy, "immediate"),
+		DisplayName:     def.Metadata.DisplayName,
+		Description:     def.Metadata.Description,
+		Role:            def.Spec.Role,
+		SortOrder:       def.Spec.SortOrder,
+		Emoji:           def.Metadata.Emoji,
+		Color:           def.Metadata.Color,
+		LaneKeywords:    def.Spec.LaneKeywords,
+		DetectKeywords:  def.Spec.DetectKeywords,
+		Aliases:         def.Spec.Aliases,
+		Mode:            def.Spec.Mode,
+		BeadRole:        valueOrDefault(def.Spec.BeadRole, "worker"),
+		IncludeRepos:    &includeRepos,
+		Managed:         true,
+	}
+
+	if err := config.SaveAgentFile(agentsDir, name, agentCfg); err != nil {
+		s.logger.Error("failed to save imported agent file", "agent", name, "error", err)
+		jsonError(w, "failed to save agent: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Save prompt template if provided
+	if def.Spec.PromptTemplate != "" {
+		templateFileName := name + ".md"
+		agentCfg.KickTemplate = templateFileName
+
+		if err := os.MkdirAll(promptTemplateSaveDir, 0o755); err != nil {
+			s.logger.Error("failed to create policies dir for import", "error", err)
+		} else {
+			savePath := filepath.Join(promptTemplateSaveDir, templateFileName)
+			if err := os.WriteFile(savePath, []byte(def.Spec.PromptTemplate), 0o644); err != nil {
+				s.logger.Error("failed to save imported prompt template", "agent", name, "error", err)
+			}
+		}
+
+		// Re-save agent with updated KickTemplate
+		if err := config.SaveAgentFile(agentsDir, name, agentCfg); err != nil {
+			s.logger.Error("failed to re-save agent with template", "agent", name, "error", err)
+		}
+	}
+
+	s.deps.Config.Agents[name] = agentCfg
+	s.deps.Config.ApplyAgentDefaults(name)
+
+	finalCfg := s.deps.Config.Agents[name]
+	s.deps.AgentMgr.AddAgent(name, finalCfg)
+
+	s.reInitSubsystems()
+	s.refreshAndPersist()
+
+	s.logger.Info("agent imported via API", "name", name, "source", body.Source)
+	okResponse(w, map[string]string{"status": "imported", "name": name})
 }
 
 func (s *Server) reInitSubsystems() {

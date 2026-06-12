@@ -257,6 +257,22 @@ func forwardToInference(clientReq *http.Request, clientBody []byte, w http.Respo
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		errBody, _ := io.ReadAll(resp.Body)
+		anthropicErr := map[string]interface{}{
+			"type": "error",
+			"error": map[string]interface{}{
+				"type":    "api_error",
+				"message": fmt.Sprintf("inference backend returned %d: %s", resp.StatusCode, string(errBody)),
+			},
+		}
+		errJSON, _ := json.Marshal(anthropicErr)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		_, writeErr := w.Write(errJSON)
+		return writeErr
+	}
+
 	isStreaming := resp.Header.Get("Content-Type") == "text/event-stream" ||
 		strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream")
 

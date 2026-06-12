@@ -1107,7 +1107,11 @@ func (s *Server) handleLeaderboardPage(w http.ResponseWriter, _ *http.Request) {
 
 	projectName := ""
 	if s.deps != nil && s.deps.Config != nil {
-		projectName = s.deps.Config.Project.Name
+		if s.deps.Config.Project.Org != "" && s.deps.Config.Project.PrimaryRepo != "" {
+			projectName = s.deps.Config.Project.Org + "/" + s.deps.Config.Project.PrimaryRepo
+		} else if s.deps.Config.Project.Name != "" {
+			projectName = s.deps.Config.Project.Name
+		}
 	}
 	projectName = html.EscapeString(projectName)
 	if projectName == "" {
@@ -1235,7 +1239,7 @@ border-radius:12px;border:1px solid rgba(255,255,255,0.1);overflow:visible}
 /* ── Table header ── */
 .table-header{display:none;padding:12px 24px;border-bottom:1px solid rgba(255,255,255,0.05);
 font-size:.75rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
-@media(min-width:640px){.table-header{display:grid;grid-template-columns:60px 1fr 100px 140px 80px}}
+@media(min-width:640px){.table-header{display:grid;grid-template-columns:1fr 100px 140px 80px}}
 .table-header .sortable{cursor:pointer;transition:color .2s;user-select:none}
 .table-header .sortable:hover{color:#fff}
 .table-header .sortable.active{color:#facc15}
@@ -1243,7 +1247,7 @@ font-size:.75rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
 /* ── Row ── */
 .row{display:grid;grid-template-columns:1fr;gap:8px;padding:16px;
 border-bottom:1px solid rgba(255,255,255,0.05);transition:background .15s;align-items:center}
-@media(min-width:640px){.row{grid-template-columns:60px 1fr 100px 140px 80px;gap:16px;padding:16px 24px}}
+@media(min-width:640px){.row{grid-template-columns:1fr 100px 140px 80px;gap:16px;padding:16px 24px}}
 .row:last-child{border-bottom:none}
 .row:hover{background:rgba(255,255,255,0.02)}
 
@@ -1380,7 +1384,6 @@ font-size:.875rem;font-weight:500;text-decoration:none;transition:opacity .2s}
     <div class="table-wrap">
       <div class="section-header">%s AI Agents</div>
       <div class="table-header">
-        <div style="text-align:center">Rank</div>
         <div>Participant</div>
         <div class="sortable" style="text-align:center;white-space:nowrap" id="sort-findings" onclick="toggleSort('findings')">Findings</div>
         <div class="sortable active" style="text-align:center;white-space:nowrap" id="sort-completed" onclick="toggleSort('completed')">Completed &#x25BC;</div>
@@ -1497,13 +1500,11 @@ function buildRow(e, isAgent) {
     + '</div>';
 
   return '<div class="' + rowClass + '">'
-    + '<div class="rank-cell">' + rankHTML(e._rank) + '</div>'
     + '<div class="contributor">'
-    +   '<img src="' + e.avatar + '" alt="' + e.login + '" width="32" height="32" loading="lazy">'
+    +   (isAgent ? '' : '<img src="' + e.avatar + '" alt="' + e.login + '" width="32" height="32" loading="lazy">')
     +   '<div class="hover-card-anchor">'
     +     namePrefix
-    +     '<a class="name" href="https://github.com/' + e.login + '" target="_blank" rel="noopener">' + e.login + '</a>'
-    +     (isAgent ? '' : '<a class="gh-icon" href="https://github.com/' + e.login + '" target="_blank" rel="noopener" title="View on GitHub">' + ghIcon() + '</a>')
+    +     (isAgent ? '<span class="name">' + e.login + '</span>' : '<a class="name" href="https://github.com/' + e.login + '" target="_blank" rel="noopener">' + e.login + '</a><a class="gh-icon" href="https://github.com/' + e.login + '" target="_blank" rel="noopener" title="View on GitHub">' + ghIcon() + '</a>')
     +     hoverCard
     +   '</div>'
     + '</div>'

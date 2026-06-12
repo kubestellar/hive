@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kubestellar/hive/v2/pkg/beads"
@@ -369,9 +370,11 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		if len(latestShort) > shortHashLen {
 			latestShort = latestShort[:shortHashLen]
 		}
+		// Only report "behind" if the container image exists on GHCR
+		containerReady := ghcrTagExistsCached(latestShort)
 		resp["latestHash"] = cached
 		resp["latestShort"] = latestShort
-		resp["behind"] = cached != versionHash
+		resp["behind"] = containerReady && cached != versionHash
 	}
 
 	jsonResponse(w, resp)
@@ -386,6 +389,60 @@ func (s *Server) fetchLatestRemoteHash() (string, error) {
 		return "", fmt.Errorf("no context")
 	}
 	return s.deps.GHClient.LatestCommitHash(ctx, "kubestellar", "hive", "v2")
+}
+
+// ghcrTagExistsCached checks whether a container tag exists on ghcr.io/kubestellar/hive,
+// caching the result to avoid repeated network calls on each version poll.
+var (
+	ghcrCacheMu     sync.RWMutex
+	ghcrCacheResult = map[string]bool{}
+	ghcrCacheExpiry = map[string]time.Time{}
+)
+
+const ghcrCacheTTL = 2 * time.Minute
+const ghcrCheckTimeout = 5 * time.Second
+
+func ghcrTagExistsCached(tag string) bool {
+	ghcrCacheMu.RLock()
+	if exp, ok := ghcrCacheExpiry[tag]; ok && time.Now().Before(exp) {
+		result := ghcrCacheResult[tag]
+		ghcrCacheMu.RUnlock()
+		return result
+	}
+	ghcrCacheMu.RUnlock()
+
+	result := ghcrTagExists(tag)
+	ghcrCacheMu.Lock()
+	ghcrCacheResult[tag] = result
+	ghcrCacheExpiry[tag] = time.Now().Add(ghcrCacheTTL)
+	ghcrCacheMu.Unlock()
+	return result
+}
+
+func ghcrTagExists(tag string) bool {
+	client := &http.Client{Timeout: ghcrCheckTimeout}
+	tokenResp, err := client.Get("https://ghcr.io/token?scope=repository:kubestellar/hive:pull")
+	if err != nil {
+		return false
+	}
+	defer tokenResp.Body.Close()
+	var tok struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(tokenResp.Body).Decode(&tok); err != nil {
+		return false
+	}
+
+	manifestURL := fmt.Sprintf("https://ghcr.io/v2/kubestellar/hive/manifests/%s", tag)
+	req, _ := http.NewRequest("HEAD", manifestURL, nil)
+	req.Header.Set("Authorization", "Bearer "+tok.Token)
+	req.Header.Set("Accept", "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {

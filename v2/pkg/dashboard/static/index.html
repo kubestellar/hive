@@ -7839,8 +7839,8 @@ function burnAreaChart() {
           showToast('Upgrade complete!', 'success');
           html += ' <span style="color:#22c55e" title="Up to date with remote">✓</span>';
         } else if (v.behind) {
-          html += ` <span class="git-behind" title="Latest: ${escapeHtml(v.latestShort || '?')}">⬆ behind</span>`;
-          html += ` <button id="spoke-upgrade-btn" onclick="selfUpgrade('${escapeHtml(v.latestHash || '')}')" style="padding:3px 10px;font-size:0.7rem;background:#238636;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:6px;white-space:nowrap" title="Upgrade to latest">Upgrade</button>`;
+          html += ` <span class="git-behind" title="Current: ${escapeHtml(v.short || '?')} → Latest: ${escapeHtml(v.latestShort || '?')}">⬆ behind</span>`;
+          html += ` <button id="spoke-upgrade-btn" onclick="selfUpgrade('${escapeHtml(v.latestHash || '')}')" style="padding:3px 10px;font-size:0.7rem;background:#238636;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:6px;white-space:nowrap" title="Current: ${escapeHtml(v.short || '?')} → Latest: ${escapeHtml(v.latestShort || '?')}">Upgrade</button>`;
         } else if (v.latestHash) {
           html += ' <span style="color:#22c55e" title="Up to date with remote">✓</span>';
         }
